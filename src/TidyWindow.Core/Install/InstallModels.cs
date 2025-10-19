@@ -11,7 +11,8 @@ public sealed record InstallPackageDefinition(
     bool RequiresAdmin,
     string Summary,
     string? Homepage,
-    ImmutableArray<string> Tags)
+    ImmutableArray<string> Tags,
+    ImmutableArray<string> Buckets)
 {
     public bool IsValid => !string.IsNullOrWhiteSpace(Id) && !string.IsNullOrWhiteSpace(Name) && !string.IsNullOrWhiteSpace(Manager) && !string.IsNullOrWhiteSpace(Command);
 }

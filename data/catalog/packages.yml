@@ -351,6 +351,8 @@ packages:
       manager: scoop
       command: "scoop install supershell"
       requiresAdmin: false
+      buckets:
+          - extras
       summary: Enhanced shell helpers for PowerShell.
       homepage: "https://github.com/dahlbyk/supershell"
       tags: [shell]
@@ -630,7 +632,7 @@ packages:
       name: Yarn
       manager: winget
       command: "winget install --id Yarn.Yarn -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      requiresAdmin: true
       summary: Alternative JavaScript package manager.
       homepage: "https://yarnpkg.com"
       tags: [javascript]

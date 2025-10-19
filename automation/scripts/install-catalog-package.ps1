@@ -10,7 +10,8 @@ param(
     [switch] $RequiresAdmin,
     [switch] $Elevated,
     [string] $ResultPath,
-    [string] $PayloadPath
+    [string] $PayloadPath,
+    [string[]] $Buckets
 )
 
 Set-StrictMode -Version Latest
@@ -26,6 +27,7 @@ if (-not [string]::IsNullOrWhiteSpace($PayloadPath) -and (Test-Path -Path $Paylo
         if ($payload.Manager) { $Manager = [string]$payload.Manager }
         if ($payload.Command) { $Command = [string]$payload.Command }
         if ($payload.RequiresAdmin) { $RequiresAdmin = [bool]$payload.RequiresAdmin }
+    if ($payload.Buckets) { $Buckets = @($payload.Buckets | ForEach-Object { [string]$_ }) }
     }
     catch {
         Write-Host "[WARN] Failed to parse payload file. Using provided parameters. $_"
@@ -125,6 +127,78 @@ function Get-TidyPowerShellExecutable {
     throw 'Unable to locate a PowerShell executable to request elevation.'
 }
 
+function Ensure-TidyScoopBuckets {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Buckets
+    )
+
+    if ($null -eq $Buckets -or $Buckets.Length -eq 0) {
+        return
+    }
+
+    $uniqueBuckets = [System.Collections.Generic.List[string]]::new()
+    $bucketSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($bucket in @($Buckets)) {
+        if ([string]::IsNullOrWhiteSpace($bucket)) {
+            continue
+        }
+
+        $trimmed = $bucket.Trim()
+        if ($bucketSet.Add($trimmed)) {
+            [void]$uniqueBuckets.Add($trimmed)
+        }
+    }
+
+    if ($uniqueBuckets.Count -eq 0) {
+        return
+    }
+
+    $existingSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    try {
+        $listResult = & scoop bucket list 2>&1
+        foreach ($line in @($listResult)) {
+            if ([string]::IsNullOrWhiteSpace([string]$line)) {
+                continue
+            }
+
+            $trimmed = ([string]$line).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
+                [void]$existingSet.Add($trimmed)
+            }
+        }
+    }
+    catch {
+        # ignore list failures and attempt to add buckets directly
+    }
+
+    foreach ($bucket in $uniqueBuckets) {
+        if ($existingSet.Contains($bucket)) {
+            continue
+        }
+
+        Write-TidyLog -Level Information -Message "Adding Scoop bucket '$bucket'."
+        $addOutput = & scoop bucket add $bucket 2>&1
+        $exitCode = $LASTEXITCODE
+
+        foreach ($entry in @($addOutput)) {
+            if ([string]::IsNullOrWhiteSpace([string]$entry)) {
+                continue
+            }
+
+            Write-TidyOutput -Message ([string]$entry)
+        }
+
+        if ($exitCode -ne 0) {
+            throw "Failed to add Scoop bucket '$bucket'."
+        }
+
+        [void]$existingSet.Add($bucket)
+    }
+}
+
 function Request-TidyElevation {
     param(
         [Parameter(Mandatory = $true)]
@@ -136,8 +210,13 @@ function Request-TidyElevation {
         [Parameter(Mandatory = $true)]
         [string] $Manager,
         [Parameter(Mandatory = $true)]
-        [string] $Command
+        [string] $Command,
+        [string[]] $Buckets
     )
+
+    if ($null -eq $Buckets) {
+        $Buckets = @()
+    }
 
     $resultTemp = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "tidywindow-install-" + ([System.Guid]::NewGuid().ToString('N')) + '.json')
     $payloadTemp = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "tidywindow-install-" + ([System.Guid]::NewGuid().ToString('N')) + '.payload.json')
@@ -148,6 +227,7 @@ function Request-TidyElevation {
         Manager       = $Manager
         Command       = $Command
         RequiresAdmin = $true
+        Buckets       = $Buckets
     }
 
     $payload | ConvertTo-Json -Depth 5 | Set-Content -Path $payloadTemp -Encoding UTF8
@@ -237,9 +317,25 @@ if ([string]::IsNullOrWhiteSpace($Command)) {
     throw 'Command must be provided.'
 }
 
+$bucketCollector = [System.Collections.Generic.List[string]]::new()
+$bucketSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+foreach ($bucket in @($Buckets)) {
+    if ([string]::IsNullOrWhiteSpace($bucket)) {
+        continue
+    }
+
+    $trimmedBucket = $bucket.Trim()
+    if (-not [string]::IsNullOrWhiteSpace($trimmedBucket) -and $bucketSet.Add($trimmedBucket)) {
+        [void]$bucketCollector.Add($trimmedBucket)
+    }
+}
+
+$Buckets = $bucketCollector.ToArray()
+
 try {
     if ($RequiresAdmin.IsPresent -and -not $Elevated.IsPresent -and -not (Test-TidyAdmin)) {
-        $result = Request-TidyElevation -ScriptPath $callerModulePath -PackageId $PackageId -DisplayName $DisplayName -Manager $Manager -Command $Command
+    $result = Request-TidyElevation -ScriptPath $callerModulePath -PackageId $PackageId -DisplayName $DisplayName -Manager $Manager -Command $Command -Buckets $Buckets
 
         $outputLines = @()
         $resultOutput = Get-TidyResultProperty -Result $result -Name 'Output'
@@ -295,9 +391,15 @@ try {
     }
 
     if ($Manager -ieq 'scoop') {
-        if (-not (Get-Command -Name 'scoop' -ErrorAction SilentlyContinue)) {
+        $scoopCommand = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
+        if (-not $scoopCommand) {
             Write-TidyLog -Level Warning -Message 'Scoop command not detected. Attempting bootstrap.'
             Invoke-Expression "iwr -useb get.scoop.sh | iex"
+            $scoopCommand = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
+        }
+
+        if ($scoopCommand -and $Buckets.Length -gt 0) {
+            Ensure-TidyScoopBuckets -Buckets $Buckets
         }
     }
 

@@ -11,18 +11,19 @@ namespace TidyWindow.Core.Install;
 
 public sealed class InstallCatalogService
 {
-    private readonly Lazy<CatalogSnapshot> _snapshot;
+    private readonly object _snapshotLock = new();
+    private Lazy<CatalogSnapshot> _snapshot;
 
     public InstallCatalogService()
     {
-        _snapshot = new Lazy<CatalogSnapshot>(LoadCatalog, LazyThreadSafetyMode.ExecutionAndPublication);
+        _snapshot = CreateSnapshotFactory();
     }
 
-    public string CatalogPath => _snapshot.Value.SourcePath;
+    public string CatalogPath => GetSnapshot().SourcePath;
 
-    public IReadOnlyList<InstallBundleDefinition> Bundles => _snapshot.Value.Bundles;
+    public IReadOnlyList<InstallBundleDefinition> Bundles => GetSnapshot().Bundles;
 
-    public IReadOnlyList<InstallPackageDefinition> Packages => _snapshot.Value.Packages.Values.ToImmutableArray();
+    public IReadOnlyList<InstallPackageDefinition> Packages => GetSnapshot().Packages.Values.ToImmutableArray();
 
     public bool TryGetPackage(string packageId, out InstallPackageDefinition definition)
     {
@@ -32,7 +33,9 @@ public sealed class InstallCatalogService
             return false;
         }
 
-        if (_snapshot.Value.Packages.TryGetValue(packageId.Trim(), out var found))
+        var snapshot = GetSnapshot();
+
+        if (snapshot.Packages.TryGetValue(packageId.Trim(), out var found))
         {
             definition = found;
             return true;
@@ -59,7 +62,9 @@ public sealed class InstallCatalogService
             return ImmutableArray<InstallPackageDefinition>.Empty;
         }
 
-        if (!_snapshot.Value.BundleLookup.TryGetValue(bundleId, out var bundle))
+        var snapshot = GetSnapshot();
+
+        if (!snapshot.BundleLookup.TryGetValue(bundleId, out var bundle))
         {
             return ImmutableArray<InstallPackageDefinition>.Empty;
         }
@@ -68,7 +73,7 @@ public sealed class InstallCatalogService
 
         foreach (var packageId in bundle.PackageIds)
         {
-            if (_snapshot.Value.Packages.TryGetValue(packageId, out var package))
+            if (snapshot.Packages.TryGetValue(packageId, out var package))
             {
                 results.Add(package);
             }
@@ -85,16 +90,38 @@ public sealed class InstallCatalogService
         }
 
         var builder = ImmutableArray.CreateBuilder<InstallPackageDefinition>();
+        var snapshot = GetSnapshot();
 
         foreach (var id in packageIds.Where(id => !string.IsNullOrWhiteSpace(id)))
         {
-            if (_snapshot.Value.Packages.TryGetValue(id.Trim(), out var definition))
+            if (snapshot.Packages.TryGetValue(id.Trim(), out var definition))
             {
                 builder.Add(definition);
             }
         }
 
         return builder.ToImmutable();
+    }
+
+    private Lazy<CatalogSnapshot> CreateSnapshotFactory()
+    {
+        return new Lazy<CatalogSnapshot>(LoadCatalog, LazyThreadSafetyMode.ExecutionAndPublication);
+    }
+
+    private CatalogSnapshot GetSnapshot()
+    {
+        try
+        {
+            return _snapshot.Value;
+        }
+        catch
+        {
+            lock (_snapshotLock)
+            {
+                _snapshot = CreateSnapshotFactory();
+                return _snapshot.Value;
+            }
+        }
     }
 
     private static string ResolveCatalogPath()
@@ -177,6 +204,14 @@ public sealed class InstallCatalogService
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToImmutableArray();
 
+                var buckets = package.Buckets is null
+                    ? ImmutableArray<string>.Empty
+                    : package.Buckets
+                        .Where(bucket => !string.IsNullOrWhiteSpace(bucket))
+                        .Select(bucket => bucket.Trim())
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToImmutableArray();
+
                 var definition = new InstallPackageDefinition(
                     identifier,
                     package.Name?.Trim() ?? identifier,
@@ -185,7 +220,8 @@ public sealed class InstallCatalogService
                     package.RequiresAdmin,
                     package.Summary?.Trim() ?? string.Empty,
                     string.IsNullOrWhiteSpace(package.Homepage) ? null : package.Homepage.Trim(),
-                    tags);
+                    tags,
+                    buckets);
 
                 if (definition.IsValid)
                 {
@@ -264,5 +300,6 @@ public sealed class InstallCatalogService
         public string? Summary { get; set; }
         public string? Homepage { get; set; }
         public List<string>? Tags { get; set; }
+        public List<string>? Buckets { get; set; }
     }
 }

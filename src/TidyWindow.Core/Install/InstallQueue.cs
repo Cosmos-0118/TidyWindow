@@ -303,6 +303,11 @@ public sealed class InstallQueue : IDisposable
             parameters["RequiresAdmin"] = true;
         }
 
+        if (!package.Buckets.IsDefaultOrEmpty)
+        {
+            parameters["Buckets"] = package.Buckets.ToArray();
+        }
+
         return await _powerShellInvoker.InvokeScriptAsync(_installerScriptPath, parameters, cancellationToken).ConfigureAwait(false);
     }
 

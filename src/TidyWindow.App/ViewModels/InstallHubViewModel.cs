@@ -77,7 +77,18 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
     private void InitializeCatalog()
     {
-        var allPackages = _catalogService.Packages;
+        IReadOnlyList<InstallPackageDefinition> allPackages;
+
+        try
+        {
+            allPackages = _catalogService.Packages;
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.SetStatusMessage($"Install catalog failed to load: {ex.Message}");
+            return;
+        }
+
         var allBundle = InstallBundleItemViewModel.CreateAll(allPackages.Count);
         Bundles.Add(allBundle);
 
