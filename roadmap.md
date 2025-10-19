@@ -8,7 +8,7 @@
 [x] Step 1.4: Scaffold WPF project `src/TidyWindow.App/TidyWindow.App.csproj` with default resources and app manifest.
 [x] Step 1.5: Add shared class library `src/TidyWindow.Core/TidyWindow.Core.csproj` and reference it from the app.
 
-[ ] Step 1.6: Commit the initial skeleton to version control and tag `init-foundation` for reference.
+[x] Step 1.6: Commit the initial skeleton to version control and tag `init-foundation` for reference.
 
 **Build & Run Checkpoint**
 
