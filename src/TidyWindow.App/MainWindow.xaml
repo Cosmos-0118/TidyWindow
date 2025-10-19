@@ -3,10 +3,95 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:TidyWindow.App"
+        xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="TidyWindow"
+        Width="1024"
+        Height="640"
+        MinWidth="900"
+        MinHeight="540">
+    <DockPanel>
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusMessage}"/>
+            </StatusBarItem>
+        </StatusBar>
 
-    </Grid>
+        <Border DockPanel.Dock="Left"
+                Width="260"
+                Background="#F4F6FB"
+                BorderBrush="#D5DBE7"
+                BorderThickness="0,0,1,0">
+            <DockPanel>
+                <StackPanel Margin="16"
+                            DockPanel.Dock="Top">
+                    <TextBlock Text="TidyWindow"
+                               FontSize="20"
+                               FontWeight="Bold"/>
+                    <TextBlock Text="System care cockpit"
+                               FontSize="12"
+                               Foreground="#606783"/>
+                </StackPanel>
+                <ListBox ItemsSource="{Binding NavigationItems}"
+                         SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+                         BorderThickness="0"
+                         Background="Transparent"
+                         Margin="8">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding"
+                                    Value="0"/>
+                            <Setter Property="HorizontalContentAlignment"
+                                    Value="Stretch"/>
+                            <Setter Property="Background"
+                                    Value="Transparent"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="ItemBorder"
+                                                CornerRadius="6"
+                                                Background="Transparent">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsSelected"
+                                                    Value="True">
+                                                <Setter TargetName="ItemBorder"
+                                                        Property="Background"
+                                                        Value="#E0E7FF"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver"
+                                                    Value="True">
+                                                <Setter TargetName="ItemBorder"
+                                                        Property="Background"
+                                                        Value="#EDF1FF"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:NavigationItemViewModel}">
+                            <StackPanel Margin="12,8">
+                                <TextBlock Text="{Binding Title}"
+                                        FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding Description}"
+                                           FontSize="11"
+                                           Foreground="#6B738A"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <Frame x:Name="ContentFrame"
+               NavigationUIVisibility="Hidden"
+               Margin="0"
+               Background="White"/>
+    </DockPanel>
 </Window>

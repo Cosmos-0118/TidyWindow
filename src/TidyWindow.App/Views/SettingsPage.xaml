@@ -1,0 +1,22 @@
+<Page x:Class="TidyWindow.App.Views.SettingsPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      mc:Ignorable="d"
+      Title="Settings">
+    <Grid Margin="24">
+        <StackPanel>
+            <TextBlock Text="Settings"
+                    FontSize="26"
+                    FontWeight="Bold"/>
+            <TextBlock Text="Personalize TidyWindow"
+                    FontSize="14"
+                    Margin="0,4,0,16"
+                    Foreground="#666"/>
+            <CheckBox Content="Enable telemetry (opt-in)"
+                      IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}"
+                      FontSize="14"/>
+        </StackPanel>
+    </Grid>
+</Page>

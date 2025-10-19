@@ -1,13 +1,7 @@
-﻿using System.Text;
-using System.Windows;
+﻿using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
+using TidyWindow.App.Services;
+using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App;
 
@@ -16,8 +10,21 @@ namespace TidyWindow.App;
 /// </summary>
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly NavigationService _navigationService;
+    private readonly MainViewModel _viewModel;
+
+    public MainWindow(MainViewModel viewModel, NavigationService navigationService)
     {
         InitializeComponent();
+        _navigationService = navigationService;
+        _viewModel = viewModel;
+        DataContext = _viewModel;
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        _navigationService.Initialize(ContentFrame);
+        _viewModel.Activate();
     }
 }
