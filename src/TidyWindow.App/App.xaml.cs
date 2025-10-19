@@ -4,6 +4,8 @@ using Microsoft.Extensions.Hosting;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views;
+using TidyWindow.Core.Automation;
+using TidyWindow.Core.PackageManagers;
 
 namespace TidyWindow.App;
 
@@ -23,11 +25,16 @@ public partial class App : Application
             {
                 services.AddSingleton<NavigationService>();
 
+                services.AddSingleton<PowerShellInvoker>();
+                services.AddSingleton<PackageManagerDetector>();
+
                 services.AddSingleton<MainViewModel>();
+                services.AddTransient<BootstrapViewModel>();
                 services.AddTransient<DashboardViewModel>();
                 services.AddTransient<TasksViewModel>();
                 services.AddTransient<SettingsViewModel>();
 
+                services.AddTransient<BootstrapPage>();
                 services.AddTransient<DashboardPage>();
                 services.AddTransient<TasksPage>();
                 services.AddTransient<SettingsPage>();

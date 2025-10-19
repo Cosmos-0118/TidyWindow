@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Management.Automation;
-using System.Text;
+using System.Management.Automation.Runspaces;
 
 namespace TidyWindow.Core.Automation;
 
@@ -25,16 +25,43 @@ public sealed class PowerShellInvoker
             throw new FileNotFoundException("The specified PowerShell script was not found.", scriptPath);
         }
 
-        using PowerShell ps = PowerShell.Create();
+        var initialState = InitialSessionState.CreateDefault();
 
-        string scriptContent = await File.ReadAllTextAsync(scriptPath, cancellationToken).ConfigureAwait(false);
-        ps.AddScript(scriptContent);
+        var executionPolicyProperty = typeof(InitialSessionState).GetProperty("ExecutionPolicy");
+        if (executionPolicyProperty?.CanWrite == true)
+        {
+            var bypassValue = Enum.Parse(executionPolicyProperty.PropertyType, "Bypass");
+            executionPolicyProperty.SetValue(initialState, bypassValue);
+        }
+
+        using var runspace = RunspaceFactory.CreateRunspace(initialState);
+        runspace.Open();
+
+        var scriptDirectory = Path.GetDirectoryName(scriptPath);
+        if (!string.IsNullOrEmpty(scriptDirectory))
+        {
+            runspace.SessionStateProxy.Path.SetLocation(scriptDirectory);
+        }
+
+        using PowerShell ps = PowerShell.Create();
+        ps.Runspace = runspace;
+
+        var command = new Command(scriptPath, isScript: true, useLocalScope: false);
+        ps.Commands.AddCommand(command);
 
         if (parameters is not null)
         {
             foreach (var kvp in parameters)
             {
-                ps.AddParameter(kvp.Key, kvp.Value);
+                if (kvp.Value is bool boolValue)
+                {
+                    var switchValue = new SwitchParameter(boolValue);
+                    command.Parameters.Add(new CommandParameter(kvp.Key, switchValue));
+                }
+                else
+                {
+                    command.Parameters.Add(new CommandParameter(kvp.Key, kvp.Value));
+                }
             }
         }
 

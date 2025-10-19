@@ -6,3 +6,5 @@ obj/
 *.userprefs
 *.DS_Store
 Thumbs.db
+
+.fake

@@ -4,19 +4,35 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       mc:Ignorable="d"
+      Background="Transparent"
       Title="Settings">
-    <Grid Margin="24">
+    <Grid Margin="32">
         <StackPanel>
             <TextBlock Text="Settings"
-                    FontSize="26"
-                    FontWeight="Bold"/>
+                       FontSize="30"
+                       FontWeight="Bold"
+                       Foreground="#F9FAFB"/>
             <TextBlock Text="Personalize TidyWindow"
-                    FontSize="14"
-                    Margin="0,4,0,16"
-                    Foreground="#666"/>
-            <CheckBox Content="Enable telemetry (opt-in)"
-                      IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}"
-                      FontSize="14"/>
+                       FontSize="14"
+                       Margin="0,6,0,20"
+                       Foreground="#94A3B8"/>
+            <Border Background="#16213C"
+                    Padding="20"
+                    CornerRadius="14"
+                    BorderBrush="#1D2A44"
+                    BorderThickness="1">
+                <StackPanel>
+                    <CheckBox Content="Enable telemetry (opt-in)"
+                              IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}"
+                              FontSize="14"
+                              Foreground="#E2E8F0"
+                              Margin="0,0,0,12"/>
+                    <TextBlock Text="Telemetry helps surface anonymized diagnostics so you can spot issues early."
+                               Foreground="#A5B4FC"
+                               FontSize="12"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
         </StackPanel>
     </Grid>
 </Page>

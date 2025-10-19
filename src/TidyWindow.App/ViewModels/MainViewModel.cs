@@ -18,6 +18,7 @@ public sealed class MainViewModel : ViewModelBase
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>
         {
+            new("Bootstrap", "Verify package managers and get ready", typeof(BootstrapPage)),
             new("Dashboard", "Overview of health and quick actions", typeof(DashboardPage)),
             new("Tasks", "Track queued and completed maintenance jobs", typeof(TasksPage)),
             new("Settings", "Configure preferences and integrations", typeof(SettingsPage))
@@ -42,6 +43,11 @@ public sealed class MainViewModel : ViewModelBase
     {
         get => _statusMessage;
         private set => SetProperty(ref _statusMessage, value);
+    }
+
+    public void SetStatusMessage(string message)
+    {
+        StatusMessage = string.IsNullOrWhiteSpace(message) ? "Ready" : message;
     }
 
     public void Activate()

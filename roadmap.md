@@ -56,11 +56,11 @@
 
 ## Environment Bootstrapper
 
-[ ] Step 5.1: Implement detection logic `src/TidyWindow.Core/PackageManagers/Detector.cs` using the PowerShell invoker.
-[ ] Step 5.2: Create view model `src/TidyWindow.App/ViewModels/BootstrapViewModel.cs` with async detect/install commands.
-[ ] Step 5.3: Design UI `Views/BootstrapPage.xaml` showing status cards and action buttons.
-[ ] Step 5.4: Wire success/error notifications into the activity log for bootstrap operations.
-[ ] Step 5.5: Write integration script `automation/scripts/test-bootstrap.ps1` to validate bootstrap flows end-to-end.
+ [x] Step 5.1: Implement detection logic `src/TidyWindow.Core/PackageManagers/PackageManagerDetector.cs` using the PowerShell invoker.
+[x] Step 5.2: Create view model `src/TidyWindow.App/ViewModels/BootstrapViewModel.cs` with async detect/install commands.
+[x] Step 5.3: Design UI `Views/BootstrapPage.xaml` showing status cards and action buttons.
+[x] Step 5.4: Wire success/error notifications into the activity log for bootstrap operations.
+[x] Step 5.5: Write integration script `automation/scripts/test-bootstrap.ps1` to validate bootstrap flows end-to-end.
 
 **Build & Run Checkpoint**
 

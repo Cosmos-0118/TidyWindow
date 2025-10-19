@@ -9,9 +9,32 @@
         Width="1024"
         Height="640"
         MinWidth="900"
-        MinHeight="540">
-    <DockPanel>
-        <StatusBar DockPanel.Dock="Bottom">
+        MinHeight="540"
+        Background="{DynamicResource ShellBackgroundBrush}">
+    <Window.Resources>
+        <SolidColorBrush x:Key="ShellBackgroundBrush"
+                         Color="#0B1120"/>
+        <SolidColorBrush x:Key="NavBackgroundBrush"
+                         Color="#111827"/>
+        <SolidColorBrush x:Key="NavForegroundBrush"
+                         Color="#F8FAFC"/>
+        <SolidColorBrush x:Key="NavMutedBrush"
+                         Color="#94A3B8"/>
+        <SolidColorBrush x:Key="NavSubtleBrush"
+                         Color="#64748B"/>
+        <SolidColorBrush x:Key="AccentBrush"
+                         Color="#22C55E"/>
+        <SolidColorBrush x:Key="HoverBrush"
+                         Color="#7C3AED66"/>
+        <SolidColorBrush x:Key="SurfaceBrush"
+                         Color="#151F32"/>
+        <SolidColorBrush x:Key="ContentBackgroundBrush"
+                         Color="#0F172A"/>
+    </Window.Resources>
+    <DockPanel Background="{DynamicResource ShellBackgroundBrush}">
+        <StatusBar DockPanel.Dock="Bottom"
+                   Background="{DynamicResource NavBackgroundBrush}"
+                   Foreground="{DynamicResource NavForegroundBrush}">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusMessage}"/>
             </StatusBarItem>
@@ -19,24 +42,31 @@
 
         <Border DockPanel.Dock="Left"
                 Width="260"
-                Background="#F4F6FB"
-                BorderBrush="#D5DBE7"
+                Background="{DynamicResource NavBackgroundBrush}"
+                BorderBrush="#1E293B"
                 BorderThickness="0,0,1,0">
             <DockPanel>
-                <StackPanel Margin="16"
+                <StackPanel Margin="20"
                             DockPanel.Dock="Top">
                     <TextBlock Text="TidyWindow"
-                               FontSize="20"
-                               FontWeight="Bold"/>
-                    <TextBlock Text="System care cockpit"
-                               FontSize="12"
-                               Foreground="#606783"/>
+                               FontSize="24"
+                               FontWeight="Bold"
+                               FontFamily="Segoe UI Semibold"
+                               Foreground="{DynamicResource NavForegroundBrush}"/>
+                    <TextBlock FontSize="11"
+                               FontWeight="SemiBold"
+                               TextOptions.TextFormattingMode="Ideal"
+                               Foreground="{DynamicResource NavSubtleBrush}"
+                               Text="SYSTEM CARE COCKPIT"/>
                 </StackPanel>
                 <ListBox ItemsSource="{Binding NavigationItems}"
                          SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
                          BorderThickness="0"
                          Background="Transparent"
-                         Margin="8">
+                         Foreground="{DynamicResource NavForegroundBrush}"
+                         Margin="12"
+                         FontFamily="Segoe UI"
+                         ScrollViewer.VerticalScrollBarVisibility="Hidden">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
                             <Setter Property="Padding"
@@ -45,6 +75,8 @@
                                     Value="Stretch"/>
                             <Setter Property="Background"
                                     Value="Transparent"/>
+                            <Setter Property="Foreground"
+                                    Value="#E2E8F0"/>
                             <Setter Property="Template">
                                 <Setter.Value>
                                     <ControlTemplate TargetType="ListBoxItem">
@@ -55,16 +87,18 @@
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsSelected"
-                                                    Value="True">
+                                                     Value="True">
                                                 <Setter TargetName="ItemBorder"
                                                         Property="Background"
-                                                        Value="#E0E7FF"/>
+                                                        Value="{DynamicResource AccentBrush}"/>
+                                                <Setter Property="Foreground"
+                                                        Value="#07111D"/>
                                             </Trigger>
                                             <Trigger Property="IsMouseOver"
-                                                    Value="True">
+                                                     Value="True">
                                                 <Setter TargetName="ItemBorder"
                                                         Property="Background"
-                                                        Value="#EDF1FF"/>
+                                                        Value="{DynamicResource HoverBrush}"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -74,14 +108,16 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:NavigationItemViewModel}">
-                            <StackPanel Margin="12,8">
+                            <StackPanel Margin="16,10">
                                 <TextBlock Text="{Binding Title}"
-                                        FontWeight="SemiBold"/>
+                                           FontSize="15"
+                                           FontFamily="Segoe UI Semibold"
+                                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}"/>
                                 <TextBlock Text="{Binding Description}"
-                                           FontSize="11"
-                                           Foreground="#6B738A"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource NavMutedBrush}"
                                            TextWrapping="Wrap"
-                                           Margin="0,4,0,0"/>
+                                           Margin="0,6,0,0"/>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
@@ -89,9 +125,14 @@
             </DockPanel>
         </Border>
 
-        <Frame x:Name="ContentFrame"
-               NavigationUIVisibility="Hidden"
-               Margin="0"
-               Background="White"/>
+        <Border Margin="24"
+                Background="{DynamicResource ContentBackgroundBrush}"
+                CornerRadius="18"
+                Padding="0">
+            <Frame x:Name="ContentFrame"
+                   NavigationUIVisibility="Hidden"
+                   Margin="0"
+                   Background="{DynamicResource SurfaceBrush}"/>
+        </Border>
     </DockPanel>
 </Window>

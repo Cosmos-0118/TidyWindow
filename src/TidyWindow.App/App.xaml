@@ -1,8 +1,10 @@
 ﻿<Application x:Class="TidyWindow.App.App"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:TidyWindow.App.Converters"
              xmlns:local="clr-namespace:TidyWindow.App">
     <Application.Resources>
-
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <converters:BooleanToYesNoConverter x:Key="BooleanToYesNoConverter"/>
     </Application.Resources>
 </Application>

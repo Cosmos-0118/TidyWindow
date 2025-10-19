@@ -8,7 +8,7 @@ function Write-TidyLog {
     )
 
     $timestamp = (Get-Date).ToString('u')
-    Write-Output "[$timestamp][$Level] $Message"
+    Write-Host "[$timestamp][$Level] $Message"
 }
 
 function Assert-TidyAdmin {
