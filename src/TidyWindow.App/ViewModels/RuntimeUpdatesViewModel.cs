@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.Core.Install;
 using TidyWindow.Core.Updates;
 
 namespace TidyWindow.App.ViewModels;
@@ -12,6 +14,8 @@ namespace TidyWindow.App.ViewModels;
 public sealed partial class RuntimeUpdatesViewModel : ViewModelBase
 {
     private readonly RuntimeCatalogService _runtimeCatalogService;
+    private readonly InstallCatalogService _installCatalogService;
+    private readonly InstallQueue _installQueue;
     private readonly MainViewModel _mainViewModel;
 
     [ObservableProperty]
@@ -23,9 +27,11 @@ public sealed partial class RuntimeUpdatesViewModel : ViewModelBase
     [ObservableProperty]
     private string _headline = "Monitor runtime dependencies";
 
-    public RuntimeUpdatesViewModel(RuntimeCatalogService runtimeCatalogService, MainViewModel mainViewModel)
+    public RuntimeUpdatesViewModel(RuntimeCatalogService runtimeCatalogService, InstallCatalogService installCatalogService, InstallQueue installQueue, MainViewModel mainViewModel)
     {
         _runtimeCatalogService = runtimeCatalogService;
+        _installCatalogService = installCatalogService;
+        _installQueue = installQueue;
         _mainViewModel = mainViewModel;
 
         Runtimes.CollectionChanged += OnCollectionChanged;
@@ -112,6 +118,9 @@ public sealed partial class RuntimeUpdatesViewModel : ViewModelBase
             Runtimes.Add(new RuntimeUpdateItemViewModel(fallbackStatus));
         }
 
+        ApplyQueueState();
+        QueueRuntimeUpdateCommand.NotifyCanExecuteChanged();
+
         if (scanResult is not null && scanFailure is null)
         {
             LastRefreshed = scanResult.GeneratedAt;
@@ -132,6 +141,7 @@ public sealed partial class RuntimeUpdatesViewModel : ViewModelBase
     private void OnCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         RaiseSummaryProperties();
+        QueueRuntimeUpdateCommand.NotifyCanExecuteChanged();
     }
 
     private void RaiseSummaryProperties()
@@ -141,13 +151,65 @@ public sealed partial class RuntimeUpdatesViewModel : ViewModelBase
         OnPropertyChanged(nameof(MissingRuntimesCount));
         OnPropertyChanged(nameof(SummaryText));
     }
+
+    private void ApplyQueueState()
+    {
+        var activePackageIds = _installQueue.GetSnapshot()
+            .Where(static snapshot => snapshot.IsActive)
+            .Select(static snapshot => snapshot.Package.Id)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var runtime in Runtimes)
+        {
+            if (runtime.InstallPackageId is { } packageId && activePackageIds.Contains(packageId))
+            {
+                runtime.IsQueued = true;
+            }
+            else
+            {
+                runtime.IsQueued = false;
+            }
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanQueueRuntimeUpdate))]
+    private void QueueRuntimeUpdate(RuntimeUpdateItemViewModel? runtime)
+    {
+        if (runtime is null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(runtime.InstallPackageId))
+        {
+            _mainViewModel.SetStatusMessage($"No installer mapping defined for {runtime.DisplayName}.");
+            return;
+        }
+
+        if (!_installCatalogService.TryGetPackage(runtime.InstallPackageId, out var package))
+        {
+            _mainViewModel.SetStatusMessage($"Package '{runtime.InstallPackageId}' is missing from the install catalog.");
+            return;
+        }
+
+        var snapshot = _installQueue.Enqueue(package);
+        runtime.IsQueued = true;
+        QueueRuntimeUpdateCommand.NotifyCanExecuteChanged();
+        _mainViewModel.SetStatusMessage($"Queued update for {snapshot.Package.Name}.");
+    }
+
+    private bool CanQueueRuntimeUpdate(RuntimeUpdateItemViewModel? runtime)
+    {
+        return runtime?.CanQueueUpdate ?? false;
+    }
 }
 
-public sealed class RuntimeUpdateItemViewModel
+public sealed partial class RuntimeUpdateItemViewModel : ObservableObject
 {
     public RuntimeUpdateItemViewModel(RuntimeUpdateStatus status)
     {
-        Status = status;
+        Status = status ?? throw new ArgumentNullException(nameof(status));
     }
 
     public RuntimeUpdateStatus Status { get; }
@@ -172,6 +234,17 @@ public sealed class RuntimeUpdateItemViewModel
 
     public bool IsMissing => Status.IsMissing;
 
+    public string? InstallPackageId => Status.CatalogEntry.InstallPackageId;
+
+    public bool HasQueueAction => Status.HasInstaller;
+
+    [ObservableProperty]
+    private bool _isQueued;
+
+    public bool CanQueueUpdate => IsUpdateAvailable && HasQueueAction && !IsQueued;
+
+    public string QueueButtonLabel => IsQueued ? "Queued" : "Queue update";
+
     public string StateDisplay => State switch
     {
         RuntimeUpdateState.UpToDate => "Up to date",
@@ -179,4 +252,10 @@ public sealed class RuntimeUpdateItemViewModel
         RuntimeUpdateState.NotInstalled => "Not installed",
         _ => "Unknown"
     };
+
+    partial void OnIsQueuedChanged(bool oldValue, bool newValue)
+    {
+        OnPropertyChanged(nameof(CanQueueUpdate));
+        OnPropertyChanged(nameof(QueueButtonLabel));
+    }
 }

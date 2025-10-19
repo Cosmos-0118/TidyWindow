@@ -12,20 +12,21 @@ The catalog is defined in `TidyWindow.Core/Updates/RuntimeCatalogService.cs`. Ea
 
 ## How detection works
 
-1. The app invokes `automation/scripts/check-runtime-updates.ps1` through the shared `PowerShellInvoker`.
+1. The app invokes `automation/scripts/check-runtime-updates.ps1` through the shared `PowerShellInvoker`, passing a JSON payload that describes each tracked runtime.
 2. The script inspects the local machine:
     - `.NET Desktop Runtime` uses `dotnet --list-runtimes` and selects the highest `Microsoft.WindowsDesktop.App` version.
-    - `PowerShell 7` reports the current `$PSVersionTable.PSVersion`.
+    - `PowerShell 7` shells out to `pwsh` so the installed 7.x version is reported even when the check is executed from Windows PowerShell.
     - `Node.js LTS` calls `node --version` when available.
-3. Each result is annotated with a status (`UpToDate`, `UpdateAvailable`, or `NotInstalled`) and the canonical download link defined in the catalog.
-4. The `RuntimeCatalogService` merges the script output with catalog details and exposes a typed model to the WPF layer.
+3. The script queries `winget show` (when available) to capture the latest version exposed by the package feed, falling back to catalog-safe defaults when offline.
+4. Each result is annotated with a status (`UpToDate`, `UpdateAvailable`, `NotInstalled`, or `Unknown`) and the canonical download link defined in the catalog.
+5. The `RuntimeCatalogService` merges the script output with catalog details and exposes a typed model to the WPF layer.
 
 ## Using the page
 
 Open **Runtime updates** from the left navigation. The page presents:
 
 -   A summary banner showing counts of available updates and missing runtimes.
--   A grid with runtime details, detected/expected versions, and a quick link to the official download page.
+-   A grid with runtime details, detected/expected versions, a **Queue update** button (when the runtime maps to an installable package), and a quick link to the official download page.
 -   Color-coded status badges for readability.
 
 Use **Refresh now** to re-run the detection script. The status bar reflects the outcome so you can keep the shell minimized while checks run in the background.

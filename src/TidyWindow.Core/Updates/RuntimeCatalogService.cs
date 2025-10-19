@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Automation;
+using TidyWindow.Core.Install;
 
 namespace TidyWindow.Core.Updates;
 
@@ -15,38 +18,75 @@ namespace TidyWindow.Core.Updates;
 /// </summary>
 public sealed class RuntimeCatalogService
 {
+    public static class RuntimeDetectorKeys
+    {
+        public const string DotNetDesktop = "dotnet-desktop";
+        public const string PowerShell = "powershell";
+        public const string NodeLts = "node-lts";
+    }
+
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
     };
 
     private readonly PowerShellInvoker _powerShellInvoker;
+    private readonly InstallCatalogService _installCatalogService;
 
-    private static readonly ReadOnlyCollection<RuntimeCatalogEntry> _catalog = new(new[]
+    private static readonly Regex WingetIdRegex = new("--id\\s+(?:\"(?<id>[^\"]+)\"|(?<id>[^\\s]+))", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ChocoIdRegex = new("choco\\s+(?:install|upgrade)\\s+(?<id>[^\\s]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex ScoopIdRegex = new("scoop\\s+install\\s+(?<id>[^\\s]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly ReadOnlyCollection<RuntimeCatalogEntry> _baseCatalog = new(new[]
     {
         new RuntimeCatalogEntry(
             id: "dotnet-desktop",
             displayName: ".NET Desktop Runtime",
             vendor: "Microsoft",
             description: "Required for running modern WPF and WinUI applications.",
-            downloadUrl: "https://dotnet.microsoft.com/en-us/download/dotnet"),
+            downloadUrl: "https://dotnet.microsoft.com/en-us/download/dotnet",
+            notes: "Installs Microsoft.WindowsDesktop.App for WPF/WinForms applications.",
+            detectorKey: RuntimeDetectorKeys.DotNetDesktop,
+            manager: "winget",
+            packageIdentifier: "Microsoft.DotNet.DesktopRuntime.8",
+            fallbackLatestVersion: "8.0.10",
+            installPackageId: "dotnet-runtime-8"),
         new RuntimeCatalogEntry(
             id: "powershell",
             displayName: "PowerShell 7",
             vendor: "Microsoft",
             description: "Latest cross-platform automation shell with updated cmdlets and security fixes.",
-            downloadUrl: "https://aka.ms/powershell-release"),
+            downloadUrl: "https://aka.ms/powershell-release",
+            notes: "Provides the latest cross-platform automation shell.",
+            detectorKey: RuntimeDetectorKeys.PowerShell,
+            manager: "winget",
+            packageIdentifier: "Microsoft.PowerShell",
+            fallbackLatestVersion: "7.5.3",
+            installPackageId: "powershell7"),
         new RuntimeCatalogEntry(
             id: "node-lts",
             displayName: "Node.js LTS",
             vendor: "OpenJS Foundation",
             description: "JavaScript tooling runtime used by many CLIs and build pipelines.",
-            downloadUrl: "https://nodejs.org/en/download")
+            downloadUrl: "https://nodejs.org/en/download",
+            notes: "Used by JavaScript tooling and popular CLI experiences.",
+            detectorKey: RuntimeDetectorKeys.NodeLts,
+            manager: "winget",
+            packageIdentifier: "OpenJS.NodeJS.LTS",
+            fallbackLatestVersion: "22.20.0",
+            installPackageId: "nodejs-lts")
     });
 
-    public RuntimeCatalogService(PowerShellInvoker powerShellInvoker)
+    private static readonly JsonSerializerOptions _scriptSerializerOptions = new(_jsonOptions)
     {
-        _powerShellInvoker = powerShellInvoker;
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        WriteIndented = false
+    };
+
+    public RuntimeCatalogService(PowerShellInvoker powerShellInvoker, InstallCatalogService installCatalogService)
+    {
+        _powerShellInvoker = powerShellInvoker ?? throw new ArgumentNullException(nameof(powerShellInvoker));
+        _installCatalogService = installCatalogService ?? throw new ArgumentNullException(nameof(installCatalogService));
     }
 
     /// <summary>
@@ -54,7 +94,131 @@ public sealed class RuntimeCatalogService
     /// </summary>
     public Task<IReadOnlyList<RuntimeCatalogEntry>> GetCatalogAsync()
     {
-        return Task.FromResult<IReadOnlyList<RuntimeCatalogEntry>>(_catalog);
+        var catalog = BuildCatalog();
+        return Task.FromResult<IReadOnlyList<RuntimeCatalogEntry>>(catalog);
+    }
+
+    private IReadOnlyList<RuntimeCatalogEntry> BuildCatalog()
+    {
+        var lookup = new Dictionary<string, RuntimeCatalogEntry>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in _baseCatalog)
+        {
+            lookup[entry.Id] = entry;
+        }
+
+        foreach (var package in _installCatalogService.Packages)
+        {
+            if (!package.Tags.Any(static tag => string.Equals(tag, "runtime", StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            var runtimeEntry = CreateRuntimeEntry(package);
+            if (runtimeEntry is not null)
+            {
+                lookup[runtimeEntry.Id] = runtimeEntry;
+            }
+        }
+
+        return lookup.Values
+            .OrderBy(entry => entry.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static RuntimeCatalogEntry? CreateRuntimeEntry(InstallPackageDefinition definition)
+    {
+        if (definition is null)
+        {
+            return null;
+        }
+
+        var manager = (definition.Manager ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(manager))
+        {
+            return null;
+        }
+
+        var packageIdentifier = ExtractPackageIdentifier(definition);
+        if (string.IsNullOrWhiteSpace(packageIdentifier))
+        {
+            return null;
+        }
+
+        var description = string.IsNullOrWhiteSpace(definition.Summary)
+            ? definition.Name
+            : definition.Summary;
+
+        var notesParts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(definition.Summary))
+        {
+            notesParts.Add(definition.Summary.Trim());
+        }
+
+        notesParts.Add($"Managed via {manager}.");
+
+        return new RuntimeCatalogEntry(
+            id: definition.Id,
+            displayName: definition.Name,
+            vendor: ResolveVendor(manager),
+            description: description,
+            downloadUrl: definition.Homepage ?? "https://",
+            notes: string.Join(" ", notesParts),
+            detectorKey: $"manager:{manager}",
+            manager: manager,
+            packageIdentifier: packageIdentifier,
+            fallbackLatestVersion: null,
+            installPackageId: definition.Id);
+    }
+
+    private static string ResolveVendor(string manager)
+    {
+        var normalized = (manager ?? string.Empty).Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            "winget" => "Microsoft",
+            "choco" => "Chocolatey",
+            "chocolatey" => "Chocolatey",
+            "scoop" => "Scoop",
+            _ => CultureInfo.CurrentCulture.TextInfo.ToTitleCase(normalized)
+        };
+    }
+
+    private static string? ExtractPackageIdentifier(InstallPackageDefinition definition)
+    {
+        var manager = (definition.Manager ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(manager))
+        {
+            return null;
+        }
+
+        var command = definition.Command ?? string.Empty;
+
+        return manager.ToLowerInvariant() switch
+        {
+            "winget" => ExtractWithRegex(command, WingetIdRegex) ?? definition.Id,
+            "choco" => ExtractWithRegex(command, ChocoIdRegex) ?? definition.Id,
+            "chocolatey" => ExtractWithRegex(command, ChocoIdRegex) ?? definition.Id,
+            "scoop" => ExtractWithRegex(command, ScoopIdRegex) ?? definition.Id,
+            _ => definition.Id
+        };
+    }
+
+    private static string? ExtractWithRegex(string? command, Regex regex)
+    {
+        if (string.IsNullOrWhiteSpace(command))
+        {
+            return null;
+        }
+
+        var match = regex.Match(command);
+        if (!match.Success)
+        {
+            return null;
+        }
+
+        var value = match.Groups["id"].Value;
+        return string.IsNullOrWhiteSpace(value) ? null : value.Trim().Trim('"');
     }
 
     /// <summary>
@@ -62,59 +226,91 @@ public sealed class RuntimeCatalogService
     /// </summary>
     public async Task<RuntimeUpdateCheckResult> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
+        var catalog = BuildCatalog();
         var scriptPath = ResolveScriptPath(Path.Combine("automation", "scripts", "check-runtime-updates.ps1"));
 
-        var parameters = new Dictionary<string, object?>
-        {
-            ["RuntimeIds"] = _catalog.Select(static entry => entry.Id).ToArray()
-        };
+        var payloadPath = Path.Combine(Path.GetTempPath(), $"tidywindow-runtime-catalog-{Guid.NewGuid():N}.json");
 
-        var result = await _powerShellInvoker
-            .InvokeScriptAsync(scriptPath, parameters, cancellationToken)
-            .ConfigureAwait(false);
+        var scriptPayload = catalog
+            .Select(entry => new RuntimeCatalogScriptEntry(
+                entry.Id,
+                entry.DisplayName,
+                entry.DownloadUrl,
+                entry.Notes,
+                entry.DetectorKey,
+                entry.Manager,
+                entry.PackageIdentifier,
+                entry.FallbackLatestVersion))
+            .ToList();
 
-        if (!result.IsSuccess)
-        {
-            throw new InvalidOperationException(
-                "Runtime update check failed: " + string.Join(Environment.NewLine, result.Errors));
-        }
+        var payloadJson = JsonSerializer.Serialize(scriptPayload, _scriptSerializerOptions);
+        await File.WriteAllTextAsync(payloadPath, payloadJson, cancellationToken).ConfigureAwait(false);
 
-        var jsonPayload = ExtractJsonPayload(result.Output);
-        if (string.IsNullOrWhiteSpace(jsonPayload))
-        {
-            return new RuntimeUpdateCheckResult(Array.Empty<RuntimeUpdateStatus>(), DateTimeOffset.UtcNow);
-        }
+        var catalogLookup = catalog.ToDictionary(entry => entry.Id, entry => entry, StringComparer.OrdinalIgnoreCase);
 
         try
         {
-            var responses = JsonSerializer.Deserialize<List<RuntimeUpdateStatusJson>>(jsonPayload, _jsonOptions)
-                            ?? new List<RuntimeUpdateStatusJson>();
+            var parameters = new Dictionary<string, object?>
+            {
+                ["RuntimeIds"] = catalog.Select(static entry => entry.Id).ToArray(),
+                ["CatalogPath"] = payloadPath
+            };
 
-            var statuses = responses
-                .Select(Map)
-                .Where(static status => status is not null)
-                .Select(static status => status!)
-                .ToList();
+            var result = await _powerShellInvoker
+                .InvokeScriptAsync(scriptPath, parameters, cancellationToken)
+                .ConfigureAwait(false);
 
-            return new RuntimeUpdateCheckResult(statuses, DateTimeOffset.UtcNow);
+            if (!result.IsSuccess)
+            {
+                throw new InvalidOperationException(
+                    "Runtime update check failed: " + string.Join(Environment.NewLine, result.Errors));
+            }
+
+            var jsonPayload = ExtractJsonPayload(result.Output);
+            if (string.IsNullOrWhiteSpace(jsonPayload))
+            {
+                return new RuntimeUpdateCheckResult(Array.Empty<RuntimeUpdateStatus>(), DateTimeOffset.UtcNow);
+            }
+
+            try
+            {
+                var responses = JsonSerializer.Deserialize<List<RuntimeUpdateStatusJson>>(jsonPayload, _jsonOptions)
+                                ?? new List<RuntimeUpdateStatusJson>();
+
+                var statuses = responses
+                    .Select(response => Map(response, catalogLookup))
+                    .Where(static status => status is not null)
+                    .Select(static status => status!)
+                    .ToList();
+
+                return new RuntimeUpdateCheckResult(statuses, DateTimeOffset.UtcNow);
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidOperationException("Runtime update script returned invalid JSON.", ex);
+            }
         }
-        catch (JsonException ex)
+        finally
         {
-            throw new InvalidOperationException("Runtime update script returned invalid JSON.", ex);
+            try
+            {
+                File.Delete(payloadPath);
+            }
+            catch
+            {
+                // best effort cleanup
+            }
         }
     }
 
-    private RuntimeUpdateStatus? Map(RuntimeUpdateStatusJson json)
+    private RuntimeUpdateStatus? Map(RuntimeUpdateStatusJson json, IReadOnlyDictionary<string, RuntimeCatalogEntry> catalogLookup)
     {
         if (string.IsNullOrWhiteSpace(json.Id))
         {
             return null;
         }
 
-        var catalogEntry = _catalog.FirstOrDefault(entry =>
-            string.Equals(entry.Id, json.Id, StringComparison.OrdinalIgnoreCase));
-
-        if (catalogEntry is null)
+        if (!catalogLookup.TryGetValue(json.Id.Trim(), out var catalogEntry))
         {
             return null;
         }
@@ -125,7 +321,9 @@ public sealed class RuntimeCatalogService
         var downloadUrl = string.IsNullOrWhiteSpace(json.DownloadUrl)
             ? catalogEntry.DownloadUrl
             : json.DownloadUrl!;
-        var notes = json.Notes ?? string.Empty;
+        var notes = string.IsNullOrWhiteSpace(json.Notes)
+            ? catalogEntry.Notes
+            : json.Notes!.Trim();
 
         return new RuntimeUpdateStatus(catalogEntry, state, installed, latest, downloadUrl, notes);
     }
@@ -171,6 +369,16 @@ public sealed class RuntimeCatalogService
         return null;
     }
 
+    private sealed record RuntimeCatalogScriptEntry(
+        string Id,
+        string DisplayName,
+        string DownloadUrl,
+        string Notes,
+        string Detector,
+        string Manager,
+        string? PackageId,
+        string? FallbackLatestVersion);
+
     private static string ResolveScriptPath(string relativePath)
     {
         var baseDirectory = AppContext.BaseDirectory;
@@ -208,13 +416,45 @@ public sealed class RuntimeCatalogService
 
 public sealed class RuntimeCatalogEntry
 {
-    public RuntimeCatalogEntry(string id, string displayName, string vendor, string description, string downloadUrl)
+    public RuntimeCatalogEntry(
+        string id,
+        string displayName,
+        string vendor,
+        string description,
+        string downloadUrl,
+        string notes,
+        string detectorKey,
+        string manager,
+        string? packageIdentifier = null,
+        string? fallbackLatestVersion = null,
+        string? installPackageId = null)
     {
-        Id = string.IsNullOrWhiteSpace(id) ? throw new ArgumentException("Value cannot be null or whitespace.", nameof(id)) : id;
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
+        }
+
+        if (string.IsNullOrWhiteSpace(detectorKey))
+        {
+            throw new ArgumentException("Detector key must be provided.", nameof(detectorKey));
+        }
+
+        if (string.IsNullOrWhiteSpace(manager))
+        {
+            throw new ArgumentException("Manager must be provided.", nameof(manager));
+        }
+
+        Id = id;
         DisplayName = string.IsNullOrWhiteSpace(displayName) ? id : displayName;
         Vendor = vendor ?? string.Empty;
         Description = description ?? string.Empty;
         DownloadUrl = string.IsNullOrWhiteSpace(downloadUrl) ? "https://" : downloadUrl;
+        Notes = notes ?? string.Empty;
+        DetectorKey = detectorKey;
+        Manager = manager.Trim();
+        PackageIdentifier = string.IsNullOrWhiteSpace(packageIdentifier) ? null : packageIdentifier.Trim();
+        FallbackLatestVersion = string.IsNullOrWhiteSpace(fallbackLatestVersion) ? null : fallbackLatestVersion;
+        InstallPackageId = string.IsNullOrWhiteSpace(installPackageId) ? null : installPackageId;
     }
 
     public string Id { get; }
@@ -226,6 +466,20 @@ public sealed class RuntimeCatalogEntry
     public string Description { get; }
 
     public string DownloadUrl { get; }
+
+    public string Notes { get; }
+
+    public string DetectorKey { get; }
+
+    public string Manager { get; }
+
+    public string? PackageIdentifier { get; }
+
+    public string? FallbackLatestVersion { get; }
+
+    public string? InstallPackageId { get; }
+
+    public bool HasInstaller => !string.IsNullOrWhiteSpace(InstallPackageId);
 }
 
 public enum RuntimeUpdateState
@@ -263,6 +517,8 @@ public sealed class RuntimeUpdateStatus
     public bool IsUpdateAvailable => State == RuntimeUpdateState.UpdateAvailable;
 
     public bool IsMissing => State == RuntimeUpdateState.NotInstalled;
+
+    public bool HasInstaller => CatalogEntry.HasInstaller;
 }
 
 public sealed class RuntimeUpdateCheckResult

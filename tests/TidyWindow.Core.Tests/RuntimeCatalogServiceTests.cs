@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using TidyWindow.Core.Automation;
+using TidyWindow.Core.Install;
 using TidyWindow.Core.Updates;
 using Xunit;
 
@@ -12,7 +13,7 @@ public sealed class RuntimeCatalogServiceTests
     [Fact]
     public async Task CheckForUpdatesAsync_ReturnsStatusForCatalogEntries()
     {
-        var service = new RuntimeCatalogService(new PowerShellInvoker());
+        var service = new RuntimeCatalogService(new PowerShellInvoker(), new InstallCatalogService());
 
         var catalog = await service.GetCatalogAsync();
         var result = await service.CheckForUpdatesAsync();

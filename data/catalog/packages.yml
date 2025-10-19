@@ -635,7 +635,7 @@ packages:
       requiresAdmin: true
       summary: Alternative JavaScript package manager.
       homepage: "https://yarnpkg.com"
-      tags: [javascript]
+      tags: [javascript, runtime]
     - id: bun
       name: Bun Runtime
       manager: winget
@@ -643,7 +643,7 @@ packages:
       requiresAdmin: false
       summary: Fast JavaScript runtime and toolkit.
       homepage: "https://bun.sh"
-      tags: [javascript]
+      tags: [javascript, runtime]
     - id: rustup
       name: rustup
       manager: winget
@@ -651,7 +651,7 @@ packages:
       requiresAdmin: false
       summary: Manage Rust toolchains and targets.
       homepage: "https://rustup.rs"
-      tags: [rust]
+      tags: [rust, runtime]
     - id: go-lang
       name: Go
       manager: winget
@@ -659,7 +659,7 @@ packages:
       requiresAdmin: true
       summary: Go programming language toolchain.
       homepage: "https://go.dev"
-      tags: [go]
+      tags: [go, runtime]
     - id: deno
       name: Deno
       manager: winget
@@ -667,7 +667,7 @@ packages:
       requiresAdmin: false
       summary: Secure runtime for JavaScript and TypeScript.
       homepage: "https://deno.com"
-      tags: [javascript]
+      tags: [javascript, runtime]
     - id: dapr-cli
       name: Dapr CLI
       manager: winget
