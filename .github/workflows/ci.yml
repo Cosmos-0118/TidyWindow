@@ -1,0 +1,31 @@
+name: CI
+
+on:
+    workflow_dispatch:
+        inputs:
+            reason:
+                description: "Optional note when manually triggering CI"
+                required: false
+                type: string
+
+jobs:
+    build:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout
+              uses: actions/checkout@v4
+
+            - name: Setup .NET
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: 8.0.x
+
+            - name: Restore
+              run: dotnet restore src/TidyWindow.sln
+
+            - name: Build
+              run: dotnet build src/TidyWindow.sln --configuration Release --no-restore
+
+            - name: Test
+              run: dotnet test src/TidyWindow.sln --configuration Release --no-build

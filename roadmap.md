@@ -30,11 +30,11 @@
 
 ## Automation Layer
 
-[ ] Step 3.1: Scaffold module file `automation/modules/TidyWindow.Automation.psm1` with logging and elevation helpers.
-[ ] Step 3.2: Create script `automation/scripts/bootstrap-package-managers.ps1` with detection stubs for winget, Chocolatey, Scoop, all well know powerful package managers.
-[ ] Step 3.3: Implement invocation bridge `src/TidyWindow.Core/Automation/PowerShellInvoker.cs` using `System.Management.Automation` runspaces for async script execution.
-[ ] Step 3.4: Add unit tests `tests/TidyWindow.Core.Tests/Automation/PowerShellInvokerTests.cs` covering error handling.
-[ ] Step 3.5: Provide usage notes in `docs/automation.md` describing script conventions and parameters.
+[x] Step 3.1: Scaffold module file `automation/modules/TidyWindow.Automation.psm1` with logging and elevation helpers.
+[x] Step 3.2: Create script `automation/scripts/bootstrap-package-managers.ps1` with detection stubs for winget, Chocolatey, Scoop and also all well know powerful package managers.
+[x] Step 3.3: Implement invocation bridge `src/TidyWindow.Core/Automation/PowerShellInvoker.cs` using `System.Management.Automation` runspaces for async script execution.
+[x] Step 3.4: Add unit tests `tests/TidyWindow.Core.Tests/Automation/PowerShellInvokerTests.cs` covering error handling.
+[x] Step 3.5: Provide usage notes in `docs/automation.md` describing script conventions and parameters.
 
 **Build & Run Checkpoint**
 

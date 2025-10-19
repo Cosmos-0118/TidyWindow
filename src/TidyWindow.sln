@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TidyWindow.App", "TidyWindo
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TidyWindow.Core", "TidyWindow.Core\TidyWindow.Core.csproj", "{2CF4B015-7C28-40D2-902D-5474E37D9DBA}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TidyWindow.Core.Tests", "..\tests\TidyWindow.Core.Tests\TidyWindow.Core.Tests.csproj", "{75286F99-7B36-4C44-8C37-9006C28A40CA}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -24,5 +26,9 @@ Global
 		{2CF4B015-7C28-40D2-902D-5474E37D9DBA}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2CF4B015-7C28-40D2-902D-5474E37D9DBA}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2CF4B015-7C28-40D2-902D-5474E37D9DBA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{75286F99-7B36-4C44-8C37-9006C28A40CA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{75286F99-7B36-4C44-8C37-9006C28A40CA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{75286F99-7B36-4C44-8C37-9006C28A40CA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{75286F99-7B36-4C44-8C37-9006C28A40CA}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
