@@ -19,6 +19,7 @@ public sealed class MainViewModel : ViewModelBase
         NavigationItems = new ObservableCollection<NavigationItemViewModel>
         {
             new("Bootstrap", "Verify package managers and get ready", typeof(BootstrapPage)),
+            new("Install hub", "Curated package bundles and install queue", typeof(InstallHubPage)),
             new("Dashboard", "Overview of health and quick actions", typeof(DashboardPage)),
             new("Runtime updates", "Track essential runtimes and apply updates", typeof(RuntimeUpdatesPage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),

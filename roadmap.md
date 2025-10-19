@@ -111,13 +111,13 @@
 
 ## Smart Install Hub
 
-Target a curated list of roughly 30 essential developer packages (Python, Java, GCC/MinGW, Git, Node, etc.) before expanding the catalog.
+Target a curated list of roughly 30 essential developer packages (Python, Java, GCC/MinGW, Git, Node, etc.) before expanding the catalog. they should ask for admin permission if needed.
 
-[ ] Step 9.1: Define package catalog `data/catalog/packages.yml` with bundles and metadata.
-[ ] Step 9.2: Implement queue orchestrator `src/TidyWindow.Core/Install/InstallQueue.cs` with retry semantics.
-[ ] Step 9.3: Build view model `ViewModels/InstallHubViewModel.cs` supporting bundle selection and queue actions.
-[ ] Step 9.4: Design `Views/InstallHubPage.xaml` showing curated bundles and progress indicators.
-[ ] Step 9.5: Add export/import helpers `src/TidyWindow.Core/Install/BundlePresetService.cs` for sharing presets.
+[x] Step 9.1: Define package catalog `data/catalog/packages.yml` with bundles and metadata.
+[x] Step 9.2: Implement queue orchestrator `src/TidyWindow.Core/Install/InstallQueue.cs` with retry semantics.
+[x] Step 9.3: Build view model `ViewModels/InstallHubViewModel.cs` supporting bundle selection and queue actions.
+[x] Step 9.4: Design `Views/InstallHubPage.xaml` showing curated bundles and progress indicators.
+[x] Step 9.5: Add export/import helpers `src/TidyWindow.Core/Install/BundlePresetService.cs` for sharing presets.
 
 **Build & Run Checkpoint**
 

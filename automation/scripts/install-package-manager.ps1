@@ -78,6 +78,40 @@ function Save-TidyResult {
     Set-Content -Path $ResultPath -Value $json -Encoding UTF8
 }
 
+function Get-TidyResultProperty {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Result,
+        [Parameter(Mandatory = $true)]
+        [string] $Name
+    )
+
+    if ($null -eq $Result) {
+        return $null
+    }
+
+    if ($Result -is [System.Collections.IDictionary]) {
+        if ($Result.Contains($Name)) {
+            return $Result[$Name]
+        }
+
+        if ($Result.ContainsKey($Name)) {
+            return $Result[$Name]
+        }
+
+        return $null
+    }
+
+    try {
+        $value = $Result | Select-Object -ExpandProperty $Name -ErrorAction Stop
+        return $value
+    }
+    catch
+    {
+        return $null
+    }
+}
+
 function Test-TidyCommand {
     param(
         [Parameter(Mandatory = $true)]
@@ -151,6 +185,20 @@ function Request-ChocolateyElevation {
     try {
         $json = Get-Content -Path $tempPath -Raw -ErrorAction Stop
         $result = ConvertFrom-Json -InputObject $json -ErrorAction Stop
+        if ($result -is [System.Collections.IEnumerable] -and -not ($result -is [string])) {
+            $resultArray = @($result)
+            if ($resultArray.Count -eq 1) {
+                $result = $resultArray[0]
+            }
+        }
+        elseif ($result -isnot [System.Collections.IDictionary] -and $result -isnot [System.Management.Automation.PSObject]) {
+            $wrappedOutput = if ($null -ne $result) { @($result) } else { @() }
+            $result = [pscustomobject]@{
+                Success = $true
+                Output  = $wrappedOutput
+                Errors  = @()
+            }
+        }
     }
     finally {
         Remove-Item -Path $tempPath -ErrorAction SilentlyContinue
@@ -167,22 +215,41 @@ function Invoke-ChocolateyBootstrap {
             throw 'Failed to capture the elevated Chocolatey result.'
         }
 
-        $outputLines = @($elevationResult.Output)
-        $errorLines = @($elevationResult.Errors)
+        $outputValue = Get-TidyResultProperty -Result $elevationResult -Name 'Output'
+        $errorValue = Get-TidyResultProperty -Result $elevationResult -Name 'Errors'
+        $successValue = Get-TidyResultProperty -Result $elevationResult -Name 'Success'
 
-        if ($outputLines) {
-            foreach ($line in $outputLines) {
-                Write-TidyOutput -Message $line
+        $outputLines = @()
+        foreach ($line in @($outputValue)) {
+            if ($null -ne $line -and -not [string]::IsNullOrWhiteSpace([string]$line)) {
+                $outputLines += [string]$line
             }
         }
 
-        if ($errorLines) {
-            foreach ($line in $errorLines) {
-                Write-TidyError -Message $line
+        $errorLines = @()
+        foreach ($line in @($errorValue)) {
+            if ($null -ne $line -and -not [string]::IsNullOrWhiteSpace([string]$line)) {
+                $errorLines += [string]$line
             }
         }
 
-        if (-not $elevationResult.Success) {
+        foreach ($line in $outputLines) {
+            Write-TidyOutput -Message $line
+        }
+
+        foreach ($line in $errorLines) {
+            Write-TidyError -Message $line
+        }
+
+        $elevatedSucceeded = $true
+        if ($successValue -is [bool]) {
+            $elevatedSucceeded = $successValue
+        }
+        elseif ($null -ne $successValue) {
+            $elevatedSucceeded = [System.Convert]::ToBoolean($successValue)
+        }
+
+        if (-not $elevatedSucceeded) {
             throw 'Chocolatey install or repair failed when running with administrator privileges.'
         }
 

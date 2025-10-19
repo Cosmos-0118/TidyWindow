@@ -9,6 +9,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.4.3" />
     <PackageReference Include="Serilog" Version="3.1.1" />
+    <PackageReference Include="YamlDotNet" Version="13.7.1" />
   </ItemGroup>
 
 </Project>

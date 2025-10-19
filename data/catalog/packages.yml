@@ -1,0 +1,676 @@
+# Smart Install Hub catalog
+# Bundles map to curated sets of packages that users can queue quickly.
+# Note: winget feeds can lag behind upstream releases, so commands are pinned or alternate managers are used when fresher builds are required.
+bundles:
+    - id: core-dev
+      name: Core Dev Workstation
+      description: Essentials for source control, runtimes, and editors.
+      packages:
+          - git
+          - vscode
+          - windows-terminal
+          - powershell7
+          - powershell-preview
+          - dotnet-sdk-8
+          - dotnet-sdk-7
+          - nodejs-lts
+          - python312
+          - github-cli
+          - openjdk17
+          - 7zip
+          - git-lfs
+          - jetbrains-toolbox
+          - visualstudio-2022-community
+    - id: cloud-native
+      name: Cloud & Containers
+      description: Tooling for cloud automation and container workloads.
+      packages:
+          - docker-desktop
+          - azure-cli
+          - aws-cli
+          - terraform
+          - kubectl
+          - helm
+          - azure-storage-explorer
+          - podman
+          - jq
+          - oh-my-posh
+          - vagrant
+          - minikube
+          - virtualbox
+          - vmware-player
+          - aws-sam-cli
+          - azure-functions-core-tools
+          - consul
+          - nomad
+          - dapr-cli
+    - id: diagnostics
+      name: Diagnostics & Testing
+      description: Debugging, API testing, and network inspection utilities.
+      packages:
+          - postman
+          - fiddler
+          - wireshark
+          - dotnet-runtime-8
+          - sql-server-management-studio
+          - notepadplusplus
+          - powershell-ise
+          - redisinsight
+          - supershell
+          - insomnia
+          - nuget-package-explorer
+          - linqpad-7
+          - grafana
+    - id: builders
+      name: Build Toolchain
+      description: Compilers and build helpers frequently used on Windows.
+      packages:
+          - cmake
+          - ninja
+          - mingw
+          - llvm
+          - make
+          - python311
+          - pipx
+          - nuget-cli
+          - chocolatey
+          - scoop
+          - yarn
+          - bun
+          - rustup
+          - go-lang
+          - deno
+    - id: data-platform
+      name: Data Platform
+      description: Local database engines, shells, and tooling.
+      packages:
+          - sql-server-management-studio
+          - azure-data-studio
+          - sql-server-express-2022
+          - pgadmin4
+          - mongodb-compass
+          - mysql-shell
+          - azure-cosmos-emulator
+    - id: infrastructure-labs
+      name: Infrastructure Labs
+      description: Sandbox environments for virtualization and service emulation.
+      packages:
+          - virtualbox
+          - vmware-player
+          - minikube
+          - vagrant
+          - consul
+          - nomad
+          - azure-cosmos-emulator
+    - id: language-runtimes
+      name: Language Runtimes
+      description: Toolchains and package managers for modern languages.
+      packages:
+          - go-lang
+          - rustup
+          - deno
+          - bun
+          - yarn
+          - powershell-preview
+
+packages:
+    - id: git
+      name: Git
+      manager: winget
+      command: "winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Distributed version control system.
+      homepage: "https://git-scm.com"
+      tags: [vcs, cli]
+    - id: vscode
+      name: Visual Studio Code
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudioCode -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Lightweight cross-platform editor.
+      homepage: "https://code.visualstudio.com"
+      tags: [editor]
+    - id: windows-terminal
+      name: Windows Terminal
+      manager: winget
+      command: "winget install --id Microsoft.WindowsTerminal -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Modern tabbed terminal host for Windows.
+      homepage: "https://aka.ms/terminal"
+      tags: [terminal]
+    - id: powershell7
+      name: PowerShell 7
+      manager: winget
+      command: "winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Cross-platform automation shell.
+      homepage: "https://learn.microsoft.com/powershell"
+      tags: [shell]
+    - id: dotnet-sdk-8
+      name: .NET SDK 8
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Build and run .NET 8 projects.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [sdk, dotnet]
+    - id: nodejs-lts
+      name: Node.js LTS
+      manager: winget
+      command: "winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: JavaScript runtime and tooling.
+      homepage: "https://nodejs.org"
+      tags: [javascript, runtime]
+    - id: python312
+      name: Python 3.12
+      manager: winget
+      command: "winget install --id Python.Python.3.12 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Latest CPython runtime.
+      homepage: "https://python.org"
+      tags: [python, runtime]
+    - id: python311
+      name: Python 3.11
+      manager: winget
+      command: "winget install --id Python.Python.3.11 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Alternate CPython release for compatibility.
+      homepage: "https://python.org"
+      tags: [python, runtime]
+    - id: github-cli
+      name: GitHub CLI
+      manager: winget
+      command: "winget install --id GitHub.cli -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line GitHub workflows.
+      homepage: "https://cli.github.com"
+      tags: [cli]
+    - id: openjdk17
+      name: Temurin JDK 17
+      manager: winget
+      command: "winget install --id EclipseAdoptium.Temurin.17.JDK -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Long-term support Java Development Kit.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime]
+    - id: 7zip
+      name: 7-Zip
+      manager: winget
+      command: "winget install --id 7zip.7zip -e --silent --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Compression and extraction utility.
+      homepage: "https://www.7-zip.org"
+      tags: [utilities]
+    - id: docker-desktop
+      name: Docker Desktop
+      manager: winget
+      command: "winget install --id Docker.DockerDesktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Container management for Windows.
+      homepage: "https://www.docker.com/products/docker-desktop"
+      tags: [containers]
+    - id: azure-cli
+      name: Azure CLI
+      manager: winget
+      command: "winget install --id Microsoft.AzureCLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage Azure resources from the command line.
+      homepage: "https://learn.microsoft.com/cli/azure"
+      tags: [cloud]
+    - id: aws-cli
+      name: AWS CLI
+      manager: winget
+      command: "winget install --id Amazon.AWSCLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage AWS resources via CLI.
+      homepage: "https://aws.amazon.com/cli/"
+      tags: [cloud]
+    - id: terraform
+      name: Terraform
+      manager: winget
+      command: "winget install --id Hashicorp.Terraform -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Infrastructure as code CLI.
+      homepage: "https://www.terraform.io"
+      tags: [iac]
+    - id: kubectl
+      name: kubectl
+      manager: winget
+      command: "winget install --id Kubernetes.kubectl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Kubernetes cluster management CLI.
+      homepage: "https://kubernetes.io/docs/reference/kubectl/"
+      tags: [kubernetes]
+    - id: helm
+      name: Helm
+      manager: winget
+      command: "winget install --id Helm.Helm -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Package manager for Kubernetes charts.
+      homepage: "https://helm.sh"
+      tags: [kubernetes]
+    - id: azure-storage-explorer
+      name: Azure Storage Explorer
+      manager: winget
+      command: "winget install --id Microsoft.AzureStorageExplorer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage Azure storage accounts visually.
+      homepage: "https://learn.microsoft.com/azure/storage/common/storage-explorer"
+      tags: [cloud]
+    - id: podman
+      name: Podman Desktop
+      manager: winget
+      command: "winget install --id RedHat.Podman-Desktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Rootless container workflows.
+      homepage: "https://podman.io"
+      tags: [containers]
+    - id: jq
+      name: jq
+      manager: scoop
+      command: "scoop install jq"
+      requiresAdmin: false
+      summary: Lightweight JSON processor.
+      homepage: "https://stedolan.github.io/jq"
+      tags: [cli]
+    - id: oh-my-posh
+      name: oh-my-posh
+      manager: winget
+      command: "winget install --id JanDeDobbeleer.OhMyPosh -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Shell prompt theming engine.
+      homepage: "https://ohmyposh.dev"
+      tags: [shell]
+    - id: postman
+      name: Postman
+      manager: winget
+      command: "winget install --id Postman.Postman -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: API testing and collaboration tool.
+      homepage: "https://www.postman.com"
+      tags: [api]
+    - id: fiddler
+      name: Fiddler Everywhere
+      manager: winget
+      command: "winget install --id Progress.TelerikFiddlerEverywhere -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Web debugging proxy for HTTP/S traffic.
+      homepage: "https://www.telerik.com/fiddler"
+      tags: [diagnostics]
+    - id: wireshark
+      name: Wireshark
+      manager: winget
+      command: "winget install --id WiresharkFoundation.Wireshark -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Network protocol analyzer.
+      homepage: "https://www.wireshark.org"
+      tags: [network]
+    - id: dotnet-runtime-8
+      name: .NET Runtime 8
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.Runtime.8 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Run .NET 8 desktop apps.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [runtime]
+    - id: sql-server-management-studio
+      name: SQL Server Management Studio
+      manager: winget
+      command: "winget install --id Microsoft.SQLServerManagementStudio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Administer SQL Server instances.
+      homepage: "https://aka.ms/ssms"
+      tags: [database]
+    - id: notepadplusplus
+      name: Notepad++
+      manager: winget
+      command: "winget install --id Notepad++.Notepad++ -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Advanced text editor for Windows.
+      homepage: "https://notepad-plus-plus.org"
+      tags: [editor]
+    - id: powershell-ise
+      name: Windows PowerShell ISE
+      manager: choco
+      command: "choco install powershell-ise -y --no-progress"
+      requiresAdmin: true
+      summary: Classic scripting environment for PowerShell.
+      homepage: "https://learn.microsoft.com/powershell/scripting/windows-powershell/ise"
+      tags: [shell]
+    - id: redisinsight
+      name: RedisInsight
+      manager: winget
+      command: "winget install --id Redis.RedisInsight -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: GUI for managing Redis data.
+      homepage: "https://redis.com/redis-enterprise/redis-insight/"
+      tags: [database]
+    - id: supershell
+      name: Supershell
+      manager: scoop
+      command: "scoop install supershell"
+      requiresAdmin: false
+      summary: Enhanced shell helpers for PowerShell.
+      homepage: "https://github.com/dahlbyk/supershell"
+      tags: [shell]
+    - id: insomnia
+      name: Insomnia
+      manager: winget
+      command: "winget install --id Kong.Insomnia -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: API design and testing platform.
+      homepage: "https://insomnia.rest"
+      tags: [api]
+    - id: cmake
+      name: CMake
+      manager: winget
+      command: "winget install --id Kitware.CMake -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cross-platform build system generator.
+      homepage: "https://cmake.org"
+      tags: [build]
+    - id: ninja
+      name: Ninja
+      manager: winget
+      command: "winget install --id Ninja-build.Ninja -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Small build system with fast focus.
+      homepage: "https://ninja-build.org"
+      tags: [build]
+    - id: mingw
+      name: MinGW-w64
+      manager: choco
+      command: "choco install mingw --version=12.2.0 -y --no-progress"
+      requiresAdmin: true
+      summary: GCC toolchain for Windows.
+      homepage: "https://mingw-w64.org"
+      tags: [compiler]
+    - id: llvm
+      name: LLVM Toolchain
+      manager: winget
+      command: "winget install --id LLVM.LLVM -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Clang/LLVM toolchain.
+      homepage: "https://llvm.org"
+      tags: [compiler]
+    - id: make
+      name: GNU Make
+      manager: choco
+      command: "choco install make -y --no-progress"
+      requiresAdmin: true
+      summary: Build automation tool.
+      homepage: "https://www.gnu.org/software/make/"
+      tags: [build]
+    - id: pipx
+      name: pipx
+      manager: winget
+      command: "winget install --id Python.Pipx -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Run Python applications in isolated environments.
+      homepage: "https://pypa.github.io/pipx"
+      tags: [python]
+    - id: nuget-cli
+      name: NuGet CLI
+      manager: winget
+      command: "winget install --id Microsoft.NuGet -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line interface for NuGet packages.
+      homepage: "https://learn.microsoft.com/nuget"
+      tags: [dotnet]
+    - id: chocolatey
+      name: Chocolatey
+      manager: choco
+      command: "choco upgrade chocolatey -y --no-progress"
+      requiresAdmin: true
+      summary: Windows package manager.
+      homepage: "https://chocolatey.org"
+      tags: [package-manager]
+    - id: scoop
+      name: Scoop
+      manager: scoop
+      command: "iwr -useb get.scoop.sh | iex"
+      requiresAdmin: false
+      summary: Developer-friendly package manager.
+      homepage: "https://scoop.sh"
+      tags: [package-manager]
+    - id: powershell-preview
+      name: PowerShell 7 Preview
+      manager: winget
+      command: "winget install --id Microsoft.PowerShell.Preview -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Preview channel for upcoming PowerShell features.
+      homepage: "https://github.com/PowerShell/PowerShell"
+      tags: [shell]
+    - id: dotnet-sdk-7
+      name: .NET SDK 7
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.SDK.7 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Build and run .NET 7 workloads.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [dotnet, sdk]
+    - id: dotnet-runtime-6
+      name: .NET Runtime 6
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.Runtime.6 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Run apps targeting .NET 6 LTS.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [runtime]
+    - id: git-lfs
+      name: Git LFS
+      manager: winget
+      command: "winget install --id GitHub.GitLFS -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Large file storage extension for Git.
+      homepage: "https://git-lfs.com"
+      tags: [vcs]
+    - id: jetbrains-toolbox
+      name: JetBrains Toolbox
+      manager: winget
+      command: "winget install --id JetBrains.Toolbox -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Launcher and updater for JetBrains IDEs.
+      homepage: "https://www.jetbrains.com/toolbox-app/"
+      tags: [ide]
+    - id: visualstudio-2022-community
+      name: Visual Studio 2022 Community
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudio.2022.Community -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Full-featured IDE for .NET and C++ development.
+      homepage: "https://visualstudio.microsoft.com/vs/"
+      tags: [ide, dotnet]
+    - id: visualstudio-build-tools
+      name: Visual Studio 2022 Build Tools
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudio.2022.BuildTools -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Headless MSVC, MSBuild, and toolchain installers.
+      homepage: "https://visualstudio.microsoft.com/downloads/"
+      tags: [build, compiler]
+    - id: azure-data-studio
+      name: Azure Data Studio
+      manager: winget
+      command: "winget install --id Microsoft.AzureDataStudio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cross-platform data editor for SQL workloads.
+      homepage: "https://learn.microsoft.com/azure-data-studio"
+      tags: [database]
+    - id: sql-server-express-2022
+      name: SQL Server 2022 Express
+      manager: winget
+      command: "winget install --id Microsoft.SQLServer.2022.Express -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Lightweight SQL Server engine for development.
+      homepage: "https://www.microsoft.com/sql-server"
+      tags: [database]
+    - id: pgadmin4
+      name: pgAdmin 4
+      manager: winget
+      command: "winget install --id pgAdmin.pgAdmin4 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: PostgreSQL administration and query tool.
+      homepage: "https://www.pgadmin.org"
+      tags: [database]
+    - id: mongodb-compass
+      name: MongoDB Compass
+      manager: winget
+      command: "winget install --id MongoDB.Compass.Community -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Visual schema exploration for MongoDB.
+      homepage: "https://www.mongodb.com/products/compass"
+      tags: [database]
+    - id: mysql-shell
+      name: MySQL Shell
+      manager: winget
+      command: "winget install --id Oracle.MySQLShell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Advanced scripting environment for MySQL.
+      homepage: "https://dev.mysql.com/doc/mysql-shell/"
+      tags: [database]
+    - id: azure-cosmos-emulator
+      name: Azure Cosmos DB Emulator
+      manager: winget
+      command: "winget install --id Microsoft.AzureCosmosEmulator -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Local emulator for Azure Cosmos DB workloads.
+      homepage: "https://learn.microsoft.com/azure/cosmos-db/local-emulator"
+      tags: [database, cloud]
+    - id: vagrant
+      name: HashiCorp Vagrant
+      manager: winget
+      command: "winget install --id Hashicorp.Vagrant -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Build portable development environments.
+      homepage: "https://www.vagrantup.com"
+      tags: [automation]
+    - id: minikube
+      name: minikube
+      manager: winget
+      command: "winget install --id Kubernetes.minikube -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Run a local Kubernetes cluster.
+      homepage: "https://minikube.sigs.k8s.io"
+      tags: [kubernetes]
+    - id: virtualbox
+      name: Oracle VirtualBox
+      manager: winget
+      command: "winget install --id Oracle.VirtualBox -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Desktop virtualization platform.
+      homepage: "https://www.virtualbox.org"
+      tags: [virtualization]
+    - id: vmware-player
+      name: VMware Workstation Player
+      manager: winget
+      command: "winget install --id VMware.WorkstationPlayer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: VMware desktop hypervisor for labs.
+      homepage: "https://www.vmware.com/products/workstation-player.html"
+      tags: [virtualization]
+    - id: aws-sam-cli
+      name: AWS SAM CLI
+      manager: choco
+      command: "choco install aws-sam-cli -y --no-progress"
+      requiresAdmin: true
+      summary: Build and deploy serverless applications on AWS.
+      homepage: "https://aws.amazon.com/serverless/sam/"
+      tags: [aws, serverless]
+    - id: azure-functions-core-tools
+      name: Azure Functions Core Tools 4
+      manager: choco
+      command: "choco install azure-functions-core-tools-4 -y --no-progress"
+      requiresAdmin: true
+      summary: Local development tools for Azure Functions.
+      homepage: "https://learn.microsoft.com/azure/azure-functions/functions-run-local"
+      tags: [azure, serverless]
+    - id: consul
+      name: HashiCorp Consul
+      manager: winget
+      command: "winget install --id Hashicorp.Consul -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Service discovery and service mesh runtime.
+      homepage: "https://www.consul.io"
+      tags: [service-mesh]
+    - id: nomad
+      name: HashiCorp Nomad
+      manager: winget
+      command: "winget install --id Hashicorp.Nomad -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Flexible orchestrator for batch and service workloads.
+      homepage: "https://www.nomadproject.io"
+      tags: [orchestration]
+    - id: nuget-package-explorer
+      name: NuGet Package Explorer
+      manager: winget
+      command: "winget install --id NugetPackageExplorer.NugetPackageExplorer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Inspect and author NuGet packages.
+      homepage: "https://github.com/NuGetPackageExplorer/NuGetPackageExplorer"
+      tags: [nuget]
+    - id: linqpad-7
+      name: LINQPad 7
+      manager: winget
+      command: "winget install --id LINQPad.LINQPad.7 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Interactive scratchpad for LINQ and C#.
+      homepage: "https://www.linqpad.net"
+      tags: [dotnet]
+    - id: grafana
+      name: Grafana
+      manager: winget
+      command: "winget install --id GrafanaLabs.Grafana -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Observability dashboards and alerting platform.
+      homepage: "https://grafana.com"
+      tags: [observability]
+    - id: yarn
+      name: Yarn
+      manager: winget
+      command: "winget install --id Yarn.Yarn -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Alternative JavaScript package manager.
+      homepage: "https://yarnpkg.com"
+      tags: [javascript]
+    - id: bun
+      name: Bun Runtime
+      manager: winget
+      command: "winget install --id Oven-sh.Bun -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast JavaScript runtime and toolkit.
+      homepage: "https://bun.sh"
+      tags: [javascript]
+    - id: rustup
+      name: rustup
+      manager: winget
+      command: "winget install --id Rustlang.Rustup -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage Rust toolchains and targets.
+      homepage: "https://rustup.rs"
+      tags: [rust]
+    - id: go-lang
+      name: Go
+      manager: winget
+      command: "winget install --id GoLang.Go -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Go programming language toolchain.
+      homepage: "https://go.dev"
+      tags: [go]
+    - id: deno
+      name: Deno
+      manager: winget
+      command: "winget install --id DenoLand.Deno -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Secure runtime for JavaScript and TypeScript.
+      homepage: "https://deno.com"
+      tags: [javascript]
+    - id: dapr-cli
+      name: Dapr CLI
+      manager: winget
+      command: "winget install --id Dapr.CLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Local tooling for the Distributed Application Runtime.
+      homepage: "https://dapr.io"
+      tags: [microservices]
