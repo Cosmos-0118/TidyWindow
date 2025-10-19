@@ -1,3 +1,4 @@
+using System;
 using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -52,6 +53,20 @@ public sealed class MainViewModel : ViewModelBase
     public void SetStatusMessage(string message)
     {
         StatusMessage = string.IsNullOrWhiteSpace(message) ? "Ready" : message;
+    }
+
+    public void NavigateTo(Type pageType)
+    {
+        if (pageType is null)
+        {
+            throw new ArgumentNullException(nameof(pageType));
+        }
+
+        var target = NavigationItems.FirstOrDefault(item => item.PageType == pageType);
+        if (target is not null)
+        {
+            SelectedItem = target;
+        }
     }
 
     public void Activate()

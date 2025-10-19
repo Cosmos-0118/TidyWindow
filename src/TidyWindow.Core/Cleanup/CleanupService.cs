@@ -162,7 +162,8 @@ public sealed class CleanupService
             json.TotalSizeBytes,
             previewItems,
             json.Notes,
-            json.DryRun);
+            json.DryRun,
+            json.Classification);
     }
 
     private static string? ExtractJsonPayload(IEnumerable<string> outputLines)
@@ -212,6 +213,7 @@ public sealed class CleanupService
     private sealed class CleanupTargetJson
     {
         public string? Category { get; set; }
+        public string? Classification { get; set; }
         public string? Path { get; set; }
         public bool Exists { get; set; }
         public int ItemCount { get; set; }

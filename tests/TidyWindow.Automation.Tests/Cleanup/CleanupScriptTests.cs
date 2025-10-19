@@ -10,7 +10,7 @@ namespace TidyWindow.Automation.Tests.Cleanup;
 public sealed class CleanupScriptTests
 {
     [Fact]
-    public async Task PreviewWithoutDownloads_ReturnsUserTempEntry()
+    public async Task PreviewWithoutDownloads_ReturnsTempEntry()
     {
         Assert.True(OperatingSystem.IsWindows(), "Cleanup preview script requires Windows.");
 
@@ -21,7 +21,9 @@ public sealed class CleanupScriptTests
 
         Assert.NotNull(report);
         Assert.NotEmpty(report.Targets);
-        Assert.Contains(report.Targets, target => target.Category.Equals("UserTemp", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(report.Targets, target =>
+            target.Classification.Equals("Temp", StringComparison.OrdinalIgnoreCase) &&
+            target.Category.Contains("User Temp", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -36,5 +38,6 @@ public sealed class CleanupScriptTests
 
         Assert.NotNull(report);
         Assert.NotEmpty(report.Targets);
+        Assert.Contains(report.Targets, target => target.Classification.Equals("Downloads", StringComparison.OrdinalIgnoreCase));
     }
 }

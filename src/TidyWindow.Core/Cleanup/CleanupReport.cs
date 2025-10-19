@@ -32,7 +32,8 @@ public sealed class CleanupTargetReport
         long totalSizeBytes,
         IReadOnlyList<CleanupPreviewItem>? preview,
         string? notes = null,
-        bool dryRun = true)
+        bool dryRun = true,
+        string? classification = null)
     {
         Category = string.IsNullOrWhiteSpace(category) ? "Unknown" : category;
         Path = path ?? string.Empty;
@@ -42,11 +43,14 @@ public sealed class CleanupTargetReport
         Preview = preview ?? Array.Empty<CleanupPreviewItem>();
         Notes = notes ?? string.Empty;
         DryRun = dryRun;
+        Classification = string.IsNullOrWhiteSpace(classification) ? "Other" : classification;
     }
 
     public string Category { get; }
 
     public string Path { get; }
+
+    public string Classification { get; }
 
     public bool Exists { get; }
 

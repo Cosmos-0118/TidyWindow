@@ -318,8 +318,10 @@
                                                 BorderThickness="1"
                                                 CornerRadius="10"
                                                 Padding="14,10">
-                                            <ContentPresenter HorizontalAlignment="Stretch"
-                                                              VerticalAlignment="Center"/>
+                                            <GridViewRowPresenter Content="{TemplateBinding Content}"
+                                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                  HorizontalAlignment="Stretch"
+                                                                  VerticalAlignment="Center"/>
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver"

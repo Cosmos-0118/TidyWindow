@@ -43,7 +43,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         get => _previewCount;
         set
         {
-            var sanitized = Math.Clamp(value, 0, 50);
+            var sanitized = value < 0 ? 0 : value;
             SetProperty(ref _previewCount, sanitized);
         }
     }

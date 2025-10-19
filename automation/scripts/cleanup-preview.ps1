@@ -48,15 +48,26 @@ function Get-TidyDirectoryReport {
         [Parameter(Mandatory = $true)]
         [string] $Category,
         [Parameter(Mandatory = $true)]
+        [string] $Classification,
+        [Parameter(Mandatory = $true)]
         [string] $Path,
-        [int] $PreviewCount
+        [int] $PreviewCount,
+        [string] $Notes
     )
+
+    $effectiveNotes = if ([string]::IsNullOrWhiteSpace($Notes)) {
+        'Dry run only. No files were deleted.'
+    }
+    else {
+        $Notes
+    }
 
     $resolvedPath = Resolve-TidyPath -Path $Path
     if (-not $resolvedPath) {
-        Write-TidyLog -Level Warning -Message "Category '$Category' has an invalid path definition: '$Path'."
+        Write-TidyLog -Level Warning -Message "Category '$Category' [Type=$Classification] has an invalid path definition: '$Path'."
         return [pscustomobject]@{
             Category       = $Category
+            Classification = $Classification
             Path           = $Path
             Exists         = $false
             ItemCount      = 0
@@ -69,9 +80,10 @@ function Get-TidyDirectoryReport {
 
     $exists = Test-Path -LiteralPath $resolvedPath -PathType Container
     if (-not $exists) {
-        Write-TidyLog -Level Information -Message "Category '$Category' path '$resolvedPath' does not exist."
+        Write-TidyLog -Level Information -Message "Category '$Category' [Type=$Classification] path '$resolvedPath' does not exist."
         return [pscustomobject]@{
             Category       = $Category
+            Classification = $Classification
             Path           = $resolvedPath
             Exists         = $false
             ItemCount      = 0
@@ -87,7 +99,7 @@ function Get-TidyDirectoryReport {
         $fileItems = Get-ChildItem -LiteralPath $resolvedPath -Force -Recurse -ErrorAction Stop -File
     }
     catch {
-        Write-TidyLog -Level Warning -Message "Category '$Category' encountered errors enumerating '$resolvedPath': $($_.Exception.Message)"
+        Write-TidyLog -Level Warning -Message "Category '$Category' [Type=$Classification] encountered errors enumerating '$resolvedPath': $($_.Exception.Message)"
         try {
             $fileItems = Get-ChildItem -LiteralPath $resolvedPath -Force -Recurse -ErrorAction SilentlyContinue -File
         }
@@ -110,59 +122,253 @@ function Get-TidyDirectoryReport {
     $previewItems = @()
     if ($itemCount -gt 0 -and $PreviewCount -gt 0) {
         $previewItems = $fileItems |
-        Sort-Object -Property Length -Descending |
-        Select-Object -First $PreviewCount |
-        ForEach-Object {
-            [pscustomobject]@{
-                Name         = $_.Name
-                FullName     = $_.FullName
-                SizeBytes    = [long]$_.Length
-                LastModified = $_.LastWriteTimeUtc
+            Sort-Object -Property Length -Descending |
+            Select-Object -First $PreviewCount |
+            ForEach-Object {
+                [pscustomobject]@{
+                    Name         = $_.Name
+                    FullName     = $_.FullName
+                    SizeBytes    = [long]$_.Length
+                    LastModified = $_.LastWriteTimeUtc
+                }
             }
+    }
+
+    $normalizedPreview = @()
+    foreach ($previewItem in $previewItems) {
+        if ($null -ne $previewItem) {
+            $normalizedPreview += $previewItem
         }
     }
 
+    $previewItems = $normalizedPreview
+
     return [pscustomobject]@{
         Category       = $Category
+        Classification = $Classification
         Path           = $resolvedPath
         Exists         = $true
         ItemCount      = $itemCount
         TotalSizeBytes = [long]$totalSize
         DryRun         = $true
         Preview        = $previewItems
-        Notes          = 'Dry run only. No files were deleted.'
+        Notes          = $effectiveNotes
     }
 }
 
-$candidates = @(
-    @{ Category = 'UserTemp'; Path = $env:TEMP },
-    @{ Category = 'LocalAppDataTemp'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Temp') },
-    @{ Category = 'WindowsTemp'; Path = (Join-Path -Path $env:WINDIR -ChildPath 'Temp') }
-)
+function Get-TidyDefinitionTargets {
+    param(
+        [Parameter(Mandatory = $true)]
+        [hashtable] $Definition
+    )
 
-if ($IncludeDownloads -and $env:USERPROFILE) {
-    $downloadsPath = Join-Path -Path $env:USERPROFILE -ChildPath 'Downloads'
-    $candidates += @{ Category = 'UserDownloads'; Path = $downloadsPath }
+    $targets = @()
+
+    if ($Definition.ContainsKey('Path') -and $Definition.Path) {
+        $targets += [pscustomobject]@{
+            Path  = $Definition.Path
+            Label = $Definition.Name
+            Notes = $Definition.Notes
+        }
+    }
+
+    if ($Definition.ContainsKey('Resolve') -and $null -ne $Definition.Resolve) {
+        try {
+            $resolved = & $Definition.Resolve
+        }
+        catch {
+            Write-TidyLog -Level Warning -Message "Definition '$($Definition.Name)' failed to resolve dynamic paths: $($_.Exception.Message)"
+            $resolved = @()
+        }
+
+        foreach ($entry in $resolved) {
+            if (-not $entry) {
+                continue
+            }
+
+            if ($entry -is [string]) {
+                $targets += [pscustomobject]@{
+                    Path  = $entry
+                    Label = $Definition.Name
+                    Notes = $Definition.Notes
+                }
+                continue
+            }
+
+            if ($entry.PSObject.Properties['Path']) {
+                $label = if ($entry.PSObject.Properties['Label'] -and -not [string]::IsNullOrWhiteSpace($entry.Label)) {
+                    $entry.Label
+                }
+                else {
+                    $Definition.Name
+                }
+
+                $notes = if ($entry.PSObject.Properties['Notes'] -and -not [string]::IsNullOrWhiteSpace($entry.Notes)) {
+                    $entry.Notes
+                }
+                else {
+                    $Definition.Notes
+                }
+
+                $targets += [pscustomobject]@{
+                    Path  = $entry.Path
+                    Label = $label
+                    Notes = $notes
+                }
+            }
+        }
+    }
+
+    return $targets
 }
+
+function Get-TidyCleanupDefinitions {
+    param(
+        [bool] $IncludeDownloads
+    )
+
+    $definitions = @(
+        @{ Classification = 'Temp'; Name = 'User Temp'; Path = $env:TEMP; Notes = 'Temporary files generated for the current user.' },
+        @{ Classification = 'Temp'; Name = 'Local AppData Temp'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Temp'); Notes = 'Local application temp directory for the current user.' },
+        @{ Classification = 'Temp'; Name = 'Windows Temp'; Path = (Join-Path -Path $env:WINDIR -ChildPath 'Temp'); Notes = 'System-wide temporary files created by Windows.' },
+        @{ Classification = 'Temp'; Name = 'Windows Prefetch'; Path = (Join-Path -Path $env:WINDIR -ChildPath 'Prefetch'); Notes = 'Prefetch hints used by Windows to speed up application launches.' },
+
+        @{ Classification = 'Cache'; Name = 'Windows Update Cache'; Path = (Join-Path -Path $env:WINDIR -ChildPath 'SoftwareDistribution\Download'); Notes = 'Cached Windows Update payloads that can be regenerated as needed.' },
+        @{ Classification = 'Cache'; Name = 'Delivery Optimization Cache'; Path = 'C:\ProgramData\Microsoft\Network\Downloader'; Notes = 'Delivery Optimization cache for Windows Update and Store content.' },
+        @{ Classification = 'Cache'; Name = 'Microsoft Store Cache'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Packages\Microsoft.WindowsStore_8wekyb3d8bbwe\LocalCache'); Notes = 'Microsoft Store cached assets.' },
+        @{ Classification = 'Cache'; Name = 'WinGet Cache'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalCache'); Notes = 'WinGet package metadata and cache files.' },
+        @{ Classification = 'Cache'; Name = 'NuGet HTTP Cache'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'NuGet\Cache'); Notes = 'NuGet HTTP cache used by developer tooling.' },
+
+        @{ Classification = 'Cache'; Name = 'Microsoft Edge Cache'; Resolve = {
+                $base = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\Edge\User Data'
+                if (-not (Test-Path -LiteralPath $base)) {
+                    return @()
+                }
+
+                Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
+                    ForEach-Object {
+                        $cachePath = Join-Path -Path $_.FullName -ChildPath 'Cache'
+                        if (Test-Path -LiteralPath $cachePath) {
+                            $label = if ($_.Name -eq 'Default') { 'Microsoft Edge (Default profile)' } else { "Microsoft Edge ($($_.Name))" }
+                            [pscustomobject]@{
+                                Path  = $cachePath
+                                Label = $label
+                                Notes = 'Browser cache for Microsoft Edge profiles. Close Edge before cleaning.'
+                            }
+                        }
+                    }
+            }
+        },
+        @{ Classification = 'Cache'; Name = 'Google Chrome Cache'; Resolve = {
+                $base = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Google\Chrome\User Data'
+                if (-not (Test-Path -LiteralPath $base)) {
+                    return @()
+                }
+
+                Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -like 'Default' -or $_.Name -like 'Profile *' -or $_.Name -like 'Guest Profile*' } |
+                    ForEach-Object {
+                        $cachePath = Join-Path -Path $_.FullName -ChildPath 'Cache'
+                        if (Test-Path -LiteralPath $cachePath) {
+                            $label = if ($_.Name -eq 'Default') { 'Google Chrome (Default profile)' } else { "Google Chrome ($($_.Name))" }
+                            [pscustomobject]@{
+                                Path  = $cachePath
+                                Label = $label
+                                Notes = 'Browser cache for Google Chrome profiles. Close Chrome before cleaning.'
+                            }
+                        }
+                    }
+            }
+        },
+        @{ Classification = 'Cache'; Name = 'Mozilla Firefox Cache'; Resolve = {
+                $base = Join-Path -Path $env:APPDATA -ChildPath 'Mozilla\Firefox\Profiles'
+                if (-not (Test-Path -LiteralPath $base)) {
+                    return @()
+                }
+
+                Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
+                    ForEach-Object {
+                        $cachePath = Join-Path -Path $_.FullName -ChildPath 'cache2'
+                        if (Test-Path -LiteralPath $cachePath) {
+                            [pscustomobject]@{
+                                Path  = $cachePath
+                                Label = "Mozilla Firefox ($($_.Name))"
+                                Notes = 'Firefox disk cache. Close Firefox before cleaning.'
+                            }
+                        }
+                    }
+            }
+        },
+        @{ Classification = 'Cache'; Name = 'Microsoft Teams Cache'; Resolve = {
+                $root = Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\Teams'
+                if (-not (Test-Path -LiteralPath $root)) {
+                    return @()
+                }
+
+                $subFolders = @('Cache', 'Code Cache', 'GPUCache', 'databases', 'IndexedDB', 'Local Storage', 'blob_storage', 'Service Worker\CacheStorage')
+                foreach ($subFolder in $subFolders) {
+                    $candidate = Join-Path -Path $root -ChildPath $subFolder
+                    if (Test-Path -LiteralPath $candidate) {
+                        [pscustomobject]@{
+                            Path  = $candidate
+                            Label = "Microsoft Teams ($subFolder)"
+                            Notes = 'Microsoft Teams application caches. Close Teams before cleaning.'
+                        }
+                    }
+                }
+            }
+        },
+
+        @{ Classification = 'Logs'; Name = 'Windows Error Reporting Queue'; Path = 'C:\ProgramData\Microsoft\Windows\WER\ReportQueue'; Notes = 'Queued Windows Error Reporting crash dumps and diagnostics.' },
+        @{ Classification = 'Logs'; Name = 'Windows Update Logs'; Path = (Join-Path -Path $env:WINDIR -ChildPath 'Logs\WindowsUpdate'); Notes = 'Windows Update diagnostic logs.' },
+        @{ Classification = 'Logs'; Name = 'OneDrive Logs'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\OneDrive\logs'); Notes = 'Microsoft OneDrive sync client logs.' },
+
+        @{ Classification = 'Orphaned'; Name = 'User Crash Dumps'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'CrashDumps'); Notes = 'Application crash dump files created for troubleshooting.' },
+        @{ Classification = 'Orphaned'; Name = 'System Crash Dumps'; Path = (Join-Path -Path $env:WINDIR -ChildPath 'Minidump'); Notes = 'System crash dump files.' },
+        @{ Classification = 'Orphaned'; Name = 'Squirrel Installer Cache'; Path = (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'SquirrelTemp'); Notes = 'Residual setup artifacts from Squirrel-based installers.' }
+    )
+
+    if ($IncludeDownloads -and $env:USERPROFILE) {
+        $downloadsPath = Join-Path -Path $env:USERPROFILE -ChildPath 'Downloads'
+        $definitions += @{ Classification = 'Downloads'; Name = 'User Downloads'; Path = $downloadsPath; Notes = 'Files downloaded by the current user.' }
+    }
+
+    return $definitions
+}
+
+$definitions = Get-TidyCleanupDefinitions -IncludeDownloads:$IncludeDownloads
 
 $reports = @()
 $seenPaths = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-foreach ($candidate in $candidates) {
-    $report = Get-TidyDirectoryReport -Category $candidate.Category -Path $candidate.Path -PreviewCount $PreviewCount
+foreach ($definition in $definitions) {
+    $targets = Get-TidyDefinitionTargets -Definition $definition
+    foreach ($target in $targets) {
+        if ([string]::IsNullOrWhiteSpace($target.Path)) {
+            continue
+        }
 
-    if ($report.Exists -and $seenPaths.Contains($report.Path)) {
-        Write-TidyLog -Level Information -Message "Skipping duplicate directory '$($report.Path)' for category '$($candidate.Category)'."
-        continue
+        $category = if ([string]::IsNullOrWhiteSpace($target.Label)) { $definition.Name } else { $target.Label }
+        $classification = if ([string]::IsNullOrWhiteSpace($definition.Classification)) { 'Other' } else { $definition.Classification }
+
+        $report = Get-TidyDirectoryReport -Category $category -Classification $classification -Path $target.Path -PreviewCount $PreviewCount -Notes $target.Notes
+
+        if ($report.Exists -and $seenPaths.Contains($report.Path)) {
+            Write-TidyLog -Level Information -Message "Skipping duplicate directory '$($report.Path)' for category '$category'."
+            continue
+        }
+
+        if ($report.Exists) {
+            $null = $seenPaths.Add($report.Path)
+        }
+
+        $reports += $report
     }
-
-    if ($report.Exists) {
-        $null = $seenPaths.Add($report.Path)
-    }
-
-    $reports += $report
 }
 
+if ($reports.Count -gt 0) {
+    $reports = $reports | Sort-Object -Property @{ Expression = 'Classification'; Descending = $false }, @{ Expression = 'TotalSizeBytes'; Descending = $true }
+}
 
 $aggregateSize = 0
 if ($reports.Count -gt 0) {

@@ -185,7 +185,7 @@
                                 <Button Content="Queue bundle"
                                         Command="{Binding QueueBundleCommand}"
                                         CommandParameter="{Binding SelectedBundle}"
-                                        Margin="8,0,0,0"
+                                        Margin="0"
                                         Background="#22C55E"
                                         Foreground="#06111D"
                                         Style="{StaticResource InstallAccentButtonStyle}"/>

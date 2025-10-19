@@ -34,6 +34,8 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
 
     public string Category => Model.Category;
 
+    public string Classification => Model.Classification;
+
     public string Path => Model.Path;
 
     public string Notes => Model.Notes;
