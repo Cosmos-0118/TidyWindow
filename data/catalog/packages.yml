@@ -8,7 +8,10 @@ bundles:
       packages:
           - git
           - vscode
+          - vscode-insiders
+          - neovim
           - windows-terminal
+          - powertoys
           - powershell7
           - powershell-preview
           - dotnet-sdk-8
@@ -16,6 +19,7 @@ bundles:
           - nodejs-lts
           - python312
           - github-cli
+          - git-credential-manager-core
           - openjdk17
           - 7zip
           - git-lfs
@@ -33,6 +37,12 @@ bundles:
           - helm
           - azure-storage-explorer
           - podman
+          - istioctl
+          - skaffold
+          - pulumi
+          - k9s
+          - openshift-cli
+          - jenkins
           - jq
           - oh-my-posh
           - vagrant
@@ -58,6 +68,11 @@ bundles:
           - redisinsight
           - supershell
           - insomnia
+          - tcpview
+          - sysinternals-suite
+          - nmap
+          - netcat
+          - httpie
           - nuget-package-explorer
           - linqpad-7
           - grafana
@@ -77,6 +92,9 @@ bundles:
           - scoop
           - yarn
           - bun
+          - pnpm
+          - bazel
+          - msys2
           - rustup
           - go-lang
           - deno
@@ -91,6 +109,11 @@ bundles:
           - mongodb-compass
           - mysql-shell
           - azure-cosmos-emulator
+          - dbeaver
+          - heidisql
+          - flyway
+          - postgresql
+          - redis-cli
     - id: infrastructure-labs
       name: Infrastructure Labs
       description: Sandbox environments for virtualization and service emulation.
@@ -112,6 +135,38 @@ bundles:
           - bun
           - yarn
           - powershell-preview
+          - ruby
+          - strawberry-perl
+          - tmux
+
+    - id: terminals-and-shells
+      name: Terminals & Shell Enhancements
+      description: Terminal emulators, text-mode tools, and shell productivity add-ons.
+      packages:
+          - windows-terminal
+          - windows-terminal-preview
+          - fluent-terminal
+          - cmder
+          - conemu
+          - ranger
+          - tmux
+          - oh-my-posh
+          - supershell
+          - neovim
+
+    - id: productivity-kit
+      name: Productivity Kit
+      description: Desktop tweaks, file search, and handy CLI productivity boosters.
+      packages:
+          - powertoys
+          - everything
+          - flux
+          - greenshot
+          - 7tt
+          - wingetui
+          - bat
+          - ripgrep
+          - fd
 
 packages:
     - id: git
@@ -676,3 +731,360 @@ packages:
       summary: Local tooling for the Distributed Application Runtime.
       homepage: "https://dapr.io"
       tags: [microservices]
+
+    - id: powertoys
+      name: Microsoft PowerToys
+      manager: winget
+      command: "winget install --id Microsoft.PowerToys -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Power user utilities that streamline the Windows desktop experience.
+      homepage: "https://learn.microsoft.com/windows/powertoys"
+      tags: [productivity]
+
+    - id: vscode-insiders
+      name: Visual Studio Code Insiders
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudioCode.Insiders -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Daily build channel of Visual Studio Code with the latest features.
+      homepage: "https://code.visualstudio.com/insiders/"
+      tags: [editor]
+
+    - id: neovim
+      name: Neovim
+      manager: winget
+      command: "winget install --id Neovim.Neovim -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Extensible Vim-based editor tailored for modern development.
+      homepage: "https://neovim.io"
+      tags: [editor]
+
+    - id: windows-terminal-preview
+      name: Windows Terminal Preview
+      manager: winget
+      command: "winget install --id Microsoft.WindowsTerminalPreview -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Early-access channel for Windows Terminal features.
+      homepage: "https://aka.ms/terminal"
+      tags: [terminal]
+
+    - id: cmder
+      name: Cmder
+      manager: choco
+      command: "choco install cmder -y --no-progress"
+      requiresAdmin: true
+      summary: Portable console emulator built on ConEmu with custom enhancements.
+      homepage: "https://cmder.app"
+      tags: [terminal]
+
+    - id: conemu
+      name: ConEmu
+      manager: choco
+      command: "choco install conemu -y --no-progress"
+      requiresAdmin: true
+      summary: Highly configurable Windows terminal emulator supporting tabs and splits.
+      homepage: "https://conemu.github.io"
+      tags: [terminal]
+
+    - id: fluent-terminal
+      name: Fluent Terminal
+      manager: winget
+      command: "winget install --id YugenApp.FluentTerminal -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fluent Design-inspired terminal host for Windows 10 and 11.
+      homepage: "https://github.com/felixse/FluentTerminal"
+      tags: [terminal]
+
+    - id: ranger
+      name: ranger
+      manager: scoop
+      command: "scoop install ranger"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Vim-inspired console file manager with multi-pane previews.
+      homepage: "https://ranger.github.io"
+      tags: [terminal, file-manager]
+
+    - id: tmux
+      name: tmux
+      manager: scoop
+      command: "scoop install tmux"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Terminal multiplexer for managing multiple shell sessions.
+      homepage: "https://github.com/tmux/tmux"
+      tags: [terminal]
+
+    - id: git-credential-manager-core
+      name: Git Credential Manager Core
+      manager: winget
+      command: "winget install --id Microsoft.GitCredentialManagerCore -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Secure single sign-on credential helper for Git on Windows.
+      homepage: "https://aka.ms/gcm"
+      tags: [vcs]
+
+    - id: ruby
+      name: Ruby Installer
+      manager: choco
+      command: "choco install ruby -y --no-progress"
+      requiresAdmin: true
+      summary: Ruby language runtime for Windows via RubyInstaller.
+      homepage: "https://rubyinstaller.org"
+      tags: [runtime, ruby]
+
+    - id: strawberry-perl
+      name: Strawberry Perl
+      manager: choco
+      command: "choco install strawberryperl -y --no-progress"
+      requiresAdmin: true
+      summary: Complete Perl distribution for Windows including GCC toolchain.
+      homepage: "https://strawberryperl.com"
+      tags: [runtime, perl]
+
+    - id: istioctl
+      name: istioctl
+      manager: choco
+      command: "choco install istioctl -y --no-progress"
+      requiresAdmin: true
+      summary: Command-line utility for managing Istio service meshes.
+      homepage: "https://istio.io/latest/docs/reference/commands/istioctl/"
+      tags: [service-mesh]
+
+    - id: skaffold
+      name: Skaffold
+      manager: choco
+      command: "choco install skaffold -y --no-progress"
+      requiresAdmin: true
+      summary: Automates local Kubernetes development workflows.
+      homepage: "https://skaffold.dev"
+      tags: [kubernetes, devops]
+
+    - id: pulumi
+      name: Pulumi
+      manager: choco
+      command: "choco install pulumi -y --no-progress"
+      requiresAdmin: true
+      summary: Infrastructure-as-code platform using familiar programming languages.
+      homepage: "https://www.pulumi.com"
+      tags: [iac]
+
+    - id: k9s
+      name: k9s
+      manager: choco
+      command: "choco install k9s -y --no-progress"
+      requiresAdmin: true
+      summary: Terminal UI to interact with Kubernetes clusters efficiently.
+      homepage: "https://k9scli.io"
+      tags: [kubernetes]
+
+    - id: openshift-cli
+      name: OpenShift CLI (oc)
+      manager: choco
+      command: "choco install openshift-cli -y --no-progress"
+      requiresAdmin: true
+      summary: Command-line tooling for Red Hat OpenShift clusters.
+      homepage: "https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html"
+      tags: [kubernetes]
+
+    - id: tcpview
+      name: TCPView
+      manager: choco
+      command: "choco install tcpview -y --no-progress"
+      requiresAdmin: true
+      summary: Sysinternals utility for inspecting active TCP and UDP endpoints.
+      homepage: "https://learn.microsoft.com/sysinternals/downloads/tcpview"
+      tags: [diagnostics, network]
+
+    - id: sysinternals-suite
+      name: Sysinternals Suite
+      manager: choco
+      command: "choco install sysinternals -y --no-progress"
+      requiresAdmin: true
+      summary: Collection of advanced Windows diagnostic and troubleshooting tools.
+      homepage: "https://learn.microsoft.com/sysinternals"
+      tags: [diagnostics]
+
+    - id: nmap
+      name: Nmap
+      manager: choco
+      command: "choco install nmap -y --no-progress"
+      requiresAdmin: true
+      summary: Network exploration and security auditing utility.
+      homepage: "https://nmap.org"
+      tags: [network]
+
+    - id: netcat
+      name: Netcat
+      manager: choco
+      command: "choco install netcat -y --no-progress"
+      requiresAdmin: true
+      summary: Lightweight networking utility for reading and writing across connections.
+      homepage: "https://nc110.sourceforge.net"
+      tags: [network]
+
+    - id: httpie
+      name: HTTPie
+      manager: choco
+      command: "choco install httpie -y --no-progress"
+      requiresAdmin: true
+      summary: User-friendly HTTP client for the terminal.
+      homepage: "https://httpie.io"
+      tags: [api]
+
+    - id: dbeaver
+      name: DBeaver Community
+      manager: choco
+      command: "choco install dbeaver -y --no-progress"
+      requiresAdmin: true
+      summary: Universal database client with ER diagrams and query tooling.
+      homepage: "https://dbeaver.io"
+      tags: [database]
+
+    - id: heidisql
+      name: HeidiSQL
+      manager: choco
+      command: "choco install heidisql -y --no-progress"
+      requiresAdmin: true
+      summary: Lightweight SQL client for MariaDB, MySQL, Microsoft SQL Server, and PostgreSQL.
+      homepage: "https://www.heidisql.com"
+      tags: [database]
+
+    - id: flyway
+      name: Flyway CLI
+      manager: choco
+      command: "choco install flyway.commandline -y --no-progress"
+      requiresAdmin: true
+      summary: Database migration automation for multiple relational databases.
+      homepage: "https://flywaydb.org"
+      tags: [database, devops]
+
+    - id: postgresql
+      name: PostgreSQL
+      manager: choco
+      command: "choco install postgresql -y --no-progress"
+      requiresAdmin: true
+      summary: Open-source relational database server and tools for Windows.
+      homepage: "https://www.postgresql.org"
+      tags: [database]
+
+    - id: redis-cli
+      name: Redis CLI (via Redis)
+      manager: scoop
+      command: "scoop install redis"
+      requiresAdmin: false
+      summary: Installs Redis for Windows including the redis-cli command-line interface.
+      homepage: "https://redis.io"
+      tags: [database, cli]
+
+    - id: pnpm
+      name: pnpm
+      manager: choco
+      command: "choco install pnpm -y --no-progress"
+      requiresAdmin: true
+      summary: Fast, disk space-efficient package manager for Node.js projects.
+      homepage: "https://pnpm.io"
+      tags: [javascript, build]
+
+    - id: bazel
+      name: Bazel
+      manager: choco
+      command: "choco install bazel -y --no-progress"
+      requiresAdmin: true
+      summary: Build and test tool supporting multiple languages and platforms.
+      homepage: "https://bazel.build"
+      tags: [build]
+
+    - id: msys2
+      name: MSYS2
+      manager: choco
+      command: "choco install msys2 -y --no-progress"
+      requiresAdmin: true
+      summary: Unix-like development environment and package manager for Windows.
+      homepage: "https://www.msys2.org"
+      tags: [build]
+
+    - id: jenkins
+      name: Jenkins
+      manager: choco
+      command: "choco install jenkins -y --no-progress"
+      requiresAdmin: true
+      summary: Automation server for building, deploying, and automating projects.
+      homepage: "https://www.jenkins.io"
+      tags: [devops]
+
+    - id: everything
+      name: Everything
+      manager: choco
+      command: "choco install everything -y --no-progress"
+      requiresAdmin: true
+      summary: Instant file indexing and search utility for Windows.
+      homepage: "https://www.voidtools.com"
+      tags: [productivity]
+
+    - id: flux
+      name: f.lux
+      manager: choco
+      command: "choco install flux -y --no-progress"
+      requiresAdmin: true
+      summary: Automatically adjusts display color temperature to reduce eye strain.
+      homepage: "https://justgetflux.com"
+      tags: [productivity]
+
+    - id: greenshot
+      name: Greenshot
+      manager: choco
+      command: "choco install greenshot -y --no-progress"
+      requiresAdmin: true
+      summary: Lightweight screenshot tool with quick annotation features.
+      homepage: "https://getgreenshot.org"
+      tags: [productivity]
+
+    - id: 7tt
+      name: 7+ Taskbar Tweaker
+      manager: choco
+      command: "choco install 7tt -y --no-progress"
+      requiresAdmin: true
+      summary: Customize Windows taskbar behaviors beyond built-in settings.
+      homepage: "https://ramensoftware.com/7-taskbar-tweaker"
+      tags: [productivity]
+
+    - id: wingetui
+      name: WinGetUI
+      manager: scoop
+      command: "scoop install wingetui"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Graphical interface for managing winget, Chocolatey, and Scoop packages.
+      homepage: "https://www.marticliment.com/wingetui"
+      tags: [package-manager]
+
+    - id: bat
+      name: bat
+      manager: scoop
+      command: "scoop install bat"
+      requiresAdmin: false
+      summary: Cat clone with syntax highlighting and Git integration.
+      homepage: "https://github.com/sharkdp/bat"
+      tags: [cli]
+
+    - id: ripgrep
+      name: ripgrep
+      manager: scoop
+      command: "scoop install ripgrep"
+      requiresAdmin: false
+      summary: Fast text search tool using Rust's regex library.
+      homepage: "https://github.com/BurntSushi/ripgrep"
+      tags: [cli]
+
+    - id: fd
+      name: fd
+      manager: scoop
+      command: "scoop install fd"
+      requiresAdmin: false
+      summary: Simple, fast, and user-friendly alternative to the find command.
+      homepage: "https://github.com/sharkdp/fd"
+      tags: [cli]

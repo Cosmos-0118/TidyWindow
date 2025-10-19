@@ -6,6 +6,14 @@
 -   .NET SDK 8.0+
 -   PowerShell 7 (`pwsh`)
 
+### Install Prerequisites with winget
+
+```powershell
+winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements
+winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements
+winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements
+```
+
 ## Setup
 
 1. Clone the repository.

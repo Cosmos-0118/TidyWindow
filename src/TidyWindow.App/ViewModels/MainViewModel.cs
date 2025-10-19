@@ -21,11 +21,9 @@ public sealed class MainViewModel : ViewModelBase
         {
             new("Bootstrap", "Verify package managers and get ready", typeof(BootstrapPage)),
             new("Install hub", "Curated package bundles and install queue", typeof(InstallHubPage)),
-            new("Dashboard", "Overview of health and quick actions", typeof(DashboardPage)),
             new("Runtime updates", "Track essential runtimes and apply updates", typeof(RuntimeUpdatesPage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),
             new("Cleanup", "Preview clutter before removing files", typeof(CleanupPage)),
-            new("Tasks", "Track queued and completed maintenance jobs", typeof(TasksPage)),
             new("Settings", "Configure preferences and integrations", typeof(SettingsPage))
         };
     }

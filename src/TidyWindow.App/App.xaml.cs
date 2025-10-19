@@ -29,6 +29,7 @@ public partial class App : WpfApplication
             .ConfigureServices(services =>
             {
                 services.AddSingleton<NavigationService>();
+                services.AddSingleton<PrivilegeOptions>();
 
                 services.AddSingleton<PowerShellInvoker>();
                 services.AddSingleton<PackageManagerDetector>();
@@ -42,20 +43,16 @@ public partial class App : WpfApplication
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
-                services.AddTransient<DashboardViewModel>();
                 services.AddTransient<CleanupViewModel>();
                 services.AddTransient<DeepScanViewModel>();
                 services.AddTransient<RuntimeUpdatesViewModel>();
-                services.AddTransient<TasksViewModel>();
                 services.AddTransient<SettingsViewModel>();
                 services.AddTransient<InstallHubViewModel>();
 
                 services.AddTransient<BootstrapPage>();
-                services.AddTransient<DashboardPage>();
                 services.AddTransient<CleanupPage>();
                 services.AddTransient<DeepScanPage>();
                 services.AddTransient<RuntimeUpdatesPage>();
-                services.AddTransient<TasksPage>();
                 services.AddTransient<SettingsPage>();
                 services.AddTransient<InstallHubPage>();
 
