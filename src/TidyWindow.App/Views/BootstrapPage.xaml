@@ -185,10 +185,11 @@
                                            HorizontalAlignment="Center"
                                            Margin="16,0,16,0"/>
                                 <TextBlock Grid.Column="2"
-                                           Text="{Binding Notes}"
-                                           Margin="16,0,16,0"/>
+                                           Text="{Binding NotesDisplay}"
+                                           Margin="16,0,16,0"
+                                           TextWrapping="Wrap"/>
                                 <Button Grid.Column="3"
-                                        Content="Install or repair"
+                                        Content="{Binding ActionLabel}"
                                         Command="{Binding DataContext.InstallCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                         CommandParameter="{Binding}"
                                         Background="#7C3AED"
@@ -198,7 +199,8 @@
                                         Padding="12,6"
                                         Cursor="Hand"
                                         HorizontalAlignment="Left"
-                                        Margin="16,0,0,0">
+                                        Margin="16,0,0,0"
+                                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}">
                                     <Button.Style>
                                         <Style TargetType="Button">
                                             <Setter Property="Template">

@@ -1,0 +1,528 @@
+<Page x:Class="TidyWindow.App.Views.CleanupPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+      mc:Ignorable="d"
+      Title="Cleanup"
+      Background="Transparent">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    </Page.Resources>
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal">
+            <Border Width="48"
+                    Height="48"
+                    CornerRadius="12"
+                    Background="#1E293B"
+                    Margin="0,0,12,0">
+                <TextBlock Text="🧹"
+                           FontSize="24"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"/>
+            </Border>
+            <StackPanel>
+                <TextBlock Text="System clean-up"
+                           FontSize="26"
+                           FontWeight="Bold"
+                           Foreground="#F8FAFC"/>
+                <TextBlock Text="Preview large files and clutter before removing them"
+                           FontSize="14"
+                           Foreground="#94A3B8"/>
+            </StackPanel>
+        </StackPanel>
+
+        <Border Grid.Row="1"
+                Margin="0,24,0,20"
+                Padding="16"
+                Background="#111827"
+                CornerRadius="12">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="3*"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Preview options"
+                               FontSize="14"
+                               Foreground="#CBD5F5"/>
+                    <TextBlock Text="Adjust scope before running a dry-run scan"
+                               FontSize="12"
+                               Foreground="#64748B"
+                               Margin="0,2,0,12"/>
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <CheckBox Content="Include Downloads"
+                                  FontSize="13"
+                                  Foreground="#F8FAFC"
+                                  Margin="0,0,12,0"
+                                  IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="Top items"
+                                       FontSize="13"
+                                       Foreground="#CBD5F5"
+                                       Margin="0,0,8,0"/>
+                            <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="13"
+                                     Foreground="#F8FAFC"
+                                     Width="56"
+                                     Background="#1F2937"
+                                     BorderBrush="#374151"
+                                     BorderThickness="1"
+                                     HorizontalContentAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,12,0">
+                        <TextBlock Text="Selected"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   Margin="0,0,6,0"/>
+                        <TextBlock Text="{Binding SelectedItemCount, StringFormat={}{0:N0} files}"
+                                   FontSize="12"
+                                   Foreground="#E2E8F0"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock Text="{Binding SelectedItemSizeMegabytes, StringFormat={}{0:F2} MB}"
+                                   FontSize="12"
+                                   Foreground="#E2E8F0"/>
+                    </StackPanel>
+                    <Button Content="Clear selection"
+                            Command="{Binding ClearCurrentSelectionCommand}"
+                            Padding="14,8"
+                            Cursor="Hand"
+                            BorderThickness="0"
+                            Background="#1E293B"
+                            Foreground="#E2E8F0"
+                            Margin="0,0,8,0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="ClearBorder"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="8"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsEnabled"
+                                             Value="False">
+                                        <Setter TargetName="ClearBorder"
+                                                Property="Opacity"
+                                                Value="0.5"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver"
+                                             Value="True">
+                                        <Setter TargetName="ClearBorder"
+                                                Property="Background"
+                                                Value="#24324C"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <Button Content="Select all"
+                            Command="{Binding SelectAllCurrentCommand}"
+                            Padding="14,8"
+                            Cursor="Hand"
+                            BorderThickness="0"
+                            Background="#1E293B"
+                            Foreground="#E2E8F0"
+                            Margin="0,0,8,0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="SelectBorder"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="8"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsEnabled"
+                                             Value="False">
+                                        <Setter TargetName="SelectBorder"
+                                                Property="Opacity"
+                                                Value="0.5"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver"
+                                             Value="True">
+                                        <Setter TargetName="SelectBorder"
+                                                Property="Background"
+                                                Value="#24324C"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <Button Content="Delete selected"
+                            Command="{Binding DeleteSelectedCommand}"
+                            Background="#EF4444"
+                            Foreground="#F8FAFC"
+                            FontWeight="Semibold"
+                            Padding="16,8"
+                            Cursor="Hand"
+                            BorderThickness="0"
+                            Margin="0,0,8,0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="ActionBorder"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="8"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsEnabled"
+                                             Value="False">
+                                        <Setter TargetName="ActionBorder"
+                                                Property="Opacity"
+                                                Value="0.6"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver"
+                                             Value="True">
+                                        <Setter TargetName="ActionBorder"
+                                                Property="Background"
+                                                Value="#DC2626"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <Button Content="Run preview"
+                            Background="#22C55E"
+                            Foreground="#06111D"
+                            FontWeight="Semibold"
+                            Padding="16,8"
+                            Cursor="Hand"
+                            BorderThickness="0"
+                            Command="{Binding RunPreviewCommand}">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="RunBorder"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="8"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsEnabled"
+                                             Value="False">
+                                        <Setter TargetName="RunBorder"
+                                                Property="Opacity"
+                                                Value="0.6"/>
+                                    </Trigger>
+                                    <Trigger Property="IsMouseOver"
+                                             Value="True">
+                                        <Setter TargetName="RunBorder"
+                                                Property="Background"
+                                                Value="#16A34A"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Button.IsEnabled>
+                            <Binding Path="IsBusy"
+                                     Converter="{StaticResource InverseBooleanConverter}"/>
+                        </Button.IsEnabled>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
+                Background="#111827"
+                CornerRadius="12"
+                Padding="0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0"
+                           Margin="20,16,20,12">
+                    <StackPanel DockPanel.Dock="Left">
+                        <TextBlock Text="Preview results"
+                                   FontSize="14"
+                                   Foreground="#CBD5F5"/>
+                        <TextBlock Text="{Binding SummaryText}"
+                                   FontSize="12"
+                                   Foreground="#64748B"/>
+                    </StackPanel>
+                    <ProgressBar DockPanel.Dock="Right"
+                                 Width="120"
+                                 Height="6"
+                                 Margin="12,0,0,0"
+                                 IsIndeterminate="True"
+                                 Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </DockPanel>
+
+                <Grid Grid.Row="1"
+                      Margin="16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="2*"/>
+                        <ColumnDefinition Width="3*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Grid.Column="0"
+                            Margin="0,0,12,0"
+                            Background="#0F172A"
+                            CornerRadius="10">
+                        <ListView ItemsSource="{Binding Targets}"
+                                  SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  Foreground="#F8FAFC"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ScrollViewer.CanContentScroll="True">
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="4">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140"/>
+                                            <ColumnDefinition Width="80"/>
+                                            <ColumnDefinition Width="110"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Category}"
+                                                   Foreground="#F8FAFC"
+                                                   FontWeight="SemiBold"
+                                                   FontSize="13"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding RemainingItemCount}"
+                                                   Foreground="#CBD5F5"
+                                                   FontSize="13"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding RemainingSizeMegabytes, StringFormat={}{0:F2} MB}"
+                                                   Foreground="#CBD5F5"
+                                                   FontSize="13"
+                                                   HorizontalAlignment="Right"/>
+                                        <TextBlock Grid.Column="3"
+                                                   Text="{Binding Path}"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="12"
+                                                   Margin="12,0,0,0"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Path}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="HorizontalContentAlignment"
+                                            Value="Stretch"/>
+                                    <Setter Property="Padding"
+                                            Value="6"/>
+                                    <Setter Property="Background"
+                                            Value="Transparent"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListViewItem">
+                                                <Border x:Name="Outer"
+                                                        Background="{TemplateBinding Background}"
+                                                        CornerRadius="8"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsSelected"
+                                                             Value="True">
+                                                        <Setter TargetName="Outer"
+                                                                Property="Background"
+                                                                Value="#1F2937"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsMouseOver"
+                                                             Value="True">
+                                                        <Setter TargetName="Outer"
+                                                                Property="Background"
+                                                                Value="#27364A"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled"
+                                                             Value="False">
+                                                        <Setter TargetName="Outer"
+                                                                Property="Opacity"
+                                                                Value="0.6"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.IsEnabled>
+                                <Binding Path="IsBusy"
+                                         Converter="{StaticResource InverseBooleanConverter}"/>
+                            </ListView.IsEnabled>
+                        </ListView>
+                    </Border>
+
+                    <Border Grid.Column="1"
+                            Background="#0F172A"
+                            CornerRadius="10">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="16,12,16,8"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Preview items"
+                                           FontSize="14"
+                                           Foreground="#CBD5F5"/>
+                                <TextBlock Text="{Binding SelectedTarget.RemainingItemCount, StringFormat={}{0} items, TargetNullValue=0 items}"
+                                           FontSize="12"
+                                           Foreground="#64748B"/>
+                            </StackPanel>
+
+                            <Grid Grid.Row="1"
+                                  Margin="8,0,8,12">
+                                <ListView ItemsSource="{Binding SelectedTarget.Items}"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Foreground="#F8FAFC"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          ScrollViewer.CanContentScroll="True">
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="100"/>
+                                                    <ColumnDefinition Width="160"/>
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          VerticalAlignment="Center"
+                                                          Margin="0,0,12,0"/>
+                                                <StackPanel Grid.Column="1"
+                                                            Margin="0,0,12,0">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               Foreground="#F8FAFC"
+                                                               FontSize="13"/>
+                                                    <TextBlock Text="{Binding FullName}"
+                                                               Foreground="#94A3B8"
+                                                               FontSize="11"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding FullName}"/>
+                                                </StackPanel>
+                                                <TextBlock Grid.Column="2"
+                                                           Text="{Binding SizeMegabytes, StringFormat={}{0:F2} MB}"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="3"
+                                                           Text="{Binding LastModifiedLocal, StringFormat={}{0:g}}"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="12"
+                                                           HorizontalAlignment="Right"
+                                                           VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="HorizontalContentAlignment"
+                                                    Value="Stretch"/>
+                                            <Setter Property="Padding"
+                                                    Value="6"/>
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListViewItem">
+                                                        <Border x:Name="Inner"
+                                                                Background="#111C33"
+                                                                CornerRadius="8"
+                                                                Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver"
+                                                                     Value="True">
+                                                                <Setter TargetName="Inner"
+                                                                        Property="Background"
+                                                                        Value="#1B2942"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.IsEnabled>
+                                        <Binding Path="IsBusy"
+                                                 Converter="{StaticResource InverseBooleanConverter}"/>
+                                    </ListView.IsEnabled>
+                                </ListView>
+
+                                <TextBlock Text="Select a category to review its items."
+                                           Foreground="#64748B"
+                                           FontSize="13"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Panel.ZIndex="1">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility"
+                                                    Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedTarget}"
+                                                             Value="{x:Null}">
+                                                    <Setter Property="Visibility"
+                                                            Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="No remaining files in this category."
+                                           Foreground="#64748B"
+                                           FontSize="13"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Panel.ZIndex="1">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility"
+                                                    Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedTarget}"
+                                                             Value="{x:Null}">
+                                                    <Setter Property="Visibility"
+                                                            Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedTarget.RemainingItemCount}"
+                                                             Value="0">
+                                                    <Setter Property="Visibility"
+                                                            Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Page>

@@ -23,6 +23,6 @@ public sealed class InverseBooleanConverter : IValueConverter
             return !boolean;
         }
 
-        return Binding.DoNothing;
+        return System.Windows.Data.Binding.DoNothing;
     }
 }

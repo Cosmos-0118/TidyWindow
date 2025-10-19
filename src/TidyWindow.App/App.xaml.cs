@@ -1,18 +1,22 @@
 ﻿using System.Windows;
+using WpfApplication = System.Windows.Application;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views;
 using TidyWindow.Core.Automation;
+using TidyWindow.Core.Cleanup;
 using TidyWindow.Core.PackageManagers;
+using TidyWindow.Core.Diagnostics;
+using TidyWindow.Core.Updates;
 
 namespace TidyWindow.App;
 
 /// <summary>
 /// Interaction logic for App.xaml
 /// </summary>
-public partial class App : Application
+public partial class App : WpfApplication
 {
     private IHost? _host;
 
@@ -27,15 +31,25 @@ public partial class App : Application
 
                 services.AddSingleton<PowerShellInvoker>();
                 services.AddSingleton<PackageManagerDetector>();
+                services.AddSingleton<PackageManagerInstaller>();
+                services.AddSingleton<CleanupService>();
+                services.AddSingleton<DeepScanService>();
+                services.AddSingleton<RuntimeCatalogService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
                 services.AddTransient<DashboardViewModel>();
+                services.AddTransient<CleanupViewModel>();
+                services.AddTransient<DeepScanViewModel>();
+                services.AddTransient<RuntimeUpdatesViewModel>();
                 services.AddTransient<TasksViewModel>();
                 services.AddTransient<SettingsViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<DashboardPage>();
+                services.AddTransient<CleanupPage>();
+                services.AddTransient<DeepScanPage>();
+                services.AddTransient<RuntimeUpdatesPage>();
                 services.AddTransient<TasksPage>();
                 services.AddTransient<SettingsPage>();
 

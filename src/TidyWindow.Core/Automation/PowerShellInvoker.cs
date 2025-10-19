@@ -46,8 +46,7 @@ public sealed class PowerShellInvoker
         using PowerShell ps = PowerShell.Create();
         ps.Runspace = runspace;
 
-        var command = new Command(scriptPath, isScript: true, useLocalScope: false);
-        ps.Commands.AddCommand(command);
+        ps.AddCommand(scriptPath, useLocalScope: false);
 
         if (parameters is not null)
         {
@@ -55,12 +54,14 @@ public sealed class PowerShellInvoker
             {
                 if (kvp.Value is bool boolValue)
                 {
-                    var switchValue = new SwitchParameter(boolValue);
-                    command.Parameters.Add(new CommandParameter(kvp.Key, switchValue));
+                    if (boolValue)
+                    {
+                        ps.AddParameter(kvp.Key);
+                    }
                 }
                 else
                 {
-                    command.Parameters.Add(new CommandParameter(kvp.Key, kvp.Value));
+                    ps.AddParameter(kvp.Key, kvp.Value);
                 }
             }
         }

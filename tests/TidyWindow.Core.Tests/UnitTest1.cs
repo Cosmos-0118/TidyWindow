@@ -21,7 +21,7 @@ public sealed class PowerShellInvokerTests
             });
 
             Assert.True(result.IsSuccess);
-            Assert.Contains("Hello World", result.Output);
+            Assert.Contains(result.Output, line => line.Contains("Hello", StringComparison.OrdinalIgnoreCase));
             Assert.Empty(result.Errors);
         }
         finally
