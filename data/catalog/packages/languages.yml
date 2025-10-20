@@ -63,3 +63,19 @@ packages:
       summary: Toolchain manager for Glasgow Haskell Compiler and related tooling.
       homepage: "https://www.haskell.org/ghcup/"
       tags: [runtime, haskell]
+    - id: julia
+      name: Julia
+      manager: winget
+      command: "winget install --id JuliaComputing.Julia -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: High-performance language for numerical and scientific computing.
+      homepage: "https://julialang.org"
+      tags: [runtime, data]
+    - id: r-lang
+      name: R Language
+      manager: winget
+      command: "winget install --id RProject.R -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Statistical computing language popular for analytics and research.
+      homepage: "https://www.r-project.org"
+      tags: [runtime, data]

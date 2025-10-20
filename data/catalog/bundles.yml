@@ -137,6 +137,8 @@ bundles:
           - powershell-preview
           - ruby
           - strawberry-perl
+          - julia
+          - r-lang
           - tmux
 
     - id: terminals-and-shells
@@ -167,3 +169,43 @@ bundles:
           - bat
           - ripgrep
           - fd
+          - libreoffice
+          - obsidian
+          - notion
+          - zotero
+          - drawio
+          - freecad
+          - geogebra
+          - fritzing
+          - sumatrapdf
+          - sharex
+          - flow-launcher
+          - ditto
+          - autohotkey
+          - keypirinha
+
+    - id: btech-starter
+      name: B.Tech Student Starter
+      description: Essentials for engineering coursework, coding labs, and project collaboration.
+      packages:
+          - git
+          - github-desktop
+          - vscode
+          - android-studio
+          - intellij-idea-community
+          - pycharm-community
+          - eclipse-ide
+          - codeblocks
+          - arduino-ide
+          - anaconda
+          - rstudio
+          - jupyterlab
+          - octave
+          - libreoffice
+          - drawio
+          - freecad
+          - geogebra
+          - fritzing
+          - ltspice
+          - powertoys
+          - windows-terminal

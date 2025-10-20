@@ -6,7 +6,8 @@ param(
     [string] $DisplayName,
     [switch] $RequiresAdmin,
     [switch] $Elevated,
-    [string] $ResultPath
+    [string] $ResultPath,
+    [switch] $DryRun
 )
 
 Set-StrictMode -Version Latest
@@ -29,19 +30,39 @@ if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
 }
 
-function Add-TidyOutput {
-    param([string] $Message)
+$callerModulePath = $PSCmdlet.MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) {
+    $callerModulePath = $PSCommandPath
+}
 
-    if (-not [string]::IsNullOrWhiteSpace($Message)) {
-        [void]$script:TidyOutput.Add($Message)
+$scriptDirectory = Split-Path -Parent $callerModulePath
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
+    $scriptDirectory = (Get-Location).Path
+}
+
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = [System.IO.Path]::GetFullPath($modulePath)
+if (-not (Test-Path -Path $modulePath)) {
+    throw "Automation module not found at path '$modulePath'."
+}
+
+Import-Module $modulePath -Force
+
+function Add-TidyOutput {
+    param([object] $Message)
+
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if (-not [string]::IsNullOrWhiteSpace($text)) {
+        [void]$script:TidyOutput.Add($text)
     }
 }
 
 function Add-TidyError {
-    param([string] $Message)
+    param([object] $Message)
 
-    if (-not [string]::IsNullOrWhiteSpace($Message)) {
-        [void]$script:TidyErrors.Add($Message)
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if (-not [string]::IsNullOrWhiteSpace($text)) {
+        [void]$script:TidyErrors.Add($text)
     }
 }
 
@@ -171,93 +192,6 @@ function Resolve-ManagerExecutable {
     }
 }
 
-function Get-Installed-Version {
-    param([string] $Key, [string] $PackageId)
-
-    switch ($Key) {
-        'winget' { return Get-WingetInstalledVersion -PackageId $PackageId }
-        'choco' { return Get-ChocoInstalledVersion -PackageId $PackageId }
-        'chocolatey' { return Get-ChocoInstalledVersion -PackageId $PackageId }
-        'scoop' { return Get-ScoopInstalledVersion -PackageId $PackageId }
-        default { return $null }
-    }
-}
-
-function Get-WingetInstalledVersion {
-    param([string] $PackageId)
-
-    $command = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'winget' }
-
-    try {
-        $jsonOutput = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' '--output' 'json' 2>$null
-        if ($LASTEXITCODE -eq 0 -and $jsonOutput) {
-            $data = ConvertFrom-Json -InputObject ($jsonOutput -join [Environment]::NewLine) -ErrorAction Stop
-            if ($data -and $data.InstalledPackages -and $data.InstalledPackages.Count -gt 0) {
-                $package = $data.InstalledPackages | Select-Object -First 1
-                if ($package.Version) { return $package.Version.Trim() }
-            }
-        }
-    }
-    catch { }
-
-    try {
-        $fallback = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
-        foreach ($line in $fallback) {
-            if ($line -match '\s+' + [System.Text.RegularExpressions.Regex]::Escape($PackageId) + '\s+([\w\.\-]+)') {
-                return $matches[1].Trim()
-            }
-        }
-    }
-    catch { }
-
-    return $null
-}
-
-function Get-ChocoInstalledVersion {
-    param([string] $PackageId)
-
-    $command = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'choco' }
-
-    try {
-        $output = & $exe 'list' $PackageId '--local-only' '--exact' '--limit-output' 2>$null
-        foreach ($line in $output) {
-            if ($line -match '^\s*' + [System.Text.RegularExpressions.Regex]::Escape($PackageId) + '\|(.+)$') {
-                return $matches[1].Trim()
-            }
-        }
-    }
-    catch { }
-
-    return $null
-}
-
-function Get-ScoopInstalledVersion {
-    param([string] $PackageId)
-
-    $command = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'scoop' }
-
-    try {
-        $output = & $exe 'list' '--json' 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $output) { return $null }
-        $apps = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop
-        foreach ($app in $apps) {
-            if ($app.Name -and ($app.Name -eq $PackageId)) { return $app.Version }
-            if ($app.name -and ($app.name -eq $PackageId)) { return $app.version }
-        }
-    }
-    catch { }
-
-    return $null
-}
 
 function Invoke-Removal {
     param([string] $Key, [string] $PackageId)
@@ -300,7 +234,7 @@ function Invoke-Removal {
     }
 }
 
-$installedBefore = Get-Installed-Version -Key $managerKey -PackageId $PackageId
+$installedBefore = Get-TidyInstalledPackageVersion -Manager $managerKey -PackageId $PackageId
 $statusBefore = if ([string]::IsNullOrWhiteSpace($installedBefore)) { 'NotInstalled' } else { 'Installed' }
 $attempted = $false
 $exitCode = 0
@@ -310,6 +244,10 @@ $summary = $null
 try {
     if ($statusBefore -eq 'NotInstalled') {
         $summary = "Package '$DisplayName' is not currently installed."
+        $operationSucceeded = $true
+    }
+    elseif ($DryRun.IsPresent) {
+        $summary = "Dry run: package '$DisplayName' is installed."
         $operationSucceeded = $true
     }
     else {
@@ -330,10 +268,10 @@ catch {
     if (-not $summary) { $summary = $message }
 }
 
-$installedAfter = Get-Installed-Version -Key $managerKey -PackageId $PackageId
+$installedAfter = Get-TidyInstalledPackageVersion -Manager $managerKey -PackageId $PackageId
 $statusAfter = if ([string]::IsNullOrWhiteSpace($installedAfter)) { 'NotInstalled' } else { 'Installed' }
 
-if ($statusAfter -eq 'NotInstalled') {
+if ($statusAfter -eq 'NotInstalled' -or $DryRun.IsPresent) {
     $operationSucceeded = $true
 }
 

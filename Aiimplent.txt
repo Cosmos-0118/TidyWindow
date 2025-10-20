@@ -1,5 +1,0 @@
-Prompt for an OpenRouter API key on the Cleanup page, store it securely, then fetch AI recommendations once saved.
-Extend CleanupViewModel with API key storage, AI recommendation collection, busy/error state, and commands for saving the key, requesting suggestions, and applying them.
-Update the Cleanup UI with a setup card, warning text, combined table of scan results plus AI advice, and an Apply Cleanup button.
-Add IAiCleanupService and an OpenRouterCleanupService that call the OpenRouter chat completions API, parse JSON recommendations, and log interactions.
-Define richer data contracts (CleanupCandidate, CleanupRecommendation), cap candidate payloads, and handle errors including invalid keys.

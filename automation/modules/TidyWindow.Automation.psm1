@@ -1,14 +1,381 @@
+function Convert-TidyLogMessage {
+    # Normalizes log payloads into printable strings to avoid binding errors.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [object] $InputObject
+    )
+
+    if ($null -eq $InputObject) {
+        return '<null>'
+    }
+
+    if ($InputObject -is [string]) {
+        return $InputObject
+    }
+
+    if ($InputObject -is [pscustomobject]) {
+        $pairs = foreach ($prop in $InputObject.PSObject.Properties) {
+            $key = if ([string]::IsNullOrEmpty($prop.Name)) { '<unnamed>' } else { $prop.Name }
+            $value = Convert-TidyLogMessage -InputObject $prop.Value
+            "$key=$value"
+        }
+
+        return $pairs -join '; '
+    }
+
+    if ($InputObject -is [System.Collections.IDictionary]) {
+        $pairs = @()
+        foreach ($entry in $InputObject.GetEnumerator()) {
+            $key = if ($null -eq $entry.Key) { '<null>' } else { $entry.Key.ToString() }
+            $value = Convert-TidyLogMessage -InputObject $entry.Value
+            $pairs += "$key=$value"
+        }
+        return $pairs -join '; '
+    }
+
+    if ($InputObject -is [System.Collections.IEnumerable] -and -not ($InputObject -is [string])) {
+        $items = foreach ($item in $InputObject) { Convert-TidyLogMessage -InputObject $item }
+        return $items -join [Environment]::NewLine
+    }
+
+    try {
+        return [System.Management.Automation.LanguagePrimitives]::ConvertTo($InputObject, [string])
+    }
+    catch {
+        return ($InputObject | Out-String).TrimEnd()
+    }
+}
+
 function Write-TidyLog {
+    [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
         [ValidateSet('Information', 'Warning', 'Error')]
         [string] $Level,
-        [Parameter(Mandatory = $true)]
-        [string] $Message
+        [Parameter(Mandatory = $true, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
+        [object[]] $Message
     )
 
-    $timestamp = (Get-Date).ToString('u')
-    Write-Host "[$timestamp][$Level] $Message"
+    process {
+        $timestamp = (Get-Date).ToString('u')
+        $parts = foreach ($segment in $Message) { Convert-TidyLogMessage -InputObject $segment }
+        $text = ($parts -join ' ').Trim()
+        if ([string]::IsNullOrWhiteSpace($text)) {
+            $text = '<empty>'
+        }
+
+        Write-Host "[$timestamp][$Level] $text"
+    }
+}
+
+function Get-TidyCommandPath {
+    # Resolves the absolute path to a CLI tool when available.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $CommandName
+    )
+
+    $command = Get-Command -Name $CommandName -ErrorAction SilentlyContinue
+    if (-not $command) {
+        return $null
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($command.Source)) {
+        return $command.Source
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($command.Path)) {
+        return $command.Path
+    }
+
+    return $command.Name
+}
+
+function Get-TidyWingetInstalledVersion {
+    # Detects the installed version of a winget package if present.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $PackageId
+    )
+
+    $exe = Get-TidyCommandPath -CommandName 'winget'
+    if (-not $exe) {
+        return $null
+    }
+
+    try {
+        $fallback = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
+        foreach ($line in @($fallback)) {
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+
+            $text = [string]$line
+            $clean = [System.Text.RegularExpressions.Regex]::Replace($text, '\x1B\[[0-9;]*[A-Za-z]', '')
+            $clean = $clean.Replace("`r", '')
+            if ([string]::IsNullOrWhiteSpace($clean)) {
+                continue
+            }
+
+            if ($clean -match '^(?i)\s*Name\s+Id\s+Version') { continue }
+            if ($clean -match '^-{3,}') { continue }
+            if ($clean -match '^(?i).*no installed package.*') { return $null }
+            if ($clean -match '^(?i).*no installed packages found.*') { return $null }
+
+            $trimmed = $clean.Trim()
+            if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+
+            $pattern = '^(?<name>.+?)\s+' + [System.Text.RegularExpressions.Regex]::Escape($PackageId) + '\s+(?<version>[^\s]+)'
+            $match = [System.Text.RegularExpressions.Regex]::Match($trimmed, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+            if ($match.Success) {
+                $candidate = $match.Groups['version'].Value.Trim()
+                if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                    return $candidate
+                }
+            }
+        }
+    }
+    catch {
+        # No further fallback available.
+    }
+
+    return $null
+}
+
+function Get-TidyChocoInstalledVersion {
+    # Detects the installed version of a Chocolatey package.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $PackageId
+    )
+
+    $installRoot = $env:ChocolateyInstall
+    if ([string]::IsNullOrWhiteSpace($installRoot)) {
+        $installRoot = 'C:\ProgramData\chocolatey'
+    }
+
+    if (-not (Test-Path -LiteralPath $installRoot)) {
+        return $null
+    }
+
+    $libRoot = Join-Path -Path $installRoot -ChildPath 'lib'
+    if (-not (Test-Path -LiteralPath $libRoot)) {
+        return $null
+    }
+
+    $candidateDirs = @()
+    $directPath = Join-Path -Path $libRoot -ChildPath $PackageId
+    if (Test-Path -LiteralPath $directPath) {
+        $candidateDirs += (Get-Item -LiteralPath $directPath)
+    }
+
+    if ($candidateDirs.Count -eq 0) {
+        try {
+            $candidateDirs = Get-ChildItem -Path $libRoot -Directory -ErrorAction Stop | Where-Object {
+                [string]::Equals($_.Name, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)
+            }
+        }
+        catch {
+            $candidateDirs = @()
+        }
+    }
+
+    if ($candidateDirs.Count -eq 0) {
+        try {
+            $candidateDirs = Get-ChildItem -Path $libRoot -Directory -ErrorAction Stop | Where-Object {
+                $nuspec = Get-ChildItem -Path $_.FullName -Filter '*.nuspec' -File -ErrorAction SilentlyContinue | Select-Object -First 1
+                if (-not $nuspec) {
+                    $false
+                }
+                else {
+                    $matchesId = $false
+                    try {
+                        $xml = [xml](Get-Content -LiteralPath $nuspec.FullName -Raw -ErrorAction Stop)
+                        $metadata = $xml.package.metadata
+                        if ($metadata) {
+                            $idValue = $metadata.id
+                            if (-not [string]::IsNullOrWhiteSpace($idValue) -and [string]::Equals($idValue, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                                $matchesId = $true
+                            }
+                        }
+                    }
+                    catch {
+                        $matchesId = $false
+                    }
+
+                    $matchesId
+                }
+            }
+        }
+        catch {
+            $candidateDirs = @()
+        }
+    }
+
+    foreach ($dir in $candidateDirs) {
+        try {
+            $nuspec = Get-ChildItem -Path $dir.FullName -Filter '*.nuspec' -File -ErrorAction Stop | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+            if (-not $nuspec) { continue }
+
+            $xml = [xml](Get-Content -LiteralPath $nuspec.FullName -Raw -ErrorAction Stop)
+            $metadata = $xml.package.metadata
+            if ($metadata -and $metadata.version) {
+                $candidate = $metadata.version.ToString().Trim()
+                if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                    return $candidate
+                }
+            }
+        }
+        catch {
+            continue
+        }
+    }
+
+    return $null
+}
+
+function Get-TidyScoopInstalledVersion {
+    # Detects the installed version of a Scoop package.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $PackageId
+    )
+
+    $exe = Get-TidyCommandPath -CommandName 'scoop'
+    if (-not $exe) {
+        return $null
+    }
+
+    try {
+        $output = & $exe 'info' $PackageId 2>$null
+        if ($LASTEXITCODE -eq 0 -and $output) {
+            foreach ($entry in $output) {
+                if ($null -eq $entry) {
+                    continue
+                }
+
+                if ($entry -is [pscustomobject]) {
+                    $candidate = $null
+                    if ($entry.PSObject.Properties.Match('Installed')) { $candidate = $entry.Installed }
+                    elseif ($entry.PSObject.Properties.Match('installed')) { $candidate = $entry.installed }
+                    elseif ($entry.PSObject.Properties.Match('Version')) { $candidate = $entry.Version }
+                    elseif ($entry.PSObject.Properties.Match('version')) { $candidate = $entry.version }
+
+                    if ($null -ne $candidate) {
+                        $value = $candidate.ToString().Trim()
+                        if (-not [string]::IsNullOrWhiteSpace($value) -and -not ($value -in @('-', 'n/a', 'Not installed', 'not installed', 'Not Installed'))) {
+                            return $value
+                        }
+                    }
+
+                    continue
+                }
+
+                $text = $entry.ToString()
+                if ([string]::IsNullOrWhiteSpace($text)) {
+                    continue
+                }
+
+                if ($text -match '^Installed\s*:\s*(?<ver>.+)$') {
+                    $candidate = $matches['ver'].Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not ($candidate -in @('-', 'n/a', 'Not installed', 'not installed', 'Not Installed'))) {
+                        return $candidate
+                    }
+                }
+
+                if ($text -match '^Version\s*:\s*(?<ver>.+)$') {
+                    $candidate = $matches['ver'].Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                        return $candidate
+                    }
+                }
+            }
+        }
+    }
+    catch {
+        # Continue to list parsing.
+    }
+
+    try {
+        $output = & $exe 'list' $PackageId 2>$null
+        if ($LASTEXITCODE -eq 0 -and $output) {
+            foreach ($entry in $output) {
+                if ($null -eq $entry) {
+                    continue
+                }
+
+                if ($entry -is [pscustomobject]) {
+                    $name = $entry.Name
+                    if (-not $name) { $name = $entry.name }
+                    if (-not $name) { continue }
+
+                    if ([string]::Equals($name, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $candidate = $entry.Version
+                        if (-not $candidate) { $candidate = $entry.version }
+                        if ($candidate) {
+                            $value = $candidate.ToString().Trim()
+                            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                                return $value
+                            }
+                        }
+                    }
+
+                    continue
+                }
+
+                $text = $entry.ToString()
+                if ([string]::IsNullOrWhiteSpace($text)) {
+                    continue
+                }
+
+                if ($text -like 'Installed apps matching*') { continue }
+                if ($text -match '^[\s-]+$') { continue }
+                if ($text -match '^(Name|----)\s') { continue }
+
+                $match = [System.Text.RegularExpressions.Regex]::Match($text, '^\s*(?<name>\S+)\s+(?<ver>\S+)')
+                if ($match.Success -and [string]::Equals($match.Groups['name'].Value, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $candidate = $match.Groups['ver'].Value.Trim()
+                    if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+                        return $candidate
+                    }
+                }
+            }
+        }
+    }
+    catch {
+        # No further fallback available.
+    }
+
+    return $null
+}
+
+function Get-TidyInstalledPackageVersion {
+    # Normalizes package manager hints and retrieves installed versions when available.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Manager,
+        [Parameter(Mandatory = $true)]
+        [string] $PackageId
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Manager) -or [string]::IsNullOrWhiteSpace($PackageId)) {
+        return $null
+    }
+
+    $normalized = $Manager.Trim().ToLowerInvariant()
+    switch ($normalized) {
+        'winget'       { return Get-TidyWingetInstalledVersion -PackageId $PackageId }
+        'choco'        { return Get-TidyChocoInstalledVersion -PackageId $PackageId }
+        'chocolatey'   { return Get-TidyChocoInstalledVersion -PackageId $PackageId }
+        'scoop'        { return Get-TidyScoopInstalledVersion -PackageId $PackageId }
+        default        { return $null }
+    }
 }
 
 function Assert-TidyAdmin {
@@ -17,4 +384,4 @@ function Assert-TidyAdmin {
     }
 }
 
-Export-ModuleMember -Function Write-TidyLog, Assert-TidyAdmin
+Export-ModuleMember -Function Convert-TidyLogMessage, Write-TidyLog, Get-TidyCommandPath, Get-TidyWingetInstalledVersion, Get-TidyChocoInstalledVersion, Get-TidyScoopInstalledVersion, Get-TidyInstalledPackageVersion, Assert-TidyAdmin

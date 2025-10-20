@@ -120,6 +120,24 @@ function Get-ColumnValue {
     return $Line.Substring($Start, $length).Trim()
 }
 
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) {
+    $callerModulePath = $PSCommandPath
+}
+
+$scriptDirectory = Split-Path -Parent $callerModulePath
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
+    $scriptDirectory = (Get-Location).Path
+}
+
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = [System.IO.Path]::GetFullPath($modulePath)
+if (-not (Test-Path -LiteralPath $modulePath)) {
+    throw "Automation module not found at path '$modulePath'."
+}
+
+Import-Module $modulePath -Force
+
 $packages = New-Object System.Collections.Generic.List[psobject]
 $warnings = New-Object System.Collections.Generic.List[string]
 
@@ -231,15 +249,41 @@ function Collect-ChocoInventory {
     $installed = New-ObjectDictionary
     $upgrades = New-ObjectDictionary
 
-    $installedLines = & $Command.Source 'list' '--local-only' '--limit-output' '--no-color' 2>$null
-    if ($LASTEXITCODE -eq 0 -and $installedLines) {
-        foreach ($line in $installedLines) {
-            if ($line -match '^(?<id>[^|]+)\|(?<version>[^|]+)') {
-                $installed[$matches['id'].Trim()] = [pscustomobject]@{
-                    Name = $matches['id'].Trim()
-                    Version = $matches['version'].Trim()
-                    Source = 'chocolatey'
-                }
+    $installRoot = $env:ChocolateyInstall
+    if ([string]::IsNullOrWhiteSpace($installRoot)) {
+        $installRoot = 'C:\ProgramData\chocolatey'
+    }
+
+    $libRoot = Join-Path -Path $installRoot -ChildPath 'lib'
+    if (-not (Test-Path -LiteralPath $libRoot)) {
+        [void]$script:warnings.Add("Chocolatey library directory not found at '$libRoot'.")
+    }
+    else {
+        try {
+            $packageDirs = Get-ChildItem -Path $libRoot -Directory -ErrorAction Stop
+        }
+        catch {
+            $packageDirs = @()
+            [void]$script:warnings.Add("Failed to enumerate Chocolatey packages under '$libRoot': $_")
+        }
+
+        foreach ($dir in @($packageDirs)) {
+            if (-not $dir) { continue }
+            $packageId = $dir.Name
+            if ([string]::IsNullOrWhiteSpace($packageId)) { continue }
+
+            $version = $null
+            try {
+                $version = Get-TidyInstalledPackageVersion -Manager 'choco' -PackageId $packageId
+            }
+            catch {
+                $version = $null
+            }
+
+            $installed[$packageId] = [pscustomobject]@{
+                Name    = $packageId
+                Version = Normalize-NullableValue -Value $version
+                Source  = 'chocolatey'
             }
         }
     }

@@ -137,3 +137,67 @@ packages:
       summary: Quick launcher for keyboard-driven workflows.
       homepage: "https://keypirinha.com"
       tags: [productivity]
+    - id: libreoffice
+      name: LibreOffice
+      manager: winget
+      command: "winget install --id TheDocumentFoundation.LibreOffice -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Open-source office suite for documents, spreadsheets, and presentations.
+      homepage: "https://www.libreoffice.org"
+      tags: [office]
+    - id: obsidian
+      name: Obsidian
+      manager: winget
+      command: "winget install --id Obsidian.Obsidian -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Knowledge base and note-taking app with Markdown and graph view.
+      homepage: "https://obsidian.md"
+      tags: [notes]
+    - id: notion
+      name: Notion
+      manager: winget
+      command: "winget install --id Notion.Notion -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Workspace for notes, tasks, and project collaboration.
+      homepage: "https://www.notion.so"
+      tags: [notes]
+    - id: zotero
+      name: Zotero
+      manager: winget
+      command: "winget install --id CorporationforDigitalScholarship.Zotero -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Reference manager for collecting and citing research sources.
+      homepage: "https://www.zotero.org"
+      tags: [research]
+    - id: drawio
+      name: draw.io Desktop
+      manager: winget
+      command: "winget install --id JGraph.Draw -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Diagramming tool for flowcharts, mind maps, and architecture diagrams.
+      homepage: "https://www.diagrams.net"
+      tags: [diagram]
+    - id: freecad
+      name: FreeCAD
+      manager: winget
+      command: "winget install --id FreeCAD.FreeCAD -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Parametric 3D CAD modeler well-suited for engineering design.
+      homepage: "https://www.freecad.org"
+      tags: [cad]
+    - id: geogebra
+      name: GeoGebra Classic 6
+      manager: winget
+      command: "winget install --id GeoGebra.GeoGebraClassic6 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Interactive mathematics platform for algebra, calculus, and geometry.
+      homepage: "https://www.geogebra.org"
+      tags: [math, education]
+    - id: fritzing
+      name: Fritzing
+      manager: winget
+      command: "winget install --id Fritzing.Fritzing -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Circuit prototyping and PCB layout tool for electronics education.
+      homepage: "https://fritzing.org"
+      tags: [electronics]

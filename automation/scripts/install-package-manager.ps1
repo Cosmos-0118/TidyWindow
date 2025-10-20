@@ -8,8 +8,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$callerModulePath = $PSCmdlet.MyInvocation.MyCommand.Path
-if ([string]::IsNullOrWhiteSpace($callerModulePath)) {
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
     $callerModulePath = $PSCommandPath
 }
 
@@ -38,29 +38,31 @@ if ($script:UsingResultFile) {
 function Write-TidyOutput {
     param(
         [Parameter(Mandatory = $true)]
-        [string] $Message
+        [object] $Message
     )
 
-    if ([string]::IsNullOrWhiteSpace($Message)) {
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) {
         return
     }
 
-    [void]$script:TidyOutputLines.Add($Message)
-    Write-Output $Message
+    [void]$script:TidyOutputLines.Add($text)
+    Write-Output $text
 }
 
 function Write-TidyError {
     param(
         [Parameter(Mandatory = $true)]
-        [string] $Message
+        [object] $Message
     )
 
-    if ([string]::IsNullOrWhiteSpace($Message)) {
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) {
         return
     }
 
-    [void]$script:TidyErrorLines.Add($Message)
-    Write-Error -Message $Message
+    [void]$script:TidyErrorLines.Add($text)
+    Write-Error -Message $text
 }
 
 function Save-TidyResult {
@@ -76,6 +78,40 @@ function Save-TidyResult {
 
     $json = $payload | ConvertTo-Json -Depth 5
     Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+}
+
+function Invoke-TidyCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [scriptblock] $Command,
+        [string] $Description = 'Running command.',
+        [object[]] $Arguments = @(),
+        [switch] $RequireSuccess
+    )
+
+    Write-TidyLog -Level Information -Message $Description
+
+    $output = & $Command @Arguments 2>&1
+    $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    foreach ($entry in @($output)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        if ($entry -is [System.Management.Automation.ErrorRecord]) {
+            Write-TidyError -Message $entry
+        }
+        else {
+            Write-TidyOutput -Message $entry
+        }
+    }
+
+    if ($RequireSuccess -and $exitCode -ne 0) {
+        throw "$Description failed with exit code $exitCode."
+    }
+
+    return $exitCode
 }
 
 function Get-TidyResultProperty {
@@ -123,15 +159,21 @@ function Test-TidyCommand {
 
 function Invoke-ScoopBootstrap {
     if (Test-TidyCommand -CommandName 'scoop') {
-        Write-TidyLog -Level Information -Message 'Scoop detected. Running update to repair installation.'
-        scoop update
-        return 'Scoop update command completed.'
+        Invoke-TidyCommand -Command { scoop update } -Description 'Updating Scoop installation.' -RequireSuccess
+        return 'Scoop update completed.'
     }
 
     Write-TidyLog -Level Information -Message 'Installing Scoop for the current user.'
-    Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-    Invoke-RestMethod -Uri 'https://get.scoop.sh' | Invoke-Expression
-    return 'Scoop installation command completed.'
+    Invoke-TidyCommand -Command { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force } -Description 'Ensuring execution policy RemoteSigned for current user.'
+
+    $installScript = Invoke-RestMethod -Uri 'https://get.scoop.sh' -UseBasicParsing
+    if ([string]::IsNullOrWhiteSpace($installScript)) {
+        throw 'Failed to download Scoop bootstrap script.'
+    }
+
+    Write-TidyOutput -Message 'Downloaded Scoop bootstrap script.'
+    Invoke-TidyCommand -Command { param($content) Invoke-Expression $content } -Arguments @($installScript) -Description 'Running Scoop bootstrap script.' -RequireSuccess
+    return 'Scoop installation completed.'
 }
 
 function Test-TidyAdmin {
@@ -172,7 +214,7 @@ function Request-ChocolateyElevation {
     Write-TidyOutput -Message 'Requesting administrator approval. Windows may prompt for permission.'
 
     try {
-        $process = Start-Process -FilePath $shellPath -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $command) -Verb RunAs -WindowStyle Hidden -Wait -PassThru
+        Start-Process -FilePath $shellPath -ArgumentList @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', $command) -Verb RunAs -WindowStyle Hidden -Wait | Out-Null
     }
     catch {
         throw 'Administrator approval was denied or cancelled.'
@@ -261,16 +303,21 @@ function Invoke-ChocolateyBootstrap {
     }
 
     if (Test-TidyCommand -CommandName 'choco') {
-        Write-TidyLog -Level Information -Message 'Chocolatey detected. Running upgrade to repair installation.'
-        choco upgrade chocolatey -y
-        return 'Chocolatey upgrade command completed.'
+        Invoke-TidyCommand -Command { choco upgrade chocolatey -y --no-progress } -Description 'Upgrading Chocolatey to repair installation.' -RequireSuccess
+        return 'Chocolatey upgrade completed.'
     }
 
     Write-TidyLog -Level Information -Message 'Installing Chocolatey. This process can take a few minutes.'
-    Set-ExecutionPolicy Bypass -Scope Process -Force
+    Invoke-TidyCommand -Command { Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force } -Description 'Ensuring execution policy for Chocolatey install.'
     [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
-    iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-    return 'Chocolatey installation command completed.'
+    $installContent = (New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1')
+    if ([string]::IsNullOrWhiteSpace($installContent)) {
+        throw 'Failed to download Chocolatey bootstrap script.'
+    }
+
+    Write-TidyOutput -Message 'Downloaded Chocolatey bootstrap script.'
+    Invoke-TidyCommand -Command { param($script) Invoke-Expression $script } -Arguments @($installContent) -Description 'Running Chocolatey bootstrap script.' -RequireSuccess
+    return 'Chocolatey installation completed.'
 }
 
 $normalized = ($Manager ?? '').Trim().ToLowerInvariant()
@@ -279,6 +326,7 @@ if ([string]::IsNullOrWhiteSpace($normalized)) {
 }
 
 try {
+    Write-TidyLog -Level Information -Message ("Install or repair requested for manager '{0}'. Elevated flag: {1}" -f $Manager, $Elevated.IsPresent)
     switch ($normalized) {
         'scoop' {
             $message = Invoke-ScoopBootstrap
@@ -308,16 +356,39 @@ try {
             throw "Package manager '$Manager' is not supported by the installer."
         }
     }
+
+    $commandLookupName = switch ($normalized) {
+        'chocolatey' { 'choco' }
+        'chocolatey cli' { 'choco' }
+        'scoop package manager' { 'scoop' }
+        default { $normalized }
+    }
+
+    $commandPath = Get-TidyCommandPath -CommandName $commandLookupName
+    if ([string]::IsNullOrWhiteSpace($commandPath)) {
+        $commandPath = Get-TidyCommandPath -CommandName $Manager
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($commandPath)) {
+        Write-TidyOutput -Message ("Detected '{0}' at {1}." -f $Manager, $commandPath)
+    }
 }
 catch {
     $script:OperationSucceeded = $false
-    $script:TidyErrorLines.Add($_.Exception.Message)
+    $message = $_.Exception.Message
+    if ([string]::IsNullOrWhiteSpace($message)) {
+        $message = $_ | Out-String
+    }
+
+    Write-TidyLog -Level Error -Message $message
+    Write-TidyError -Message $message
     if (-not $script:UsingResultFile) {
         throw
     }
 }
 finally {
     Save-TidyResult
+    Write-TidyLog -Level Information -Message ("Install or repair flow finished for manager '{0}'." -f $Manager)
 }
 
 if ($script:UsingResultFile) {

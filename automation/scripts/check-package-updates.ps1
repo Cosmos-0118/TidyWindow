@@ -28,6 +28,24 @@ function Split-TableColumns {
     return [System.Text.RegularExpressions.Regex]::Split($Line.Trim(), '\s{2,}') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 }
 
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath)) {
+    $callerModulePath = $PSCommandPath
+}
+
+$scriptDirectory = Split-Path -Parent $callerModulePath
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
+    $scriptDirectory = (Get-Location).Path
+}
+
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = [System.IO.Path]::GetFullPath($modulePath)
+if (-not (Test-Path -LiteralPath $modulePath)) {
+    throw "Automation module not found at path '$modulePath'."
+}
+
+Import-Module $modulePath -Force
+
 function Get-WingetInstalledCache {
     $cache = New-StringDictionary
     if (-not $wingetCommand) {
@@ -138,24 +156,39 @@ function Get-ChocoInstalledCache {
         return $cache
     }
 
-    $exe = if ($chocoCommand.Source) { $chocoCommand.Source } else { 'choco' }
+    $installRoot = $env:ChocolateyInstall
+    if ([string]::IsNullOrWhiteSpace($installRoot)) {
+        $installRoot = 'C:\ProgramData\chocolatey'
+    }
+
+    $libRoot = Join-Path -Path $installRoot -ChildPath 'lib'
+    if (-not (Test-Path -LiteralPath $libRoot)) {
+        return $cache
+    }
 
     try {
-        $lines = & $exe 'list' '--local-only' '--limit-output' 2>$null
-        if ($LASTEXITCODE -eq 0 -and $lines) {
-            foreach ($line in $lines) {
-                if ($line -match '^\s*([^|]+)\|(.+)$') {
-                    $id = $matches[1].Trim()
-                    $version = $matches[2].Trim()
-                    if ($id -and $version) {
-                        $cache[$id] = $version
-                    }
-                }
-            }
-        }
+        $packageDirs = Get-ChildItem -Path $libRoot -Directory -ErrorAction Stop
     }
     catch {
-        # ignore
+        return $cache
+    }
+
+    foreach ($dir in @($packageDirs)) {
+        if (-not $dir) { continue }
+
+        $packageId = $dir.Name
+        if ([string]::IsNullOrWhiteSpace($packageId)) { continue }
+
+        try {
+            $version = Get-TidyInstalledPackageVersion -Manager 'choco' -PackageId $packageId
+        }
+        catch {
+            $version = $null
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($version)) {
+            $cache[$packageId] = $version.Trim()
+        }
     }
 
     return $cache

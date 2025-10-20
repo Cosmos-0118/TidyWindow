@@ -37,8 +37,8 @@ if (-not [string]::IsNullOrWhiteSpace($PayloadPath) -and (Test-Path -Path $Paylo
     }
 }
 
-$callerModulePath = $PSCmdlet.MyInvocation.MyCommand.Path
-if ([string]::IsNullOrWhiteSpace($callerModulePath)) {
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
     $callerModulePath = $PSCommandPath
 }
 
@@ -67,29 +67,105 @@ if ($script:UsingResultFile) {
 function Write-TidyOutput {
     param(
         [Parameter(Mandatory = $true)]
-        [string] $Message
+        [object] $Message
     )
 
-    if ([string]::IsNullOrWhiteSpace($Message)) {
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) {
         return
     }
 
-    [void]$script:TidyOutputLines.Add($Message)
-    Write-Output $Message
+    [void]$script:TidyOutputLines.Add($text)
+    Write-Output $text
 }
 
 function Write-TidyError {
     param(
         [Parameter(Mandatory = $true)]
-        [string] $Message
+        [object] $Message
     )
 
-    if ([string]::IsNullOrWhiteSpace($Message)) {
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) {
         return
     }
 
-    [void]$script:TidyErrorLines.Add($Message)
-    Write-Output "[ERROR] $Message"
+    [void]$script:TidyErrorLines.Add($text)
+    Write-Output "[ERROR] $text"
+}
+
+function Resolve-TidyKnownInstallerOutcome {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Manager,
+        [Parameter()]
+        [int] $ExitCode = 0,
+        [Parameter()]
+        [string] $DisplayName = '',
+        [string[]] $OutputLines,
+        [string[]] $ErrorLines
+    )
+
+    $result = [pscustomobject]@{
+        Handled = $false
+        Success = $false
+        Message = $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($Manager)) {
+        return $result
+    }
+
+    $normalizedManager = $Manager.Trim().ToLowerInvariant()
+    $combinedLines = @()
+
+    if ($OutputLines) {
+        $combinedLines += $OutputLines
+    }
+
+    if ($ErrorLines) {
+        $combinedLines += $ErrorLines
+    }
+
+    if ($normalizedManager -eq 'winget') {
+        $knownSuccessCodes = @(-1978335189, -1978334963)
+        $successPatterns = @(
+            'No available upgrade found',
+            'No applicable update',
+            'No updates available',
+            'already installed',
+            'Found an existing package already installed'
+        )
+
+        $matchedPattern = $false
+
+        foreach ($line in $combinedLines) {
+            if ([string]::IsNullOrWhiteSpace($line)) {
+                continue
+            }
+
+            foreach ($pattern in $successPatterns) {
+                if ($line -match $pattern) {
+                    $matchedPattern = $true
+                    break
+                }
+            }
+
+            if ($matchedPattern) {
+                break
+            }
+        }
+
+        if ($knownSuccessCodes -contains $ExitCode -or $matchedPattern) {
+            $result.Handled = $true
+            $result.Success = $true
+            $subject = [string]::IsNullOrWhiteSpace($DisplayName) ? 'Package' : $DisplayName
+            $result.Message = "$subject is already installed or up to date."
+            return $result
+        }
+    }
+
+    return $result
 }
 
 function Save-TidyResult {
@@ -440,6 +516,26 @@ try {
             $outputMessage = [string]$entry
             if (-not [string]::IsNullOrWhiteSpace($outputMessage)) {
                 Write-TidyOutput -Message $outputMessage
+            }
+        }
+    }
+
+    $knownOutcome = Resolve-TidyKnownInstallerOutcome -Manager $Manager -ExitCode $exitCode -DisplayName $DisplayName -OutputLines $script:TidyOutputLines.ToArray() -ErrorLines $script:TidyErrorLines.ToArray()
+
+    if ($knownOutcome.Handled) {
+        if ($knownOutcome.Success) {
+            if (-not [string]::IsNullOrWhiteSpace($knownOutcome.Message)) {
+                Write-TidyOutput -Message $knownOutcome.Message
+            }
+
+            $success = $true
+            $invocationSucceeded = $true
+            $exitCode = 0
+            $script:TidyErrorLines.Clear()
+        }
+        else {
+            if (-not [string]::IsNullOrWhiteSpace($knownOutcome.Message)) {
+                Write-TidyError -Message $knownOutcome.Message
             }
         }
     }

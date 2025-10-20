@@ -119,6 +119,14 @@ packages:
       summary: Observability dashboards and alerting platform.
       homepage: "https://grafana.com"
       tags: [observability]
+    - id: ltspice
+      name: LTspice
+      manager: winget
+      command: "winget install --id AnalogDevices.LTspice -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Circuit simulation and schematic capture suite for analog electronics.
+      homepage: "https://www.analog.com/ltspice"
+      tags: [electronics, simulation]
     - id: fastfetch
       name: fastfetch
       manager: scoop

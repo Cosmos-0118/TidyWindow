@@ -7,6 +7,14 @@ packages:
       summary: Administer SQL Server instances.
       homepage: "https://aka.ms/ssms"
       tags: [database]
+    - id: anaconda
+      name: Anaconda Distribution
+      manager: winget
+      command: "winget install --id Anaconda.Anaconda3 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Python data science platform bundling conda and popular libraries.
+      homepage: "https://www.anaconda.com"
+      tags: [python, data]
     - id: azure-data-studio
       name: Azure Data Studio
       manager: winget
@@ -39,6 +47,14 @@ packages:
       summary: Visual schema exploration for MongoDB.
       homepage: "https://www.mongodb.com/products/compass"
       tags: [database]
+    - id: jupyterlab
+      name: JupyterLab
+      manager: winget
+      command: "winget install --id ProjectJupyter.JupyterLab -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Web-based notebook environment for interactive computing.
+      homepage: "https://jupyter.org"
+      tags: [notebook, data]
     - id: mysql-shell
       name: MySQL Shell
       manager: winget
@@ -71,6 +87,14 @@ packages:
       summary: Lightweight SQL client for MariaDB, MySQL, Microsoft SQL Server, and PostgreSQL.
       homepage: "https://www.heidisql.com"
       tags: [database]
+    - id: rstudio
+      name: RStudio
+      manager: winget
+      command: "winget install --id RStudio.RStudio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: IDE for R and Python with notebook and visualization support.
+      homepage: "https://posit.co/products/open-source/rstudio/"
+      tags: [r, data]
     - id: flyway
       name: Flyway CLI
       manager: choco
@@ -95,6 +119,14 @@ packages:
       summary: Installs Redis for Windows including the redis-cli command-line interface.
       homepage: "https://redis.io"
       tags: [database, cli]
+    - id: octave
+      name: GNU Octave
+      manager: winget
+      command: "winget install --id GNU.Octave -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Numerical computing environment largely compatible with MATLAB scripts.
+      homepage: "https://www.gnu.org/software/octave/"
+      tags: [math, data]
     - id: sqlitestudio
       name: SQLiteStudio
       manager: winget
@@ -151,6 +183,22 @@ packages:
       summary: Distributed event streaming platform packaged with ZooKeeper.
       homepage: "https://kafka.apache.org"
       tags: [streaming]
+    - id: powerbi-desktop
+      name: Power BI Desktop
+      manager: winget
+      command: "winget install --id Microsoft.PowerBI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Desktop analytics tool for building interactive reports and dashboards.
+      homepage: "https://powerbi.microsoft.com"
+      tags: [bi]
+    - id: tableau-public
+      name: Tableau Public
+      manager: winget
+      command: "winget install --id TableauPublic.TableauPublic -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Visual analytics platform for publishing interactive data stories.
+      homepage: "https://public.tableau.com"
+      tags: [bi]
     - id: db-browser-sqlite
       name: DB Browser for SQLite
       manager: winget

@@ -23,6 +23,14 @@ packages:
       summary: Command-line GitHub workflows.
       homepage: "https://cli.github.com"
       tags: [cli]
+    - id: github-desktop
+      name: GitHub Desktop
+      manager: winget
+      command: "winget install --id GitHub.GitHubDesktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Visual Git client for managing repositories.
+      homepage: "https://desktop.github.com"
+      tags: [vcs, gui]
     - id: git-credential-manager-core
       name: Git Credential Manager Core
       manager: winget
@@ -63,6 +71,22 @@ packages:
       summary: Launcher and updater for JetBrains IDEs.
       homepage: "https://www.jetbrains.com/toolbox-app/"
       tags: [ide]
+    - id: intellij-idea-community
+      name: IntelliJ IDEA Community
+      manager: winget
+      command: "winget install --id JetBrains.IntelliJIDEA.Community -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: JetBrains IDE for JVM and multiplatform development.
+      homepage: "https://www.jetbrains.com/idea/"
+      tags: [ide, java]
+    - id: pycharm-community
+      name: PyCharm Community
+      manager: winget
+      command: "winget install --id JetBrains.PyCharm.Community -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: JetBrains IDE for Python development and data science.
+      homepage: "https://www.jetbrains.com/pycharm/"
+      tags: [ide, python]
     - id: neovim
       name: Neovim
       manager: winget
@@ -71,6 +95,14 @@ packages:
       summary: Extensible Vim-based editor tailored for modern development.
       homepage: "https://neovim.io"
       tags: [editor]
+    - id: eclipse-ide
+      name: Eclipse IDE
+      manager: winget
+      command: "winget install --id EclipseFoundation.Eclipse -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Extensible IDE for Java and enterprise workloads.
+      homepage: "https://www.eclipse.org/ide/"
+      tags: [ide, java]
     - id: powershell7
       name: PowerShell 7
       manager: winget
@@ -213,6 +245,30 @@ packages:
       summary: Compression and extraction utility.
       homepage: "https://www.7-zip.org"
       tags: [utilities]
+    - id: android-studio
+      name: Android Studio
+      manager: winget
+      command: "winget install --id Google.AndroidStudio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Official IDE for Android development with integrated SDK manager.
+      homepage: "https://developer.android.com/studio"
+      tags: [ide, android]
+    - id: codeblocks
+      name: Code::Blocks
+      manager: winget
+      command: "winget install --id CodeBlocks.CodeBlocks -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Lightweight C and C++ IDE with extensible tooling.
+      homepage: "https://www.codeblocks.org"
+      tags: [ide, cplusplus]
+    - id: arduino-ide
+      name: Arduino IDE
+      manager: winget
+      command: "winget install --id Arduino.ArduinoIDE -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Develop and upload firmware to Arduino boards.
+      homepage: "https://www.arduino.cc/en/software"
+      tags: [embedded, ide]
     - id: visualstudio-2022-community
       name: Visual Studio 2022 Community
       manager: winget

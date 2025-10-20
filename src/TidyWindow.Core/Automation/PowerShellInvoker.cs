@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 
@@ -80,9 +82,18 @@ public sealed class PowerShellInvoker
 
         ps.Streams.Error.DataAdded += (_, args) =>
         {
-            if (args.Index >= 0 && args.Index < ps.Streams.Error.Count)
+            if (args.Index < 0 || args.Index >= ps.Streams.Error.Count)
             {
-                errors.Add(ps.Streams.Error[args.Index].ToString());
+                return;
+            }
+
+            var errorRecord = ps.Streams.Error[args.Index];
+            foreach (var line in FormatErrorRecord(errorRecord))
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    errors.Add(line);
+                }
             }
         };
 
@@ -109,6 +120,87 @@ public sealed class PowerShellInvoker
             new ReadOnlyCollection<string>(output.ToList()),
             new ReadOnlyCollection<string>(errors.ToList()),
             ps.HadErrors || encounteredRuntimeError ? 1 : 0);
+    }
+
+    private static IEnumerable<string> FormatErrorRecord(ErrorRecord? record)
+    {
+        if (record is null)
+        {
+            yield break;
+        }
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var message in EnumerateErrorMessages(record))
+        {
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                continue;
+            }
+
+            var trimmed = message.Trim();
+            if (trimmed.Length == 0)
+            {
+                continue;
+            }
+
+            if (seen.Add(trimmed))
+            {
+                yield return trimmed;
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateErrorMessages(ErrorRecord record)
+    {
+        var candidates = new List<string?>
+        {
+            record.Exception?.Message,
+            record.ErrorDetails?.Message,
+            record.CategoryInfo.Reason,
+            record.CategoryInfo.Activity
+        };
+
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                continue;
+            }
+
+            foreach (var line in SplitLines(candidate))
+            {
+                yield return line;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.TargetObject?.ToString()))
+        {
+            foreach (var line in SplitLines(record.TargetObject.ToString()!))
+            {
+                yield return line;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(record.FullyQualifiedErrorId))
+        {
+            yield return record.FullyQualifiedErrorId; // useful identifier, typically short.
+        }
+
+        var fallback = record.ToString();
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            var firstLine = SplitLines(fallback).FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(firstLine))
+            {
+                yield return firstLine;
+            }
+        }
+    }
+
+    private static IEnumerable<string> SplitLines(string value)
+    {
+        return value.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 }
 

@@ -263,76 +263,63 @@ function Resolve-ManagerExecutable {
     }
 }
 
-function Get-WingetInstalledVersion {
-    param([string] $PackageId)
+function Select-PreferredVersion {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $Candidates
+    )
 
-    $command = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
+    if (-not $Candidates) {
+        return $null
+    }
 
-    $exe = if ($command.Source) { $command.Source } else { 'winget' }
-    try {
-        $jsonOutput = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' '--output' 'json' 2>$null
-        if ($LASTEXITCODE -eq 0 -and $jsonOutput) {
-            $payload = ConvertFrom-Json -InputObject ($jsonOutput -join [Environment]::NewLine) -ErrorAction Stop
-            $candidates = @()
+    $unique = [System.Collections.Generic.List[pscustomobject]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-            if ($payload) {
-                if ($payload.InstalledPackages) { $candidates += @($payload.InstalledPackages) }
-                if ($payload.Items) { $candidates += @($payload.Items) }
-                if ($payload.Packages) { $candidates += @($payload.Packages) }
-                if ($payload.Sources) {
-                    foreach ($source in @($payload.Sources)) {
-                        if ($source.Packages) { $candidates += @($source.Packages) }
-                        if ($source.InstalledPackages) { $candidates += @($source.InstalledPackages) }
-                    }
-                }
+    foreach ($candidate in $Candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
 
-                if ($payload -is [System.Collections.IDictionary] -and $candidates.Count -eq 0) {
-                    foreach ($value in $payload.Values) {
-                        if ($value -is [System.Collections.IEnumerable] -and $value -isnot [string]) {
-                            $candidates += @($value)
-                        }
-                    }
-                }
+        $trimmed = $candidate.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            continue
+        }
 
-                foreach ($candidate in $candidates) {
-                    if (-not $candidate) { continue }
-
-                    $version = $null
-
-                    if ($candidate.Version) { $version = $candidate.Version }
-                    elseif ($candidate.version) { $version = $candidate.version }
-                    elseif ($candidate.InstalledVersion) { $version = $candidate.InstalledVersion }
-                    elseif ($candidate.installedVersion) { $version = $candidate.installedVersion }
-
-                    if (-not $version) { continue }
-
-                    if ($candidate.PackageIdentifier -and [string]::Equals($candidate.PackageIdentifier, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
-                        return $version.ToString().Trim()
-                    }
-                    if ($candidate.Id -and [string]::Equals($candidate.Id, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
-                        return $version.ToString().Trim()
-                    }
-                    if (-not $candidate.PackageIdentifier -and -not $candidate.Id) {
-                        return $version.ToString().Trim()
-                    }
-                }
-            }
+        if ($seen.Add($trimmed)) {
+            $normalized = Normalize-VersionString -Value $trimmed
+            $unique.Add([pscustomobject]@{
+                Original   = $trimmed
+                Normalized = $normalized
+            })
         }
     }
-    catch { }
 
-    try {
-        $fallback = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
-        foreach ($line in @($fallback)) {
-            if ($line -match '\s+' + [Regex]::Escape($PackageId) + '\s+([^\s]+)') {
-                return $matches[1].Trim()
-            }
+    if ($unique.Count -eq 0) {
+        return $null
+    }
+
+    $numeric = [System.Collections.Generic.List[pscustomobject]]::new()
+    foreach ($entry in $unique) {
+        if ([string]::IsNullOrWhiteSpace($entry.Normalized)) {
+            continue
+        }
+
+        $parsed = $null
+        if ([version]::TryParse($entry.Normalized, [ref]$parsed)) {
+            $numeric.Add([pscustomobject]@{
+                Original = $entry.Original
+                Version  = $parsed
+            })
         }
     }
-    catch { }
 
-    return $null
+    if ($numeric.Count -gt 0) {
+        $best = $numeric | Sort-Object Version -Descending | Select-Object -First 1
+        return $best.Original
+    }
+
+    return ($unique | Select-Object -First 1).Original
 }
 
 function Get-WingetAvailableVersion {
@@ -342,50 +329,86 @@ function Get-WingetAvailableVersion {
     if (-not $command) { return $null }
 
     $exe = if ($command.Source) { $command.Source } else { 'winget' }
+    $versions = [System.Collections.Generic.List[string]]::new()
+
     try {
-        $jsonOutput = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' '--output' 'json' 2>$null
-        if ($LASTEXITCODE -eq 0 -and $jsonOutput) {
-            $data = ConvertFrom-Json -InputObject ($jsonOutput -join [Environment]::NewLine) -ErrorAction Stop
-            if ($data -and $data.Versions -and $data.Versions.Count -gt 0) {
-                $latest = $data.Versions | Select-Object -First 1
-                if ($latest.Version) { return $latest.Version.Trim() }
+        $showOutput = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $showOutput) {
+            foreach ($line in @($showOutput)) {
+                if ($null -eq $line) { continue }
+
+                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
+                $clean = $clean.Replace("`r", '').Trim()
+                if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+
+                if ($clean -match '^\s*(Available Version|Latest Version|Version)\s*:\s*(.+)$') {
+                    $versions.Add($matches[2].Trim())
+                }
             }
-            elseif ($data -and $data.Version) {
-                return $data.Version.Trim()
+
+            if ($versions.Count -gt 0) {
+                return Select-PreferredVersion -Candidates $versions.ToArray()
             }
         }
     }
-    catch { }
+    catch {
+        # Ignore failures on primary show command and continue.
+    }
 
     try {
-        $fallback = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
-        foreach ($line in @($fallback)) {
-            if ($line -match '^\s*Version\s*:\s*(.+)$') {
-                return $matches[1].Trim()
+        $versionsOutput = & $exe 'show' '--id' $PackageId '-e' '--versions' '--disable-interactivity' '--accept-source-agreements' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $versionsOutput) {
+            foreach ($line in @($versionsOutput)) {
+                if ($null -eq $line) { continue }
+
+                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
+                $clean = $clean.Replace("`r", '').Trim()
+                if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+                if ($clean -match '^(?i:found\s)') { continue }
+                if ($clean -match '^(?i:version)$') { continue }
+                if ($clean -match '^[-\s]+$') { continue }
+
+                $match = [Regex]::Match($clean, '^([0-9][0-9A-Za-z\._\-+]*)')
+                if ($match.Success) {
+                    $versions.Add($match.Groups[1].Value.Trim())
+                }
+            }
+
+            if ($versions.Count -gt 0) {
+                return Select-PreferredVersion -Candidates $versions.ToArray()
             }
         }
     }
-    catch { }
+    catch {
+        # Continue to additional fallbacks.
+    }
 
-    return $null
-}
-
-function Get-ChocoInstalledVersion {
-    param([string] $PackageId)
-
-    $command = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'choco' }
     try {
-        $output = & $exe 'list' $PackageId '--local-only' '--exact' '--limit-output' 2>$null
-        foreach ($line in @($output)) {
-            if ($line -match '^\s*' + [Regex]::Escape($PackageId) + '\|(.+)$') {
-                return $matches[1].Trim()
+        $searchOutput = & $exe 'search' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $searchOutput) {
+            foreach ($line in @($searchOutput)) {
+                if ($null -eq $line) { continue }
+
+                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
+                $clean = $clean.Replace("`r", '')
+                if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+                if ($clean -match '^(?i)\s*Name\s+Id\s+Version') { continue }
+                if ($clean -match '^-{3,}') { continue }
+
+                $trimmed = $clean.Trim()
+                if ($trimmed -match '^(?<name>.+?)\s+' + [Regex]::Escape($PackageId) + '\s+(?<version>[^\s]+)') {
+                    $versions.Add($matches['version'].Trim())
+                }
+            }
+
+            if ($versions.Count -gt 0) {
+                return Select-PreferredVersion -Candidates $versions.ToArray()
             }
         }
     }
-    catch { }
+    catch {
+        # No additional fallback available.
+    }
 
     return $null
 }
@@ -397,15 +420,95 @@ function Get-ChocoAvailableVersion {
     if (-not $command) { return $null }
 
     $exe = if ($command.Source) { $command.Source } else { 'choco' }
+    $versions = [System.Collections.Generic.List[string]]::new()
+    $pipePattern = '^(?i)' + [Regex]::Escape($PackageId) + '\|([^|]+)'
+    $spacePattern = '^(?i)' + [Regex]::Escape($PackageId) + '\s+([0-9][^\s]*)'
+
     try {
-        $output = & $exe 'search' $PackageId '--exact' '--limit-output' 2>$null
-        foreach ($line in @($output)) {
-            if ($line -match '^\s*' + [Regex]::Escape($PackageId) + '\|(.+)$') {
-                return $matches[1].Trim()
+        $output = & $exe 'search' $PackageId '--exact' '--limit-output' '--no-color' '--no-progress' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $output) {
+            foreach ($line in @($output)) {
+                if ($null -eq $line) { continue }
+
+                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
+                $trimmed = $clean.Trim()
+                if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+                if ($trimmed -match '^(?i)Chocolatey\s') { continue }
+                if ($trimmed -match '^\d+\s+packages?\s+(?:found|installed).*') { continue }
+
+                if ($trimmed -match $pipePattern) {
+                    $versions.Add($matches[1].Trim())
+                    continue
+                }
+
+                if ($trimmed -match $spacePattern) {
+                    $versions.Add($matches[1].Trim())
+                }
             }
         }
     }
     catch { }
+
+    if ($versions.Count -eq 0) {
+        try {
+            $output = & $exe 'search' $PackageId '--exact' '--all-versions' '--limit-output' '--no-color' '--no-progress' 2>$null
+            if ($LASTEXITCODE -eq 0 -and $output) {
+                foreach ($line in @($output)) {
+                    if ($null -eq $line) { continue }
+
+                    $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
+                    $trimmed = $clean.Trim()
+                    if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+                    if ($trimmed -match '^(?i)Chocolatey\s') { continue }
+                    if ($trimmed -match '^\d+\s+packages?\s+(?:found|installed).*') { continue }
+
+                    if ($trimmed -match $pipePattern) {
+                        $versions.Add($matches[1].Trim())
+                        continue
+                    }
+
+                    if ($trimmed -match $spacePattern) {
+                        $versions.Add($matches[1].Trim())
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    if ($versions.Count -eq 0) {
+        try {
+            $infoOutput = & $exe 'info' $PackageId '--no-color' '--no-progress' 2>$null
+            if ($LASTEXITCODE -eq 0 -and $infoOutput) {
+                foreach ($line in @($infoOutput)) {
+                    if ($null -eq $line) { continue }
+
+                    $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
+                    if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+
+                    if ($clean -match '^\s*Latest Version\s*:\s*(.+)$') {
+                        $versions.Add($matches[1].Trim())
+                        continue
+                    }
+
+                    if ($clean -match '^\s*Version\s*:\s*(.+)$') {
+                        $versions.Add($matches[1].Trim())
+                        continue
+                    }
+
+                    if ($clean -match '^\s*Available Versions?\s*:\s*(.+)$') {
+                        $versions.Add($matches[1].Trim())
+                        continue
+                    }
+                }
+            }
+        }
+        catch { }
+    }
+
+    if ($versions.Count -gt 0) {
+        return Select-PreferredVersion -Candidates $versions.ToArray()
+    }
 
     return $null
 }
@@ -459,107 +562,6 @@ function Get-ScoopManifestPaths {
         WorkspacePath   = $workspacePath
         WorkspaceExists = $workspaceExists
     }
-}
-
-function Get-ScoopInstalledVersion {
-    param([string] $PackageId)
-
-    $command = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'scoop' }
-
-    # Prefer scoop export because scoop list --json is not available in older builds.
-    try {
-        $output = & $exe 'export' 2>$null
-        if ($LASTEXITCODE -eq 0 -and $output) {
-            $payload = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop
-            $apps = @()
-
-            if ($payload) {
-                if ($payload.apps) { $apps += @($payload.apps) }
-                if ($payload.Apps) { $apps += @($payload.Apps) }
-                if ($payload -is [System.Collections.IEnumerable] -and $payload -isnot [string]) {
-                    $apps += @($payload)
-                }
-            }
-
-            foreach ($entry in $apps) {
-                if (-not $entry) { continue }
-
-                $name = $entry.Name
-                if (-not $name) { $name = $entry.name }
-                if (-not $name) { $name = $entry.Id }
-                if (-not $name) { $name = $entry.id }
-
-                if ($name -and [string]::Equals($name, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    if ($entry.Version) { return ($entry.Version).ToString().Trim() }
-                    if ($entry.version) { return ($entry.version).ToString().Trim() }
-                }
-            }
-        }
-    }
-    catch { }
-
-    # Fall back to scoop list --json if export is unavailable.
-    try {
-        $output = & $exe 'list' '--json' 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $output) { throw 'list-json-unavailable' }
-
-        $appsPayload = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop
-        $apps = @()
-
-        if ($appsPayload -is [System.Collections.IEnumerable] -and $appsPayload -isnot [string]) {
-            $apps = @($appsPayload)
-        }
-        elseif ($appsPayload -is [System.Collections.IDictionary]) {
-            if ($appsPayload.ContainsKey('apps')) {
-                $apps = @($appsPayload['apps'])
-            }
-            elseif ($appsPayload.ContainsKey('Apps')) {
-                $apps = @($appsPayload['Apps'])
-            }
-            elseif ($appsPayload.ContainsKey('installed')) {
-                $apps = @($appsPayload['installed'])
-            }
-
-            if ($apps.Count -eq 0) {
-                foreach ($key in $appsPayload.Keys) {
-                    $entry = $appsPayload[$key]
-                    if ($entry -is [System.Collections.IEnumerable] -and $entry -isnot [string]) {
-                        $apps += @($entry)
-                    }
-                    elseif ($null -ne $entry) {
-                        $apps += ,$entry
-                    }
-                }
-            }
-        }
-
-        foreach ($entry in $apps) {
-            $name = $entry.Name
-            if (-not $name) { $name = $entry.name }
-            if (-not $name) { $name = $entry.id }
-
-            if ($name -and [string]::Equals($name, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
-                if ($entry.Version) { return ($entry.Version).ToString().Trim() }
-                if ($entry.version) { return ($entry.version).ToString().Trim() }
-                if ($entry.installed) { return ($entry.installed).ToString().Trim() }
-            }
-        }
-    }
-    catch { }
-
-    try {
-        $fallback = & $exe 'info' $PackageId 2>$null
-        foreach ($line in @($fallback)) {
-            if ($line -match '^\s*Installed Version\s*:\s*(.+)$') { return $matches[1].Trim() }
-            if ($line -match '^\s*Version\s*:\s*(.+)$') { return $matches[1].Trim() }
-        }
-    }
-    catch { }
-
-    return $null
 }
 
 function Get-ScoopAvailableVersion {
@@ -708,12 +710,15 @@ function Get-ManagerInstalledVersion {
         [string] $PackageId
     )
 
-    switch ($ManagerKey) {
-        'winget' { return Get-WingetInstalledVersion -PackageId $PackageId }
-        'choco' { return Get-ChocoInstalledVersion -PackageId $PackageId }
-        'chocolatey' { return Get-ChocoInstalledVersion -PackageId $PackageId }
-        'scoop' { return Get-ScoopInstalledVersion -PackageId $PackageId }
-        default { return $null }
+    if ([string]::IsNullOrWhiteSpace($ManagerKey) -or [string]::IsNullOrWhiteSpace($PackageId)) {
+        return $null
+    }
+
+    try {
+        return Get-TidyInstalledPackageVersion -Manager $ManagerKey -PackageId $PackageId
+    }
+    catch {
+        return $null
     }
 }
 
