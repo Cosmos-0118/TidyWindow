@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Services;
 using TidyWindow.Core.Install;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
@@ -19,18 +20,20 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private readonly InstallQueue _installQueue;
     private readonly BundlePresetService _presetService;
     private readonly MainViewModel _mainViewModel;
+    private readonly ActivityLogService _activityLog;
     private readonly Dictionary<string, InstallPackageItemViewModel> _packageLookup = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<Guid, InstallOperationItemViewModel> _operationLookup = new();
     private readonly Dictionary<Guid, InstallQueueOperationSnapshot> _snapshotCache = new();
     private readonly Dictionary<string, int> _activePackageCounts = new(StringComparer.OrdinalIgnoreCase);
     private bool _isDisposed;
 
-    public InstallHubViewModel(InstallCatalogService catalogService, InstallQueue installQueue, BundlePresetService presetService, MainViewModel mainViewModel)
+    public InstallHubViewModel(InstallCatalogService catalogService, InstallQueue installQueue, BundlePresetService presetService, MainViewModel mainViewModel, ActivityLogService activityLogService)
     {
         _catalogService = catalogService ?? throw new ArgumentNullException(nameof(catalogService));
         _installQueue = installQueue ?? throw new ArgumentNullException(nameof(installQueue));
         _presetService = presetService ?? throw new ArgumentNullException(nameof(presetService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
 
         Bundles = new ObservableCollection<InstallBundleItemViewModel>();
         Packages = new ObservableCollection<InstallPackageItemViewModel>();
@@ -49,6 +52,11 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             var operationVm = new InstallOperationItemViewModel(snapshot);
             _operationLookup[snapshot.Id] = operationVm;
             Operations.Add(operationVm);
+
+            if (snapshot.Status != InstallQueueStatus.Pending)
+            {
+                LogSnapshotChange(snapshot, null);
+            }
         }
 
         UpdatePackageQueueStates();
@@ -130,6 +138,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         var snapshot = _installQueue.Enqueue(package.Definition);
         _mainViewModel.SetStatusMessage($"Queued install for {package.Definition.Name}.");
+        _activityLog.LogInformation("Install hub", $"Queued install for {package.Definition.Name}.");
         _snapshotCache[snapshot.Id] = snapshot;
         UpdateActiveCount(snapshot);
         UpdatePackageQueueStates();
@@ -155,6 +164,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         var snapshots = _installQueue.EnqueueRange(packages);
         _mainViewModel.SetStatusMessage($"Queued {snapshots.Count} install(s) from '{bundle.Name}'.");
+        _activityLog.LogInformation("Install hub", $"Queued {snapshots.Count} install(s) from '{bundle.Name}'.");
 
         foreach (var snapshot in snapshots)
         {
@@ -177,6 +187,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         var snapshots = _installQueue.EnqueueRange(selected);
         _mainViewModel.SetStatusMessage($"Queued {snapshots.Count} selected install(s).");
+        _activityLog.LogInformation("Install hub", $"Queued {snapshots.Count} selected install(s).");
 
         foreach (var vm in Packages)
         {
@@ -212,6 +223,8 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             }
         }
 
+        _activityLog.LogInformation("Install hub", $"Cleared {removed.Count} completed operation(s).");
+
         UpdatePackageQueueStates();
     }
 
@@ -226,6 +239,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         _mainViewModel.SetStatusMessage($"Retrying {snapshots.Count} install(s).");
+        _activityLog.LogInformation("Install hub", $"Retrying {snapshots.Count} install(s).");
 
         foreach (var snapshot in snapshots)
         {
@@ -250,6 +264,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         _mainViewModel.SetStatusMessage($"Cancellation requested for {snapshot.Package.Name}.");
+        _activityLog.LogWarning("Install hub", $"Cancellation requested for {snapshot.Package.Name}.");
         _snapshotCache[snapshot.Id] = snapshot;
         UpdateActiveCount(snapshot);
         UpdatePackageQueueStates();
@@ -283,10 +298,12 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         {
             await _presetService.SavePresetAsync(dialog.FileName, preset);
             _mainViewModel.SetStatusMessage($"Saved preset with {selected.Length} package(s).");
+            _activityLog.LogSuccess("Install hub", $"Saved preset with {selected.Length} package(s).");
         }
         catch (Exception ex)
         {
             _mainViewModel.SetStatusMessage($"Failed to save preset: {ex.Message}");
+            _activityLog.LogError("Install hub", $"Failed to save preset: {ex.Message}");
         }
     }
 
@@ -321,6 +338,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             _mainViewModel.SetStatusMessage($"Import failed: {ex.Message}");
+            _activityLog.LogError("Install hub", $"Import failed: {ex.Message}");
         }
     }
 
@@ -345,10 +363,12 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         if (resolution.Missing.Length > 0)
         {
             _mainViewModel.SetStatusMessage($"Imported '{presetName}' with missing packages: {string.Join(", ", resolution.Missing)}.");
+            _activityLog.LogWarning("Install hub", $"Imported '{presetName}' with missing packages: {string.Join(", ", resolution.Missing)}.");
         }
         else
         {
             _mainViewModel.SetStatusMessage($"Imported '{presetName}' with {resolution.Packages.Length} package(s).");
+            _activityLog.LogSuccess("Install hub", $"Imported '{presetName}' with {resolution.Packages.Length} package(s).");
         }
     }
 
@@ -436,7 +456,10 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        _snapshotCache.TryGetValue(snapshot.Id, out var previous);
+
         UpdateActiveCount(snapshot);
+        LogSnapshotChange(snapshot, previous);
 
         if (!_operationLookup.TryGetValue(snapshot.Id, out var viewModel))
         {
@@ -449,6 +472,92 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         _snapshotCache[snapshot.Id] = snapshot;
 
         UpdatePackageQueueStates();
+    }
+
+    private void LogSnapshotChange(InstallQueueOperationSnapshot snapshot, InstallQueueOperationSnapshot? previous)
+    {
+        if (previous is not null
+            && previous.Status == snapshot.Status
+            && previous.AttemptCount == snapshot.AttemptCount
+            && string.Equals(previous.LastMessage ?? string.Empty, snapshot.LastMessage ?? string.Empty, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        switch (snapshot.Status)
+        {
+            case InstallQueueStatus.Pending:
+                if (previous is not null && snapshot.AttemptCount > previous.AttemptCount)
+                {
+                    _activityLog.LogInformation("Install hub", $"{snapshot.Package.Name} queued for retry (attempt {snapshot.AttemptCount}).");
+                }
+                else if (previous is not null && !string.IsNullOrWhiteSpace(snapshot.LastMessage) && !string.Equals(previous.LastMessage, snapshot.LastMessage, StringComparison.Ordinal))
+                {
+                    _activityLog.LogInformation("Install hub", $"{snapshot.Package.Name}: {snapshot.LastMessage}");
+                }
+                break;
+
+            case InstallQueueStatus.Running:
+                if (previous is null || previous.Status != InstallQueueStatus.Running)
+                {
+                    _activityLog.LogInformation("Install hub", $"{snapshot.Package.Name} installing...");
+                }
+                break;
+
+            case InstallQueueStatus.Succeeded:
+                if (previous is null || previous.Status != InstallQueueStatus.Succeeded)
+                {
+                    _activityLog.LogSuccess("Install hub", $"{snapshot.Package.Name} installed.", BuildDetails(snapshot));
+                }
+                break;
+
+            case InstallQueueStatus.Failed:
+                if (previous is null || previous.Status != InstallQueueStatus.Failed || snapshot.AttemptCount != previous.AttemptCount)
+                {
+                    var failureMessage = string.IsNullOrWhiteSpace(snapshot.LastMessage) ? "Installation failed." : snapshot.LastMessage.Trim();
+                    _activityLog.LogError("Install hub", $"{snapshot.Package.Name} failed: {failureMessage}", BuildDetails(snapshot));
+                }
+                break;
+
+            case InstallQueueStatus.Cancelled:
+                if (previous is null || previous.Status != InstallQueueStatus.Cancelled)
+                {
+                    var cancelMessage = string.IsNullOrWhiteSpace(snapshot.LastMessage) ? "Cancelled." : snapshot.LastMessage.Trim();
+                    _activityLog.LogWarning("Install hub", $"{snapshot.Package.Name} cancelled: {cancelMessage}", BuildDetails(snapshot));
+                }
+                break;
+        }
+    }
+
+    private IEnumerable<string>? BuildDetails(InstallQueueOperationSnapshot snapshot)
+    {
+        var lines = new List<string>();
+
+        if (!snapshot.Output.IsDefaultOrEmpty && snapshot.Output.Length > 0)
+        {
+            lines.Add("--- Output ---");
+            foreach (var line in snapshot.Output)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    lines.Add(line);
+                }
+            }
+        }
+
+        if (!snapshot.Errors.IsDefaultOrEmpty && snapshot.Errors.Length > 0)
+        {
+            lines.Add("--- Errors ---");
+            foreach (var line in snapshot.Errors)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    lines.Add(line);
+                }
+            }
+        }
+
+        return lines.Count == 0 ? null : lines;
     }
 
     private void UpdateActiveCount(InstallQueueOperationSnapshot snapshot)

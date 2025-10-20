@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 using MessageBox = System.Windows.MessageBox;
 using WpfApplication = System.Windows.Application;
@@ -21,6 +22,21 @@ public partial class PackageMaintenancePage : Page
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
         Unloaded += OnPageUnloaded;
+        Loaded += OnPageLoaded;
+    }
+
+    private async void OnPageLoaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnPageLoaded;
+
+        if (_viewModel.RefreshCommand is IAsyncRelayCommand asyncCommand)
+        {
+            await asyncCommand.ExecuteAsync(null);
+        }
+        else
+        {
+            _viewModel.RefreshCommand.Execute(null);
+        }
     }
 
     private bool ConfirmElevation(string message)

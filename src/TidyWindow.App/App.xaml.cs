@@ -29,6 +29,7 @@ public partial class App : WpfApplication
             .ConfigureServices(services =>
             {
                 services.AddSingleton<NavigationService>();
+                services.AddSingleton<ActivityLogService>();
                 services.AddSingleton<PrivilegeOptions>();
                 services.AddSingleton<IPrivilegeService, PrivilegeService>();
 
@@ -50,6 +51,7 @@ public partial class App : WpfApplication
                 services.AddTransient<SettingsViewModel>();
                 services.AddTransient<InstallHubViewModel>();
                 services.AddTransient<PackageMaintenanceViewModel>();
+                services.AddTransient<LogsViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -57,6 +59,7 @@ public partial class App : WpfApplication
                 services.AddTransient<SettingsPage>();
                 services.AddTransient<InstallHubPage>();
                 services.AddTransient<PackageMaintenancePage>();
+                services.AddTransient<LogsPage>();
 
                 services.AddSingleton<MainWindow>();
             })

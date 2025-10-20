@@ -10,12 +10,14 @@ namespace TidyWindow.App.ViewModels;
 public sealed class MainViewModel : ViewModelBase
 {
     private readonly NavigationService _navigationService;
+    private readonly ActivityLogService _activityLogService;
     private NavigationItemViewModel? _selectedItem;
     private string _statusMessage = "Ready";
 
-    public MainViewModel(NavigationService navigationService)
+    public MainViewModel(NavigationService navigationService, ActivityLogService activityLogService)
     {
         _navigationService = navigationService;
+        _activityLogService = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>
         {
@@ -24,6 +26,7 @@ public sealed class MainViewModel : ViewModelBase
             new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),
             new("Cleanup", "Preview clutter before removing files", typeof(CleanupPage)),
+            new("Logs", "Inspect activity across automation features", typeof(LogsPage)),
             new("Settings", "Configure preferences and integrations", typeof(SettingsPage))
         };
     }
@@ -50,7 +53,13 @@ public sealed class MainViewModel : ViewModelBase
 
     public void SetStatusMessage(string message)
     {
-        StatusMessage = string.IsNullOrWhiteSpace(message) ? "Ready" : message;
+        var resolved = string.IsNullOrWhiteSpace(message) ? "Ready" : message.Trim();
+        StatusMessage = resolved;
+
+        if (!string.Equals(resolved, "Ready", StringComparison.OrdinalIgnoreCase))
+        {
+            _activityLogService.LogInformation("Status", resolved);
+        }
     }
 
     public void NavigateTo(Type pageType)
@@ -93,6 +102,6 @@ public sealed class MainViewModel : ViewModelBase
         }
 
         _navigationService.Navigate(item.PageType);
-        StatusMessage = item.Description;
+        SetStatusMessage(item.Description);
     }
 }

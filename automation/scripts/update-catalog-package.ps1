@@ -1,928 +1,682 @@
-param(param(
-
-    [Parameter(Mandatory = $true)]    [string]$Manager,
-
-    [string] $Manager,    [string]$PackageId
-
-    [Parameter(Mandatory = $true)])
-
+param(
+    [Parameter(Mandatory = $true)]
+    [string] $Manager,
+    [Parameter(Mandatory = $true)]
     [string] $PackageId,
-
-    [string] $DisplayName,Set-StrictMode -Version Latest
-
-    [switch] $RequiresAdmin,$ErrorActionPreference = 'Stop'
-
+    [string] $DisplayName,
+    [switch] $RequiresAdmin,
     [switch] $Elevated,
-
-    [string] $ResultPathif ([string]::IsNullOrWhiteSpace($Manager)) {
-
-)    throw 'Package manager must be provided.'
-
-}
+    [string] $ResultPath
+)
 
 Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
 
-$ErrorActionPreference = 'Stop'if ([string]::IsNullOrWhiteSpace($PackageId)) {
-
-    throw 'Package identifier must be provided.'
-
-if ([string]::IsNullOrWhiteSpace($DisplayName)) {}
-
-    $DisplayName = $PackageId
-
-}$normalizedManager = $Manager.Trim()
-
-$managerKey = $normalizedManager.ToLowerInvariant()
-
-$normalizedManager = $Manager.Trim()
-
-$managerKey = $normalizedManager.ToLowerInvariant()$wingetCommand = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
-
-$needsElevation = $RequiresAdmin.IsPresent -or $managerKey -in @('winget', 'choco', 'chocolatey')$chocoCommand = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
-
-$scoopCommand = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
-
-$script:TidyOutput = [System.Collections.Generic.List[string]]::new()
-
-$script:TidyErrors = [System.Collections.Generic.List[string]]::new()function Resolve-ManagerExecutable {
-
-$script:ResultPayload = $null    param(
-
-$script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)        [string]$Key
-
-    )
-
-if ($script:UsingResultFile) {
-
-    $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)    switch ($Key) {
-
-}        'winget' {
-
-            if (-not $wingetCommand) {
-
-function Add-TidyOutput {                throw 'winget CLI was not found on this machine.'
-
-    param([string] $Message)            }
-
-            return if ($wingetCommand.Source) { $wingetCommand.Source } else { 'winget' }
-
-    if (-not [string]::IsNullOrWhiteSpace($Message)) {        }
-
-        [void]$script:TidyOutput.Add($Message)        'choco' {
-
-    }            if (-not $chocoCommand) {
-
-}                throw 'Chocolatey (choco) CLI was not found on this machine.'
-
-            }
-
-function Add-TidyError {            return if ($chocoCommand.Source) { $chocoCommand.Source } else { 'choco' }
-
-    param([string] $Message)        }
-
-        'chocolatey' {
-
-    if (-not [string]::IsNullOrWhiteSpace($Message)) {            if (-not $chocoCommand) {
-
-        [void]$script:TidyErrors.Add($Message)                throw 'Chocolatey (choco) CLI was not found on this machine.'
-
-    }            }
-
-}            return if ($chocoCommand.Source) { $chocoCommand.Source } else { 'choco' }
-
-        }
-
-function Save-TidyResult {        'scoop' {
-
-    if (-not $script:UsingResultFile) {            if (-not $scoopCommand) {
-
-        return                throw 'Scoop CLI was not found on this machine.'
-
-    }            }
-
-            return if ($scoopCommand.Source) { $scoopCommand.Source } else { 'scoop' }
-
-    if ($null -eq $script:ResultPayload) {        }
-
-        return        default {
-
-    }            throw "Unsupported package manager '$Key'."
-
-        }
-
-    $json = $script:ResultPayload | ConvertTo-Json -Depth 6    }
-
-    Set-Content -LiteralPath $ResultPath -Value $json -Encoding UTF8}
-
+$callerScriptPath = $PSCmdlet.MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerScriptPath)) {
+    $callerScriptPath = $PSCommandPath
 }
 
-function Normalize-VersionString {
+$scriptDirectory = Split-Path -Parent $callerScriptPath
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
+    $scriptDirectory = (Get-Location).Path
+}
 
-function Test-TidyAdmin {    param(
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = [System.IO.Path]::GetFullPath($modulePath)
+if (-not (Test-Path -Path $modulePath)) {
+    throw "Automation module not found at path '$modulePath'."
+}
 
-    return [bool](New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)        [string]$Value
+Import-Module $modulePath -Force
 
-}    )
+$script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
+$script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
+$script:OperationSucceeded = $true
+$script:ResultPayload = $null
+$script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
 
+if ($script:UsingResultFile) {
+    $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+}
 
+function Write-TidyOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Message
+    )
 
-function Get-TidyPowerShellExecutable {    if ([string]::IsNullOrWhiteSpace($Value)) {
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        return
+    }
 
-    if ($PSVersionTable.PSEdition -eq 'Core') {        return $null
+    [void]$script:TidyOutputLines.Add($Message)
+    Write-Output $Message
+}
 
-        $pwsh = Get-Command -Name 'pwsh' -ErrorAction SilentlyContinue    }
+function Write-TidyError {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Message
+    )
 
-        if ($pwsh) { return $pwsh.Source }
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        return
+    }
 
-    }    $trimmed = $Value.Trim()
+    $script:OperationSucceeded = $false
+    [void]$script:TidyErrorLines.Add($Message)
+    Write-Output "[ERROR] $Message"
+}
 
+function Save-TidyResult {
+    if (-not $script:UsingResultFile) {
+        return
+    }
 
+    $payload = [pscustomobject]@{
+        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+        Output  = $script:TidyOutputLines
+        Errors  = $script:TidyErrorLines
+        Result  = $script:ResultPayload
+    }
 
-    $legacy = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue    if ($trimmed -match '([0-9]+(?:\.[0-9]+)*)') {
+    $json = $payload | ConvertTo-Json -Depth 6
+    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+}
 
-    if ($legacy) { return $legacy.Source }        return $matches[1]
+function Test-TidyAdmin {
+    return [bool](New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
 
+function Get-TidyPowerShellExecutable {
+    if ($PSVersionTable.PSEdition -eq 'Core') {
+        $pwsh = Get-Command -Name 'pwsh' -ErrorAction SilentlyContinue
+        if ($pwsh) {
+            return $pwsh.Source
+        }
+    }
+
+    $legacy = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
+    if ($legacy) {
+        return $legacy.Source
     }
 
     throw 'Unable to locate a PowerShell executable to request elevation.'
-
-}    return $trimmed
-
 }
 
-function ConvertTo-TidyArgument {
-
-    param([Parameter(Mandatory = $true)][string] $Value)function Get-Status {
-
+function Request-TidyElevation {
     param(
-
-    $escaped = $Value -replace '"', '""'        [string]$Installed,
-
-    return "`"$escaped`""        [string]$Latest
-
-}    )
-
-
-
-function Request-TidyElevation {    $normalizedInstalled = Normalize-VersionString -Value $Installed
-
-    param(    $normalizedLatest = Normalize-VersionString -Value $Latest
-
-        [Parameter(Mandatory = $true)][string] $ScriptPath,
-
-        [Parameter(Mandatory = $true)][string] $Manager,    if ([string]::IsNullOrWhiteSpace($normalizedInstalled)) {
-
-        [Parameter(Mandatory = $true)][string] $PackageId,        return 'NotInstalled'
-
-        [Parameter(Mandatory = $true)][string] $DisplayName    }
-
+        [Parameter(Mandatory = $true)]
+        [string] $ScriptPath,
+        [Parameter(Mandatory = $true)]
+        [string] $Manager,
+        [Parameter(Mandatory = $true)]
+        [string] $PackageId,
+        [Parameter(Mandatory = $true)]
+        [string] $DisplayName,
+        [Parameter(Mandatory = $true)]
+        [bool] $IncludeRequiresAdmin
     )
 
-    if ([string]::IsNullOrWhiteSpace($normalizedLatest) -or $normalizedLatest.Trim().ToLowerInvariant() -eq 'unknown') {
+    $resultTemp = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "tidywindow-update-" + ([System.Guid]::NewGuid().ToString('N')) + '.json')
+    $shellPath = Get-TidyPowerShellExecutable
 
-    $resultTemp = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "tidywindow-update-" + ([System.Guid]::NewGuid().ToString('N')) + '.json')        return 'Unknown'
+    function ConvertTo-TidyArgument {
+        param(
+            [Parameter(Mandatory = $true)]
+            [string] $Value
+        )
 
-    $shellPath = Get-TidyPowerShellExecutable    }
+        $escaped = $Value -replace '"', '""'
+        return "`"$escaped`""
+    }
 
-
-
-    $arguments = @(    $installedVersion = $null
-
-        '-NoProfile',    $latestVersion = $null
-
-        '-ExecutionPolicy', 'Bypass',    if ([version]::TryParse($normalizedInstalled, [ref]$installedVersion) -and [version]::TryParse($normalizedLatest, [ref]$latestVersion)) {
-
-        '-File', (ConvertTo-TidyArgument -Value $ScriptPath),        if ($installedVersion -lt $latestVersion) {
-
-        '-Manager', (ConvertTo-TidyArgument -Value $Manager),            return 'UpdateAvailable'
-
-        '-PackageId', (ConvertTo-TidyArgument -Value $PackageId),        }
-
-        '-DisplayName', (ConvertTo-TidyArgument -Value $DisplayName),        return 'UpToDate'
-
-        '-RequiresAdmin',    }
-
+    $arguments = @(
+        '-NoProfile',
+        '-ExecutionPolicy', 'Bypass',
+        '-File', (ConvertTo-TidyArgument -Value $ScriptPath),
+        '-Manager', (ConvertTo-TidyArgument -Value $Manager),
+        '-PackageId', (ConvertTo-TidyArgument -Value $PackageId),
+        '-DisplayName', (ConvertTo-TidyArgument -Value $DisplayName),
         '-Elevated',
+        '-ResultPath', (ConvertTo-TidyArgument -Value $resultTemp)
+    )
 
-        '-ResultPath', (ConvertTo-TidyArgument -Value $resultTemp)    if ($normalizedInstalled -eq $normalizedLatest) {
+    if ($IncludeRequiresAdmin) {
+        $arguments += '-RequiresAdmin'
+    }
 
-    )        return 'UpToDate'
+    Write-TidyLog -Level Information -Message "Requesting administrator approval to update '$DisplayName'."
+    Write-TidyOutput -Message 'Requesting administrator approval. Windows may prompt for permission.'
 
+    try {
+        Start-Process -FilePath $shellPath -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait | Out-Null
+    }
+    catch {
+        throw 'Administrator approval was denied or cancelled.'
+    }
+
+    if (-not (Test-Path -Path $resultTemp)) {
+        throw 'Administrator approval was denied before the operation could start.'
     }
 
     try {
-
-        Start-Process -FilePath $shellPath -ArgumentList $arguments -Verb RunAs -WindowStyle Hidden -Wait | Out-Null    return 'UpdateAvailable'
-
-    }}
-
-    catch {
-
-        throw 'Administrator approval was denied or the request was cancelled.'function Get-WingetInstalledVersion {
-
-    }    param(
-
-        [string]$PackageId
-
-    if (-not (Test-Path -LiteralPath $resultTemp)) {    )
-
-        throw 'Administrator approval was denied before the update could start.'
-
-    }    if (-not $wingetCommand) {
-
-        return $null
-
-    try {    }
-
-        $json = Get-Content -LiteralPath $resultTemp -Raw -ErrorAction Stop
-
-        return ConvertFrom-Json -InputObject $json -ErrorAction Stop    $exe = if ($wingetCommand.Source) { $wingetCommand.Source } else { 'winget' }
-
-    }    $arguments = @('list', '--id', $PackageId, '-e', '--disable-interactivity', '--accept-source-agreements', '--output', 'json')
-
+        $json = Get-Content -Path $resultTemp -Raw -ErrorAction Stop
+        return (ConvertFrom-Json -InputObject $json -ErrorAction Stop)
+    }
     finally {
+        Remove-Item -Path $resultTemp -ErrorAction SilentlyContinue
+    }
+}
 
-        Remove-Item -LiteralPath $resultTemp -ErrorAction SilentlyContinue    try {
+function Normalize-VersionString {
+    param([string] $Value)
 
-    }        $output = & $exe @arguments 2>$null
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
 
-}        if ($LASTEXITCODE -eq 0 -and $output) {
+    $trimmed = $Value.Trim()
+    if ($trimmed -match '([0-9]+(?:\.[0-9]+)*)') {
+        return $matches[1]
+    }
 
-            $json = ($output -join [Environment]::NewLine)
+    return $trimmed
+}
 
-if ($needsElevation -and -not $Elevated.IsPresent -and -not (Test-TidyAdmin)) {            $data = ConvertFrom-Json -InputObject $json -ErrorAction Stop
+function Get-Status {
+    param(
+        [string] $Installed,
+        [string] $Latest
+    )
 
-    $scriptPath = $PSCommandPath            if ($data -and $data.InstalledPackages -and $data.InstalledPackages.Count -gt 0) {
+    $normalizedInstalled = Normalize-VersionString -Value $Installed
+    $normalizedLatest = Normalize-VersionString -Value $Latest
 
-    if ([string]::IsNullOrWhiteSpace($scriptPath)) {                $package = $data.InstalledPackages | Select-Object -First 1
+    if ([string]::IsNullOrWhiteSpace($normalizedInstalled)) {
+        return 'NotInstalled'
+    }
 
-        $scriptPath = $MyInvocation.MyCommand.Path                if ($package.Version) {
+    if ([string]::IsNullOrWhiteSpace($normalizedLatest) -or $normalizedLatest.Trim().ToLowerInvariant() -eq 'unknown') {
+        return 'Unknown'
+    }
 
-    }                    return $package.Version.Trim()
+    if ($normalizedInstalled -eq $normalizedLatest) {
+        return 'UpToDate'
+    }
 
-                }
-
-    if ([string]::IsNullOrWhiteSpace($scriptPath)) {            }
-
-        throw 'Unable to determine script path for elevation.'        }
-
-    }    }
-
-    catch {
-
-    $result = Request-TidyElevation -ScriptPath $scriptPath -Manager $normalizedManager -PackageId $PackageId -DisplayName $DisplayName        # fall back to text parsing below
-
-    $result | ConvertTo-Json -Depth 6    }
-
-    return
-
-}    try {
-
-        $fallback = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
-
-function Resolve-ManagerExecutable {        foreach ($line in $fallback) {
-
-    param([string] $Key)            if ($line -match '\s+' + [Regex]::Escape($PackageId) + '\s+([\w\.\-]+)') {
-
-                return $matches[1].Trim()
-
-    switch ($Key) {            }
-
-        'winget' {        }
-
-            $cmd = Get-Command -Name 'winget' -ErrorAction SilentlyContinue    }
-
-            if (-not $cmd) { throw 'winget CLI was not found on this machine.' }    catch {
-
-            return if ($cmd.Source) { $cmd.Source } else { 'winget' }        return $null
-
-        }    }
-
-        'choco' {
-
-            $cmd = Get-Command -Name 'choco' -ErrorAction SilentlyContinue    return $null
-
-            if (-not $cmd) { throw 'Chocolatey CLI was not found on this machine.' }}
-
-            return if ($cmd.Source) { $cmd.Source } else { 'choco' }
-
-        }function Get-WingetAvailableVersion {
-
-        'chocolatey' {    param(
-
-            $cmd = Get-Command -Name 'choco' -ErrorAction SilentlyContinue        [string]$PackageId
-
-            if (-not $cmd) { throw 'Chocolatey CLI was not found on this machine.' }    )
-
-            return if ($cmd.Source) { $cmd.Source } else { 'choco' }
-
-        }    if (-not $wingetCommand) {
-
-        'scoop' {        return $null
-
-            $cmd = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue    }
-
-            if (-not $cmd) { throw 'Scoop CLI was not found on this machine.' }
-
-            return if ($cmd.Source) { $cmd.Source } else { 'scoop' }    $exe = if ($wingetCommand.Source) { $wingetCommand.Source } else { 'winget' }
-
-        }    $arguments = @('show', '--id', $PackageId, '-e', '--disable-interactivity', '--accept-source-agreements', '--output', 'json')
-
-        default { throw "Unsupported package manager '$Key'." }
-
-    }    try {
-
-}        $output = & $exe @arguments 2>$null
-
-        if ($LASTEXITCODE -eq 0 -and $output) {
-
-function Normalize-VersionString {            $json = ($output -join [Environment]::NewLine)
-
-    param([string] $Value)            $data = ConvertFrom-Json -InputObject $json -ErrorAction Stop
-
-            if ($data -and $data.Versions -and $data.Versions.Count -gt 0) {
-
-    if ([string]::IsNullOrWhiteSpace($Value)) {                $latest = $data.Versions | Select-Object -First 1
-
-        return $null                if ($latest.Version) {
-
-    }                    return $latest.Version.Trim()
-
-                }
-
-    $trimmed = $Value.Trim()            }
-
-    if ($trimmed -match '([0-9]+(?:\.[0-9]+)*)') {            elseif ($data -and $data.Version) {
-
-        return $matches[1]                return $data.Version.Trim()
-
-    }            }
-
+    $installedVersion = $null
+    $latestVersion = $null
+    if ([version]::TryParse($normalizedInstalled, [ref]$installedVersion) -and [version]::TryParse($normalizedLatest, [ref]$latestVersion)) {
+        if ($installedVersion -lt $latestVersion) {
+            return 'UpdateAvailable'
         }
 
-    return $trimmed    }
-
-}    catch {
-
-        # fall back to text parsing below
-
-function Get-Status {    }
-
-    param([string] $Installed, [string] $Latest)
-
-    try {
-
-    $normalizedInstalled = Normalize-VersionString -Value $Installed        $fallback = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
-
-    $normalizedLatest = Normalize-VersionString -Value $Latest        foreach ($line in $fallback) {
-
-            if ($line -match '^\s*Version\s*:\s*(.+)$') {
-
-    if ([string]::IsNullOrWhiteSpace($normalizedInstalled)) {                return $matches[1].Trim()
-
-        return 'NotInstalled'            }
-
-    }        }
-
+        return 'UpToDate'
     }
-
-    if ([string]::IsNullOrWhiteSpace($normalizedLatest) -or $normalizedLatest.Trim().ToLowerInvariant() -eq 'unknown') {    catch {
-
-        return 'Unknown'        return $null
-
-    }    }
-
-
-
-    $installedVersion = $null    return $null
-
-    $latestVersion = $null}
-
-    if ([version]::TryParse($normalizedInstalled, [ref]$installedVersion) -and [version]::TryParse($normalizedLatest, [ref]$latestVersion)) {
-
-        if ($installedVersion -lt $latestVersion) {function Get-ChocoInstalledVersion {
-
-            return 'UpdateAvailable'    param(
-
-        }        [string]$PackageId
-
-        return 'UpToDate'    )
-
-    }
-
-    if (-not $chocoCommand) {
-
-    if ($normalizedInstalled -eq $normalizedLatest) {        return $null
-
-        return 'UpToDate'    }
-
-    }
-
-    $exe = if ($chocoCommand.Source) { $chocoCommand.Source } else { 'choco' }
 
     return 'UpdateAvailable'
+}
 
-}    try {
-
-        $output = & $exe 'list' $PackageId '--local-only' '--exact' '--limit-output' 2>$null
-
-function Get-WingetInstalledVersion {        foreach ($line in $output) {
-
-    param([string] $PackageId)            if ($line -match '^\s*' + [Regex]::Escape($PackageId) + '\|(.+)$') {
-
-                return $matches[1].Trim()
-
-    $command = Get-Command -Name 'winget' -ErrorAction SilentlyContinue            }
-
-    if (-not $command) { return $null }        }
-
-    }
-
-    $exe = if ($command.Source) { $command.Source } else { 'winget' }    catch {
-
-        return $null
-
-    try {    }
-
-        $jsonOutput = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' '--output' 'json' 2>$null
-
-        if ($LASTEXITCODE -eq 0 -and $jsonOutput) {    return $null
-
-            $data = ConvertFrom-Json -InputObject ($jsonOutput -join [Environment]::NewLine) -ErrorAction Stop}
-
-            if ($data -and $data.InstalledPackages -and $data.InstalledPackages.Count -gt 0) {
-
-                $package = $data.InstalledPackages | Select-Object -First 1function Get-ChocoAvailableVersion {
-
-                if ($package.Version) { return $package.Version.Trim() }    param(
-
-            }        [string]$PackageId
-
-        }    )
-
-    }
-
-    catch { }    if (-not $chocoCommand) {
-
-        return $null
-
-    try {    }
-
-        $fallback = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
-
-        foreach ($line in $fallback) {    $exe = if ($chocoCommand.Source) { $chocoCommand.Source } else { 'choco' }
-
-            if ($line -match '\s+' + [System.Text.RegularExpressions.Regex]::Escape($PackageId) + '\s+([\w\.\-]+)') {
-
-                return $matches[1].Trim()    try {
-
-            }        $output = & $exe 'search' $PackageId '--exact' '--limit-output' 2>$null
-
-        }        foreach ($line in $output) {
-
-    }            if ($line -match '^\s*' + [Regex]::Escape($PackageId) + '\|(.+)$') {
-
-    catch { }                return $matches[1].Trim()
-
-            }
-
-    return $null        }
-
-}    }
-
-    catch {
-
-function Get-WingetAvailableVersion {        return $null
-
-    param([string] $PackageId)    }
-
-
-
-    $command = Get-Command -Name 'winget' -ErrorAction SilentlyContinue    return $null
-
-    if (-not $command) { return $null }}
-
-
-
-    $exe = if ($command.Source) { $command.Source } else { 'winget' }function Get-ScoopInstalledVersion {
-
-    param(
-
-    try {        [string]$PackageId
-
-        $jsonOutput = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' '--output' 'json' 2>$null    )
-
-        if ($LASTEXITCODE -eq 0 -and $jsonOutput) {
-
-            $data = ConvertFrom-Json -InputObject ($jsonOutput -join [Environment]::NewLine) -ErrorAction Stop    if (-not $scoopCommand) {
-
-            if ($data -and $data.Versions -and $data.Versions.Count -gt 0) {        return $null
-
-                $latest = $data.Versions | Select-Object -First 1    }
-
-                if ($latest.Version) { return $latest.Version.Trim() }
-
-            }    $exe = if ($scoopCommand.Source) { $scoopCommand.Source } else { 'scoop' }
-
-            elseif ($data -and $data.Version) {
-
-                return $data.Version.Trim()    try {
-
-            }        $output = & $exe 'list' '--json' 2>$null
-
-        }        if ($LASTEXITCODE -ne 0 -or -not $output) {
-
-    }            return $null
-
-    catch { }        }
-
-
-
-    try {        $json = ($output -join [Environment]::NewLine)
-
-        $fallback = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null        $apps = ConvertFrom-Json -InputObject $json -ErrorAction Stop
-
-        foreach ($line in $fallback) {        foreach ($app in $apps) {
-
-            if ($line -match '^\s*Version\s*:\s*(.+)$') {            if ($app.Name -and ($app.Name -eq $PackageId)) {
-
-                return $matches[1].Trim()                return $app.Version
-
-            }            }
-
-        }            if ($app.name -and ($app.name -eq $PackageId)) {
-
-    }                return $app.version
-
-    catch { }            }
-
-        }
-
-    return $null    }
-
-}    catch {
-
-        return $null
-
-function Get-ChocoInstalledVersion {    }
-
-    param([string] $PackageId)
-
-    return $null
-
-    $command = Get-Command -Name 'choco' -ErrorAction SilentlyContinue}
-
-    if (-not $command) { return $null }
-
-function Get-ScoopAvailableVersion {
-
-    $exe = if ($command.Source) { $command.Source } else { 'choco' }    param(
-
-        [string]$PackageId
-
-    try {    )
-
-        $output = & $exe 'list' $PackageId '--local-only' '--exact' '--limit-output' 2>$null
-
-        foreach ($line in $output) {    if (-not $scoopCommand) {
-
-            if ($line -match '^\s*' + [System.Text.RegularExpressions.Regex]::Escape($PackageId) + '\|(.+)$') {        return $null
-
-                return $matches[1].Trim()    }
-
-            }
-
-        }    $exe = if ($scoopCommand.Source) { $scoopCommand.Source } else { 'scoop' }
-
-    }
-
-    catch { }    try {
-
-        $output = & $exe 'info' $PackageId '--json' 2>$null
-
-    return $null        if ($LASTEXITCODE -ne 0 -or -not $output) {
-
-}            return $null
-
-        }
-
-function Get-ChocoAvailableVersion {
-
-    param([string] $PackageId)        $json = ($output -join [Environment]::NewLine)
-
-        $info = ConvertFrom-Json -InputObject $json -ErrorAction Stop
-
-    $command = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
-
-    if (-not $command) { return $null }        if ($info -is [System.Collections.IDictionary]) {
-
-            if ($info.App) {
-
-    $exe = if ($command.Source) { $command.Source } else { 'choco' }                if ($info.App.Version) { return ($info.App.Version).ToString().Trim() }
-
-                if ($info.App.'Latest Version') { return ($info.App.'Latest Version').ToString().Trim() }
-
-    try {            }
-
-        $output = & $exe 'search' $PackageId '--exact' '--limit-output' 2>$null
-
-        foreach ($line in $output) {            if ($info.Version) { return $info.Version.ToString().Trim() }
-
-            if ($line -match '^\s*' + [System.Text.RegularExpressions.Regex]::Escape($PackageId) + '\|(.+)$') {            if ($info.version) { return $info.version.ToString().Trim() }
-
-                return $matches[1].Trim()        }
-
-            }        elseif ($info -and $info.Version) {
-
-        }            return $info.Version.ToString().Trim()
-
-    }        }
-
-    catch { }    }
-
-    catch {
-
-    return $null        # fall back to text parsing
-
-}    }
-
-
-
-function Get-ScoopInstalledVersion {    try {
-
-    param([string] $PackageId)        $fallback = & $exe 'info' $PackageId 2>$null
-
-        foreach ($line in $fallback) {
-
-    $command = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue            if ($line -match '^\s*Latest Version\s*:\s*(.+)$') {
-
-    if (-not $command) { return $null }                return $matches[1].Trim()
-
-            }
-
-    $exe = if ($command.Source) { $command.Source } else { 'scoop' }            if ($line -match '^\s*Version\s*:\s*(.+)$') {
-
-                return $matches[1].Trim()
-
-    try {            }
-
-        $output = & $exe 'list' '--json' 2>$null        }
-
-        if ($LASTEXITCODE -ne 0 -or -not $output) { return $null }    }
-
-        $apps = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop    catch {
-
-        foreach ($app in $apps) {        return $null
-
-            if ($app.Name -and ($app.Name -eq $PackageId)) { return $app.Version }    }
-
-            if ($app.name -and ($app.name -eq $PackageId)) { return $app.version }
-
-        }    return $null
-
-    }}
-
-    catch { }
-
-function Get-ManagerInstalledVersion {
-
-    return $null    param(
-
-}        [string]$ManagerKey,
-
-        [string]$PackageId
-
-function Get-ScoopAvailableVersion {    )
-
-    param([string] $PackageId)
-
-    switch ($ManagerKey) {
-
-    $command = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue        'winget' { return Get-WingetInstalledVersion -PackageId $PackageId }
-
-    if (-not $command) { return $null }        'choco' { return Get-ChocoInstalledVersion -PackageId $PackageId }
-
-        'chocolatey' { return Get-ChocoInstalledVersion -PackageId $PackageId }
-
-    $exe = if ($command.Source) { $command.Source } else { 'scoop' }        'scoop' { return Get-ScoopInstalledVersion -PackageId $PackageId }
-
-        default { return $null }
-
-    try {    }
-
-        $output = & $exe 'info' $PackageId '--json' 2>$null}
-
-        if ($LASTEXITCODE -ne 0 -or -not $output) { return $null }
-
-function Get-ManagerAvailableVersion {
-
-        $info = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop    param(
-
-        if ($info -is [System.Collections.IDictionary]) {        [string]$ManagerKey,
-
-            if ($info.App) {        [string]$PackageId
-
-                if ($info.App.Version) { return ($info.App.Version).ToString().Trim() }    )
-
-                if ($info.App.'Latest Version') { return ($info.App.'Latest Version').ToString().Trim() }
-
-            }    switch ($ManagerKey) {
-
-        'winget' { return Get-WingetAvailableVersion -PackageId $PackageId }
-
-            if ($info.Version) { return $info.Version.ToString().Trim() }        'choco' { return Get-ChocoAvailableVersion -PackageId $PackageId }
-
-            if ($info.version) { return $info.version.ToString().Trim() }        'chocolatey' { return Get-ChocoAvailableVersion -PackageId $PackageId }
-
-        }        'scoop' { return Get-ScoopAvailableVersion -PackageId $PackageId }
-
-        elseif ($info -and $info.Version) {        default { return $null }
-
-            return $info.Version.ToString().Trim()    }
-
-        }}
-
-    }
-
-    catch { }function Invoke-ManagerUpdate {
-
-    param(
-
-    try {        [string]$ManagerKey,
-
-        $fallback = & $exe 'info' $PackageId 2>$null        [string]$PackageId
-
-        foreach ($line in $fallback) {    )
-
-            if ($line -match '^\s*Latest Version\s*:\s*(.+)$') { return $matches[1].Trim() }
-
-            if ($line -match '^\s*Version\s*:\s*(.+)$') { return $matches[1].Trim() }    $exe = Resolve-ManagerExecutable -Key $ManagerKey
-
-        }
-
-    }    switch ($ManagerKey) {
-
-    catch { }        'winget' {
-
-            $arguments = @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
-
-    return $null        }
-
-}        'choco' { $arguments = @('upgrade', $PackageId, '-y', '--no-progress') }
-
-        'chocolatey' { $arguments = @('upgrade', $PackageId, '-y', '--no-progress') }
-
-function Get-ManagerInstalledVersion {        'scoop' { $arguments = @('update', $PackageId) }
-
-    param([string] $Key, [string] $PackageId)        default { throw "Unsupported package manager '$ManagerKey' for update." }
-
-    }
+function Resolve-ManagerExecutable {
+    param([string] $Key)
 
     switch ($Key) {
-
-        'winget' { return Get-WingetInstalledVersion -PackageId $PackageId }    $output = & $exe @arguments 2>&1
-
-        'choco' { return Get-ChocoInstalledVersion -PackageId $PackageId }    $exitCode = $LASTEXITCODE
-
-        'chocolatey' { return Get-ChocoInstalledVersion -PackageId $PackageId }
-
-        'scoop' { return Get-ScoopInstalledVersion -PackageId $PackageId }    return [pscustomobject]@{
-
-        default { return $null }        ExitCode = $exitCode
-
-    }        Output = @($output)
-
-}        Executable = $exe
-
-        Arguments = $arguments
-
-function Get-ManagerAvailableVersion {    }
-
-    param([string] $Key, [string] $PackageId)}
-
-
-
-    switch ($Key) {$installedBefore = Get-ManagerInstalledVersion -ManagerKey $managerKey -PackageId $PackageId
-
-        'winget' { return Get-WingetAvailableVersion -PackageId $PackageId }$latestBefore = Get-ManagerAvailableVersion -ManagerKey $managerKey -PackageId $PackageId
-
-        'choco' { return Get-ChocoAvailableVersion -PackageId $PackageId }if ([string]::IsNullOrWhiteSpace($latestBefore)) {
-
-        'chocolatey' { return Get-ChocoAvailableVersion -PackageId $PackageId }    $latestBefore = 'Unknown'
-
-        'scoop' { return Get-ScoopAvailableVersion -PackageId $PackageId }}
-
-        default { return $null }
-
-    }$statusBefore = Get-Status -Installed $installedBefore -Latest $latestBefore
-
+        'winget' {
+            $cmd = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
+            if (-not $cmd) { throw 'winget CLI was not found on this machine.' }
+            if ($cmd.Source) { return $cmd.Source }
+            return 'winget'
+        }
+        'choco' {
+            $cmd = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
+            if (-not $cmd) { throw 'Chocolatey (choco) CLI was not found on this machine.' }
+            if ($cmd.Source) { return $cmd.Source }
+            return 'choco'
+        }
+        'chocolatey' {
+            return Resolve-ManagerExecutable -Key 'choco'
+        }
+        'scoop' {
+            $cmd = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
+            if (-not $cmd) { throw 'Scoop CLI was not found on this machine.' }
+            if ($cmd.Source) { return $cmd.Source }
+            return 'scoop'
+        }
+        default {
+            throw "Unsupported package manager '$Key'."
+        }
+    }
 }
 
-$updateAttempted = $false
+function Get-WingetInstalledVersion {
+    param([string] $PackageId)
 
-function Invoke-Update {$commandExitCode = 0
+    $command = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
+    if (-not $command) { return $null }
 
-    param([string] $Key, [string] $PackageId)$commandOutput = @()
+    $exe = if ($command.Source) { $command.Source } else { 'winget' }
+    try {
+        $jsonOutput = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' '--output' 'json' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $jsonOutput) {
+            $payload = ConvertFrom-Json -InputObject ($jsonOutput -join [Environment]::NewLine) -ErrorAction Stop
+            $candidates = @()
 
-$commandExecutable = $null
+            if ($payload) {
+                if ($payload.InstalledPackages) { $candidates += @($payload.InstalledPackages) }
+                if ($payload.Items) { $candidates += @($payload.Items) }
+                if ($payload.Packages) { $candidates += @($payload.Packages) }
+                if ($payload.Sources) {
+                    foreach ($source in @($payload.Sources)) {
+                        if ($source.Packages) { $candidates += @($source.Packages) }
+                        if ($source.InstalledPackages) { $candidates += @($source.InstalledPackages) }
+                    }
+                }
 
-    $exe = Resolve-ManagerExecutable -Key $Key$commandArguments = @()
+                if ($payload -is [System.Collections.IDictionary] -and $candidates.Count -eq 0) {
+                    foreach ($value in $payload.Values) {
+                        if ($value -is [System.Collections.IEnumerable] -and $value -isnot [string]) {
+                            $candidates += @($value)
+                        }
+                    }
+                }
 
-    $arguments = switch ($Key) {
+                foreach ($candidate in $candidates) {
+                    if (-not $candidate) { continue }
 
-        'winget' { @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity') }if ($statusBefore -eq 'UpdateAvailable') {
+                    $version = $null
 
-        'choco' { @('upgrade', $PackageId, '-y', '--no-progress') }    $updateAttempted = $true
+                    if ($candidate.Version) { $version = $candidate.Version }
+                    elseif ($candidate.version) { $version = $candidate.version }
+                    elseif ($candidate.InstalledVersion) { $version = $candidate.InstalledVersion }
+                    elseif ($candidate.installedVersion) { $version = $candidate.installedVersion }
 
-        'chocolatey' { @('upgrade', $PackageId, '-y', '--no-progress') }    $execution = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId
+                    if (-not $version) { continue }
 
-        'scoop' { @('update', $PackageId) }    $commandExitCode = $execution.ExitCode
+                    if ($candidate.PackageIdentifier -and [string]::Equals($candidate.PackageIdentifier, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        return $version.ToString().Trim()
+                    }
+                    if ($candidate.Id -and [string]::Equals($candidate.Id, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        return $version.ToString().Trim()
+                    }
+                    if (-not $candidate.PackageIdentifier -and -not $candidate.Id) {
+                        return $version.ToString().Trim()
+                    }
+                }
+            }
+        }
+    }
+    catch { }
 
-        default { throw "Unsupported package manager '$Key' for update." }    $commandOutput = $execution.Output
+    try {
+        $fallback = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
+        foreach ($line in @($fallback)) {
+            if ($line -match '\s+' + [Regex]::Escape($PackageId) + '\s+([^\s]+)') {
+                return $matches[1].Trim()
+            }
+        }
+    }
+    catch { }
 
-    }    $commandExecutable = $execution.Executable
+    return $null
+}
 
-    $commandArguments = $execution.Arguments
+function Get-WingetAvailableVersion {
+    param([string] $PackageId)
 
-    $output = & $exe @arguments 2>&1}
+    $command = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
+    if (-not $command) { return $null }
 
-    $exitCode = $LASTEXITCODEelse {
+    $exe = if ($command.Source) { $command.Source } else { 'winget' }
+    try {
+        $jsonOutput = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' '--output' 'json' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $jsonOutput) {
+            $data = ConvertFrom-Json -InputObject ($jsonOutput -join [Environment]::NewLine) -ErrorAction Stop
+            if ($data -and $data.Versions -and $data.Versions.Count -gt 0) {
+                $latest = $data.Versions | Select-Object -First 1
+                if ($latest.Version) { return $latest.Version.Trim() }
+            }
+            elseif ($data -and $data.Version) {
+                return $data.Version.Trim()
+            }
+        }
+    }
+    catch { }
 
-    $commandOutput = @('No update attempted because the package is not reporting an available update.')
+    try {
+        $fallback = & $exe 'show' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
+        foreach ($line in @($fallback)) {
+            if ($line -match '^\s*Version\s*:\s*(.+)$') {
+                return $matches[1].Trim()
+            }
+        }
+    }
+    catch { }
 
-    $logs = [System.Collections.Generic.List[string]]::new()}
+    return $null
+}
 
+function Get-ChocoInstalledVersion {
+    param([string] $PackageId)
+
+    $command = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
+    if (-not $command) { return $null }
+
+    $exe = if ($command.Source) { $command.Source } else { 'choco' }
+    try {
+        $output = & $exe 'list' $PackageId '--local-only' '--exact' '--limit-output' 2>$null
+        foreach ($line in @($output)) {
+            if ($line -match '^\s*' + [Regex]::Escape($PackageId) + '\|(.+)$') {
+                return $matches[1].Trim()
+            }
+        }
+    }
+    catch { }
+
+    return $null
+}
+
+function Get-ChocoAvailableVersion {
+    param([string] $PackageId)
+
+    $command = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
+    if (-not $command) { return $null }
+
+    $exe = if ($command.Source) { $command.Source } else { 'choco' }
+    try {
+        $output = & $exe 'search' $PackageId '--exact' '--limit-output' 2>$null
+        foreach ($line in @($output)) {
+            if ($line -match '^\s*' + [Regex]::Escape($PackageId) + '\|(.+)$') {
+                return $matches[1].Trim()
+            }
+        }
+    }
+    catch { }
+
+    return $null
+}
+
+function Get-ScoopInstalledVersion {
+    param([string] $PackageId)
+
+    $command = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
+    if (-not $command) { return $null }
+
+    $exe = if ($command.Source) { $command.Source } else { 'scoop' }
+    try {
+        $output = & $exe 'list' '--json' 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $output) { return $null }
+
+        $appsPayload = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop
+        $apps = @()
+
+        if ($appsPayload -is [System.Collections.IEnumerable] -and $appsPayload -isnot [string]) {
+            $apps = @($appsPayload)
+        }
+        elseif ($appsPayload -is [System.Collections.IDictionary]) {
+            if ($appsPayload.ContainsKey('apps')) {
+                $apps = @($appsPayload['apps'])
+            }
+            elseif ($appsPayload.ContainsKey('Apps')) {
+                $apps = @($appsPayload['Apps'])
+            }
+            elseif ($appsPayload.ContainsKey('installed')) {
+                $apps = @($appsPayload['installed'])
+            }
+
+            if ($apps.Count -eq 0) {
+                foreach ($key in $appsPayload.Keys) {
+                    $entry = $appsPayload[$key]
+                    if ($entry -is [System.Collections.IEnumerable] -and $entry -isnot [string]) {
+                        $apps += @($entry)
+                    }
+                    else {
+                        $apps += ,$entry
+                    }
+                }
+            }
+        }
+
+        foreach ($entry in $apps) {
+            $name = $entry.Name
+            if (-not $name) { $name = $entry.name }
+            if (-not $name) { $name = $entry.id }
+
+            if ($name -and ($name -eq $PackageId)) {
+                if ($entry.Version) { return ($entry.Version).ToString().Trim() }
+                if ($entry.version) { return ($entry.version).ToString().Trim() }
+                if ($entry.installed) { return ($entry.installed).ToString().Trim() }
+            }
+        }
+    }
+    catch { }
+
+    return $null
+}
+
+function Get-ScoopAvailableVersion {
+    param([string] $PackageId)
+
+    $command = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
+    if (-not $command) { return $null }
+
+    $exe = if ($command.Source) { $command.Source } else { 'scoop' }
+    try {
+        $output = & $exe 'info' $PackageId '--json' 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $output) { return $null }
+
+        $info = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop
+        if ($info -is [System.Collections.IDictionary]) {
+            if ($info.App) {
+                if ($info.App.Version) { return ($info.App.Version).ToString().Trim() }
+                if ($info.App.'Latest Version') { return ($info.App.'Latest Version').ToString().Trim() }
+            }
+
+            if ($info.Version) { return $info.Version.ToString().Trim() }
+            if ($info.version) { return $info.version.ToString().Trim() }
+        }
+    }
+    catch { }
+
+    try {
+        $fallback = & $exe 'info' $PackageId 2>$null
+        foreach ($line in @($fallback)) {
+            if ($line -match '^\s*Latest Version\s*:\s*(.+)$') { return $matches[1].Trim() }
+            if ($line -match '^\s*Version\s*:\s*(.+)$') { return $matches[1].Trim() }
+        }
+    }
+    catch { }
+
+    return $null
+}
+
+function Get-ManagerInstalledVersion {
+    param(
+        [string] $ManagerKey,
+        [string] $PackageId
+    )
+
+    switch ($ManagerKey) {
+        'winget' { return Get-WingetInstalledVersion -PackageId $PackageId }
+        'choco' { return Get-ChocoInstalledVersion -PackageId $PackageId }
+        'chocolatey' { return Get-ChocoInstalledVersion -PackageId $PackageId }
+        'scoop' { return Get-ScoopInstalledVersion -PackageId $PackageId }
+        default { return $null }
+    }
+}
+
+function Get-ManagerAvailableVersion {
+    param(
+        [string] $ManagerKey,
+        [string] $PackageId
+    )
+
+    switch ($ManagerKey) {
+        'winget' { return Get-WingetAvailableVersion -PackageId $PackageId }
+        'choco' { return Get-ChocoAvailableVersion -PackageId $PackageId }
+        'chocolatey' { return Get-ChocoAvailableVersion -PackageId $PackageId }
+        'scoop' { return Get-ScoopAvailableVersion -PackageId $PackageId }
+        default { return $null }
+    }
+}
+
+function Invoke-ManagerUpdate {
+    param(
+        [string] $ManagerKey,
+        [string] $PackageId
+    )
+
+    $exe = Resolve-ManagerExecutable -Key $ManagerKey
+    $arguments = switch ($ManagerKey) {
+        'winget' { @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity') }
+        'choco' { @('upgrade', $PackageId, '-y', '--no-progress') }
+        'chocolatey' { @('upgrade', $PackageId, '-y', '--no-progress') }
+        'scoop' { @('update', $PackageId) }
+        default { throw "Unsupported package manager '$ManagerKey' for update." }
+    }
+
+    $rawOutput = & $exe @arguments 2>&1
+    $exitCode = $LASTEXITCODE
+
+    $logs = [System.Collections.Generic.List[string]]::new()
     $errors = [System.Collections.Generic.List[string]]::new()
 
-$installedAfter = Get-ManagerInstalledVersion -ManagerKey $managerKey -PackageId $PackageId
+    foreach ($entry in @($rawOutput)) {
+        if ($null -eq $entry) {
+            continue
+        }
 
-    foreach ($entry in @($output)) {$latestAfter = Get-ManagerAvailableVersion -ManagerKey $managerKey -PackageId $PackageId
+        $message = [string]$entry
+        if ([string]::IsNullOrWhiteSpace($message)) {
+            continue
+        }
 
-        if ($null -eq $entry) { continue }if ([string]::IsNullOrWhiteSpace($latestAfter)) {
-
-        if ($entry -is [System.Management.Automation.ErrorRecord]) {    $latestAfter = 'Unknown'
-
-            $message = [string]$entry}
-
-            if (-not [string]::IsNullOrWhiteSpace($message)) { [void]$errors.Add($message) }
-
-        }$statusAfter = Get-Status -Installed $installedAfter -Latest $latestAfter
-
+        if ($entry -is [System.Management.Automation.ErrorRecord]) {
+            [void]$errors.Add($message)
+        }
         else {
+            [void]$logs.Add($message)
+        }
+    }
 
-            $message = [string]$entry$result = [pscustomobject]@{
+    $summary = if ($exitCode -eq 0) { 'Update command completed.' } else { "Update command exited with code $exitCode." }
 
-            if (-not [string]::IsNullOrWhiteSpace($message)) { [void]$logs.Add($message) }    Manager = $normalizedManager
-
-        }    ManagerKey = $managerKey
-
-    }    PackageId = $PackageId
-
-    StatusBefore = $statusBefore
-
-    $summary = if ($exitCode -eq 0) { 'Update command completed.' } else { "Update command exited with code $exitCode." }    StatusAfter = $statusAfter
-
-    InstalledVersion = if ($installedAfter) { $installedAfter } else { $null }
-
-    return [pscustomobject]@{    LatestVersion = $latestAfter
-
-        Attempted = $true    UpdateAttempted = $updateAttempted
-
-        ExitCode = $exitCode    ExitCode = $commandExitCode
-
-        Output = $logs.ToArray()    Output = $commandOutput
-
-        Errors = $errors.ToArray()    Executable = $commandExecutable
-
-        Summary = $summary    Arguments = $commandArguments
-
-    }}
-
+    return [pscustomobject]@{
+        Attempted  = $true
+        ExitCode   = $exitCode
+        Logs       = $logs.ToArray()
+        Errors     = $errors.ToArray()
+        Executable = $exe
+        Arguments  = $arguments
+        Summary    = $summary
+    }
 }
 
-$result | ConvertTo-Json -Depth 6
-
-$installedBefore = Get-ManagerInstalledVersion -Key $managerKey -PackageId $PackageId
-$latestBefore = Get-ManagerAvailableVersion -Key $managerKey -PackageId $PackageId
-if (-not $latestBefore -and $installedBefore) {
-    $latestBefore = $installedBefore
+if ([string]::IsNullOrWhiteSpace($PackageId)) {
+    throw 'PackageId must be provided.'
 }
 
-$statusBefore = Get-Status -Installed $installedBefore -Latest $latestBefore
+if ([string]::IsNullOrWhiteSpace($Manager)) {
+    throw 'Manager must be provided.'
+}
+
+if ([string]::IsNullOrWhiteSpace($DisplayName)) {
+    $DisplayName = $PackageId
+}
+
+$normalizedManager = $Manager.Trim()
+$managerKey = $normalizedManager.ToLowerInvariant()
+
+switch ($managerKey) {
+    'winget' { }
+    'choco' { }
+    'chocolatey' { $managerKey = 'choco' }
+    'scoop' { }
+    default { throw "Unsupported package manager '$Manager'." }
+}
+
+$needsElevation = $RequiresAdmin.IsPresent -or $managerKey -in @('winget', 'choco')
+
+$installedBefore = $null
+$latestBefore = 'Unknown'
+$statusBefore = 'Unknown'
+$installedAfter = $null
+$latestAfter = 'Unknown'
+$statusAfter = 'Unknown'
 $attempted = $false
 $exitCode = 0
 $operationSucceeded = $false
 $summary = $null
+$executionInfo = $null
 
 try {
+    if ($needsElevation -and -not $Elevated.IsPresent -and -not (Test-TidyAdmin)) {
+        if ([string]::IsNullOrWhiteSpace($callerScriptPath)) {
+            throw 'Unable to determine script path for elevation.'
+        }
+
+        $result = Request-TidyElevation -ScriptPath $callerScriptPath -Manager $normalizedManager -PackageId $PackageId -DisplayName $DisplayName -IncludeRequiresAdmin ($RequiresAdmin.IsPresent)
+        $script:ResultPayload = $result
+        $script:OperationSucceeded = [bool]($result.succeeded)
+
+        $resultOutput = $result.output
+        if ($resultOutput) {
+            foreach ($line in @($resultOutput)) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+                    Write-TidyOutput -Message ([string]$line)
+                }
+            }
+        }
+
+        $resultErrors = $result.errors
+        if ($resultErrors) {
+            foreach ($line in @($resultErrors)) {
+                if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+                    Write-TidyError -Message ([string]$line)
+                }
+            }
+        }
+
+        Save-TidyResult
+        $result | ConvertTo-Json -Depth 6
+        return
+    }
+
+    Write-TidyLog -Level Information -Message "Updating '$DisplayName' using manager '$normalizedManager'."
+
+    $installedBefore = Get-ManagerInstalledVersion -ManagerKey $managerKey -PackageId $PackageId
+    $latestBeforeRaw = Get-ManagerAvailableVersion -ManagerKey $managerKey -PackageId $PackageId
+    if (-not $latestBeforeRaw -and $installedBefore) {
+        $latestBeforeRaw = $installedBefore
+    }
+    if ([string]::IsNullOrWhiteSpace($latestBeforeRaw)) {
+        $latestBefore = 'Unknown'
+    }
+    else {
+        $latestBefore = $latestBeforeRaw
+    }
+
+    $statusBefore = Get-Status -Installed $installedBefore -Latest $latestBefore
+
     if ($statusBefore -eq 'UpdateAvailable') {
-        $attempt = Invoke-Update -Key $managerKey -PackageId $PackageId
-        $attempted = $attempt.Attempted
-        $exitCode = $attempt.ExitCode
-        foreach ($line in $attempt.Output) { Add-TidyOutput -Message $line }
-        foreach ($line in $attempt.Errors) { Add-TidyError -Message $line }
-        if (-not [string]::IsNullOrWhiteSpace($attempt.Summary)) { $summary = $attempt.Summary }
-        $operationSucceeded = $exitCode -eq 0
+        $attempted = $true
+        $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId
+        $exitCode = $executionInfo.ExitCode
+
+        foreach ($line in @($executionInfo.Logs)) {
+            Write-TidyOutput -Message $line
+        }
+
+        foreach ($line in @($executionInfo.Errors)) {
+            Write-TidyError -Message $line
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($executionInfo.Summary)) {
+            $summary = $executionInfo.Summary
+        }
+
+        $operationSucceeded = ($exitCode -eq 0) -and ($script:TidyErrorLines.Count -eq 0)
     }
     elseif ($statusBefore -eq 'UpToDate') {
         $summary = "Package '$DisplayName' is already up to date."
@@ -933,71 +687,109 @@ try {
         $operationSucceeded = $true
     }
     else {
-        $summary = "No update attempted for '$DisplayName'."
-        $operationSucceeded = $true
+        $summary = "Unable to determine update state for '$DisplayName'."
+        $operationSucceeded = $false
     }
+
+    $installedAfter = Get-ManagerInstalledVersion -ManagerKey $managerKey -PackageId $PackageId
+    $latestAfterRaw = Get-ManagerAvailableVersion -ManagerKey $managerKey -PackageId $PackageId
+    if (-not $latestAfterRaw -and $installedAfter) {
+        $latestAfterRaw = $installedAfter
+    }
+    if ([string]::IsNullOrWhiteSpace($latestAfterRaw)) {
+        $latestAfter = 'Unknown'
+    }
+    else {
+        $latestAfter = $latestAfterRaw
+    }
+
+    $statusAfter = Get-Status -Installed $installedAfter -Latest $latestAfter
+
+    if ($attempted) {
+        if ($statusAfter -eq 'UpToDate' -and $exitCode -eq 0 -and ($script:TidyErrorLines.Count -eq 0)) {
+            $operationSucceeded = $true
+            if ([string]::IsNullOrWhiteSpace($summary)) {
+                $summary = "Package '$DisplayName' updated successfully."
+            }
+        }
+        elseif ($statusAfter -eq 'UpToDate' -and $exitCode -ne 0) {
+            $summary = "Package '$DisplayName' appears updated but command returned exit code $exitCode."
+        }
+        elseif ($statusAfter -eq 'UpdateAvailable') {
+            $operationSucceeded = $false
+            if ([string]::IsNullOrWhiteSpace($summary)) {
+                $summary = "Package '$DisplayName' still reports an available update."
+            }
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($summary)) {
+        $summary = if ($operationSucceeded) { "Update completed for '$DisplayName'." } else { "Update failed for '$DisplayName'." }
+    }
+
+    Write-TidyOutput -Message $summary
+
+    $installedResult = if ([string]::IsNullOrWhiteSpace($installedAfter)) { $installedBefore } else { $installedAfter }
+    if ([string]::IsNullOrWhiteSpace($installedResult)) { $installedResult = $null }
+
+    $script:ResultPayload = [pscustomobject]@{
+        operation        = 'update'
+        manager          = $normalizedManager
+        managerKey       = $managerKey
+        packageId        = $PackageId
+        displayName      = $DisplayName
+        requiresAdmin    = $needsElevation
+        statusBefore     = $statusBefore
+        statusAfter      = $statusAfter
+        installedVersion = $installedResult
+        latestVersion    = $latestAfter
+        updateAttempted  = [bool]$attempted
+        exitCode         = [int]$exitCode
+        succeeded        = [bool]($operationSucceeded -and ($script:TidyErrorLines.Count -eq 0))
+        summary          = $summary
+        executable       = if ($attempted -and $executionInfo) { $executionInfo.Executable } else { $null }
+        arguments        = if ($attempted -and $executionInfo) { $executionInfo.Arguments } else { @() }
+        output           = $script:TidyOutputLines
+        errors           = $script:TidyErrorLines
+    }
+
+    $script:OperationSucceeded = $script:ResultPayload.succeeded
 }
 catch {
-    $operationSucceeded = $false
     $message = $_.Exception.Message
-    if ([string]::IsNullOrWhiteSpace($message)) { $message = $_.ToString() }
-    Add-TidyError -Message $message
-    if (-not $summary) { $summary = $message }
-}
-
-$installedAfter = Get-ManagerInstalledVersion -Key $managerKey -PackageId $PackageId
-$latestAfter = Get-ManagerAvailableVersion -Key $managerKey -PackageId $PackageId
-if (-not $latestAfter -and $installedAfter) {
-    $latestAfter = $installedAfter
-}
-
-$statusAfter = Get-Status -Installed $installedAfter -Latest $latestAfter
-
-if ($statusBefore -eq 'UpdateAvailable') {
-    if ($statusAfter -eq 'UpToDate' -and $exitCode -eq 0) {
-        $operationSucceeded = $true
-        if (-not $summary) { $summary = "Package '$DisplayName' updated." }
+    if ([string]::IsNullOrWhiteSpace($message)) {
+        $message = $_.ToString()
     }
-    elseif ($statusAfter -eq 'UpToDate' -and $exitCode -ne 0) {
-        $summary = "Package '$DisplayName' reports updated but exit code $exitCode indicates issues."
-        $operationSucceeded = $false
+
+    Write-TidyError -Message $message
+
+    if (-not $script:ResultPayload) {
+        $script:ResultPayload = [pscustomobject]@{
+            operation        = 'update'
+            manager          = $normalizedManager
+            managerKey       = $managerKey
+            packageId        = $PackageId
+            displayName      = $DisplayName
+            requiresAdmin    = $needsElevation
+            statusBefore     = $statusBefore
+            statusAfter      = 'Unknown'
+            installedVersion = $installedBefore
+            latestVersion    = $latestBefore
+            updateAttempted  = [bool]$attempted
+            exitCode         = [int]$exitCode
+            succeeded        = $false
+            summary          = $message
+            executable       = if ($executionInfo) { $executionInfo.Executable } else { $null }
+            arguments        = if ($executionInfo) { $executionInfo.Arguments } else { @() }
+            output           = $script:TidyOutputLines
+            errors           = $script:TidyErrorLines
+        }
     }
-    elseif ($statusAfter -eq 'UpdateAvailable') {
-        if (-not $summary) { $summary = "Package '$DisplayName' still has an update available." }
-        $operationSucceeded = $false
-    }
-}
 
-if ([string]::IsNullOrWhiteSpace($summary)) {
-    $summary = if ($operationSucceeded) { "Update completed for '$DisplayName'." } else { "Update failed for '$DisplayName'." }
-}
-
-$installedResult = if ([string]::IsNullOrWhiteSpace($installedAfter)) { $installedBefore } else { $installedAfter }
-$latestResult = if ([string]::IsNullOrWhiteSpace($latestAfter)) { $latestBefore } else { $latestAfter }
-if ([string]::IsNullOrWhiteSpace($installedResult)) { $installedResult = $null }
-if ([string]::IsNullOrWhiteSpace($latestResult)) { $latestResult = 'Unknown' }
-
-$script:ResultPayload = [pscustomobject]@{
-    operation = 'update'
-    manager = $normalizedManager
-    packageId = $PackageId
-    displayName = $DisplayName
-    requiresAdmin = $needsElevation
-    statusBefore = $statusBefore
-    statusAfter = $statusAfter
-    installedVersion = $installedResult
-    latestVersion = $latestResult
-    updateAttempted = [bool]$attempted
-    exitCode = [int]$exitCode
-    succeeded = [bool]$operationSucceeded
-    summary = $summary
-    output = $script:TidyOutput
-    errors = $script:TidyErrors
-}
-
-try {
-    Save-TidyResult
+    $script:OperationSucceeded = $false
 }
 finally {
-    $script:ResultPayload | ConvertTo-Json -Depth 6
+    Save-TidyResult
 }
+
+$script:ResultPayload | ConvertTo-Json -Depth 6

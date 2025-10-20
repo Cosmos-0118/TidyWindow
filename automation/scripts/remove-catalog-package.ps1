@@ -146,22 +146,26 @@ function Resolve-ManagerExecutable {
         'winget' {
             $cmd = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
             if (-not $cmd) { throw 'winget CLI was not found on this machine.' }
-            return if ($cmd.Source) { $cmd.Source } else { 'winget' }
+            if ($cmd.Source) { return $cmd.Source }
+            return 'winget'
         }
         'choco' {
             $cmd = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
             if (-not $cmd) { throw 'Chocolatey CLI was not found on this machine.' }
-            return if ($cmd.Source) { $cmd.Source } else { 'choco' }
+            if ($cmd.Source) { return $cmd.Source }
+            return 'choco'
         }
         'chocolatey' {
             $cmd = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
             if (-not $cmd) { throw 'Chocolatey CLI was not found on this machine.' }
-            return if ($cmd.Source) { $cmd.Source } else { 'choco' }
+            if ($cmd.Source) { return $cmd.Source }
+            return 'choco'
         }
         'scoop' {
             $cmd = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
             if (-not $cmd) { throw 'Scoop CLI was not found on this machine.' }
-            return if ($cmd.Source) { $cmd.Source } else { 'scoop' }
+            if ($cmd.Source) { return $cmd.Source }
+            return 'scoop'
         }
         default { throw "Unsupported package manager '$Key'." }
     }
@@ -260,7 +264,7 @@ function Invoke-Removal {
 
     $exe = Resolve-ManagerExecutable -Key $Key
     $arguments = switch ($Key) {
-        'winget' { @('uninstall', '--id', $PackageId, '-e', '--accept-source-agreements', '--accept-package-agreements', '--disable-interactivity') }
+    'winget' { @('uninstall', '--id', $PackageId, '-e', '--accept-source-agreements', '--disable-interactivity') }
         'choco' { @('uninstall', $PackageId, '-y', '--no-progress') }
         'chocolatey' { @('uninstall', $PackageId, '-y', '--no-progress') }
         'scoop' { @('uninstall', $PackageId) }

@@ -411,7 +411,12 @@ try {
     try {
         $invocationOutput = Invoke-Expression $commandText 2>&1
         $invocationSucceeded = $?
-        $exitCode = $LASTEXITCODE
+        if (Test-Path -Path 'variable:LASTEXITCODE') {
+            $exitCode = $LASTEXITCODE
+        }
+        else {
+            $exitCode = 0
+        }
     }
     catch {
         $success = $false

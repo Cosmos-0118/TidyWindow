@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -21,16 +22,19 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly PackageInventoryService _inventoryService;
     private readonly PackageMaintenanceService _maintenanceService;
     private readonly InstallCatalogService _catalogService;
-    private readonly InstallQueue _installQueue;
     private readonly MainViewModel _mainViewModel;
     private readonly IPrivilegeService _privilegeService;
+    private readonly ActivityLogService _activityLog;
+
+    private const int WingetCannotUpgradeExitCode = -1978334956;
 
     private readonly List<PackageMaintenanceItemViewModel> _allPackages = new();
     private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByKey = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByInstallId = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<Guid, InstallQueueOperationSnapshot> _queueSnapshots = new();
     private readonly HashSet<PackageMaintenanceItemViewModel> _attachedItems = new();
+    private readonly Queue<MaintenanceOperationRequest> _pendingOperations = new();
+    private readonly object _operationLock = new();
 
+    private bool _isProcessingOperations;
     private DateTimeOffset? _lastRefreshedAt;
     private bool _isDisposed;
 
@@ -38,25 +42,19 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         PackageInventoryService inventoryService,
         PackageMaintenanceService maintenanceService,
         InstallCatalogService catalogService,
-        InstallQueue installQueue,
         MainViewModel mainViewModel,
-        IPrivilegeService privilegeService)
+        IPrivilegeService privilegeService,
+        ActivityLogService activityLogService)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _maintenanceService = maintenanceService ?? throw new ArgumentNullException(nameof(maintenanceService));
         _catalogService = catalogService ?? throw new ArgumentNullException(nameof(catalogService));
-        _installQueue = installQueue ?? throw new ArgumentNullException(nameof(installQueue));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _privilegeService = privilegeService ?? throw new ArgumentNullException(nameof(privilegeService));
+        _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
 
         ManagerFilters.Add(AllManagersFilter);
-
-        foreach (var snapshot in _installQueue.GetSnapshot())
-        {
-            _queueSnapshots[snapshot.Id] = snapshot;
-        }
-
-        _installQueue.OperationChanged += OnInstallQueueChanged;
+        Operations.CollectionChanged += OnOperationsCollectionChanged;
     }
 
     public ObservableCollection<PackageMaintenanceItemViewModel> Packages { get; } = new();
@@ -64,6 +62,10 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     public ObservableCollection<string> ManagerFilters { get; } = new();
 
     public ObservableCollection<string> Warnings { get; } = new();
+
+    public ObservableCollection<PackageMaintenanceOperationViewModel> Operations { get; } = new();
+
+    public bool HasOperations => Operations.Count > 0;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -117,6 +119,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         IsBusy = true;
         _mainViewModel.SetStatusMessage("Refreshing package inventory...");
+        _activityLog.LogInformation("Maintenance", "Refreshing package inventory...");
 
         try
         {
@@ -131,6 +134,19 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                 OnPropertyChanged(nameof(HasPackages));
                 _mainViewModel.SetStatusMessage($"Inventory ready • {SummaryText}");
             }).ConfigureAwait(false);
+
+            var totalPackages = snapshot.Packages.Length;
+            var updatesAvailable = snapshot.Packages.Count(static package => package.IsUpdateAvailable);
+            var message = $"Inventory refreshed • {totalPackages} package(s) • {updatesAvailable} update(s).";
+            _activityLog.LogSuccess("Maintenance", message, BuildInventoryDetails(snapshot));
+
+            foreach (var warning in snapshot.Warnings)
+            {
+                if (!string.IsNullOrWhiteSpace(warning))
+                {
+                    _activityLog.LogWarning("Maintenance", warning.Trim());
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -138,6 +154,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             {
                 _mainViewModel.SetStatusMessage($"Inventory refresh failed: {ex.Message}");
             }).ConfigureAwait(false);
+
+            _activityLog.LogError("Maintenance", $"Inventory refresh failed: {ex.Message}", new[] { ex.ToString() });
         }
         finally
         {
@@ -153,21 +171,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             return;
         }
 
-        var requiresAdmin = item.RequiresAdministrativeAccess || ManagerRequiresElevation(item.Manager);
-        if (!EnsureElevation(item, requiresAdmin))
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(item.InstallPackageId) || !_catalogService.TryGetPackage(item.InstallPackageId, out var definition))
-        {
-            _mainViewModel.SetStatusMessage($"Catalog entry missing for {item.DisplayName}. Cannot queue update.");
-            return;
-        }
-
-        var snapshot = _installQueue.Enqueue(definition);
-        ApplyQueueSnapshot(snapshot);
-        _mainViewModel.SetStatusMessage($"Queued update for {item.DisplayName}.");
+        EnqueueMaintenanceOperation(item, MaintenanceOperationKind.Update);
     }
 
     [RelayCommand(CanExecute = nameof(CanQueueSelectedUpdates))]
@@ -182,36 +186,19 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             return;
         }
 
-        var toQueue = new List<InstallPackageDefinition>();
+        var enqueued = 0;
         foreach (var item in candidates)
         {
-            if (string.IsNullOrWhiteSpace(item.InstallPackageId))
+            if (EnqueueMaintenanceOperation(item, MaintenanceOperationKind.Update))
             {
-                continue;
-            }
-
-            if (_catalogService.TryGetPackage(item.InstallPackageId, out var definition))
-            {
-                var requiresAdmin = item.RequiresAdministrativeAccess || ManagerRequiresElevation(item.Manager);
-                if (!EnsureElevation(item, requiresAdmin))
-                {
-                    continue;
-                }
-
-                toQueue.Add(definition);
+                enqueued++;
             }
         }
 
-        if (toQueue.Count == 0)
+        if (enqueued == 0)
         {
-            _mainViewModel.SetStatusMessage("No catalog-managed selections ready to queue.");
+            _mainViewModel.SetStatusMessage("No maintenance updates queued.");
             return;
-        }
-
-        var snapshots = _installQueue.EnqueueRange(toQueue);
-        foreach (var snapshot in snapshots)
-        {
-            ApplyQueueSnapshot(snapshot);
         }
 
         foreach (var package in candidates)
@@ -219,54 +206,199 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             package.IsSelected = false;
         }
 
-        _mainViewModel.SetStatusMessage($"Queued {snapshots.Count} update(s).");
+        _mainViewModel.SetStatusMessage($"Queued {enqueued} update(s).");
         QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
     }
 
     [RelayCommand]
-    private async Task RemoveAsync(PackageMaintenanceItemViewModel? item)
+    private void Remove(PackageMaintenanceItemViewModel? item)
     {
         if (item is null || !item.CanRemove)
         {
             return;
         }
 
+        EnqueueMaintenanceOperation(item, MaintenanceOperationKind.Remove);
+    }
+
+    private bool EnqueueMaintenanceOperation(PackageMaintenanceItemViewModel item, MaintenanceOperationKind kind)
+    {
+        if (item is null)
+        {
+            return false;
+        }
+
+        if (kind == MaintenanceOperationKind.Update && !item.CanUpdate)
+        {
+            return false;
+        }
+
+        if (kind == MaintenanceOperationKind.Remove && !item.CanRemove)
+        {
+            return false;
+        }
+
+        if (Operations.Any(operation => ReferenceEquals(operation.Item, item) && operation.IsPendingOrRunning))
+        {
+            _mainViewModel.SetStatusMessage($"'{item.DisplayName}' already has a queued task.");
+            _activityLog.LogInformation("Maintenance", $"Skipped {ResolveOperationNoun(kind).ToLowerInvariant()} for '{item.DisplayName}' because a task is already queued.");
+            return false;
+        }
+
         var requiresAdmin = item.RequiresAdministrativeAccess || ManagerRequiresElevation(item.Manager);
+
+        var packageId = ResolveMaintenancePackageId(item, kind);
+        if (string.IsNullOrWhiteSpace(packageId))
+        {
+            var noun = ResolveOperationNoun(kind).ToLowerInvariant();
+            _mainViewModel.SetStatusMessage($"Unable to queue {noun} for '{item.DisplayName}' because its identifier is unknown.");
+            _activityLog.LogWarning("Maintenance", $"Unable to queue {noun} for '{item.DisplayName}' (missing identifier).", BuildOperationDetails(item, kind, packageId: null, requiresAdmin));
+            return false;
+        }
         if (!EnsureElevation(item, requiresAdmin))
         {
-            return;
+            return false;
         }
+
+        var operation = new PackageMaintenanceOperationViewModel(item, kind);
+        var queuedMessage = ResolveQueuedMessage(kind);
+        operation.MarkQueued(queuedMessage);
+
+        var request = new MaintenanceOperationRequest(item, kind, packageId, requiresAdmin, operation);
+
+        bool shouldStartProcessor;
+
+        lock (_operationLock)
+        {
+            _pendingOperations.Enqueue(request);
+            shouldStartProcessor = !_isProcessingOperations;
+            if (shouldStartProcessor)
+            {
+                _isProcessingOperations = true;
+            }
+        }
+
+        item.IsQueued = true;
+        item.IsBusy = true;
+        item.QueueStatus = queuedMessage;
+        item.LastOperationSucceeded = null;
+        item.LastOperationMessage = queuedMessage;
+
+        Operations.Add(operation);
+        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} queued for '{item.DisplayName}'.", BuildOperationDetails(item, kind, packageId, requiresAdmin));
+
+        _mainViewModel.SetStatusMessage($"{operation.OperationDisplay} queued for '{item.DisplayName}'.");
+
+        if (shouldStartProcessor)
+        {
+            _ = Task.Run(ProcessOperationsAsync);
+        }
+
+        return true;
+    }
+
+    private async Task ProcessOperationsAsync()
+    {
+        while (true)
+        {
+            MaintenanceOperationRequest next;
+
+            lock (_operationLock)
+            {
+                if (_isDisposed || _pendingOperations.Count == 0)
+                {
+                    _isProcessingOperations = false;
+                    return;
+                }
+
+                next = _pendingOperations.Dequeue();
+            }
+
+            await ProcessOperationAsync(next).ConfigureAwait(false);
+        }
+    }
+
+    private async Task ProcessOperationAsync(MaintenanceOperationRequest request)
+    {
+        var item = request.Item;
+        var operation = request.Operation;
+        var progressMessage = ResolveProcessingMessage(request.Kind);
+        var contextDetails = BuildOperationDetails(item, request.Kind, request.PackageId, request.RequiresAdministrator);
+
+        await RunOnUiThreadAsync(() =>
+        {
+            operation.MarkStarted(progressMessage);
+            item.QueueStatus = progressMessage;
+        }).ConfigureAwait(false);
+
+        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} started for '{item.DisplayName}'.", contextDetails);
 
         try
         {
-            item.IsBusy = true;
-            _mainViewModel.SetStatusMessage($"Removing {item.DisplayName}...");
+            var payload = new PackageMaintenanceRequest(
+                request.Item.Manager,
+                request.PackageId,
+                request.Item.DisplayName,
+                request.RequiresAdministrator);
 
-            var request = new PackageMaintenanceRequest(item.Manager, item.PackageIdentifier, item.DisplayName, requiresAdmin);
-            var result = await _maintenanceService.RemoveAsync(request).ConfigureAwait(false);
+            var result = request.Kind == MaintenanceOperationKind.Update
+                ? await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false)
+                : await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false);
+
+            var message = string.IsNullOrWhiteSpace(result.Summary)
+                ? BuildDefaultCompletionMessage(request.Kind, result.Success)
+                : result.Summary.Trim();
+
+            var isNonActionableFailure = false;
+            if (!result.Success && TryGetNonActionableMaintenanceMessage(result, item.DisplayName, out var friendlyMessage))
+            {
+                message = friendlyMessage;
+                isNonActionableFailure = true;
+            }
 
             await RunOnUiThreadAsync(() =>
             {
-                item.ApplyOperationResult(result.Success, result.Summary);
-                _mainViewModel.SetStatusMessage(result.Summary);
+                operation.MarkCompleted(result.Success, message);
+                item.IsBusy = false;
+                item.IsQueued = false;
+                item.QueueStatus = message;
+                item.ApplyOperationResult(result.Success, message);
             }).ConfigureAwait(false);
 
+            await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+
+            var resultDetails = BuildResultDetails(result);
             if (result.Success)
             {
-                await RefreshAsync().ConfigureAwait(false);
+                _activityLog.LogSuccess("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' completed: {message}", resultDetails);
+            }
+            else if (isNonActionableFailure)
+            {
+                _activityLog.LogWarning("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' requires manual action: {message}", resultDetails);
+            }
+            else
+            {
+                _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", resultDetails);
             }
         }
         catch (Exception ex)
         {
+            var message = string.IsNullOrWhiteSpace(ex.Message)
+                ? BuildDefaultCompletionMessage(request.Kind, success: false)
+                : ex.Message.Trim();
+
             await RunOnUiThreadAsync(() =>
             {
-                item.ApplyOperationResult(false, ex.Message);
-                _mainViewModel.SetStatusMessage($"Removal failed: {ex.Message}");
+                operation.MarkCompleted(false, message);
+                item.IsBusy = false;
+                item.IsQueued = false;
+                item.QueueStatus = message;
+                item.ApplyOperationResult(false, message);
             }).ConfigureAwait(false);
-        }
-        finally
-        {
-            await RunOnUiThreadAsync(() => item.IsBusy = false).ConfigureAwait(false);
+
+            await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+
+            _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", new[] { ex.ToString() });
         }
     }
 
@@ -294,7 +426,6 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     {
         _allPackages.Clear();
         _packagesByKey.Clear();
-        _packagesByInstallId.Clear();
 
         Warnings.Clear();
         foreach (var warning in snapshot.Warnings)
@@ -318,11 +449,6 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             {
                 var created = new PackageMaintenanceItemViewModel(package);
                 _packagesByKey[key] = created;
-                if (!string.IsNullOrWhiteSpace(created.InstallPackageId))
-                {
-                    _packagesByInstallId[created.InstallPackageId] = created;
-                }
-
                 newItems.Add(created);
             }
         }
@@ -333,30 +459,6 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         EnsureManagerFilters();
         ApplyFilters();
-        ApplyExistingQueueSnapshots();
-    }
-
-    private void ApplyExistingQueueSnapshots()
-    {
-        foreach (var snapshot in _queueSnapshots.Values)
-        {
-            ApplyQueueSnapshot(snapshot);
-        }
-    }
-
-    private void ApplyQueueSnapshot(InstallQueueOperationSnapshot snapshot)
-    {
-        _queueSnapshots[snapshot.Id] = snapshot;
-
-        if (string.IsNullOrWhiteSpace(snapshot.Package.Id))
-        {
-            return;
-        }
-
-        if (_packagesByInstallId.TryGetValue(snapshot.Package.Id, out var item))
-        {
-            item.UpdateQueueSnapshot(snapshot);
-        }
     }
 
     private void ApplyFilters()
@@ -414,6 +516,185 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
     }
 
+    private static IEnumerable<string>? BuildInventoryDetails(PackageInventorySnapshot snapshot)
+    {
+        if (snapshot.Packages.Length == 0 && snapshot.Warnings.Length == 0)
+        {
+            return null;
+        }
+
+        var lines = new List<string>
+        {
+            $"Generated at: {snapshot.GeneratedAt:u}"
+        };
+
+        var managerGroups = snapshot.Packages
+            .GroupBy(static package => string.IsNullOrWhiteSpace(package.Manager) ? "Unknown" : package.Manager, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static group => group.Count())
+            .ThenBy(static group => group.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in managerGroups)
+        {
+            lines.Add($"Manager '{group.Key}': {group.Count()} package(s)");
+        }
+
+        var updatesByManager = snapshot.Packages
+            .Where(static package => package.IsUpdateAvailable)
+            .GroupBy(static package => string.IsNullOrWhiteSpace(package.Manager) ? "Unknown" : package.Manager, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(static group => group.Count())
+            .ThenBy(static group => group.Key, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var group in updatesByManager)
+        {
+            lines.Add($"Updates via '{group.Key}': {group.Count()} pending");
+        }
+
+        return lines;
+    }
+
+    private static IEnumerable<string>? BuildOperationDetails(PackageMaintenanceItemViewModel item, MaintenanceOperationKind kind, string? packageId, bool requiresAdmin)
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        var lines = new List<string>
+        {
+            $"Operation: {ResolveOperationNoun(kind)}",
+            $"Manager: {item.Manager}",
+            $"Package identifier: {packageId ?? "(unknown)"}",
+            $"Requires admin: {requiresAdmin}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(item.InstallPackageId))
+        {
+            lines.Add($"Install catalog id: {item.InstallPackageId}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.VersionDisplay))
+        {
+            lines.Add($"Version: {item.VersionDisplay}");
+        }
+
+        return lines;
+    }
+
+    private static IEnumerable<string>? BuildResultDetails(PackageMaintenanceResult result)
+    {
+        var lines = new List<string>
+        {
+            $"Operation: {(!string.IsNullOrWhiteSpace(result.Operation) ? result.Operation : "(unknown)")}",
+            $"Manager: {(!string.IsNullOrWhiteSpace(result.Manager) ? result.Manager : "(unknown)")}",
+            $"Package identifier: {(!string.IsNullOrWhiteSpace(result.PackageId) ? result.PackageId : "(unknown)")}",
+            $"Attempted: {result.Attempted}",
+            $"Exit code: {result.ExitCode}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(result.StatusBefore) || !string.IsNullOrWhiteSpace(result.StatusAfter))
+        {
+            lines.Add($"Status before: {result.StatusBefore ?? "(unknown)"}");
+            lines.Add($"Status after: {result.StatusAfter ?? "(unknown)"}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.InstalledVersion))
+        {
+            lines.Add($"Installed version: {result.InstalledVersion}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.LatestVersion))
+        {
+            lines.Add($"Latest version: {result.LatestVersion}");
+        }
+
+        if (!result.Output.IsDefaultOrEmpty && result.Output.Length > 0)
+        {
+            lines.Add("--- Output ---");
+            foreach (var line in result.Output)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    lines.Add(line);
+                }
+            }
+        }
+
+        if (!result.Errors.IsDefaultOrEmpty && result.Errors.Length > 0)
+        {
+            lines.Add("--- Errors ---");
+            foreach (var line in result.Errors)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    lines.Add(line);
+                }
+            }
+        }
+
+        return lines;
+    }
+
+    private static bool TryGetNonActionableMaintenanceMessage(PackageMaintenanceResult result, string packageDisplayName, out string message)
+    {
+        message = string.Empty;
+
+        if (!string.Equals(result.Manager, "winget", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (result.Attempted)
+        {
+            return false;
+        }
+
+        if (result.ExitCode != WingetCannotUpgradeExitCode && !ContainsNonActionableWingetMessage(result))
+        {
+            return false;
+        }
+
+        var versionText = string.IsNullOrWhiteSpace(result.LatestVersion)
+            ? "the latest available version"
+            : $"version {result.LatestVersion}";
+
+        message = $"{packageDisplayName} cannot be updated automatically with winget. Use the publisher's installer to update to {versionText}.";
+        return true;
+    }
+
+    private static bool ContainsNonActionableWingetMessage(PackageMaintenanceResult result)
+    {
+        static bool ContainsPhrase(IEnumerable<string> lines)
+        {
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (line.IndexOf("cannot be upgraded using winget", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!result.Output.IsDefaultOrEmpty && result.Output.Length > 0 && ContainsPhrase(result.Output))
+        {
+            return true;
+        }
+
+        if (!result.Errors.IsDefaultOrEmpty && result.Errors.Length > 0 && ContainsPhrase(result.Errors))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(result.Summary)
+            && result.Summary.IndexOf("cannot be upgraded using winget", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
     private void SynchronizeCollection(ObservableCollection<PackageMaintenanceItemViewModel> target, IList<PackageMaintenanceItemViewModel> source)
     {
         for (var index = target.Count - 1; index >= 0; index--)
@@ -469,28 +750,16 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
     }
 
+    private void OnOperationsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasOperations));
+    }
+
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.IsSelected))
         {
             QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
-        }
-    }
-
-    private void OnInstallQueueChanged(object? sender, InstallQueueChangedEventArgs e)
-    {
-        if (_isDisposed)
-        {
-            return;
-        }
-
-        if (System.Windows.Application.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
-        {
-            dispatcher.InvokeAsync(() => ApplyQueueSnapshot(e.Snapshot));
-        }
-        else
-        {
-            ApplyQueueSnapshot(e.Snapshot);
         }
     }
 
@@ -510,6 +779,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         if (ConfirmElevation is not null && !ConfirmElevation.Invoke(prompt))
         {
             _mainViewModel.SetStatusMessage("Operation cancelled. Administrator privileges required.");
+            _activityLog.LogWarning("Maintenance", $"User cancelled administrator escalation for '{item.DisplayName}'.");
             return false;
         }
 
@@ -517,6 +787,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         if (restart.Success)
         {
             _mainViewModel.SetStatusMessage("Restarting with administrator privileges...");
+            _activityLog.LogInformation("Maintenance", $"Restarting application with administrator privileges for '{item.DisplayName}'.");
             AdministratorRestartRequested?.Invoke(this, EventArgs.Empty);
             return false;
         }
@@ -524,12 +795,72 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         if (restart.AlreadyInTargetMode)
         {
             _mainViewModel.SetStatusMessage("Already running with administrator privileges.");
+            _activityLog.LogInformation("Maintenance", "Maintenance operation already running with administrator privileges.");
             return true;
         }
 
         _mainViewModel.SetStatusMessage(restart.ErrorMessage ?? "Unable to restart with administrator privileges.");
+        _activityLog.LogError("Maintenance", $"Failed to restart with administrator privileges for '{item.DisplayName}': {restart.ErrorMessage ?? "Unknown error"}.");
         return false;
     }
+
+    private static string ResolveOperationNoun(MaintenanceOperationKind kind)
+    {
+        return kind switch
+        {
+            MaintenanceOperationKind.Update => "Update",
+            MaintenanceOperationKind.Remove => "Removal",
+            _ => "Operation"
+        };
+    }
+
+    private static string ResolveQueuedMessage(MaintenanceOperationKind kind)
+    {
+        return kind switch
+        {
+            MaintenanceOperationKind.Update => "Update queued",
+            MaintenanceOperationKind.Remove => "Removal queued",
+            _ => "Operation queued"
+        };
+    }
+
+    private static string ResolveProcessingMessage(MaintenanceOperationKind kind)
+    {
+        return kind switch
+        {
+            MaintenanceOperationKind.Update => "Updating...",
+            MaintenanceOperationKind.Remove => "Removing...",
+            _ => "Processing..."
+        };
+    }
+
+    private static string BuildDefaultCompletionMessage(MaintenanceOperationKind kind, bool success)
+    {
+        var noun = ResolveOperationNoun(kind);
+        return success ? $"{noun} completed." : $"{noun} failed.";
+    }
+
+    private static string? ResolveMaintenancePackageId(PackageMaintenanceItemViewModel item, MaintenanceOperationKind kind)
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.PackageIdentifier))
+        {
+            return item.PackageIdentifier;
+        }
+
+        return string.IsNullOrWhiteSpace(item.InstallPackageId) ? null : item.InstallPackageId;
+    }
+
+    private sealed record MaintenanceOperationRequest(
+        PackageMaintenanceItemViewModel Item,
+        MaintenanceOperationKind Kind,
+        string PackageId,
+        bool RequiresAdministrator,
+        PackageMaintenanceOperationViewModel Operation);
 
     private static bool ManagerRequiresElevation(string manager)
     {
@@ -598,7 +929,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
 
         _isDisposed = true;
-        _installQueue.OperationChanged -= OnInstallQueueChanged;
+        Operations.CollectionChanged -= OnOperationsCollectionChanged;
 
         foreach (var item in _attachedItems.ToList())
         {
@@ -606,6 +937,91 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
 
         _attachedItems.Clear();
+    }
+}
+
+public enum MaintenanceOperationKind
+{
+    Update,
+    Remove
+}
+
+public enum MaintenanceOperationStatus
+{
+    Pending,
+    Running,
+    Succeeded,
+    Failed
+}
+
+public sealed partial class PackageMaintenanceOperationViewModel : ObservableObject
+{
+    public PackageMaintenanceOperationViewModel(PackageMaintenanceItemViewModel item, MaintenanceOperationKind kind)
+    {
+        Item = item ?? throw new ArgumentNullException(nameof(item));
+        Kind = kind;
+        Id = Guid.NewGuid();
+        MarkQueued("Queued");
+    }
+
+    public Guid Id { get; }
+
+    public PackageMaintenanceItemViewModel Item { get; }
+
+    public MaintenanceOperationKind Kind { get; }
+
+    public string OperationDisplay => Kind switch
+    {
+        MaintenanceOperationKind.Update => "Update",
+        MaintenanceOperationKind.Remove => "Removal",
+        _ => "Operation"
+    };
+
+    public string PackageDisplay => Item.DisplayName;
+
+    public bool IsPendingOrRunning => Status is MaintenanceOperationStatus.Pending or MaintenanceOperationStatus.Running;
+
+    [ObservableProperty]
+    private MaintenanceOperationStatus _status;
+
+    [ObservableProperty]
+    private string? _message;
+
+    [ObservableProperty]
+    private DateTimeOffset _enqueuedAt;
+
+    [ObservableProperty]
+    private DateTimeOffset? _startedAt;
+
+    [ObservableProperty]
+    private DateTimeOffset? _completedAt;
+
+    public void MarkQueued(string message)
+    {
+        Status = MaintenanceOperationStatus.Pending;
+        Message = message;
+        EnqueuedAt = DateTimeOffset.UtcNow;
+        StartedAt = null;
+        CompletedAt = null;
+    }
+
+    public void MarkStarted(string message)
+    {
+        Status = MaintenanceOperationStatus.Running;
+        Message = message;
+        StartedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkCompleted(bool success, string message)
+    {
+        Status = success ? MaintenanceOperationStatus.Succeeded : MaintenanceOperationStatus.Failed;
+        Message = message;
+        CompletedAt = DateTimeOffset.UtcNow;
+    }
+
+    partial void OnStatusChanged(MaintenanceOperationStatus oldValue, MaintenanceOperationStatus newValue)
+    {
+        OnPropertyChanged(nameof(IsPendingOrRunning));
     }
 }
 
@@ -665,7 +1081,7 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
 
     public bool RequiresAdministrativeAccess { get; private set; }
 
-    public bool CanUpdate => HasUpdate && !string.IsNullOrWhiteSpace(InstallPackageId);
+    public bool CanUpdate => HasUpdate && (!string.IsNullOrWhiteSpace(InstallPackageId) || !string.IsNullOrWhiteSpace(PackageIdentifier));
 
     public bool CanRemove => !string.IsNullOrWhiteSpace(Manager) && !string.IsNullOrWhiteSpace(PackageIdentifier);
 
@@ -715,25 +1131,6 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
                || Manager.Contains(filter, comparison)
                || (!string.IsNullOrWhiteSpace(Source) && Source.Contains(filter, comparison))
                || (!string.IsNullOrWhiteSpace(TagsDisplay) && TagsDisplay.Contains(filter, comparison));
-    }
-
-    public void UpdateQueueSnapshot(InstallQueueOperationSnapshot snapshot)
-    {
-        if (snapshot is null)
-        {
-            return;
-        }
-
-        IsQueued = snapshot.IsActive || snapshot.Status == InstallQueueStatus.Pending;
-        QueueStatus = snapshot.LastMessage;
-
-        LastOperationSucceeded = snapshot.Status switch
-        {
-            InstallQueueStatus.Succeeded => true,
-            InstallQueueStatus.Failed => false,
-            InstallQueueStatus.Cancelled => false,
-            _ => LastOperationSucceeded
-        };
     }
 
     public void ApplyOperationResult(bool success, string message)
