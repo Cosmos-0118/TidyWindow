@@ -6,7 +6,8 @@ param(
     [string] $DisplayName,
     [switch] $RequiresAdmin,
     [switch] $Elevated,
-    [string] $ResultPath
+    [string] $ResultPath,
+    [string] $TargetVersion
 )
 
 Set-StrictMode -Version Latest
@@ -38,6 +39,12 @@ $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+}
+
+$targetVersionValue = if ([string]::IsNullOrWhiteSpace($TargetVersion)) {
+    $null
+} else {
+    $TargetVersion.Trim()
 }
 
 function Write-TidyOutput {
@@ -116,7 +123,8 @@ function Request-TidyElevation {
         [Parameter(Mandatory = $true)]
         [string] $DisplayName,
         [Parameter(Mandatory = $true)]
-        [bool] $IncludeRequiresAdmin
+        [bool] $IncludeRequiresAdmin,
+        [string] $TargetVersion
     )
 
     $resultTemp = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), "tidywindow-update-" + ([System.Guid]::NewGuid().ToString('N')) + '.json')
@@ -142,6 +150,10 @@ function Request-TidyElevation {
         '-Elevated',
         '-ResultPath', (ConvertTo-TidyArgument -Value $resultTemp)
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($TargetVersion)) {
+        $arguments += @('-TargetVersion', (ConvertTo-TidyArgument -Value $TargetVersion))
+    }
 
     if ($IncludeRequiresAdmin) {
         $arguments += '-RequiresAdmin'
@@ -723,23 +735,95 @@ function Get-ManagerAvailableVersion {
 function Invoke-ManagerUpdate {
     param(
         [string] $ManagerKey,
-        [string] $PackageId
+        [string] $PackageId,
+        [string] $TargetVersion,
+        [string] $InstalledVersion
     )
 
     $exe = Resolve-ManagerExecutable -Key $ManagerKey
+    $hasTarget = -not [string]::IsNullOrWhiteSpace($TargetVersion)
+
+    $logs = [System.Collections.Generic.List[string]]::new()
+    $errors = [System.Collections.Generic.List[string]]::new()
+
+    $normalizedInstalled = Normalize-VersionString -Value $InstalledVersion
+    $normalizedTarget = Normalize-VersionString -Value $TargetVersion
+
+    if ($ManagerKey -eq 'scoop' -and $hasTarget -and -not [string]::IsNullOrWhiteSpace($normalizedInstalled) -and -not [string]::IsNullOrWhiteSpace($normalizedTarget) -and ($normalizedInstalled -ne $normalizedTarget)) {
+        $uninstallArgs = @('uninstall', $PackageId)
+        $uninstallOutput = & $exe @uninstallArgs 2>&1
+        $uninstallExit = $LASTEXITCODE
+
+        foreach ($entry in @($uninstallOutput)) {
+            if ($null -eq $entry) {
+                continue
+            }
+
+            $message = [string]$entry
+            if ([string]::IsNullOrWhiteSpace($message)) {
+                continue
+            }
+
+            if ($entry -is [System.Management.Automation.ErrorRecord]) {
+                [void]$errors.Add($message)
+            }
+            else {
+                [void]$logs.Add($message)
+            }
+        }
+
+        if ($uninstallExit -ne 0) {
+            $summary = "Uninstall command exited with code $uninstallExit."
+            return [pscustomobject]@{
+                Attempted  = $true
+                ExitCode   = $uninstallExit
+                Logs       = $logs.ToArray()
+                Errors     = $errors.ToArray()
+                Executable = $exe
+                Arguments  = $uninstallArgs
+                Summary    = $summary
+            }
+        }
+    }
+
     $arguments = switch ($ManagerKey) {
-        'winget' { @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity') }
-        'choco' { @('upgrade', $PackageId, '-y', '--no-progress') }
-        'chocolatey' { @('upgrade', $PackageId, '-y', '--no-progress') }
-        'scoop' { @('update', $PackageId) }
+        'winget' {
+            if ($hasTarget) {
+                @('install', '--id', $PackageId, '-e', '--version', $TargetVersion, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--force')
+            }
+            else {
+                @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
+            }
+        }
+        'choco' {
+            $args = @('upgrade', $PackageId, '-y', '--no-progress')
+            if ($hasTarget) {
+                $args += @('--version', $TargetVersion, '--allow-downgrade')
+            }
+
+            $args
+        }
+        'chocolatey' {
+            $args = @('upgrade', $PackageId, '-y', '--no-progress')
+            if ($hasTarget) {
+                $args += @('--version', $TargetVersion, '--allow-downgrade')
+            }
+
+            $args
+        }
+        'scoop' {
+            if ($hasTarget) {
+                @('install', "${PackageId}@${TargetVersion}")
+            }
+            else {
+                @('update', $PackageId)
+            }
+        }
         default { throw "Unsupported package manager '$ManagerKey' for update." }
     }
 
     $rawOutput = & $exe @arguments 2>&1
     $exitCode = $LASTEXITCODE
-
-    $logs = [System.Collections.Generic.List[string]]::new()
-    $errors = [System.Collections.Generic.List[string]]::new()
 
     foreach ($entry in @($rawOutput)) {
         if ($null -eq $entry) {
@@ -759,7 +843,17 @@ function Invoke-ManagerUpdate {
         }
     }
 
-    $summary = if ($exitCode -eq 0) { 'Update command completed.' } else { "Update command exited with code $exitCode." }
+    $summary = if ($exitCode -eq 0) {
+        if ($hasTarget) {
+            "Update command completed for version $TargetVersion."
+        }
+        else {
+            'Update command completed.'
+        }
+    }
+    else {
+        "Update command exited with code $exitCode."
+    }
 
     return [pscustomobject]@{
         Attempted  = $true
@@ -815,7 +909,7 @@ try {
             throw 'Unable to determine script path for elevation.'
         }
 
-        $result = Request-TidyElevation -ScriptPath $callerScriptPath -Manager $normalizedManager -PackageId $PackageId -DisplayName $DisplayName -IncludeRequiresAdmin ($RequiresAdmin.IsPresent)
+        $result = Request-TidyElevation -ScriptPath $callerScriptPath -Manager $normalizedManager -PackageId $PackageId -DisplayName $DisplayName -IncludeRequiresAdmin ($RequiresAdmin.IsPresent) -TargetVersion $targetVersionValue
         $script:ResultPayload = $result
         $script:OperationSucceeded = [bool]($result.succeeded)
 
@@ -844,7 +938,13 @@ try {
 
     Write-TidyLog -Level Information -Message "Updating '$DisplayName' using manager '$normalizedManager'."
 
+    $forceTargetVersion = -not [string]::IsNullOrWhiteSpace($targetVersionValue)
+    if ($forceTargetVersion) {
+        Write-TidyLog -Level Information -Message "Requested target version: '$targetVersionValue'."
+    }
+
     $installedBefore = Get-ManagerInstalledVersion -ManagerKey $managerKey -PackageId $PackageId
+
     $latestBeforeRaw = Get-ManagerAvailableVersion -ManagerKey $managerKey -PackageId $PackageId
     if (-not $latestBeforeRaw -and $installedBefore) {
         $latestBeforeRaw = $installedBefore
@@ -856,14 +956,23 @@ try {
         $latestBefore = $latestBeforeRaw
     }
 
-    $statusBefore = Get-Status -Installed $installedBefore -Latest $latestBefore
+    $statusComparisonBefore = if ($forceTargetVersion) { $targetVersionValue } else { $latestBefore }
+    if ([string]::IsNullOrWhiteSpace($statusComparisonBefore)) {
+        $statusComparisonBefore = $latestBefore
+    }
+
+    $statusBefore = Get-Status -Installed $installedBefore -Latest $statusComparisonBefore
+
+    if ($forceTargetVersion) {
+        $statusBefore = 'UpdateAvailable'
+    }
 
     if ($statusBefore -eq 'UpdateAvailable') {
-        if ($managerKey -eq 'scoop') {
+        if ($managerKey -eq 'scoop' -and -not $forceTargetVersion) {
             Reset-ScoopWorkspaceManifestIfOutdated -PackageId $PackageId -LatestVersion $latestBefore
         }
         $attempted = $true
-        $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId
+    $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId -TargetVersion $targetVersionValue -InstalledVersion $installedBefore
         $exitCode = $executionInfo.ExitCode
 
         foreach ($line in @($executionInfo.Logs)) {
@@ -905,7 +1014,12 @@ try {
         $latestAfter = $latestAfterRaw
     }
 
-    $statusAfter = Get-Status -Installed $installedAfter -Latest $latestAfter
+    $statusComparisonAfter = if ($forceTargetVersion) { $targetVersionValue } else { $latestAfter }
+    if ([string]::IsNullOrWhiteSpace($statusComparisonAfter)) {
+        $statusComparisonAfter = $latestAfter
+    }
+
+    $statusAfter = Get-Status -Installed $installedAfter -Latest $statusComparisonAfter
 
     if ($attempted) {
         if ($statusAfter -eq 'UpToDate' -and $exitCode -eq 0 -and ($script:TidyErrorLines.Count -eq 0)) {
@@ -925,8 +1039,24 @@ try {
         }
     }
 
+    if ($operationSucceeded -and $forceTargetVersion -and -not [string]::IsNullOrWhiteSpace($targetVersionValue)) {
+        if ([string]::IsNullOrWhiteSpace($summary) -or $summary -eq "Update command completed." -or $summary -eq "Package '$DisplayName' updated successfully." -or $summary -eq "Update completed for '$DisplayName'." -or $summary -eq "Update command completed for version $targetVersionValue.") {
+            $summary = "Package '$DisplayName' updated to version $targetVersionValue."
+        }
+    }
+
     if ([string]::IsNullOrWhiteSpace($summary)) {
-        $summary = if ($operationSucceeded) { "Update completed for '$DisplayName'." } else { "Update failed for '$DisplayName'." }
+        if ($operationSucceeded) {
+            if ($forceTargetVersion -and -not [string]::IsNullOrWhiteSpace($targetVersionValue)) {
+                $summary = "Update completed for '$DisplayName' (version $targetVersionValue)."
+            }
+            else {
+                $summary = "Update completed for '$DisplayName'."
+            }
+        }
+        else {
+            $summary = "Update failed for '$DisplayName'."
+        }
     }
 
     Write-TidyOutput -Message $summary
@@ -948,6 +1078,7 @@ try {
         updateAttempted  = [bool]$attempted
         exitCode         = [int]$exitCode
         succeeded        = [bool]($operationSucceeded -and ($script:TidyErrorLines.Count -eq 0))
+        requestedVersion = $targetVersionValue
         summary          = $summary
         executable       = if ($attempted -and $executionInfo) { $executionInfo.Executable } else { $null }
         arguments        = if ($attempted -and $executionInfo) { $executionInfo.Arguments } else { @() }
@@ -980,6 +1111,7 @@ catch {
             updateAttempted  = [bool]$attempted
             exitCode         = [int]$exitCode
             succeeded        = $false
+            requestedVersion = $targetVersionValue
             summary          = $message
             executable       = if ($executionInfo) { $executionInfo.Executable } else { $null }
             arguments        = if ($executionInfo) { $executionInfo.Arguments } else { @() }

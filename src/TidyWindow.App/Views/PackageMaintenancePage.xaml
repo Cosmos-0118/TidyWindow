@@ -313,6 +313,26 @@
                     </TextBlock>
                 </StackPanel>
 
+                <StackPanel Orientation="Vertical"
+                            Margin="0,12,0,0">
+                    <TextBlock Text="Target version (optional)"
+                               FontSize="12"
+                               Foreground="#CBD5F5"/>
+                    <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
+                             Width="180"
+                             Margin="0,4,0,0"
+                             Padding="8,4"
+                             Background="#0F172A"
+                             BorderBrush="#1E293B"
+                             Foreground="#E2E8F0"
+                             ToolTip="Provide a specific version to install. Leave blank for the latest release."/>
+                    <TextBlock Text="Leave blank to install the latest version available from the package manager."
+                               Foreground="#64748B"
+                               FontSize="11"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,0"/>
+                </StackPanel>
+
                 <StackPanel Orientation="Horizontal"
                             Margin="0,18,0,0">
                     <Button Content="Queue update"
@@ -693,7 +713,7 @@
                                             <TextBlock Text="Version"/>
                                         </GridViewColumn.Header>
                                     </GridViewColumn>
-                                    <GridViewColumn Width="200">
+                                    <GridViewColumn Width="300">
                                         <GridViewColumn.Header>
                                             <TextBlock Text="Queue status"/>
                                         </GridViewColumn.Header>
@@ -745,6 +765,15 @@
                                             <DataTemplate>
                                                 <StackPanel Orientation="Horizontal"
                                                             HorizontalAlignment="Center">
+                                                    <TextBox Width="90"
+                                                             Margin="0,0,8,0"
+                                                             Padding="8,4"
+                                                             Background="#0F172A"
+                                                             BorderBrush="#1E293B"
+                                                             Foreground="#E2E8F0"
+                                                             HorizontalAlignment="Left"
+                                                             Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="Optional: specify the version to install."/>
                                                     <Button Content="Queue update"
                                                             Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                             CommandParameter="{Binding}"

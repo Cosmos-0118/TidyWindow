@@ -252,7 +252,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         {
             var noun = ResolveOperationNoun(kind).ToLowerInvariant();
             _mainViewModel.SetStatusMessage($"Unable to queue {noun} for '{item.DisplayName}' because its identifier is unknown.");
-            _activityLog.LogWarning("Maintenance", $"Unable to queue {noun} for '{item.DisplayName}' (missing identifier).", BuildOperationDetails(item, kind, packageId: null, requiresAdmin));
+            _activityLog.LogWarning("Maintenance", $"Unable to queue {noun} for '{item.DisplayName}' (missing identifier).", BuildOperationDetails(item, kind, packageId: null, requiresAdmin, requestedVersion: null));
             return false;
         }
         if (!EnsureElevation(item, requiresAdmin))
@@ -260,11 +260,21 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             return false;
         }
 
+        string? requestedVersion = null;
+        if (kind == MaintenanceOperationKind.Update)
+        {
+            requestedVersion = string.IsNullOrWhiteSpace(item.TargetVersion) ? null : item.TargetVersion.Trim();
+            if (!string.Equals(requestedVersion, item.TargetVersion, StringComparison.Ordinal))
+            {
+                item.TargetVersion = requestedVersion;
+            }
+        }
+
         var operation = new PackageMaintenanceOperationViewModel(item, kind);
-        var queuedMessage = ResolveQueuedMessage(kind);
+        var queuedMessage = ResolveQueuedMessage(kind, requestedVersion);
         operation.MarkQueued(queuedMessage);
 
-        var request = new MaintenanceOperationRequest(item, kind, packageId, requiresAdmin, operation);
+        var request = new MaintenanceOperationRequest(item, kind, packageId, requiresAdmin, operation, requestedVersion);
 
         bool shouldStartProcessor;
 
@@ -285,7 +295,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         item.LastOperationMessage = queuedMessage;
 
         Operations.Add(operation);
-        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} queued for '{item.DisplayName}'.", BuildOperationDetails(item, kind, packageId, requiresAdmin));
+        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} queued for '{item.DisplayName}'.", BuildOperationDetails(item, kind, packageId, requiresAdmin, requestedVersion));
 
         _mainViewModel.SetStatusMessage($"{operation.OperationDisplay} queued for '{item.DisplayName}'.");
 
@@ -322,8 +332,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     {
         var item = request.Item;
         var operation = request.Operation;
-        var progressMessage = ResolveProcessingMessage(request.Kind);
-        var contextDetails = BuildOperationDetails(item, request.Kind, request.PackageId, request.RequiresAdministrator);
+        var progressMessage = ResolveProcessingMessage(request.Kind, request.TargetVersion);
+        var contextDetails = BuildOperationDetails(item, request.Kind, request.PackageId, request.RequiresAdministrator, request.TargetVersion);
 
         await RunOnUiThreadAsync(() =>
         {
@@ -339,7 +349,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                 request.Item.Manager,
                 request.PackageId,
                 request.Item.DisplayName,
-                request.RequiresAdministrator);
+                request.RequiresAdministrator,
+                request.TargetVersion);
 
             var result = request.Kind == MaintenanceOperationKind.Update
                 ? await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false)
@@ -472,7 +483,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         if (UpdatesOnly)
         {
-            query = query.Where(item => item.HasUpdate);
+            query = query.Where(item => item.HasUpdate || !string.IsNullOrWhiteSpace(item.TargetVersion));
         }
 
         if (!string.IsNullOrWhiteSpace(SearchText))
@@ -552,7 +563,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         return lines;
     }
 
-    private static IEnumerable<string>? BuildOperationDetails(PackageMaintenanceItemViewModel item, MaintenanceOperationKind kind, string? packageId, bool requiresAdmin)
+    private static IEnumerable<string>? BuildOperationDetails(PackageMaintenanceItemViewModel item, MaintenanceOperationKind kind, string? packageId, bool requiresAdmin, string? requestedVersion)
     {
         if (item is null)
         {
@@ -566,6 +577,11 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             $"Package identifier: {packageId ?? "(unknown)"}",
             $"Requires admin: {requiresAdmin}"
         };
+
+        if (!string.IsNullOrWhiteSpace(requestedVersion))
+        {
+            lines.Add($"Requested version: {requestedVersion.Trim()}");
+        }
 
         if (!string.IsNullOrWhiteSpace(item.InstallPackageId))
         {
@@ -590,6 +606,11 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             $"Attempted: {result.Attempted}",
             $"Exit code: {result.ExitCode}"
         };
+
+        if (!string.IsNullOrWhiteSpace(result.RequestedVersion))
+        {
+            lines.Add($"Requested version: {result.RequestedVersion}");
+        }
 
         if (!string.IsNullOrWhiteSpace(result.StatusBefore) || !string.IsNullOrWhiteSpace(result.StatusAfter))
         {
@@ -653,9 +674,13 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             return false;
         }
 
-        var versionText = string.IsNullOrWhiteSpace(result.LatestVersion)
+        var targetVersion = string.IsNullOrWhiteSpace(result.RequestedVersion)
+            ? result.LatestVersion
+            : result.RequestedVersion;
+
+        var versionText = string.IsNullOrWhiteSpace(targetVersion)
             ? "the latest available version"
-            : $"version {result.LatestVersion}";
+            : $"version {targetVersion}";
 
         message = $"{packageDisplayName} cannot be updated automatically with winget. Use the publisher's installer to update to {versionText}.";
         return true;
@@ -757,9 +782,15 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.IsSelected))
+        if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.IsSelected)
+            || e.PropertyName == nameof(PackageMaintenanceItemViewModel.TargetVersion))
         {
             QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
+        }
+
+        if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.TargetVersion))
+        {
+            ApplyFilters();
         }
     }
 
@@ -814,20 +845,22 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         };
     }
 
-    private static string ResolveQueuedMessage(MaintenanceOperationKind kind)
+    private static string ResolveQueuedMessage(MaintenanceOperationKind kind, string? targetVersion)
     {
         return kind switch
         {
+            MaintenanceOperationKind.Update when !string.IsNullOrWhiteSpace(targetVersion) => $"Update queued ({targetVersion.Trim()})",
             MaintenanceOperationKind.Update => "Update queued",
             MaintenanceOperationKind.Remove => "Removal queued",
             _ => "Operation queued"
         };
     }
 
-    private static string ResolveProcessingMessage(MaintenanceOperationKind kind)
+    private static string ResolveProcessingMessage(MaintenanceOperationKind kind, string? targetVersion)
     {
         return kind switch
         {
+            MaintenanceOperationKind.Update when !string.IsNullOrWhiteSpace(targetVersion) => $"Updating ({targetVersion.Trim()})...",
             MaintenanceOperationKind.Update => "Updating...",
             MaintenanceOperationKind.Remove => "Removing...",
             _ => "Processing..."
@@ -860,7 +893,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         MaintenanceOperationKind Kind,
         string PackageId,
         bool RequiresAdministrator,
-        PackageMaintenanceOperationViewModel Operation);
+        PackageMaintenanceOperationViewModel Operation,
+        string? TargetVersion);
 
     private static bool ManagerRequiresElevation(string manager)
     {
@@ -1081,13 +1115,17 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
 
     public bool RequiresAdministrativeAccess { get; private set; }
 
-    public bool CanUpdate => HasUpdate && (!string.IsNullOrWhiteSpace(InstallPackageId) || !string.IsNullOrWhiteSpace(PackageIdentifier));
+    public bool CanUpdate => (HasUpdate || !string.IsNullOrWhiteSpace(TargetVersion))
+                             && (!string.IsNullOrWhiteSpace(InstallPackageId) || !string.IsNullOrWhiteSpace(PackageIdentifier));
 
     public bool CanRemove => !string.IsNullOrWhiteSpace(Manager) && !string.IsNullOrWhiteSpace(PackageIdentifier);
 
     public string VersionDisplay => HasUpdate && !string.IsNullOrWhiteSpace(AvailableVersion)
         ? $"{InstalledVersion} → {AvailableVersion}"
         : InstalledVersion;
+
+    [ObservableProperty]
+    private string? _targetVersion;
 
     [ObservableProperty]
     private bool _isSelected;
@@ -1106,6 +1144,18 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
 
     [ObservableProperty]
     private bool? _lastOperationSucceeded;
+
+    partial void OnTargetVersionChanged(string? oldValue, string? newValue)
+    {
+        var normalized = string.IsNullOrWhiteSpace(newValue) ? null : newValue.Trim();
+        if (!string.Equals(newValue, normalized, StringComparison.Ordinal))
+        {
+            TargetVersion = normalized;
+            return;
+        }
+
+        OnPropertyChanged(nameof(CanUpdate));
+    }
 
     public void UpdateFrom(PackageInventoryItem item)
     {

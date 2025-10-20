@@ -114,6 +114,11 @@ public sealed class PackageMaintenanceService
             parameters["RequiresAdmin"] = true;
         }
 
+        if (!string.IsNullOrWhiteSpace(request.RequestedVersion))
+        {
+            parameters["TargetVersion"] = request.RequestedVersion.Trim();
+        }
+
         return parameters;
     }
 
@@ -209,12 +214,17 @@ public sealed class PackageMaintenanceService
             ? (payload.Succeeded ? "Operation completed successfully." : "Operation reported a failure.")
             : payload.Summary.Trim();
 
+        var requestedVersion = string.IsNullOrWhiteSpace(payload.RequestedVersion)
+            ? null
+            : payload.RequestedVersion.Trim();
+
         return new PackageMaintenanceResult(
             payload.Operation ?? string.Empty,
             payload.Manager ?? string.Empty,
             payload.PackageId ?? string.Empty,
             payload.Succeeded,
             summary,
+            requestedVersion,
             payload.StatusBefore,
             payload.StatusAfter,
             payload.InstalledVersion,
@@ -251,6 +261,8 @@ public sealed class PackageMaintenanceService
 
         public string? Summary { get; set; }
 
+        public string? RequestedVersion { get; set; }
+
         public List<string>? Output { get; set; }
 
         public List<string>? Errors { get; set; }
@@ -261,7 +273,8 @@ public sealed record PackageMaintenanceRequest(
     string Manager,
     string PackageId,
     string DisplayName,
-    bool RequiresAdministrator);
+    bool RequiresAdministrator,
+    string? RequestedVersion);
 
 public sealed record PackageMaintenanceResult(
     string Operation,
@@ -269,6 +282,7 @@ public sealed record PackageMaintenanceResult(
     string PackageId,
     bool Success,
     string Summary,
+    string? RequestedVersion,
     string? StatusBefore,
     string? StatusAfter,
     string? InstalledVersion,
