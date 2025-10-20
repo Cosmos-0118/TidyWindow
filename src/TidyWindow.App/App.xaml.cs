@@ -10,6 +10,7 @@ using TidyWindow.Core.Cleanup;
 using TidyWindow.Core.PackageManagers;
 using TidyWindow.Core.Diagnostics;
 using TidyWindow.Core.Install;
+using TidyWindow.Core.Maintenance;
 
 namespace TidyWindow.App;
 
@@ -39,6 +40,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<InstallCatalogService>();
                 services.AddSingleton<InstallQueue>();
                 services.AddSingleton<BundlePresetService>();
+                services.AddSingleton<PackageInventoryService>();
+                services.AddSingleton<PackageMaintenanceService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -46,12 +49,14 @@ public partial class App : WpfApplication
                 services.AddTransient<DeepScanViewModel>();
                 services.AddTransient<SettingsViewModel>();
                 services.AddTransient<InstallHubViewModel>();
+                services.AddTransient<PackageMaintenanceViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
                 services.AddTransient<DeepScanPage>();
                 services.AddTransient<SettingsPage>();
                 services.AddTransient<InstallHubPage>();
+                services.AddTransient<PackageMaintenancePage>();
 
                 services.AddSingleton<MainWindow>();
             })

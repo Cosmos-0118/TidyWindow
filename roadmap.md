@@ -88,11 +88,11 @@
 > Legacy runtime updates surface has been retired. Next milestone is a cross-manager maintenance page that enumerates installed software and supports bulk updates or removals.
 
 [x] Step 7.1: Retire runtime update script, service, page, tests, and docs (removed Oct 2025 cleanup).
-[ ] Step 7.2: Implement package inventory service that shells out to winget/choco/scoop using dedicated non-admin PowerShell runspaces per manager.
-[ ] Step 7.3: Join inventory data with `data/catalog/packages` metadata to surface friendly names, tags, and safe removal guidance.
-[ ] Step 7.4: Build view model `ViewModels/PackageMaintenanceViewModel.cs` exposing update/delete commands and wiring to the install queue when needed.
-[ ] Step 7.5: Design `Views/PackageMaintenancePage.xaml` to present installed packages, available updates, and removal actions with responsive status feedback.
-[ ] Step 7.6: Document package maintenance workflows and troubleshooting in `docs/package-maintenance.md`.
+[x] Step 7.2: Implement package inventory service that shells out to winget/choco/scoop using dedicated PowerShell runspaces, elevating winget/choco while keeping scoop in the standard user context.
+[x] Step 7.3: Join inventory data with `data/catalog/packages` metadata to surface friendly names, tags, and safe removal guidance.
+[x] Step 7.4: Build view model `ViewModels/PackageMaintenanceViewModel.cs` exposing update/delete commands and wiring to the install queue when needed.
+[x] Step 7.5: Design `Views/PackageMaintenancePage.xaml` to present installed packages, available updates, and removal actions with responsive status feedback.
+[x] Step 7.6: Document package maintenance workflows and troubleshooting in `docs/package-maintenance.md` with updated, well-structured automation script references.
 
 **Build & Run Checkpoint**
 

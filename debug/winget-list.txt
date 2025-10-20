@@ -1,0 +1,172 @@
+
+   - 
+                                                                                                                        
+Name                                   Id                                      Version          Available        Source
+-----------------------------------------------------------------------------------------------------------------------
+7-Zip 25.01 (x64)                      7zip.7zip                               25.01                             winget
+ShareX                                 ShareX.ShareX                           18.0.1                            winget
+AMD Software                           ARP\Machine\X64\AMD Catalyst Install MΓÇª 25.9.1                            
+Browser Chooser                        ARP\Machine\X64\Browser Chooser         1.0.0.0                           
+CPUID HWMonitor 1.57                   CPUID.HWMonitor                         1.57                              winget
+CrystalDiskMark 8.0.6                  CrystalDewWorld.CrystalDiskMark         8.0.6            9.0.1            winget
+Everything 1.4.1.1029 (x64)            ARP\Machine\X64\Everything              1.4.1.1029                        
+HWiNFO┬« 64                             REALiX.HWiNFO                           8.32                              winget
+Microsoft 365 Apps for enterprise - eΓÇª Microsoft.Office                        16.0.19231.20194                  winget
+Microsoft OneDrive                     Microsoft.OneDrive                      25.179.0914.0003 25.184.0921.0004 winget
+Riot Vanguard                          ARP\Machine\X64\Riot Vanguard           Unknown                           
+Warframe                               DigitalExtremes.Warframe                Unknown          1.0.0            winget
+Chained Together                       ARP\Machine\X64\Steam App 2567870       Unknown                           
+Wallpaper Engine                       ARP\Machine\X64\Steam App 431960        Unknown                           
+Go Programming Language amd64 go1.25.3 GoLang.Go                               1.25.3                            winget
+GitHub CLI                             GitHub.cli                              2.81.0                            winget
+Geeks3D FurMark 2.8.2.0 x64            ARP\Machine\X64\{2397CAD4-2263-4CD0-96ΓÇª 2.8.2.0                           
+Microsoft Azure CLI (64-bit)           Microsoft.AzureCLI                      2.77.0                            winget
+Java(TM) SE Development Kit 21.0.8 (6ΓÇª Oracle.JDK.21                           21.0.8.0                          winget
+AMD Install Manager                    ARP\Machine\X64\{7501C7B0-AE93-47E9-ACΓÇª 25.10.25237.0452                  
+Microsoft Teams Meeting Add-in for MiΓÇª ARP\Machine\X64\{A7AB73A3-CB10-4AA5-9DΓÇª 1.25.18302                        
+PowerShell 7-x64                       Microsoft.PowerShell                    7.5.3.0                           winget
+Microsoft Build of OpenJDK  17.0.16+8ΓÇª Microsoft.OpenJDK.17                    17.0.16.8                         winget
+AMD Ryzen Master SDK                   ARP\Machine\X64\{DBD50508-5F75-416B-99ΓÇª 2.14.2.3330                       
+CMake                                  Kitware.CMake                           4.1.2                             winget
+AMD Chipset Software                   ARP\Machine\X86\AMD_Chipset_IODrivers   7.06.24.2226                      
+MSI Afterburner 4.6.6                  Guru3D.Afterburner                      4.6.6                             winget
+Google Chrome                          Google.Chrome.EXE                       141.0.7390.108                    winget
+Wuthering Waves                        ARP\Machine\X86\KRInstall Wuthering WaΓÇª 2.2.1.0                           
+Microsoft Edge                         Microsoft.Edge                          141.0.3537.85                     winget
+RivaTuner Statistics Server 7.3.7      Guru3D.RTSS                             7.3.7                             winget
+Steam                                  Valve.Steam                             2.10.91.91                        winget
+VLC media player                       ARP\Machine\X86\VLC media player        3.0.21                            
+ZeroTier One                           ZeroTier.ZeroTierOne                    1.16.0                            winget
+Adobe Redeem Launcher                  ARP\Machine\X86\{073F1D74-FE84-4EF8-A9ΓÇª 1.0.0.11                          
+Microsoft Visual C++ 2015-2022 RedistΓÇª Microsoft.VCRedist.2015+.x86            14.44.35211.0                     winget
+MSI Center SDK                         ARP\Machine\X86\{15289038-41BE-48F8-B8ΓÇª 3.2025.0919.01                    
+Tailscale                              Tailscale.Tailscale                     1.88.4                            winget
+Microsoft .NET SDK 8.0.121 (x64)       Microsoft.DotNet.SDK.8                  8.0.121          8.0.415          winget
+Microsoft .NET SDK 8.0.415 (x64)       Microsoft.DotNet.SDK.8                  8.0.415                           winget
+Epic Games Launcher                    EpicGames.EpicGamesLauncher             1.3.155.0                         winget
+Realtek Ethernet Controller Driver     ARP\Machine\X86\{8833FFB6-5B0C-4764-81ΓÇª 10.75.324.2025                    
+Epic Online Services                   ARP\Machine\X86\{8CD570F8-C05E-4B41-8EΓÇª 4.0.1                             
+Yarn                                   Yarn.Yarn                               1.22.22                           winget
+Python Launcher                        Python.Launcher                         3.11.9           3.13.5           winget
+Microsoft .NET Runtime - 8.0.21 (x64)  Microsoft.DotNet.Runtime.8              8.0.21                            winget
+Microsoft Visual C++ 2015-2022 RedistΓÇª Microsoft.VCRedist.2015+.x64            14.44.35211.0                     winget
+Microsoft .NET Core Runtime - 3.1.20 ΓÇª Microsoft.DotNet.Runtime.3_1            < 3.1.25         3.1.32           winget
+Canva                                  ARP\User\X64\3d0ba22d-e02b-5c6d-93a1-4ΓÇª 1.117.1                           
+Deno                                   DenoLand.Deno                           2.5.4                             winget
+Discord                                Discord.Discord                         1.0.9211         1.0.9212         winget
+WPS Office (12.2.0.23131)              ARP\User\X64\Kingsoft Office            12.2.0.23131                      
+Opera GX Stable 122.0.5643.136         ARP\User\X64\Opera GX 122.0.5643.136    122.0.5643.136                    
+Bun                                    Oven-sh.Bun                             1.3.0                             winget
+Riot Client                            ARP\User\X64\Riot Game Riot_Client.     Unknown                           
+VALORANT                               ARP\User\X64\Riot Game valorant.live    Unknown                           
+Python 3.11.9 (64-bit)                 Python.Python.3.11                      3.11.9                            winget
+MSYS2                                  MSYS2.MSYS2                             20250830                          winget
+PowerToys (Preview) x64                Microsoft.PowerToys                     0.95.0                            winget
+Microsoft Visual Studio Code (User)    Microsoft.VisualStudioCode              1.105.1                           winget
+Cursor (User)                          Anysphere.Cursor                        1.7.46           1.7.52           winget
+Java Programming                       9NHVRHCM59ZX                            1.1.14.0                          msstoΓÇª
+WhatsApp                               MSIX\5319275A.WhatsAppDesktop_2.2541.3ΓÇª 2.2541.3.0                        
+MSI Center                             MSIX\9426MICRO-STARINTERNATION.MSICentΓÇª 2.0.59.0                          
+AMD Radeon Software                    MSIX\AdvancedMicroDevicesInc-RSXCM_22.ΓÇª 22.10.0.0                         
+Blip App                               MSIX\BlipStudioInc.BlipApp_1.1.9.0_x64ΓÇª 1.1.9.0                           
+Microsoft Clipchamp                    MSIX\Clipchamp.Clipchamp_4.4.10420.0_xΓÇª 4.4.10420.0                       
+Microsoft Teams                        Microsoft.Teams                         25255.703.3978.ΓÇª                  winget
+AV1 Video Extension                    MSIX\Microsoft.AV1VideoExtension_2.0.4ΓÇª 2.0.4.0                           
+AVC Encoder Video Extension            MSIX\Microsoft.AVCEncoderVideoExtensioΓÇª 1.1.19.0                          
+Microsoft Advertising SDK for XAML     MSIX\Microsoft.Advertising.Xaml_10.181ΓÇª 10.1811.1.0                       
+Microsoft Advertising SDK for XAML     MSIX\Microsoft.Advertising.Xaml_10.181ΓÇª 10.1811.1.0                       
+Windows Application Compatibility EnhΓÇª MSIX\Microsoft.ApplicationCompatibilitΓÇª 1.2411.16.0                       
+News                                   MSIX\Microsoft.BingNews_4.55.62231.0_xΓÇª 4.55.62231.0                      
+Microsoft Bing                         MSIX\Microsoft.BingSearch_1.1.40.0_x64ΓÇª 1.1.40.0                          
+MSN Weather                            MSIX\Microsoft.BingWeather_4.54.63029.ΓÇª 4.54.63029.0                      
+Command Palette                        MSIX\Microsoft.CommandPalette_0.6.2882ΓÇª 0.6.2882.0                        
+Copilot                                MSIX\Microsoft.Copilot_1.25095.165.0_xΓÇª 1.25095.165.0                     
+App Installer                          Microsoft.AppInstaller                  1.26.509.0       1.26.510.0       winget
+Xbox                                   MSIX\Microsoft.GamingApp_2510.1001.55.ΓÇª 2510.1001.55.0                    
+Get Help                               MSIX\Microsoft.GetHelp_10.2409.32612.0ΓÇª 10.2409.32612.0                   
+HEIF Image Extension                   MSIX\Microsoft.HEIFImageExtension_1.2.ΓÇª 1.2.23.0                          
+HEVC Video Extensions from Device ManΓÇª MSIX\Microsoft.HEVCVideoExtension_2.4.ΓÇª 2.4.25.0                          
+MPEG-2 Video Extension                 MSIX\Microsoft.MPEG2VideoExtension_1.2ΓÇª 1.2.13.0                          
+Microsoft Edge                         MSIX\Microsoft.MicrosoftEdge.Stable_14ΓÇª 141.0.3537.85                     
+Microsoft 365 Copilot                  MSIX\Microsoft.MicrosoftOfficeHub_19.2ΓÇª 19.2510.46111.0                   
+Solitaire & Casual Games               MSIX\Microsoft.MicrosoftSolitaireColleΓÇª 4.23.9180.0                       
+Microsoft Sticky Notes                 MSIX\Microsoft.MicrosoftStickyNotes_4.ΓÇª 4.0.6104.0                        
+Microsoft .Net Native Framework PackaΓÇª MSIX\Microsoft.NET.Native.Framework.1.ΓÇª 1.7.27413.0                       
+Microsoft .Net Native Framework PackaΓÇª MSIX\Microsoft.NET.Native.Framework.1.ΓÇª 1.7.27413.0                       
+Microsoft .Net Native Framework PackaΓÇª MSIX\Microsoft.NET.Native.Framework.2.ΓÇª 2.2.29512.0                       
+Microsoft .Net Native Framework PackaΓÇª MSIX\Microsoft.NET.Native.Framework.2.ΓÇª 2.2.29512.0                       
+Microsoft .Net Native Runtime PackageΓÇª MSIX\Microsoft.NET.Native.Runtime.1.7_ΓÇª 1.7.27422.0                       
+Microsoft .Net Native Runtime PackageΓÇª MSIX\Microsoft.NET.Native.Runtime.1.7_ΓÇª 1.7.27422.0                       
+Microsoft .Net Native Runtime PackageΓÇª MSIX\Microsoft.NET.Native.Runtime.2.2_ΓÇª 2.2.28604.0                       
+Microsoft .Net Native Runtime PackageΓÇª MSIX\Microsoft.NET.Native.Runtime.2.2_ΓÇª 2.2.28604.0                       
+Microsoft.Office.ActionsServer         MSIX\Microsoft.Office.ActionsServer_16ΓÇª 16.0.19231.20194                  
+OfficePushNotificationsUtility         MSIX\Microsoft.OfficePushNotificationUΓÇª 16.0.19231.20194                  
+OneDrive                               MSIX\Microsoft.OneDriveSync_25179.914.ΓÇª 25179.914.3.0                     
+Outlook for Windows                    MSIX\Microsoft.OutlookForWindows_1.202ΓÇª 1.2025.930.100                    
+Paint                                  MSIX\Microsoft.Paint_11.2508.361.0_x64ΓÇª 11.2508.361.0                     
+Power Automate                         MSIX\Microsoft.PowerAutomateDesktop_1.ΓÇª 1.0.2005.0                        
+PowerToys FileLocksmith Context Menu   MSIX\Microsoft.PowerToys.FileLocksmithΓÇª 0.95.0.0                          
+PowerToys ImageResizer Context Menu    MSIX\Microsoft.PowerToys.ImageResizerCΓÇª 0.95.0.0                          
+PowerToys PowerRename Context Menu     MSIX\Microsoft.PowerToys.PowerRenameCoΓÇª 0.95.0.0                          
+Raw Image Extension                    MSIX\Microsoft.RawImageExtension_2.5.5ΓÇª 2.5.5.0                           
+Snipping Tool                          MSIX\Microsoft.ScreenSketch_11.2508.29ΓÇª 11.2508.29.0                      
+Windows Security                       MSIX\Microsoft.SecHealthUI_1000.29429.ΓÇª 1000.29429.1000ΓÇª                  
+Microsoft Engagement Framework         MSIX\Microsoft.Services.Store.EngagemeΓÇª 10.0.23012.0                      
+Microsoft Engagement Framework         MSIX\Microsoft.Services.Store.EngagemeΓÇª 10.0.23012.0                      
+Start Experiences App                  MSIX\Microsoft.StartExperiencesApp_1.1ΓÇª 1.151.0.0                         
+Store Experience Host                  MSIX\Microsoft.StorePurchaseApp_22508.ΓÇª 22508.1401.4.0                    
+Microsoft To Do                        MSIX\Microsoft.Todos_0.148.3611.0_x64_ΓÇª 0.148.3611.0                      
+Microsoft.UI.Xaml.2.8                  Microsoft.UI.Xaml.2.8                   8.2501.31001.0                    winget
+Microsoft.UI.Xaml.2.8                  Microsoft.UI.Xaml.2.8                   8.2501.31001.0                    winget
+Microsoft Visual C++ 2015 UWP DesktopΓÇª Microsoft.VCLibs.Desktop.14             14.0.33728.0                      winget
+Microsoft Visual C++ 2015 UWP DesktopΓÇª Microsoft.VCLibs.Desktop.14             14.0.33728.0                      winget
+Microsoft Visual C++ 2015 UWP RuntimeΓÇª MSIX\Microsoft.VCLibs.140.00_14.0.3351ΓÇª 14.0.33519.0                      
+Microsoft Visual C++ 2015 UWP RuntimeΓÇª MSIX\Microsoft.VCLibs.140.00_14.0.3351ΓÇª 14.0.33519.0                      
+VP9 Video Extensions                   MSIX\Microsoft.VP9VideoExtensions_1.2.ΓÇª 1.2.6.0                           
+Web Media Extensions                   MSIX\Microsoft.WebMediaExtensions_1.2.ΓÇª 1.2.14.0                          
+WebP Image Extension                   MSIX\Microsoft.WebpImageExtension_1.2.ΓÇª 1.2.10.0                          
+Widgets Platform Runtime               MSIX\Microsoft.WidgetsPlatformRuntime_ΓÇª 1.6.14.0                          
+Windows App Runtime DDLM 5001.373.173ΓÇª MSIX\Microsoft.WinAppRuntime.DDLM.5001ΓÇª 5001.373.1736.0                   
+Windows App Runtime DDLM 5001.373.173ΓÇª MSIX\Microsoft.WinAppRuntime.DDLM.5001ΓÇª 5001.373.1736.0                   
+Dev Home                               MSIX\Microsoft.Windows.DevHome_0.0.0.0ΓÇª 0.0.0.0                           
+Microsoft Photos                       MSIX\Microsoft.Windows.Photos_2025.110ΓÇª 2025.11080.2800ΓÇª                  
+Windows Clock                          MSIX\Microsoft.WindowsAlarms_1.1.41.0_ΓÇª 1.1.41.0                          
+WindowsAppRuntime.1.2                  MSIX\Microsoft.WindowsAppRuntime.1.2_2ΓÇª 2000.802.31.0                     
+WindowsAppRuntime.1.2                  MSIX\Microsoft.WindowsAppRuntime.1.2_2ΓÇª 2000.802.31.0                     
+WindowsAppRuntime.1.4                  MSIX\Microsoft.WindowsAppRuntime.1.4_4ΓÇª 4000.1309.2056.0                  
+WindowsAppRuntime.1.4                  MSIX\Microsoft.WindowsAppRuntime.1.4_4ΓÇª 4000.1309.2056.0                  
+WindowsAppRuntime.1.5                  MSIX\Microsoft.WindowsAppRuntime.1.5_5ΓÇª 5001.373.1736.0                   
+WindowsAppRuntime.1.5                  MSIX\Microsoft.WindowsAppRuntime.1.5_5ΓÇª 5001.373.1736.0                   
+WindowsAppRuntime.1.6                  MSIX\Microsoft.WindowsAppRuntime.1.6_6ΓÇª 6000.519.329.0                    
+WindowsAppRuntime.1.6                  MSIX\Microsoft.WindowsAppRuntime.1.6_6ΓÇª 6000.519.329.0                    
+WindowsAppRuntime.1.7                  MSIX\Microsoft.WindowsAppRuntime.1.7_7ΓÇª 7000.652.1806.0                   
+WindowsAppRuntime.1.7                  MSIX\Microsoft.WindowsAppRuntime.1.7_7ΓÇª 7000.652.1806.0                   
+WindowsAppRuntime.1.8                  MSIX\Microsoft.WindowsAppRuntime.1.8_8ΓÇª 8000.642.119.0                    
+WindowsAppRuntime.1.8                  MSIX\Microsoft.WindowsAppRuntime.1.8_8ΓÇª 8000.642.119.0                    
+Windows Calculator                     MSIX\Microsoft.WindowsCalculator_11.25ΓÇª 11.2502.2.0                       
+Windows Camera                         MSIX\Microsoft.WindowsCamera_2025.2505ΓÇª 2025.2505.2.0                     
+Feedback Hub                           MSIX\Microsoft.WindowsFeedbackHub_1.25ΓÇª 1.2509.3102.0                     
+Windows Notepad                        MSIX\Microsoft.WindowsNotepad_11.2507.ΓÇª 11.2507.26.0                      
+Windows Sound Recorder                 MSIX\Microsoft.WindowsSoundRecorder_1.ΓÇª 1.1.5.0                           
+Microsoft Store                        MSIX\Microsoft.WindowsStore_22509.1401ΓÇª 22509.1401.11.0                   
+Windows Terminal                       Microsoft.WindowsTerminal               1.23.12811.0                      winget
+Windows Package Manager Source (wingeΓÇª MSIX\Microsoft.Winget.Source_2025.1020ΓÇª 2025.1020.1306.9                  
+Xbox TCUI                              MSIX\Microsoft.Xbox.TCUI_1.24.10001.0_ΓÇª 1.24.10001.0                      
+Game Bar                               MSIX\Microsoft.XboxGamingOverlay_7.325ΓÇª 7.325.10021.0                     
+Xbox Identity Provider                 MSIX\Microsoft.XboxIdentityProvider_12ΓÇª 12.115.1001.0                     
+Game Speech Window                     MSIX\Microsoft.XboxSpeechToTextOverlayΓÇª 1.97.17002.0                      
+Phone Link                             MSIX\Microsoft.YourPhone_0.25082.142.0ΓÇª 0.25082.142.0                     
+Windows Media Player                   MSIX\Microsoft.ZuneMusic_11.2508.31.0_ΓÇª 11.2508.31.0                      
+Quick Assist                           MSIX\MicrosoftCorporationII.QuickAssisΓÇª 2.0.29.0                          
+WinAppRuntime.Main.1.5                 MSIX\MicrosoftCorporationII.WinAppRuntΓÇª 5001.373.1736.0                   
+WinAppRuntime.Singleton                MSIX\MicrosoftCorporationII.WinAppRuntΓÇª 8000.642.119.0                    
+Windows Web Experience Pack            MSIX\MicrosoftWindows.Client.WebExperiΓÇª 525.24401.50.0                    
+Cross Device Experience Host           MSIX\MicrosoftWindows.CrossDevice_0.25ΓÇª 0.25092.33.0                      
+Speech Pack - English (United States)  MSIX\MicrosoftWindows.Speech.en-US.1_1ΓÇª 1.0.24.0                          
+ChatGPT                                MSIX\OpenAI.ChatGPT-Desktop_1.2025.258ΓÇª 1.2025.258.0                      
+Python 3.8                             MSIX\PythonSoftwareFoundation.Python.3ΓÇª 3.8.2800.0                        
+Spotify - Music and Podcasts           MSIX\SpotifyAB.SpotifyMusic_1.274.477.ΓÇª 1.274.477.0                       
+Local Artificial Intelligence Manager  MSIX\aimgr_0.20.23.0_x64__8wekyb3d8bbwe 0.20.23.0                         
+wpsappext1                             MSIX\wpsappext1_1.0.0.1_neutral__km9wtΓÇª 1.0.0.1                           
+wpsappext2                             MSIX\wpsappext2_1.0.0.1_neutral__km9wtΓÇª 1.0.0.1                           
+wpsappext3                             MSIX\wpsappext3_1.0.0.1_neutral__km9wtΓÇª 1.0.0.1                           

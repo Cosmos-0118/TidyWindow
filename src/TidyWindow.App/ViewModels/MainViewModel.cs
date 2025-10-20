@@ -21,6 +21,7 @@ public sealed class MainViewModel : ViewModelBase
         {
             new("Bootstrap", "Verify package managers and get ready", typeof(BootstrapPage)),
             new("Install hub", "Curated package bundles and install queue", typeof(InstallHubPage)),
+            new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),
             new("Cleanup", "Preview clutter before removing files", typeof(CleanupPage)),
             new("Settings", "Configure preferences and integrations", typeof(SettingsPage))
