@@ -521,8 +521,8 @@
                             Padding="16,8"
                             Cursor="Hand"
                             BorderThickness="0"
-                Margin="0,0,8,0"
-                ToolTip="Permanently removes the selected items without using the Recycle Bin.">
+                            Margin="0,0,8,0"
+                            ToolTip="Permanently removes the selected items without using the Recycle Bin.">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="ActionBorder"
