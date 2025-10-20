@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Services;
 using TidyWindow.Core.Cleanup;
 
 namespace TidyWindow.App.ViewModels;
@@ -32,18 +34,23 @@ public sealed record CleanupExtensionProfile(string Name, string Description, IR
     public override string ToString() => Name;
 }
 
+public readonly record struct CleanupDeletionConfirmation(int ItemCount, double TotalSizeMegabytes);
+
 public sealed partial class CleanupViewModel : ViewModelBase
 {
     private readonly CleanupService _cleanupService;
     private readonly MainViewModel _mainViewModel;
+    private readonly IPrivilegeService _privilegeService;
 
     private readonly HashSet<string> _activeExtensions = new(StringComparer.OrdinalIgnoreCase);
     private int _previewCount = 10;
+    private static readonly string[] _sensitiveRoots = BuildSensitiveRoots();
 
-    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel)
+    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService)
     {
         _cleanupService = cleanupService;
         _mainViewModel = mainViewModel;
+        _privilegeService = privilegeService;
 
         ItemKindOptions = new List<CleanupItemKindOption>
         {
@@ -97,6 +104,18 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private string _customExtensionInput = string.Empty;
 
+    [ObservableProperty]
+    private bool _isDeleting;
+
+    [ObservableProperty]
+    private int _deletionProgressCurrent;
+
+    [ObservableProperty]
+    private int _deletionProgressTotal;
+
+    [ObservableProperty]
+    private string _deletionStatusMessage = "Ready to delete selected items.";
+
     public ObservableCollection<CleanupTargetGroupViewModel> Targets { get; } = new();
 
     public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
@@ -106,6 +125,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public IReadOnlyList<CleanupExtensionFilterOption> ExtensionFilterOptions { get; }
 
     public IReadOnlyList<CleanupExtensionProfile> ExtensionProfiles { get; }
+
+    public event EventHandler? AdministratorRestartRequested;
+
+    public Func<CleanupDeletionConfirmation, bool>? ConfirmDeletion { get; set; }
+
+    public Func<string, bool>? ConfirmElevation { get; set; }
 
     public bool HasResults => Targets.Count > 0;
 
@@ -222,11 +247,65 @@ public sealed partial class CleanupViewModel : ViewModelBase
             return;
         }
 
+        var totalSizeMb = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
+
+        if (ConfirmDeletion is not null)
+        {
+            var confirmation = new CleanupDeletionConfirmation(itemsToDelete.Count, totalSizeMb);
+            if (!ConfirmDeletion.Invoke(confirmation))
+            {
+                _mainViewModel.SetStatusMessage("Deletion cancelled by user.");
+                return;
+            }
+        }
+
+        var requiresElevation = itemsToDelete.Any(static tuple => IsElevationLikelyRequired(tuple.item.Model.FullName));
+        if (requiresElevation && _privilegeService.CurrentMode != PrivilegeMode.Administrator)
+        {
+            if (ConfirmElevation is not null && !ConfirmElevation.Invoke("Deleting some of these items may need administrator permission. Restart with admin rights?"))
+            {
+                _mainViewModel.SetStatusMessage("Deletion requires administrator rights; cancelled by user.");
+                return;
+            }
+
+            var restartResult = _privilegeService.Restart(PrivilegeMode.Administrator);
+            if (restartResult.Success)
+            {
+                _mainViewModel.SetStatusMessage("Restarting with administrator privileges...");
+                AdministratorRestartRequested?.Invoke(this, EventArgs.Empty);
+                return;
+            }
+
+            if (restartResult.AlreadyInTargetMode)
+            {
+                _mainViewModel.SetStatusMessage("Already running with administrator privileges.");
+            }
+            else
+            {
+                _mainViewModel.SetStatusMessage(restartResult.ErrorMessage ?? "Unable to restart with administrator privileges.");
+            }
+        }
+
         try
         {
+            IsDeleting = true;
             IsBusy = true;
+            DeletionProgressTotal = itemsToDelete.Count;
+            DeletionProgressCurrent = 0;
+            DeletionStatusMessage = totalSizeMb > 0
+                ? $"Removing {itemsToDelete.Count:N0} item(s) • {totalSizeMb:F2} MB"
+                : $"Removing {itemsToDelete.Count:N0} item(s)";
 
-            var deletionResult = await _cleanupService.DeleteAsync(itemsToDelete.Select(tuple => tuple.item.Model));
+            var progress = new Progress<CleanupDeletionProgress>(report =>
+            {
+                DeletionProgressCurrent = report.Completed;
+                DeletionProgressTotal = report.Total;
+                DeletionStatusMessage = string.IsNullOrEmpty(report.CurrentPath)
+                    ? $"Deleting {report.Completed} of {report.Total}"
+                    : $"Deleting {report.Completed}/{report.Total}: {report.CurrentPath}";
+            });
+
+            var deletionResult = await _cleanupService.DeleteAsync(itemsToDelete.Select(tuple => tuple.item.Model), progress);
 
             foreach (var (group, item) in itemsToDelete)
             {
@@ -244,13 +323,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
             OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
             OnPropertyChanged(nameof(HasSelection));
             _mainViewModel.SetStatusMessage(deletionResult.ToStatusMessage());
+            DeletionStatusMessage = deletionResult.ToStatusMessage();
         }
         catch (Exception ex)
         {
             _mainViewModel.SetStatusMessage($"Delete failed: {ex.Message}");
+            DeletionStatusMessage = ex.Message;
         }
         finally
         {
+            IsDeleting = false;
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
         }
@@ -510,6 +592,46 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             yield return token;
         }
+    }
+
+    private static string[] BuildSensitiveRoots()
+    {
+        var roots = new List<string>();
+
+        void AddIfExists(params Environment.SpecialFolder[] folders)
+        {
+            foreach (var folder in folders)
+            {
+                var path = Environment.GetFolderPath(folder);
+                if (!string.IsNullOrWhiteSpace(path))
+                {
+                    roots.Add(path);
+                }
+            }
+        }
+
+        AddIfExists(Environment.SpecialFolder.Windows, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.CommonApplicationData);
+        roots.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AppData", "Local", "Temp"));
+
+        return roots.Where(static directory => !string.IsNullOrWhiteSpace(directory)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static bool IsElevationLikelyRequired(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        foreach (var root in _sensitiveRoots)
+        {
+            if (!string.IsNullOrWhiteSpace(root) && path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static string NormalizeExtension(string? extension)

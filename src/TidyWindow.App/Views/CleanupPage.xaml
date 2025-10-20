@@ -410,6 +410,26 @@
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center">
+                    <StackPanel Orientation="Vertical"
+                                Margin="0,0,16,0"
+                                Width="240"
+                                Visibility="{Binding IsDeleting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Deleting items..."
+                                   FontSize="12"
+                                   Foreground="#FACC15"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding DeletionStatusMessage}"
+                                   FontSize="11"
+                                   Foreground="#94A3B8"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="0,2,0,6"/>
+                        <ProgressBar Height="6"
+                                     Minimum="0"
+                                     Maximum="{Binding DeletionProgressTotal}"
+                                     Value="{Binding DeletionProgressCurrent}"
+                                     Background="#1E293B"
+                                     Foreground="#FACC15"/>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal"
                                 VerticalAlignment="Center"
                                 Margin="0,0,12,0">
@@ -501,7 +521,8 @@
                             Padding="16,8"
                             Cursor="Hand"
                             BorderThickness="0"
-                            Margin="0,0,8,0">
+                Margin="0,0,8,0"
+                ToolTip="Permanently removes the selected items without using the Recycle Bin.">
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="ActionBorder"

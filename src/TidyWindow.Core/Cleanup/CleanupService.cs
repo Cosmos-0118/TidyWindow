@@ -90,7 +90,10 @@ public sealed class CleanupService
         }
     }
 
-    public Task<CleanupDeletionResult> DeleteAsync(IEnumerable<CleanupPreviewItem> items, CancellationToken cancellationToken = default)
+    public Task<CleanupDeletionResult> DeleteAsync(
+        IEnumerable<CleanupPreviewItem> items,
+        IProgress<CleanupDeletionProgress>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         if (items is null)
         {
@@ -108,18 +111,27 @@ public sealed class CleanupService
             return Task.FromResult(new CleanupDeletionResult(0, 0, Array.Empty<string>()));
         }
 
-        return Task.Run(() => DeleteInternal(targets, cancellationToken), cancellationToken);
+        progress?.Report(new CleanupDeletionProgress(0, targets.Count, string.Empty));
+
+        return Task.Run(() => DeleteInternal(targets, progress, cancellationToken), cancellationToken);
     }
 
-    private static CleanupDeletionResult DeleteInternal(IReadOnlyCollection<string> paths, CancellationToken cancellationToken)
+    private static CleanupDeletionResult DeleteInternal(
+        IReadOnlyCollection<string> paths,
+        IProgress<CleanupDeletionProgress>? progress,
+        CancellationToken cancellationToken)
     {
         var deleted = 0;
         var skipped = 0;
         var errors = new List<string>();
+        var index = 0;
 
         foreach (var path in paths)
         {
             cancellationToken.ThrowIfCancellationRequested();
+
+            index++;
+            progress?.Report(new CleanupDeletionProgress(index, paths.Count, path));
 
             try
             {
