@@ -59,6 +59,67 @@
                                    TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
+
+                <Border Background="#16213C"
+                        Padding="20"
+                        CornerRadius="14"
+                        BorderBrush="#1D2A44"
+                        BorderThickness="1"
+                        Margin="0,16,0,0">
+                    <StackPanel>
+                        <TextBlock Text="Elevation status"
+                                   Foreground="#E2E8F0"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding CurrentPrivilegeDisplay}"
+                                   FontSize="16"
+                                   FontWeight="Bold"
+                                   Margin="0,8,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Foreground"
+                                            Value="#22C55E"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsRunningElevated}"
+                                                     Value="True">
+                                            <Setter Property="Foreground"
+                                                    Value="#FACC15"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding CurrentPrivilegeAdvice}"
+                                   Foreground="#94A3B8"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,12"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Restart in user mode"
+                                    Command="{Binding RestartAsStandardCommand}"
+                                    IsEnabled="{Binding CanRestartAsStandard}"
+                                    Padding="14,6"
+                                    Margin="0,0,10,0"
+                                    Background="#1E293B"
+                                    Foreground="#E2E8F0"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"/>
+                            <Button Content="Restart as admin"
+                                    Command="{Binding RestartAsAdministratorCommand}"
+                                    IsEnabled="{Binding CanRestartAsAdministrator}"
+                                    Padding="14,6"
+                                    Background="#1E293B"
+                                    Foreground="#E2E8F0"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"/>
+                        </StackPanel>
+                        <TextBlock Text="{Binding PrivilegeSwitchGuidance}"
+                                   Foreground="#F97316"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Margin="0,12,0,0"/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </StackPanel>
     </Grid>

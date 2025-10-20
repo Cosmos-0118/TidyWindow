@@ -124,13 +124,13 @@ public sealed class InstallCatalogService
         }
     }
 
-    private static string ResolveCatalogPath()
+    private static string ResolveCatalogDirectory()
     {
-        var relativePath = Path.Combine("data", "catalog", "packages.yml");
+        var relativePath = Path.Combine("data", "catalog");
         var baseDirectory = AppContext.BaseDirectory;
         var candidate = Path.Combine(baseDirectory, relativePath);
 
-        if (File.Exists(candidate))
+        if (Directory.Exists(candidate))
         {
             return candidate;
         }
@@ -139,7 +139,7 @@ public sealed class InstallCatalogService
         while (directory is not null)
         {
             candidate = Path.Combine(directory.FullName, relativePath);
-            if (File.Exists(candidate))
+            if (Directory.Exists(candidate))
             {
                 return candidate;
             }
@@ -147,22 +147,31 @@ public sealed class InstallCatalogService
             directory = directory.Parent;
         }
 
-        throw new FileNotFoundException($"Unable to locate install catalog at '{relativePath}'.", relativePath);
+        throw new DirectoryNotFoundException($"Unable to locate install catalog directory at '{relativePath}'.");
     }
 
     private CatalogSnapshot LoadCatalog()
     {
-        var path = ResolveCatalogPath();
+        string catalogDirectory;
 
-        if (!File.Exists(path))
+        try
         {
-            return new CatalogSnapshot(path, ImmutableArray<InstallBundleDefinition>.Empty, new Dictionary<string, InstallPackageDefinition>(), new Dictionary<string, InstallBundleDefinition>());
+            catalogDirectory = ResolveCatalogDirectory();
+        }
+        catch (DirectoryNotFoundException)
+        {
+            return new CatalogSnapshot(string.Empty, ImmutableArray<InstallBundleDefinition>.Empty, new Dictionary<string, InstallPackageDefinition>(), new Dictionary<string, InstallBundleDefinition>());
         }
 
-        var yaml = File.ReadAllText(path);
-        if (string.IsNullOrWhiteSpace(yaml))
+        var catalogFiles = Directory.EnumerateFiles(catalogDirectory, "*.yml", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(catalogDirectory, "*.yaml", SearchOption.AllDirectories))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (catalogFiles.Count == 0)
         {
-            return new CatalogSnapshot(path, ImmutableArray<InstallBundleDefinition>.Empty, new Dictionary<string, InstallPackageDefinition>(), new Dictionary<string, InstallBundleDefinition>());
+            return new CatalogSnapshot(catalogDirectory, ImmutableArray<InstallBundleDefinition>.Empty, new Dictionary<string, InstallPackageDefinition>(), new Dictionary<string, InstallBundleDefinition>());
         }
 
         var deserializer = new DeserializerBuilder()
@@ -170,104 +179,127 @@ public sealed class InstallCatalogService
             .IgnoreUnmatchedProperties()
             .Build();
 
-        CatalogDocument? document;
+        var bundleDocuments = new List<BundleDocument>();
+        var packageDocuments = new List<PackageDocument>();
 
-        try
+        foreach (var file in catalogFiles)
         {
-            document = deserializer.Deserialize<CatalogDocument>(yaml);
-        }
-        catch (Exception ex)
-        {
-            throw new InvalidOperationException($"Failed to parse install catalog at '{path}'.", ex);
-        }
+            string yaml;
+            try
+            {
+                yaml = File.ReadAllText(file);
+            }
+            catch
+            {
+                continue;
+            }
 
-        document ??= new CatalogDocument();
+            if (string.IsNullOrWhiteSpace(yaml))
+            {
+                continue;
+            }
+
+            CatalogDocument? document;
+
+            try
+            {
+                document = deserializer.Deserialize<CatalogDocument>(yaml);
+            }
+            catch (Exception ex)
+            {
+                throw new InvalidOperationException($"Failed to parse install catalog segment at '{file}'.", ex);
+            }
+
+            if (document?.Bundles is not null)
+            {
+                bundleDocuments.AddRange(document.Bundles);
+            }
+
+            if (document?.Packages is not null)
+            {
+                packageDocuments.AddRange(document.Packages);
+            }
+        }
 
         var packageMap = new Dictionary<string, InstallPackageDefinition>(StringComparer.OrdinalIgnoreCase);
 
-        if (document.Packages is not null)
+        foreach (var package in packageDocuments)
         {
-            foreach (var package in document.Packages)
+            if (package is null || string.IsNullOrWhiteSpace(package.Id))
             {
-                if (package is null || string.IsNullOrWhiteSpace(package.Id))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                var identifier = package.Id.Trim();
+            var identifier = package.Id.Trim();
 
-                var tags = package.Tags is null
-                    ? ImmutableArray<string>.Empty
-                    : package.Tags
-                        .Where(tag => !string.IsNullOrWhiteSpace(tag))
-                        .Select(tag => tag.Trim())
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToImmutableArray();
+            var tags = package.Tags is null
+                ? ImmutableArray<string>.Empty
+                : package.Tags
+                    .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                    .Select(tag => tag.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToImmutableArray();
 
-                var buckets = package.Buckets is null
-                    ? ImmutableArray<string>.Empty
-                    : package.Buckets
-                        .Where(bucket => !string.IsNullOrWhiteSpace(bucket))
-                        .Select(bucket => bucket.Trim())
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToImmutableArray();
+            var buckets = package.Buckets is null
+                ? ImmutableArray<string>.Empty
+                : package.Buckets
+                    .Where(bucket => !string.IsNullOrWhiteSpace(bucket))
+                    .Select(bucket => bucket.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToImmutableArray();
 
-                var definition = new InstallPackageDefinition(
-                    identifier,
-                    package.Name?.Trim() ?? identifier,
-                    package.Manager?.Trim() ?? string.Empty,
-                    package.Command?.Trim() ?? string.Empty,
-                    package.RequiresAdmin,
-                    package.Summary?.Trim() ?? string.Empty,
-                    string.IsNullOrWhiteSpace(package.Homepage) ? null : package.Homepage.Trim(),
-                    tags,
-                    buckets);
+            var definition = new InstallPackageDefinition(
+                identifier,
+                package.Name?.Trim() ?? identifier,
+                package.Manager?.Trim() ?? string.Empty,
+                package.Command?.Trim() ?? string.Empty,
+                package.RequiresAdmin,
+                package.Summary?.Trim() ?? string.Empty,
+                string.IsNullOrWhiteSpace(package.Homepage) ? null : package.Homepage.Trim(),
+                tags,
+                buckets);
 
-                if (definition.IsValid)
-                {
-                    packageMap[identifier] = definition;
-                }
+            if (definition.IsValid)
+            {
+                packageMap[identifier] = definition;
             }
         }
 
         var bundles = new List<InstallBundleDefinition>();
         var bundleLookup = new Dictionary<string, InstallBundleDefinition>(StringComparer.OrdinalIgnoreCase);
 
-        if (document.Bundles is not null)
+        foreach (var bundle in bundleDocuments)
         {
-            foreach (var bundle in document.Bundles)
+            if (bundle is null || string.IsNullOrWhiteSpace(bundle.Id))
             {
-                if (bundle is null || string.IsNullOrWhiteSpace(bundle.Id))
-                {
-                    continue;
-                }
+                continue;
+            }
 
-                var identifier = bundle.Id.Trim();
-                var packages = bundle.Packages is null
-                    ? ImmutableArray<string>.Empty
-                    : bundle.Packages
-                        .Where(id => !string.IsNullOrWhiteSpace(id) && packageMap.ContainsKey(id.Trim()))
-                        .Select(id => id.Trim())
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToImmutableArray();
+            var identifier = bundle.Id.Trim();
+            var packages = bundle.Packages is null
+                ? ImmutableArray<string>.Empty
+                : bundle.Packages
+                    .Where(id => !string.IsNullOrWhiteSpace(id) && packageMap.ContainsKey(id.Trim()))
+                    .Select(id => id.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToImmutableArray();
 
-                var definition = new InstallBundleDefinition(
-                    identifier,
-                    bundle.Name?.Trim() ?? identifier,
-                    bundle.Description?.Trim() ?? string.Empty,
-                    packages);
+            var definition = new InstallBundleDefinition(
+                identifier,
+                bundle.Name?.Trim() ?? identifier,
+                bundle.Description?.Trim() ?? string.Empty,
+                packages);
 
-                if (definition.IsValid)
-                {
-                    bundles.Add(definition);
-                    bundleLookup[identifier] = definition;
-                }
+            if (definition.IsValid)
+            {
+                bundles.Add(definition);
+                bundleLookup[identifier] = definition;
             }
         }
 
         bundles.Sort((left, right) => string.Compare(left.Name, right.Name, StringComparison.OrdinalIgnoreCase));
 
-        return new CatalogSnapshot(path, bundles.ToImmutableArray(), packageMap, bundleLookup);
+        return new CatalogSnapshot(catalogDirectory, bundles.ToImmutableArray(), packageMap, bundleLookup);
     }
 
     private sealed record CatalogSnapshot(

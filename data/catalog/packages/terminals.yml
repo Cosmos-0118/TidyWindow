@@ -1,0 +1,191 @@
+packages:
+    - id: windows-terminal
+      name: Windows Terminal
+      manager: winget
+      command: "winget install --id Microsoft.WindowsTerminal -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Modern tabbed terminal host for Windows.
+      homepage: "https://aka.ms/terminal"
+      tags: [terminal]
+    - id: windows-terminal-preview
+      name: Windows Terminal Preview
+      manager: winget
+      command: "winget install --id Microsoft.WindowsTerminalPreview -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Early-access channel for Windows Terminal features.
+      homepage: "https://aka.ms/terminal"
+      tags: [terminal]
+    - id: fluent-terminal
+      name: Fluent Terminal
+      manager: winget
+      command: "winget install --id YugenApp.FluentTerminal -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fluent Design-inspired terminal host for Windows 10 and 11.
+      homepage: "https://github.com/felixse/FluentTerminal"
+      tags: [terminal]
+    - id: cmder
+      name: Cmder
+      manager: choco
+      command: "choco install cmder -y --no-progress"
+      requiresAdmin: true
+      summary: Portable console emulator built on ConEmu with custom enhancements.
+      homepage: "https://cmder.app"
+      tags: [terminal]
+    - id: conemu
+      name: ConEmu
+      manager: choco
+      command: "choco install conemu -y --no-progress"
+      requiresAdmin: true
+      summary: Highly configurable Windows terminal emulator supporting tabs and splits.
+      homepage: "https://conemu.github.io"
+      tags: [terminal]
+    - id: ranger
+      name: ranger
+      manager: scoop
+      command: "scoop install ranger"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Vim-inspired console file manager with multi-pane previews.
+      homepage: "https://ranger.github.io"
+      tags: [terminal, file-manager]
+    - id: tmux
+      name: tmux
+      manager: scoop
+      command: "scoop install tmux"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Terminal multiplexer for managing multiple shell sessions.
+      homepage: "https://github.com/tmux/tmux"
+      tags: [terminal]
+    - id: supershell
+      name: Supershell
+      manager: scoop
+      command: "scoop install supershell"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Enhanced shell helpers for PowerShell.
+      homepage: "https://github.com/dahlbyk/supershell"
+      tags: [shell]
+    - id: oh-my-posh
+      name: oh-my-posh
+      manager: winget
+      command: "winget install --id JanDeDobbeleer.OhMyPosh -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Shell prompt theming engine.
+      homepage: "https://ohmyposh.dev"
+      tags: [shell]
+    - id: lazygit
+      name: lazygit
+      manager: winget
+      command: "winget install --id JesseDuffield.lazygit -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Terminal UI for streamlined Git workflows.
+      homepage: "https://github.com/jesseduffield/lazygit"
+      tags: [vcs, terminal]
+    - id: zoxide
+      name: zoxide
+      manager: winget
+      command: "winget install --id ajeetdsouza.zoxide -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Smarter cd command that learns your most-used directories.
+      homepage: "https://github.com/ajeetdsouza/zoxide"
+      tags: [terminal]
+    - id: broot
+      name: broot
+      manager: winget
+      command: "winget install --id Dystroy.broot -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fuzzy tree navigator with previews and fast search.
+      homepage: "https://dystroy.org/broot"
+      tags: [terminal, file-manager]
+    - id: eza
+      name: eza
+      manager: winget
+      command: "winget install --id eza-community.eza -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Modern replacement for ls with rich formatting and git integration.
+      homepage: "https://github.com/eza-community/eza"
+      tags: [terminal]
+    - id: dust
+      name: dust
+      manager: winget
+      command: "winget install --id Bootandy.dust -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Intuitive disk usage analyzer for the terminal.
+      homepage: "https://github.com/bootandy/dust"
+      tags: [terminal]
+    - id: procs
+      name: procs
+      manager: winget
+      command: "winget install --id Dalance.Procs -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Modern process viewer with tree and container awareness.
+      homepage: "https://github.com/dalance/procs"
+      tags: [terminal]
+    - id: gping
+      name: gping
+      manager: winget
+      command: "winget install --id orf.gping -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Graphical ping utility that renders latency charts in the terminal.
+      homepage: "https://github.com/orf/gping"
+      tags: [terminal, network]
+    - id: nnn
+      name: nnn
+      manager: winget
+      command: "winget install --id Jarun.NNN -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, minimal terminal file manager.
+      homepage: "https://github.com/jarun/nnn"
+      tags: [terminal, file-manager]
+    - id: zellij
+      name: Zellij
+      manager: winget
+      command: "winget install --id ZellijOrg.Zellij -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Terminal workspace multiplexer with pane layout management.
+      homepage: "https://zellij.dev"
+      tags: [terminal]
+    - id: delta
+      name: delta
+      manager: winget
+      command: "winget install --id dandavison.delta -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Syntax-highlighted diffs for git, diff, and related tools.
+      homepage: "https://github.com/dandavison/delta"
+      tags: [vcs]
+    - id: tealdeer
+      name: tealdeer (tldr)
+      manager: winget
+      command: "winget install --id dbrgn.Tealdeer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast TL;DR client providing concise manual page examples.
+      homepage: "https://dbrgn.ch/tealdeer"
+      tags: [terminal]
+    - id: fzf
+      name: fzf
+      manager: winget
+      command: "winget install --id Junegunn.fzf -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: General-purpose fuzzy finder for shell pipelines and editors.
+      homepage: "https://github.com/junegunn/fzf"
+      tags: [terminal]
+    - id: autojump
+      name: autojump
+      manager: choco
+      command: "choco install autojump -y --no-progress"
+      requiresAdmin: true
+      summary: Directory jumper that learns usage patterns for faster navigation.
+      homepage: "https://github.com/wting/autojump"
+      tags: [terminal]
+    - id: starship
+      name: starship
+      manager: winget
+      command: "winget install --id Starship.Starship -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cross-shell prompt with rich contextual information.
+      homepage: "https://starship.rs"
+      tags: [shell]

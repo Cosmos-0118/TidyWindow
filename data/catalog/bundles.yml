@@ -1,0 +1,169 @@
+# Smart Install Hub catalog bundles
+# Bundles map to curated sets of packages that users can queue quickly.
+# Package definitions live under data/catalog/packages/.
+bundles:
+    - id: core-dev
+      name: Core Dev Workstation
+      description: Essentials for source control, runtimes, and editors.
+      packages:
+          - git
+          - vscode
+          - vscode-insiders
+          - neovim
+          - windows-terminal
+          - powertoys
+          - powershell7
+          - powershell-preview
+          - dotnet-sdk-8
+          - dotnet-sdk-7
+          - nodejs-lts
+          - python312
+          - github-cli
+          - git-credential-manager-core
+          - openjdk17
+          - 7zip
+          - git-lfs
+          - jetbrains-toolbox
+          - visualstudio-2022-community
+    - id: cloud-native
+      name: Cloud & Containers
+      description: Tooling for cloud automation and container workloads.
+      packages:
+          - docker-desktop
+          - azure-cli
+          - aws-cli
+          - terraform
+          - kubectl
+          - helm
+          - azure-storage-explorer
+          - podman
+          - istioctl
+          - skaffold
+          - pulumi
+          - k9s
+          - openshift-cli
+          - jenkins
+          - jq
+          - oh-my-posh
+          - vagrant
+          - minikube
+          - virtualbox
+          - vmware-player
+          - aws-sam-cli
+          - azure-functions-core-tools
+          - consul
+          - nomad
+          - dapr-cli
+    - id: diagnostics
+      name: Diagnostics & Testing
+      description: Debugging, API testing, and network inspection utilities.
+      packages:
+          - postman
+          - fiddler
+          - wireshark
+          - dotnet-runtime-8
+          - sql-server-management-studio
+          - notepadplusplus
+          - powershell-ise
+          - redisinsight
+          - supershell
+          - insomnia
+          - tcpview
+          - sysinternals-suite
+          - nmap
+          - netcat
+          - httpie
+          - nuget-package-explorer
+          - linqpad-7
+          - grafana
+    - id: builders
+      name: Build Toolchain
+      description: Compilers and build helpers frequently used on Windows.
+      packages:
+          - cmake
+          - ninja
+          - mingw
+          - llvm
+          - make
+          - python311
+          - pipx
+          - nuget-cli
+          - chocolatey
+          - scoop
+          - yarn
+          - bun
+          - pnpm
+          - bazel
+          - msys2
+          - rustup
+          - go-lang
+          - deno
+    - id: data-platform
+      name: Data Platform
+      description: Local database engines, shells, and tooling.
+      packages:
+          - sql-server-management-studio
+          - azure-data-studio
+          - sql-server-express-2022
+          - pgadmin4
+          - mongodb-compass
+          - mysql-shell
+          - azure-cosmos-emulator
+          - dbeaver
+          - heidisql
+          - flyway
+          - postgresql
+          - redis-cli
+    - id: infrastructure-labs
+      name: Infrastructure Labs
+      description: Sandbox environments for virtualization and service emulation.
+      packages:
+          - virtualbox
+          - vmware-player
+          - minikube
+          - vagrant
+          - consul
+          - nomad
+          - azure-cosmos-emulator
+    - id: language-runtimes
+      name: Language Runtimes
+      description: Toolchains and package managers for modern languages.
+      packages:
+          - go-lang
+          - rustup
+          - deno
+          - bun
+          - yarn
+          - powershell-preview
+          - ruby
+          - strawberry-perl
+          - tmux
+
+    - id: terminals-and-shells
+      name: Terminals & Shell Enhancements
+      description: Terminal emulators, text-mode tools, and shell productivity add-ons.
+      packages:
+          - windows-terminal
+          - windows-terminal-preview
+          - fluent-terminal
+          - cmder
+          - conemu
+          - ranger
+          - tmux
+          - oh-my-posh
+          - supershell
+          - neovim
+
+    - id: productivity-kit
+      name: Productivity Kit
+      description: Desktop tweaks, file search, and handy CLI productivity boosters.
+      packages:
+          - powertoys
+          - everything
+          - flux
+          - greenshot
+          - 7tt
+          - wingetui
+          - bat
+          - ripgrep
+          - fd

@@ -1,0 +1,161 @@
+packages:
+    - id: sql-server-management-studio
+      name: SQL Server Management Studio
+      manager: winget
+      command: "winget install --id Microsoft.SQLServerManagementStudio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Administer SQL Server instances.
+      homepage: "https://aka.ms/ssms"
+      tags: [database]
+    - id: azure-data-studio
+      name: Azure Data Studio
+      manager: winget
+      command: "winget install --id Microsoft.AzureDataStudio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cross-platform data editor for SQL workloads.
+      homepage: "https://learn.microsoft.com/azure-data-studio"
+      tags: [database]
+    - id: sql-server-express-2022
+      name: SQL Server 2022 Express
+      manager: winget
+      command: "winget install --id Microsoft.SQLServer.2022.Express -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Lightweight SQL Server engine for development.
+      homepage: "https://www.microsoft.com/sql-server"
+      tags: [database]
+    - id: pgadmin4
+      name: pgAdmin 4
+      manager: winget
+      command: "winget install --id pgAdmin.pgAdmin4 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: PostgreSQL administration and query tool.
+      homepage: "https://www.pgadmin.org"
+      tags: [database]
+    - id: mongodb-compass
+      name: MongoDB Compass
+      manager: winget
+      command: "winget install --id MongoDB.Compass.Community -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Visual schema exploration for MongoDB.
+      homepage: "https://www.mongodb.com/products/compass"
+      tags: [database]
+    - id: mysql-shell
+      name: MySQL Shell
+      manager: winget
+      command: "winget install --id Oracle.MySQLShell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Advanced scripting environment for MySQL.
+      homepage: "https://dev.mysql.com/doc/mysql-shell/"
+      tags: [database]
+    - id: azure-cosmos-emulator
+      name: Azure Cosmos DB Emulator
+      manager: winget
+      command: "winget install --id Microsoft.AzureCosmosEmulator -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Local emulator for Azure Cosmos DB workloads.
+      homepage: "https://learn.microsoft.com/azure/cosmos-db/local-emulator"
+      tags: [database, cloud]
+    - id: dbeaver
+      name: DBeaver Community
+      manager: choco
+      command: "choco install dbeaver -y --no-progress"
+      requiresAdmin: true
+      summary: Universal database client with ER diagrams and query tooling.
+      homepage: "https://dbeaver.io"
+      tags: [database]
+    - id: heidisql
+      name: HeidiSQL
+      manager: choco
+      command: "choco install heidisql -y --no-progress"
+      requiresAdmin: true
+      summary: Lightweight SQL client for MariaDB, MySQL, Microsoft SQL Server, and PostgreSQL.
+      homepage: "https://www.heidisql.com"
+      tags: [database]
+    - id: flyway
+      name: Flyway CLI
+      manager: choco
+      command: "choco install flyway.commandline -y --no-progress"
+      requiresAdmin: true
+      summary: Database migration automation for multiple relational databases.
+      homepage: "https://flywaydb.org"
+      tags: [database, devops]
+    - id: postgresql
+      name: PostgreSQL
+      manager: choco
+      command: "choco install postgresql -y --no-progress"
+      requiresAdmin: true
+      summary: Open-source relational database server and tools for Windows.
+      homepage: "https://www.postgresql.org"
+      tags: [database]
+    - id: redis-cli
+      name: Redis CLI (via Redis)
+      manager: scoop
+      command: "scoop install redis"
+      requiresAdmin: false
+      summary: Installs Redis for Windows including the redis-cli command-line interface.
+      homepage: "https://redis.io"
+      tags: [database, cli]
+    - id: sqlitestudio
+      name: SQLiteStudio
+      manager: winget
+      command: "winget install --id SQLiteStudio.SQLiteStudio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Desktop manager for SQLite databases with schema and data editing.
+      homepage: "https://sqlitestudio.pl"
+      tags: [database]
+    - id: tableplus
+      name: TablePlus
+      manager: winget
+      command: "winget install --id TablePlus.TablePlus -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Unified GUI for working with relational and NoSQL databases.
+      homepage: "https://tableplus.com"
+      tags: [database]
+    - id: influxdb
+      name: InfluxDB
+      manager: choco
+      command: "choco install influxdb -y --no-progress"
+      requiresAdmin: true
+      summary: Time-series database server for metrics and event analytics.
+      homepage: "https://www.influxdata.com"
+      tags: [database, timeseries]
+    - id: mongosh
+      name: MongoDB Shell (mongosh)
+      manager: winget
+      command: "winget install --id MongoDB.MongoDBShell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Modern CLI shell for interacting with MongoDB clusters.
+      homepage: "https://www.mongodb.com/products/shell"
+      tags: [database, cli]
+    - id: duckdb
+      name: DuckDB CLI
+      manager: winget
+      command: "winget install --id DuckDB.DuckDB -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: In-process analytical database for local data warehouse workloads.
+      homepage: "https://duckdb.org"
+      tags: [database]
+    - id: clickhouse-client
+      name: ClickHouse Client
+      manager: winget
+      command: "winget install --id ClickHouse.ClickHouse -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Columnar OLAP database client and server binaries for ClickHouse.
+      homepage: "https://clickhouse.com"
+      tags: [database]
+    - id: kafka
+      name: Apache Kafka
+      manager: choco
+      command: "choco install kafka -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed event streaming platform packaged with ZooKeeper.
+      homepage: "https://kafka.apache.org"
+      tags: [streaming]
+    - id: db-browser-sqlite
+      name: DB Browser for SQLite
+      manager: winget
+      command: "winget install --id DBBrowserForSQLite.DBBrowserForSQLite -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Visual tool to create, design, and edit SQLite databases.
+      homepage: "https://sqlitebrowser.org"
+      tags: [database]

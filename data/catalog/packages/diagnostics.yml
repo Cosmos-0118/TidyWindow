@@ -1,0 +1,289 @@
+packages:
+    - id: postman
+      name: Postman
+      manager: winget
+      command: "winget install --id Postman.Postman -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: API testing and collaboration tool.
+      homepage: "https://www.postman.com"
+      tags: [api]
+    - id: fiddler
+      name: Fiddler Everywhere
+      manager: winget
+      command: "winget install --id Progress.TelerikFiddlerEverywhere -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Web debugging proxy for HTTP/S traffic.
+      homepage: "https://www.telerik.com/fiddler"
+      tags: [diagnostics]
+    - id: wireshark
+      name: Wireshark
+      manager: winget
+      command: "winget install --id WiresharkFoundation.Wireshark -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Network protocol analyzer.
+      homepage: "https://www.wireshark.org"
+      tags: [network]
+    - id: notepadplusplus
+      name: Notepad++
+      manager: winget
+      command: "winget install --id Notepad++.Notepad++ -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Advanced text editor for Windows.
+      homepage: "https://notepad-plus-plus.org"
+      tags: [editor]
+    - id: powershell-ise
+      name: Windows PowerShell ISE
+      manager: choco
+      command: "choco install powershell-ise -y --no-progress"
+      requiresAdmin: true
+      summary: Classic scripting environment for PowerShell.
+      homepage: "https://learn.microsoft.com/powershell/scripting/windows-powershell/ise"
+      tags: [shell]
+    - id: redisinsight
+      name: RedisInsight
+      manager: winget
+      command: "winget install --id Redis.RedisInsight -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: GUI for managing Redis data.
+      homepage: "https://redis.com/redis-enterprise/redis-insight/"
+      tags: [database]
+    - id: insomnia
+      name: Insomnia
+      manager: winget
+      command: "winget install --id Kong.Insomnia -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: API design and testing platform.
+      homepage: "https://insomnia.rest"
+      tags: [api]
+    - id: tcpview
+      name: TCPView
+      manager: choco
+      command: "choco install tcpview -y --no-progress"
+      requiresAdmin: true
+      summary: Sysinternals utility for inspecting active TCP and UDP endpoints.
+      homepage: "https://learn.microsoft.com/sysinternals/downloads/tcpview"
+      tags: [diagnostics, network]
+    - id: sysinternals-suite
+      name: Sysinternals Suite
+      manager: choco
+      command: "choco install sysinternals -y --no-progress"
+      requiresAdmin: true
+      summary: Collection of advanced Windows diagnostic and troubleshooting tools.
+      homepage: "https://learn.microsoft.com/sysinternals"
+      tags: [diagnostics]
+    - id: nmap
+      name: Nmap
+      manager: choco
+      command: "choco install nmap -y --no-progress"
+      requiresAdmin: true
+      summary: Network exploration and security auditing utility.
+      homepage: "https://nmap.org"
+      tags: [network]
+    - id: netcat
+      name: Netcat
+      manager: choco
+      command: "choco install netcat -y --no-progress"
+      requiresAdmin: true
+      summary: Lightweight networking utility for reading and writing across connections.
+      homepage: "https://nc110.sourceforge.net"
+      tags: [network]
+    - id: httpie
+      name: HTTPie
+      manager: choco
+      command: "choco install httpie -y --no-progress"
+      requiresAdmin: true
+      summary: User-friendly HTTP client for the terminal.
+      homepage: "https://httpie.io"
+      tags: [api]
+    - id: nuget-package-explorer
+      name: NuGet Package Explorer
+      manager: winget
+      command: "winget install --id NugetPackageExplorer.NugetPackageExplorer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Inspect and author NuGet packages.
+      homepage: "https://github.com/NuGetPackageExplorer/NuGetPackageExplorer"
+      tags: [nuget]
+    - id: linqpad-7
+      name: LINQPad 7
+      manager: winget
+      command: "winget install --id LINQPad.LINQPad.7 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Interactive scratchpad for LINQ and C#.
+      homepage: "https://www.linqpad.net"
+      tags: [dotnet]
+    - id: grafana
+      name: Grafana
+      manager: winget
+      command: "winget install --id GrafanaLabs.Grafana -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Observability dashboards and alerting platform.
+      homepage: "https://grafana.com"
+      tags: [observability]
+    - id: fastfetch
+      name: fastfetch
+      manager: scoop
+      command: "scoop install fastfetch"
+      requiresAdmin: false
+      summary: High-performance system information tool modeled after neofetch.
+      homepage: "https://github.com/fastfetch-cli/fastfetch"
+      tags: [diagnostics]
+    - id: neofetch
+      name: neofetch
+      manager: scoop
+      command: "scoop install neofetch"
+      requiresAdmin: false
+      summary: Command-line summary of system information.
+      homepage: "https://github.com/dylanaraps/neofetch"
+      tags: [diagnostics]
+    - id: hyperfine
+      name: hyperfine
+      manager: winget
+      command: "winget install --id Sharkdp.Hyperfine -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Benchmarking tool for measuring command execution time.
+      homepage: "https://github.com/sharkdp/hyperfine"
+      tags: [performance]
+    - id: curlie
+      name: curlie
+      manager: winget
+      command: "winget install --id rs.curlie -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: User-friendly curl wrapper for crafting HTTP requests.
+      homepage: "https://github.com/rs/curlie"
+      tags: [api]
+    - id: grpcurl
+      name: grpcurl
+      manager: winget
+      command: "winget install --id Fullstorydev.grpcurl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line gRPC client for probing gRPC services.
+      homepage: "https://github.com/fullstorydev/grpcurl"
+      tags: [api]
+    - id: httpyac
+      name: httpyac
+      manager: winget
+      command: "winget install --id Anweber.httpyac -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Versatile HTTP client for REST, GraphQL, and gRPC testing.
+      homepage: "https://httpyac.github.io"
+      tags: [api]
+    - id: mitmproxy
+      name: mitmproxy
+      manager: winget
+      command: "winget install --id mitmproxy.mitmproxy -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Interactive HTTPS proxy for inspecting and modifying traffic.
+      homepage: "https://mitmproxy.org"
+      tags: [network]
+    - id: ngrok
+      name: ngrok
+      manager: winget
+      command: "winget install --id Ngrok.Ngrok -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Secure tunneling service to expose local services over the internet.
+      homepage: "https://ngrok.com"
+      tags: [network]
+    - id: tailscale
+      name: Tailscale
+      manager: winget
+      command: "winget install --id Tailscale.Tailscale -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Mesh VPN built on WireGuard for secure remote connectivity.
+      homepage: "https://tailscale.com"
+      tags: [network]
+    - id: openssl
+      name: OpenSSL Light
+      manager: choco
+      command: "choco install openssl-light -y --no-progress"
+      requiresAdmin: true
+      summary: Toolkit for TLS/SSL protocols and cryptography operations.
+      homepage: "https://www.openssl.org"
+      tags: [security]
+    - id: processhacker
+      name: Process Hacker
+      manager: winget
+      command: "winget install --id ProcessHacker.ProcessHacker -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Advanced process viewer and system monitoring tool.
+      homepage: "https://processhacker.sourceforge.io"
+      tags: [diagnostics]
+    - id: crystaldiskinfo
+      name: CrystalDiskInfo
+      manager: winget
+      command: "winget install --id CrystalDewWorld.CrystalDiskInfo -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Drive health monitor with SMART attribute reporting.
+      homepage: "https://crystalmark.info"
+      tags: [diagnostics]
+    - id: crystaldiskmark
+      name: CrystalDiskMark
+      manager: winget
+      command: "winget install --id CrystalDewWorld.CrystalDiskMark -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Disk benchmarking utility for sequential and random performance tests.
+      homepage: "https://crystalmark.info"
+      tags: [performance]
+    - id: sdelete
+      name: SDelete
+      manager: winget
+      command: "winget install --id Microsoft.Sysinternals.SDelete -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Secure file deletion utility from Sysinternals.
+      homepage: "https://learn.microsoft.com/sysinternals/downloads/sdelete"
+      tags: [security]
+    - id: npcap
+      name: Npcap
+      manager: winget
+      command: "winget install --id Npcap.Npcap -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Packet capture driver compatible with WinPcap for network inspection tools.
+      homepage: "https://npcap.com"
+      tags: [network]
+    - id: autoruns
+      name: Autoruns
+      manager: winget
+      command: "winget install --id Microsoft.Sysinternals.Autoruns -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Inspect and control Windows startup programs and services.
+      homepage: "https://learn.microsoft.com/sysinternals/downloads/autoruns"
+      tags: [diagnostics]
+    - id: ffmpeg
+      name: FFmpeg
+      manager: winget
+      command: "winget install --id Gyan.FFmpeg -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Command-line toolkit for audio and video processing.
+      homepage: "https://ffmpeg.org"
+      tags: [media]
+    - id: imagemagick
+      name: ImageMagick
+      manager: winget
+      command: "winget install --id ImageMagick.ImageMagick -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Image manipulation utilities supporting numerous formats.
+      homepage: "https://imagemagick.org"
+      tags: [media]
+    - id: exiftool
+      name: ExifTool
+      manager: winget
+      command: "winget install --id PhilHarvey.ExifTool -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Metadata reader and editor for images, audio, and video files.
+      homepage: "https://exiftool.org"
+      tags: [media]
+    - id: pandoc
+      name: Pandoc
+      manager: winget
+      command: "winget install --id JohnMacFarlane.Pandoc -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Universal document converter between markup formats.
+      homepage: "https://pandoc.org"
+      tags: [docs]
+    - id: graphviz
+      name: Graphviz
+      manager: winget
+      command: "winget install --id Graphviz.Graphviz -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Graph visualization software for generating diagrams from DOT files.
+      homepage: "https://graphviz.org"
+      tags: [visualization]

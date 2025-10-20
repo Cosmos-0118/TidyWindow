@@ -150,8 +150,8 @@
         <Grid Grid.Row="1"
               Margin="0,28,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2.6*"/>
-                <ColumnDefinition Width="1.4*"/>
+                <ColumnDefinition Width="3*"/>
+                <ColumnDefinition Width="2*"/>
             </Grid.ColumnDefinitions>
 
             <Grid Grid.Column="0"
@@ -169,28 +169,31 @@
                         BorderThickness="1"
                         Margin="0,0,0,20">
                     <StackPanel>
-                        <DockPanel Margin="0,0,0,16">
-                            <StackPanel DockPanel.Dock="Left">
+                        <Grid Margin="0,0,0,16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
                                 <TextBlock Text="Bundles"
                                            Foreground="#E2E8F0"
                                            FontSize="16"
                                            FontWeight="SemiBold"/>
                                 <TextBlock Text="Choose curated sets or browse everything"
                                            Foreground="#64748B"
-                                           FontSize="12"/>
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
                             </StackPanel>
-                            <StackPanel DockPanel.Dock="Right"
-                                        Orientation="Horizontal"
-                                        VerticalAlignment="Center">
-                                <Button Content="Queue bundle"
-                                        Command="{Binding QueueBundleCommand}"
-                                        CommandParameter="{Binding SelectedBundle}"
-                                        Margin="0"
-                                        Background="#22C55E"
-                                        Foreground="#06111D"
-                                        Style="{StaticResource InstallAccentButtonStyle}"/>
-                            </StackPanel>
-                        </DockPanel>
+                            <Button Grid.Column="1"
+                                    Content="Queue bundle"
+                                    Command="{Binding QueueBundleCommand}"
+                                    CommandParameter="{Binding SelectedBundle}"
+                                    Margin="8,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Background="#22C55E"
+                                    Foreground="#06111D"
+                                    Style="{StaticResource InstallAccentButtonStyle}"/>
+                        </Grid>
 
                         <ListBox ItemsSource="{Binding Bundles}"
                                  SelectedItem="{Binding SelectedBundle, Mode=TwoWay}"
@@ -260,19 +263,19 @@
                         Padding="20"
                         BorderBrush="#1E293B"
                         BorderThickness="1">
-                    <Grid>
+                    <Grid Grid.IsSharedSizeScope="True">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Horizontal"
-                                    Grid.Row="0"
-                                    Margin="0,0,0,16"
-                                    VerticalAlignment="Center">
-                            <TextBox Width="220"
-                                     Margin="0,0,12,0"
+                        <WrapPanel Grid.Row="0"
+                                   Margin="0,0,0,16"
+                                   VerticalAlignment="Center">
+                            <TextBox MinWidth="180"
+                                     MaxWidth="220"
+                                     Margin="0,0,12,4"
                                      Padding="8,6"
                                      Background="#0F172A"
                                      BorderBrush="#1E293B"
@@ -280,19 +283,19 @@
                                      Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
                             <Button Content="Queue selected"
                                     Command="{Binding QueueSelectionCommand}"
-                                    Margin="0,0,8,0"
+                                    Margin="0,0,8,4"
                                     Background="#22C55E"
                                     Foreground="#06111D"
                                     Style="{StaticResource InstallAccentButtonStyle}"/>
                             <Button Content="Export selection"
                                     Command="{Binding ExportSelectionCommand}"
-                                    Margin="0,0,0,0"
+                                    Margin="0,0,8,4"
                                     Style="{StaticResource InstallSecondaryButtonStyle}"/>
                             <Button Content="Import preset"
                                     Command="{Binding ImportPresetCommand}"
-                                    Margin="8,0,0,0"
+                                    Margin="0,0,0,4"
                                     Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                        </StackPanel>
+                        </WrapPanel>
 
                         <ListView Grid.Row="1"
                                   ItemsSource="{Binding Packages}"
@@ -302,7 +305,7 @@
                                   HorizontalAlignment="Stretch"
                                   VerticalAlignment="Stretch"
                                   ScrollViewer.VerticalScrollBarVisibility="Visible"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                   ScrollViewer.CanContentScroll="True"
                                   VirtualizingPanel.IsVirtualizing="True"
                                   VirtualizingPanel.VirtualizationMode="Recycling">
@@ -352,10 +355,25 @@
                             </ListView.ItemContainerStyle>
                             <ListView.View>
                                 <GridView AllowsColumnReorder="False">
-                                    <GridViewColumn Width="220">
+                                    <GridView.ColumnHeaderContainerStyle>
+                                        <Style TargetType="GridViewColumnHeader">
+                                            <Setter Property="Foreground"
+                                                    Value="#94A3B8"/>
+                                            <Setter Property="FontSize"
+                                                    Value="12"/>
+                                            <Setter Property="FontWeight"
+                                                    Value="SemiBold"/>
+                                            <Setter Property="HorizontalContentAlignment"
+                                                    Value="Left"/>
+                                            <Setter Property="Padding"
+                                                    Value="6,4"/>
+                                            <Setter Property="Background"
+                                                    Value="Transparent"/>
+                                        </Style>
+                                    </GridView.ColumnHeaderContainerStyle>
+                                    <GridViewColumn Width="280">
                                         <GridViewColumn.Header>
-                                            <TextBlock Text="Package"
-                                                       Foreground="#94A3B8"/>
+                                            <TextBlock Text="Package"/>
                                         </GridViewColumn.Header>
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
@@ -365,7 +383,8 @@
                                                         <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                   Margin="0,0,8,0"/>
                                                         <TextBlock Text="{Binding Definition.Name}"
-                                                                   FontWeight="SemiBold"/>
+                                                                   FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap"/>
                                                     </StackPanel>
                                                     <TextBlock Text="{Binding Summary}"
                                                                Foreground="#94A3B8"
@@ -376,21 +395,20 @@
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
-                                    <GridViewColumn Width="80"
+                                    <GridViewColumn Width="120"
                                                     DisplayMemberBinding="{Binding ManagerLabel}">
                                         <GridViewColumn.Header>
-                                            <TextBlock Text="Manager"
-                                                       Foreground="#94A3B8"/>
+                                            <TextBlock Text="Manager"/>
                                         </GridViewColumn.Header>
                                     </GridViewColumn>
-                                    <GridViewColumn Width="90">
+                                    <GridViewColumn Width="80">
                                         <GridViewColumn.Header>
-                                            <TextBlock Text="Admin"
-                                                       Foreground="#94A3B8"/>
+                                            <TextBlock Text="Admin"/>
                                         </GridViewColumn.Header>
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
-                                                <TextBlock TextAlignment="Center">
+                                                <TextBlock TextAlignment="Center"
+                                                           MinWidth="60">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Text"
@@ -410,21 +428,20 @@
                                     </GridViewColumn>
                                     <GridViewColumn Width="200">
                                         <GridViewColumn.Header>
-                                            <TextBlock Text="Status"
-                                                       Foreground="#94A3B8"/>
+                                            <TextBlock Text="Status"/>
                                         </GridViewColumn.Header>
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding LastStatus}"
                                                            Foreground="#E2E8F0"
-                                                           TextWrapping="Wrap"/>
+                                                           TextWrapping="Wrap"
+                                                           MaxWidth="220"/>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
                                     <GridViewColumn Width="120">
                                         <GridViewColumn.Header>
-                                            <TextBlock Text="Actions"
-                                                       Foreground="#94A3B8"/>
+                                            <TextBlock Text="Actions"/>
                                         </GridViewColumn.Header>
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
@@ -469,6 +486,10 @@
                     Background="#111827"
                     CornerRadius="12"
                     Padding="20"
+                    MinWidth="320"
+                    Width="Auto"
+                    HorizontalAlignment="Stretch"
+                    Margin="16,0,0,0"
                     BorderBrush="#1E293B"
                     BorderThickness="1">
                 <Grid>
@@ -478,20 +499,25 @@
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <DockPanel Grid.Row="0"
-                               Margin="0,0,0,16">
-                        <StackPanel DockPanel.Dock="Left">
+                    <Grid Grid.Row="0"
+                          Margin="0,0,0,16">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0">
                             <TextBlock Text="Install queue"
                                        Foreground="#E2E8F0"
                                        FontSize="16"
                                        FontWeight="SemiBold"/>
                             <TextBlock Text="Review pending installs and retry when needed"
                                        Foreground="#64748B"
+                                       TextWrapping="Wrap"
                                        FontSize="12"/>
                         </StackPanel>
-                        <StackPanel DockPanel.Dock="Right"
-                                    Orientation="Horizontal"
-                                    VerticalAlignment="Center">
+                        <WrapPanel Grid.Row="1"
+                                   Margin="0,8,0,0"
+                                   HorizontalAlignment="Left">
                             <Button Content="Retry failed"
                                     Command="{Binding RetryFailedCommand}"
                                     Style="{StaticResource InstallSecondaryButtonStyle}"/>
@@ -499,8 +525,8 @@
                                     Command="{Binding ClearCompletedCommand}"
                                     Margin="8,0,0,0"
                                     Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                        </StackPanel>
-                    </DockPanel>
+                        </WrapPanel>
+                    </Grid>
 
                     <ListView Grid.Row="1"
                               ItemsSource="{Binding Operations}"
@@ -529,21 +555,21 @@
                                         CornerRadius="8"
                                         Background="#141E30">
                                     <StackPanel>
-                                        <StackPanel Orientation="Horizontal"
-                                                    VerticalAlignment="Center"
-                                                    Margin="0,0,0,4">
+                                        <WrapPanel VerticalAlignment="Center"
+                                                   Margin="0,0,0,4">
                                             <TextBlock Text="{Binding PackageName}"
-                                                       FontWeight="SemiBold"/>
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"/>
                                             <TextBlock Text="{Binding StatusLabel}"
                                                        Foreground="#38BDF8"
                                                        Margin="12,0,0,0"/>
                                             <TextBlock Text="{Binding Attempts}"
                                                        Foreground="#94A3B8"
                                                        Margin="12,0,0,0"/>
-                                        </StackPanel>
+                                        </WrapPanel>
                                         <TextBlock Text="{Binding Message}"
                                                    Foreground="#94A3B8"
-                                                   TextWrapping="Wrap"/>
+                                                   TextWrapping="WrapWithOverflow"/>
                                         <StackPanel Orientation="Horizontal"
                                                     Margin="0,12,0,0"
                                                     HorizontalAlignment="Right">

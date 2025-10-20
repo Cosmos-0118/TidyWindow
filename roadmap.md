@@ -134,19 +134,3 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 
 -   `dotnet build src/TidyWindow.sln`
 -   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
-
-## Deferred / Backlog (Advanced)
-
-The following sections come from the original roadmap but are intentionally parked for now. Revisit them only if the project grows beyond personal use.
-
--   Privilege & deployment hardening (Steps 11.x)
--   Task orchestration & logging infrastructure (Steps 12.x)
--   Persistence & settings storage (Steps 13.x)
--   Plugin system foundation (Steps 14.x)
--   Scheduling & notifications (Steps 15.x)
--   Telemetry & diagnostics (Steps 16.x)
--   UX polish & accessibility audit (Steps 17.x)
--   Testing & quality gates (Steps 18.x)
--   Expanded documentation / contributor experience (Steps 19.x)
--   Open preview release process (Steps 20.x)
--   1.0 stabilization ceremony (Steps 21.x)

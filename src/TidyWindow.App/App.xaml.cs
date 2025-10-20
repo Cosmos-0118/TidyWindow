@@ -30,6 +30,7 @@ public partial class App : WpfApplication
             {
                 services.AddSingleton<NavigationService>();
                 services.AddSingleton<PrivilegeOptions>();
+                services.AddSingleton<IPrivilegeService, PrivilegeService>();
 
                 services.AddSingleton<PowerShellInvoker>();
                 services.AddSingleton<PackageManagerDetector>();

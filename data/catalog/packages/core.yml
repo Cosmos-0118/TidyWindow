@@ -1,0 +1,255 @@
+packages:
+    - id: git
+      name: Git
+      manager: winget
+      command: "winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Distributed version control system.
+      homepage: "https://git-scm.com"
+      tags: [vcs, cli]
+    - id: glab
+      name: GitLab CLI
+      manager: winget
+      command: "winget install --id GitLab.GitLabCLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line interface for GitLab automation and workflows.
+      homepage: "https://gitlab.com/gitlab-org/cli"
+      tags: [vcs, cli]
+    - id: github-cli
+      name: GitHub CLI
+      manager: winget
+      command: "winget install --id GitHub.cli -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line GitHub workflows.
+      homepage: "https://cli.github.com"
+      tags: [cli]
+    - id: git-credential-manager-core
+      name: Git Credential Manager Core
+      manager: winget
+      command: "winget install --id Microsoft.GitCredentialManagerCore -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Secure single sign-on credential helper for Git on Windows.
+      homepage: "https://aka.ms/gcm"
+      tags: [vcs]
+    - id: git-lfs
+      name: Git LFS
+      manager: winget
+      command: "winget install --id GitHub.GitLFS -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Large file storage extension for Git.
+      homepage: "https://git-lfs.com"
+      tags: [vcs]
+    - id: vscode
+      name: Visual Studio Code
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudioCode -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Lightweight cross-platform editor.
+      homepage: "https://code.visualstudio.com"
+      tags: [editor]
+    - id: vscode-insiders
+      name: Visual Studio Code Insiders
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudioCode.Insiders -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Daily build channel of Visual Studio Code with the latest features.
+      homepage: "https://code.visualstudio.com/insiders/"
+      tags: [editor]
+    - id: jetbrains-toolbox
+      name: JetBrains Toolbox
+      manager: winget
+      command: "winget install --id JetBrains.Toolbox -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Launcher and updater for JetBrains IDEs.
+      homepage: "https://www.jetbrains.com/toolbox-app/"
+      tags: [ide]
+    - id: neovim
+      name: Neovim
+      manager: winget
+      command: "winget install --id Neovim.Neovim -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Extensible Vim-based editor tailored for modern development.
+      homepage: "https://neovim.io"
+      tags: [editor]
+    - id: powershell7
+      name: PowerShell 7
+      manager: winget
+      command: "winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Cross-platform automation shell.
+      homepage: "https://learn.microsoft.com/powershell"
+      tags: [shell]
+    - id: powershell-preview
+      name: PowerShell 7 Preview
+      manager: winget
+      command: "winget install --id Microsoft.PowerShell.Preview -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Preview channel for upcoming PowerShell features.
+      homepage: "https://github.com/PowerShell/PowerShell"
+      tags: [shell]
+    - id: dotnet-sdk-8
+      name: .NET SDK 8
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Build and run .NET 8 projects.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [sdk, dotnet]
+    - id: dotnet-sdk-7
+      name: .NET SDK 7
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.SDK.7 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Build and run .NET 7 workloads.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [dotnet, sdk]
+    - id: dotnet-runtime-8
+      name: .NET Runtime 8
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.Runtime.8 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Run .NET 8 desktop apps.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [runtime]
+    - id: dotnet-runtime-6
+      name: .NET Runtime 6
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.Runtime.6 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Run apps targeting .NET 6 LTS.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [runtime]
+    - id: nodejs-lts
+      name: Node.js LTS
+      manager: winget
+      command: "winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: JavaScript runtime and tooling.
+      homepage: "https://nodejs.org"
+      tags: [javascript, runtime]
+    - id: python312
+      name: Python 3.12
+      manager: winget
+      command: "winget install --id Python.Python.3.12 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Latest CPython runtime.
+      homepage: "https://python.org"
+      tags: [python, runtime]
+    - id: python311
+      name: Python 3.11
+      manager: winget
+      command: "winget install --id Python.Python.3.11 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Alternate CPython release for compatibility.
+      homepage: "https://python.org"
+      tags: [python, runtime]
+    - id: openjdk17
+      name: Temurin JDK 17
+      manager: winget
+      command: "winget install --id EclipseAdoptium.Temurin.17.JDK -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: LTS Temurin JDK delivered via winget.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime]
+    - id: openjdk17-choco
+      name: Temurin JDK 17 (Chocolatey)
+      manager: choco
+      command: "choco install temurin17 -y --no-progress"
+      requiresAdmin: true
+      summary: Install Temurin JDK 17 from Chocolatey feeds.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime]
+    - id: openjdk17-scoop
+      name: Temurin JDK 17 (Scoop)
+      manager: scoop
+      command: "scoop install temurin17-jdk"
+      requiresAdmin: false
+      buckets:
+          - java
+      summary: Scoop installation of Temurin JDK 17 with optional bucket support.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime]
+    - id: openjdk21
+      name: Temurin JDK 21
+      manager: winget
+      command: "winget install --id EclipseAdoptium.Temurin.21.JDK -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Current LTS Temurin JDK served through winget.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime]
+    - id: openjdk21-choco
+      name: Temurin JDK 21 (Chocolatey)
+      manager: choco
+      command: "choco install temurin21 -y --no-progress"
+      requiresAdmin: true
+      summary: Chocolatey distribution for Temurin JDK 21.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime]
+    - id: openjdk21-scoop
+      name: Temurin JDK 21 (Scoop)
+      manager: scoop
+      command: "scoop install temurin21-jdk"
+      requiresAdmin: false
+      buckets:
+          - java
+      summary: Install Temurin JDK 21 via Scoop's java bucket.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime]
+    - id: openjdk25-preview
+      name: Temurin JDK 25 EA (Scoop)
+      manager: scoop
+      command: "scoop install temurin25-ea-jdk"
+      requiresAdmin: false
+      buckets:
+          - java
+      summary: Early-access Temurin JDK 25 build through Scoop preview manifests.
+      homepage: "https://adoptium.net"
+      tags: [java, runtime, preview]
+    - id: 7zip
+      name: 7-Zip
+      manager: winget
+      command: "winget install --id 7zip.7zip -e --silent --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Compression and extraction utility.
+      homepage: "https://www.7-zip.org"
+      tags: [utilities]
+    - id: visualstudio-2022-community
+      name: Visual Studio 2022 Community
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudio.2022.Community -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Full-featured IDE for .NET and C++ development.
+      homepage: "https://visualstudio.microsoft.com/vs/"
+      tags: [ide, dotnet]
+    - id: visualstudio-build-tools
+      name: Visual Studio 2022 Build Tools
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudio.2022.BuildTools -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Headless MSVC, MSBuild, and toolchain installers.
+      homepage: "https://visualstudio.microsoft.com/downloads/"
+      tags: [build, compiler]
+    - id: dotnet-sdk-9-preview
+      name: .NET SDK 9 Preview
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.SDK.9 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Preview toolchain for building .NET 9 workloads.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [dotnet, sdk]
+    - id: php
+      name: PHP
+      manager: winget
+      command: "winget install --id PHP.PHP -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: PHP runtime for web development on Windows.
+      homepage: "https://www.php.net"
+      tags: [php, runtime]
+    - id: composer
+      name: Composer
+      manager: winget
+      command: "winget install --id Composer.Composer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Dependency manager for PHP projects.
+      homepage: "https://getcomposer.org"
+      tags: [php, package-manager]

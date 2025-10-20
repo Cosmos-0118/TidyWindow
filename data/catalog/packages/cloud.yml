@@ -1,0 +1,289 @@
+packages:
+    - id: docker-desktop
+      name: Docker Desktop
+      manager: winget
+      command: "winget install --id Docker.DockerDesktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Container management for Windows.
+      homepage: "https://www.docker.com/products/docker-desktop"
+      tags: [containers]
+    - id: azure-cli
+      name: Azure CLI
+      manager: winget
+      command: "winget install --id Microsoft.AzureCLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage Azure resources from the command line.
+      homepage: "https://learn.microsoft.com/cli/azure"
+      tags: [cloud]
+    - id: aws-cli
+      name: AWS CLI
+      manager: winget
+      command: "winget install --id Amazon.AWSCLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage AWS resources via CLI.
+      homepage: "https://aws.amazon.com/cli/"
+      tags: [cloud]
+    - id: terraform
+      name: Terraform
+      manager: winget
+      command: "winget install --id Hashicorp.Terraform -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Infrastructure as code CLI.
+      homepage: "https://www.terraform.io"
+      tags: [iac]
+    - id: kubectl
+      name: kubectl
+      manager: winget
+      command: "winget install --id Kubernetes.kubectl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Kubernetes cluster management CLI.
+      homepage: "https://kubernetes.io/docs/reference/kubectl/"
+      tags: [kubernetes]
+    - id: helm
+      name: Helm
+      manager: winget
+      command: "winget install --id Helm.Helm -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Package manager for Kubernetes charts.
+      homepage: "https://helm.sh"
+      tags: [kubernetes]
+    - id: azure-storage-explorer
+      name: Azure Storage Explorer
+      manager: winget
+      command: "winget install --id Microsoft.AzureStorageExplorer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage Azure storage accounts visually.
+      homepage: "https://learn.microsoft.com/azure/storage/common/storage-explorer"
+      tags: [cloud]
+    - id: podman
+      name: Podman Desktop
+      manager: winget
+      command: "winget install --id RedHat.Podman-Desktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Rootless container workflows.
+      homepage: "https://podman.io"
+      tags: [containers]
+    - id: k3d
+      name: k3d
+      manager: scoop
+      command: "scoop install k3d"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Lightweight wrapper to run K3s Kubernetes clusters in Docker.
+      homepage: "https://k3d.io"
+      tags: [kubernetes]
+    - id: kind
+      name: kind
+      manager: choco
+      command: "choco install kind -y --no-progress"
+      requiresAdmin: true
+      summary: Kubernetes-in-Docker tool for local cluster testing.
+      homepage: "https://kind.sigs.k8s.io"
+      tags: [kubernetes]
+    - id: trivy
+      name: Trivy
+      manager: winget
+      command: "winget install --id AquaSecurity.Trivy -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Vulnerability scanner for containers, IaC, and cloud artifacts.
+      homepage: "https://aquasecurity.github.io/trivy"
+      tags: [security]
+    - id: dive
+      name: Dive
+      manager: scoop
+      command: "scoop install dive"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Inspect container image layers to analyze contents and size.
+      homepage: "https://github.com/wagoodman/dive"
+      tags: [containers]
+    - id: istioctl
+      name: istioctl
+      manager: choco
+      command: "choco install istioctl -y --no-progress"
+      requiresAdmin: true
+      summary: Command-line utility for managing Istio service meshes.
+      homepage: "https://istio.io/latest/docs/reference/commands/istioctl/"
+      tags: [service-mesh]
+    - id: skaffold
+      name: Skaffold
+      manager: choco
+      command: "choco install skaffold -y --no-progress"
+      requiresAdmin: true
+      summary: Automates local Kubernetes development workflows.
+      homepage: "https://skaffold.dev"
+      tags: [kubernetes, devops]
+    - id: pulumi
+      name: Pulumi
+      manager: choco
+      command: "choco install pulumi -y --no-progress"
+      requiresAdmin: true
+      summary: Infrastructure-as-code platform using familiar programming languages.
+      homepage: "https://www.pulumi.com"
+      tags: [iac]
+    - id: k9s
+      name: k9s
+      manager: choco
+      command: "choco install k9s -y --no-progress"
+      requiresAdmin: true
+      summary: Terminal UI to interact with Kubernetes clusters efficiently.
+      homepage: "https://k9scli.io"
+      tags: [kubernetes]
+    - id: kubectx
+      name: kubectx
+      manager: scoop
+      command: "scoop install kubectx"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Fast kubeconfig context switching helper for kubectl.
+      homepage: "https://github.com/ahmetb/kubectx"
+      tags: [kubernetes]
+    - id: kubens
+      name: kubens
+      manager: scoop
+      command: "scoop install kubens"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Quick namespace switcher companion to kubectx.
+      homepage: "https://github.com/ahmetb/kubectx"
+      tags: [kubernetes]
+    - id: openshift-cli
+      name: OpenShift CLI (oc)
+      manager: choco
+      command: "choco install openshift-cli -y --no-progress"
+      requiresAdmin: true
+      summary: Command-line tooling for Red Hat OpenShift clusters.
+      homepage: "https://docs.openshift.com/container-platform/latest/cli_reference/openshift_cli/getting-started-cli.html"
+      tags: [kubernetes]
+    - id: jenkins
+      name: Jenkins
+      manager: choco
+      command: "choco install jenkins -y --no-progress"
+      requiresAdmin: true
+      summary: Automation server for building, deploying, and automating projects.
+      homepage: "https://www.jenkins.io"
+      tags: [devops]
+    - id: jq
+      name: jq
+      manager: scoop
+      command: "scoop install jq"
+      requiresAdmin: false
+      summary: Lightweight JSON processor.
+      homepage: "https://stedolan.github.io/jq"
+      tags: [cli]
+    - id: vagrant
+      name: HashiCorp Vagrant
+      manager: winget
+      command: "winget install --id Hashicorp.Vagrant -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Build portable development environments.
+      homepage: "https://www.vagrantup.com"
+      tags: [automation]
+    - id: minikube
+      name: minikube
+      manager: winget
+      command: "winget install --id Kubernetes.minikube -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Run a local Kubernetes cluster.
+      homepage: "https://minikube.sigs.k8s.io"
+      tags: [kubernetes]
+    - id: virtualbox
+      name: Oracle VirtualBox
+      manager: winget
+      command: "winget install --id Oracle.VirtualBox -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Desktop virtualization platform.
+      homepage: "https://www.virtualbox.org"
+      tags: [virtualization]
+    - id: vmware-player
+      name: VMware Workstation Player
+      manager: winget
+      command: "winget install --id VMware.WorkstationPlayer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: VMware desktop hypervisor for labs.
+      homepage: "https://www.vmware.com/products/workstation-player.html"
+      tags: [virtualization]
+    - id: aws-sam-cli
+      name: AWS SAM CLI
+      manager: choco
+      command: "choco install aws-sam-cli -y --no-progress"
+      requiresAdmin: true
+      summary: Build and deploy serverless applications on AWS.
+      homepage: "https://aws.amazon.com/serverless/sam/"
+      tags: [aws, serverless]
+    - id: azure-functions-core-tools
+      name: Azure Functions Core Tools 4
+      manager: choco
+      command: "choco install azure-functions-core-tools-4 -y --no-progress"
+      requiresAdmin: true
+      summary: Local development tools for Azure Functions.
+      homepage: "https://learn.microsoft.com/azure/azure-functions/functions-run-local"
+      tags: [azure, serverless]
+    - id: consul
+      name: HashiCorp Consul
+      manager: winget
+      command: "winget install --id Hashicorp.Consul -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Service discovery and service mesh runtime.
+      homepage: "https://www.consul.io"
+      tags: [service-mesh]
+    - id: nomad
+      name: HashiCorp Nomad
+      manager: winget
+      command: "winget install --id Hashicorp.Nomad -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Flexible orchestrator for batch and service workloads.
+      homepage: "https://www.nomadproject.io"
+      tags: [orchestration]
+    - id: dapr-cli
+      name: Dapr CLI
+      manager: winget
+      command: "winget install --id Dapr.CLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Local tooling for the Distributed Application Runtime.
+      homepage: "https://dapr.io"
+      tags: [microservices]
+    - id: packer
+      name: Packer
+      manager: winget
+      command: "winget install --id Hashicorp.Packer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Automated machine image building for multiple platforms.
+      homepage: "https://www.packer.io"
+      tags: [devops]
+    - id: talosctl
+      name: talosctl
+      manager: winget
+      command: "winget install --id SideroLabs.Talosctl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Management CLI for Talos Linux Kubernetes operating system.
+      homepage: "https://www.talos.dev"
+      tags: [kubernetes]
+    - id: google-cloud-sdk
+      name: Google Cloud SDK
+      manager: winget
+      command: "winget install --id Google.CloudSDK -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: CLI tooling for managing Google Cloud resources.
+      homepage: "https://cloud.google.com/sdk"
+      tags: [cloud]
+    - id: rancher-desktop
+      name: Rancher Desktop
+      manager: winget
+      command: "winget install --id SUSE.RancherDesktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Kubernetes and container management alternative to Docker Desktop.
+      homepage: "https://rancherdesktop.io"
+      tags: [kubernetes]
+    - id: rclone
+      name: rclone
+      manager: winget
+      command: "winget install --id Rclone.Rclone -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line tool to sync files across local and cloud storage providers.
+      homepage: "https://rclone.org"
+      tags: [cloud]

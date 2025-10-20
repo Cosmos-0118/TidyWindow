@@ -1,0 +1,177 @@
+packages:
+    - id: cmake
+      name: CMake
+      manager: winget
+      command: "winget install --id Kitware.CMake -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cross-platform build system generator.
+      homepage: "https://cmake.org"
+      tags: [build]
+    - id: ninja
+      name: Ninja
+      manager: winget
+      command: "winget install --id Ninja-build.Ninja -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Small build system with fast focus.
+      homepage: "https://ninja-build.org"
+      tags: [build]
+    - id: meson
+      name: Meson
+      manager: choco
+      command: "choco install meson -y --no-progress"
+      requiresAdmin: true
+      summary: High-productivity build system generator focused on simplicity and speed.
+      homepage: "https://mesonbuild.com"
+      tags: [build]
+    - id: mingw
+      name: MinGW-w64
+      manager: choco
+      command: "choco install mingw --version=12.2.0 -y --no-progress"
+      requiresAdmin: true
+      summary: GCC toolchain for Windows.
+      homepage: "https://mingw-w64.org"
+      tags: [compiler]
+    - id: llvm
+      name: LLVM Toolchain
+      manager: winget
+      command: "winget install --id LLVM.LLVM -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Clang/LLVM toolchain.
+      homepage: "https://llvm.org"
+      tags: [compiler]
+    - id: zig
+      name: Zig
+      manager: winget
+      command: "winget install --id Zig.Zig -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: General-purpose language and toolchain focused on performance and control.
+      homepage: "https://ziglang.org"
+      tags: [compiler]
+    - id: make
+      name: GNU Make
+      manager: choco
+      command: "choco install make -y --no-progress"
+      requiresAdmin: true
+      summary: Build automation tool.
+      homepage: "https://www.gnu.org/software/make/"
+      tags: [build]
+    - id: pipx
+      name: pipx
+      manager: winget
+      command: "winget install --id Python.Pipx -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Run Python applications in isolated environments.
+      homepage: "https://pypa.github.io/pipx"
+      tags: [python]
+    - id: nuget-cli
+      name: NuGet CLI
+      manager: winget
+      command: "winget install --id Microsoft.NuGet -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line interface for NuGet packages.
+      homepage: "https://learn.microsoft.com/nuget"
+      tags: [dotnet]
+    - id: pre-commit
+      name: pre-commit
+      manager: choco
+      command: "choco install pre-commit -y --no-progress"
+      requiresAdmin: true
+      summary: Framework for managing Git pre-commit hooks across languages.
+      homepage: "https://pre-commit.com"
+      tags: [git]
+    - id: chocolatey
+      name: Chocolatey
+      manager: choco
+      command: "choco upgrade chocolatey -y --no-progress"
+      requiresAdmin: true
+      summary: Windows package manager.
+      homepage: "https://chocolatey.org"
+      tags: [package-manager]
+    - id: scoop
+      name: Scoop
+      manager: scoop
+      command: "iwr -useb get.scoop.sh | iex"
+      requiresAdmin: false
+      summary: Developer-friendly package manager.
+      homepage: "https://scoop.sh"
+      tags: [package-manager]
+    - id: yarn
+      name: Yarn
+      manager: winget
+      command: "winget install --id Yarn.Yarn -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Alternative JavaScript package manager.
+      homepage: "https://yarnpkg.com"
+      tags: [javascript, runtime]
+    - id: bun
+      name: Bun Runtime
+      manager: winget
+      command: "winget install --id Oven-sh.Bun -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast JavaScript runtime and toolkit.
+      homepage: "https://bun.sh"
+      tags: [javascript, runtime]
+    - id: pnpm
+      name: pnpm
+      manager: choco
+      command: "choco install pnpm -y --no-progress"
+      requiresAdmin: true
+      summary: Fast, disk space-efficient package manager for Node.js projects.
+      homepage: "https://pnpm.io"
+      tags: [javascript, build]
+    - id: bazel
+      name: Bazel
+      manager: choco
+      command: "choco install bazel -y --no-progress"
+      requiresAdmin: true
+      summary: Build and test tool supporting multiple languages and platforms.
+      homepage: "https://bazel.build"
+      tags: [build]
+    - id: bazelisk
+      name: Bazelisk
+      manager: choco
+      command: "choco install bazelisk -y --no-progress"
+      requiresAdmin: true
+      summary: Bazel launcher that automatically selects the required Bazel version.
+      homepage: "https://github.com/bazelbuild/bazelisk"
+      tags: [build]
+    - id: msys2
+      name: MSYS2
+      manager: choco
+      command: "choco install msys2 -y --no-progress"
+      requiresAdmin: true
+      summary: Unix-like development environment and package manager for Windows.
+      homepage: "https://www.msys2.org"
+      tags: [build]
+    - id: rustup
+      name: rustup
+      manager: winget
+      command: "winget install --id Rustlang.Rustup -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Manage Rust toolchains and targets.
+      homepage: "https://rustup.rs"
+      tags: [rust, runtime]
+    - id: just
+      name: just
+      manager: scoop
+      command: "scoop install just"
+      requiresAdmin: false
+      summary: Command runner for project task automation.
+      homepage: "https://just.systems"
+      tags: [automation]
+    - id: go-lang
+      name: Go
+      manager: winget
+      command: "winget install --id GoLang.Go -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Go programming language toolchain.
+      homepage: "https://go.dev"
+      tags: [go, runtime]
+    - id: deno
+      name: Deno
+      manager: winget
+      command: "winget install --id DenoLand.Deno -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Secure runtime for JavaScript and TypeScript.
+      homepage: "https://deno.com"
+      tags: [javascript, runtime]

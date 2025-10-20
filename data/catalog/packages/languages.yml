@@ -1,0 +1,65 @@
+packages:
+    - id: ruby
+      name: Ruby Installer
+      manager: choco
+      command: "choco install ruby -y --no-progress"
+      requiresAdmin: true
+      summary: Ruby language runtime for Windows via RubyInstaller.
+      homepage: "https://rubyinstaller.org"
+      tags: [runtime, ruby]
+    - id: strawberry-perl
+      name: Strawberry Perl
+      manager: choco
+      command: "choco install strawberryperl -y --no-progress"
+      requiresAdmin: true
+      summary: Complete Perl distribution for Windows including GCC toolchain.
+      homepage: "https://strawberryperl.com"
+      tags: [runtime, perl]
+    - id: kotlin-compiler
+      name: Kotlin Compiler
+      manager: choco
+      command: "choco install kotlin-compiler -y --no-progress"
+      requiresAdmin: true
+      summary: Standalone Kotlin compiler for JVM and multiplatform projects.
+      homepage: "https://kotlinlang.org"
+      tags: [runtime, kotlin]
+    - id: lua
+      name: Lua
+      manager: choco
+      command: "choco install lua -y --no-progress"
+      requiresAdmin: true
+      summary: Lightweight scripting language runtime.
+      homepage: "https://www.lua.org"
+      tags: [runtime, lua]
+    - id: luarocks
+      name: LuaRocks
+      manager: choco
+      command: "choco install luarocks -y --no-progress"
+      requiresAdmin: true
+      summary: Package manager for Lua modules.
+      homepage: "https://luarocks.org"
+      tags: [lua, package-manager]
+    - id: elixir
+      name: Elixir
+      manager: choco
+      command: "choco install elixir -y --no-progress"
+      requiresAdmin: true
+      summary: Functional language for scalable applications built on the Erlang VM.
+      homepage: "https://elixir-lang.org"
+      tags: [runtime, beam]
+    - id: erlang
+      name: Erlang/OTP
+      manager: choco
+      command: "choco install erlang -y --no-progress"
+      requiresAdmin: true
+      summary: Erlang runtime system and toolchain for BEAM-based languages.
+      homepage: "https://www.erlang.org"
+      tags: [runtime, beam]
+    - id: ghcup
+      name: GHCup
+      manager: scoop
+      command: "scoop install ghcup"
+      requiresAdmin: false
+      summary: Toolchain manager for Glasgow Haskell Compiler and related tooling.
+      homepage: "https://www.haskell.org/ghcup/"
+      tags: [runtime, haskell]
