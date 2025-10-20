@@ -101,5 +101,5 @@ AI CLEANUP ASSISTANT IMPLEMENTATION PLAN
 
 10. Documentation
 
-   - Update `docs/runtime-updates.md` and `docs/automation.md` with API setup steps.
+   - Update `docs/package-maintenance.md` and `docs/automation.md` with API setup steps.
    - Capture screenshots of the Cleanup page AI card for the getting started guide.

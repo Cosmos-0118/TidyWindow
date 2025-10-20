@@ -83,13 +83,16 @@
 -   `dotnet build src/TidyWindow.sln`
 -   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
-## Runtime & App Updates
+## Package Maintenance Console
 
-[x] Step 7.1: Create metadata catalog `src/TidyWindow.Core/Updates/RuntimeCatalogService.cs` listing tracked runtimes.
-[x] Step 7.2: Implement script `automation/scripts/check-runtime-updates.ps1` returning version/availability info.
-[x] Step 7.3: Build view model `ViewModels/RuntimeUpdatesViewModel.cs` aggregating catalog and script results.
-[x] Step 7.4: Design `Views/RuntimeUpdatesPage.xaml` with sortable grid and update/install commands.
-[x] Step 7.5: Document supported runtimes and manual override steps in `docs/runtime-updates.md`.
+> Legacy runtime updates surface has been retired. Next milestone is a cross-manager maintenance page that enumerates installed software and supports bulk updates or removals.
+
+[x] Step 7.1: Retire runtime update script, service, page, tests, and docs (removed Oct 2025 cleanup).
+[ ] Step 7.2: Implement package inventory service that shells out to winget/choco/scoop using dedicated non-admin PowerShell runspaces per manager.
+[ ] Step 7.3: Join inventory data with `data/catalog/packages` metadata to surface friendly names, tags, and safe removal guidance.
+[ ] Step 7.4: Build view model `ViewModels/PackageMaintenanceViewModel.cs` exposing update/delete commands and wiring to the install queue when needed.
+[ ] Step 7.5: Design `Views/PackageMaintenancePage.xaml` to present installed packages, available updates, and removal actions with responsive status feedback.
+[ ] Step 7.6: Document package maintenance workflows and troubleshooting in `docs/package-maintenance.md`.
 
 **Build & Run Checkpoint**
 
@@ -127,7 +130,7 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 ## Defender Scan (Optional)
 
 [ ] Step 10.1: Script a quick-scan bridge `automation/scripts/windows-defender-quickscan.ps1` that runs `Start-MpScan -ScanType QuickScan` and captures summary output.
-[ ] Step 10.2: Surface the scan result in `RuntimeUpdatesPage` or a lightweight status panel (no heuristics engine).
+[ ] Step 10.2: Surface the scan result in `PackageMaintenancePage` or a lightweight status panel (no heuristics engine).
 [ ] Step 10.3: Document how to interpret Defender output in `docs/security-notes.md` (linking to Microsoft guidance).
 
 **Build & Run Checkpoint**
