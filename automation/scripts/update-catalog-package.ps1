@@ -178,8 +178,9 @@ function Normalize-VersionString {
     }
 
     $trimmed = $Value.Trim()
-    if ($trimmed -match '([0-9]+(?:\.[0-9]+)*)') {
-        return $matches[1]
+    if ($trimmed -match '([0-9]+(?:[\._][0-9A-Za-z]+)*)') {
+        $candidate = $matches[1].Replace('_', '.')
+        return $candidate
     }
 
     return $trimmed
@@ -397,6 +398,57 @@ function Get-ChocoAvailableVersion {
     return $null
 }
 
+function Get-ScoopManifestPaths {
+    param([string] $PackageId)
+
+    $root = $env:SCOOP
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        $root = Join-Path -Path ([Environment]::GetFolderPath('UserProfile')) -ChildPath 'scoop'
+    }
+
+    if ([string]::IsNullOrWhiteSpace($PackageId) -or [string]::IsNullOrWhiteSpace($root)) {
+        return [pscustomobject]@{
+            Root            = $root
+            BucketPath      = $null
+            WorkspacePath   = $null
+            WorkspaceExists = $false
+        }
+    }
+
+    $bucketPath = $null
+    $bucketRoot = if ($root) { Join-Path -Path $root -ChildPath 'buckets' } else { $null }
+    if ($bucketRoot -and (Test-Path -Path $bucketRoot)) {
+        foreach ($bucket in Get-ChildItem -Path $bucketRoot -Directory -ErrorAction SilentlyContinue) {
+            foreach ($extension in @('.json', '.yml', '.yaml')) {
+                $candidate = Join-Path -Path $bucket.FullName -ChildPath (Join-Path -Path 'bucket' -ChildPath "$PackageId$extension")
+                if (Test-Path -Path $candidate) {
+                    $bucketPath = $candidate
+                    break
+                }
+            }
+
+            if ($bucketPath) { break }
+        }
+    }
+
+    $workspaceDir = if ($root) { Join-Path -Path $root -ChildPath 'workspace' } else { $null }
+    $workspacePath = $null
+    $workspaceExists = $false
+    if ($workspaceDir) {
+        $workspacePath = Join-Path -Path $workspaceDir -ChildPath "$PackageId.json"
+        if (Test-Path -Path $workspacePath) {
+            $workspaceExists = $true
+        }
+    }
+
+    return [pscustomobject]@{
+        Root            = $root
+        BucketPath      = $bucketPath
+        WorkspacePath   = $workspacePath
+        WorkspaceExists = $workspaceExists
+    }
+}
+
 function Get-ScoopInstalledVersion {
     param([string] $PackageId)
 
@@ -404,9 +456,43 @@ function Get-ScoopInstalledVersion {
     if (-not $command) { return $null }
 
     $exe = if ($command.Source) { $command.Source } else { 'scoop' }
+
+    # Prefer scoop export because scoop list --json is not available in older builds.
+    try {
+        $output = & $exe 'export' 2>$null
+        if ($LASTEXITCODE -eq 0 -and $output) {
+            $payload = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop
+            $apps = @()
+
+            if ($payload) {
+                if ($payload.apps) { $apps += @($payload.apps) }
+                if ($payload.Apps) { $apps += @($payload.Apps) }
+                if ($payload -is [System.Collections.IEnumerable] -and $payload -isnot [string]) {
+                    $apps += @($payload)
+                }
+            }
+
+            foreach ($entry in $apps) {
+                if (-not $entry) { continue }
+
+                $name = $entry.Name
+                if (-not $name) { $name = $entry.name }
+                if (-not $name) { $name = $entry.Id }
+                if (-not $name) { $name = $entry.id }
+
+                if ($name -and [string]::Equals($name, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    if ($entry.Version) { return ($entry.Version).ToString().Trim() }
+                    if ($entry.version) { return ($entry.version).ToString().Trim() }
+                }
+            }
+        }
+    }
+    catch { }
+
+    # Fall back to scoop list --json if export is unavailable.
     try {
         $output = & $exe 'list' '--json' 2>$null
-        if ($LASTEXITCODE -ne 0 -or -not $output) { return $null }
+        if ($LASTEXITCODE -ne 0 -or -not $output) { throw 'list-json-unavailable' }
 
         $appsPayload = ConvertFrom-Json -InputObject ($output -join [Environment]::NewLine) -ErrorAction Stop
         $apps = @()
@@ -431,7 +517,7 @@ function Get-ScoopInstalledVersion {
                     if ($entry -is [System.Collections.IEnumerable] -and $entry -isnot [string]) {
                         $apps += @($entry)
                     }
-                    else {
+                    elseif ($null -ne $entry) {
                         $apps += ,$entry
                     }
                 }
@@ -443,11 +529,20 @@ function Get-ScoopInstalledVersion {
             if (-not $name) { $name = $entry.name }
             if (-not $name) { $name = $entry.id }
 
-            if ($name -and ($name -eq $PackageId)) {
+            if ($name -and [string]::Equals($name, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
                 if ($entry.Version) { return ($entry.Version).ToString().Trim() }
                 if ($entry.version) { return ($entry.version).ToString().Trim() }
                 if ($entry.installed) { return ($entry.installed).ToString().Trim() }
             }
+        }
+    }
+    catch { }
+
+    try {
+        $fallback = & $exe 'info' $PackageId 2>$null
+        foreach ($line in @($fallback)) {
+            if ($line -match '^\s*Installed Version\s*:\s*(.+)$') { return $matches[1].Trim() }
+            if ($line -match '^\s*Version\s*:\s*(.+)$') { return $matches[1].Trim() }
         }
     }
     catch { }
@@ -462,6 +557,35 @@ function Get-ScoopAvailableVersion {
     if (-not $command) { return $null }
 
     $exe = if ($command.Source) { $command.Source } else { 'scoop' }
+    try {
+        $paths = Get-ScoopManifestPaths -PackageId $PackageId
+        if ($paths.BucketPath -and (Test-Path -Path $paths.BucketPath)) {
+            $content = Get-Content -Path $paths.BucketPath -Raw -ErrorAction Stop
+            if ($paths.BucketPath.EndsWith('.json', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $manifest = $content | ConvertFrom-Json -ErrorAction Stop
+                if ($manifest.version) { return ($manifest.version).ToString().Trim() }
+                if ($manifest.Version) { return ($manifest.Version).ToString().Trim() }
+            }
+            else {
+                foreach ($line in $content -split "`n") {
+                    if ($line -match '^\s*version\s*:\s*(.+)$') {
+                        return $matches[1].Trim()
+                    }
+                }
+            }
+        }
+
+        if ($paths.WorkspaceExists -and $paths.WorkspacePath -and (Test-Path -Path $paths.WorkspacePath)) {
+            $content = Get-Content -Path $paths.WorkspacePath -Raw -ErrorAction Stop
+            $manifest = $content | ConvertFrom-Json -ErrorAction Stop
+            if ($manifest.version) { return ($manifest.version).ToString().Trim() }
+            if ($manifest.Version) { return ($manifest.Version).ToString().Trim() }
+        }
+    }
+    catch {
+        # Ignore manifest probing failures and continue with CLI-based approaches.
+    }
+
     try {
         $output = & $exe 'info' $PackageId '--json' 2>$null
         if ($LASTEXITCODE -ne 0 -or -not $output) { return $null }
@@ -489,6 +613,81 @@ function Get-ScoopAvailableVersion {
     catch { }
 
     return $null
+}
+
+function Reset-ScoopWorkspaceManifestIfOutdated {
+    param(
+        [string] $PackageId,
+        [string] $LatestVersion
+    )
+
+    if ([string]::IsNullOrWhiteSpace($PackageId) -or [string]::IsNullOrWhiteSpace($LatestVersion)) {
+        return
+    }
+
+    $paths = Get-ScoopManifestPaths -PackageId $PackageId
+    if (-not $paths) { return }
+
+    $bucketPath = $paths.BucketPath
+    if (-not $bucketPath -or -not (Test-Path -Path $bucketPath)) {
+        return
+    }
+
+    if (-not $bucketPath.EndsWith('.json', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return
+    }
+
+    $workspacePath = $paths.WorkspacePath
+    if (-not $workspacePath) {
+        if ([string]::IsNullOrWhiteSpace($paths.Root)) { return }
+        $workspacePath = Join-Path -Path (Join-Path -Path $paths.Root -ChildPath 'workspace') -ChildPath "$PackageId.json"
+    }
+
+    $workspaceDir = Split-Path -Parent $workspacePath
+    if (-not (Test-Path -Path $workspaceDir)) {
+        try { New-Item -Path $workspaceDir -ItemType Directory -Force | Out-Null } catch { return }
+    }
+
+    $bucketVersion = $null
+    $workspaceVersion = $null
+
+    try {
+        $bucketManifest = (Get-Content -Path $bucketPath -Raw -ErrorAction Stop) | ConvertFrom-Json -ErrorAction Stop
+        if ($bucketManifest.version) { $bucketVersion = $bucketManifest.version }
+        elseif ($bucketManifest.Version) { $bucketVersion = $bucketManifest.Version }
+    }
+    catch { return }
+
+    if ([string]::IsNullOrWhiteSpace($bucketVersion)) {
+        return
+    }
+
+    if (Test-Path -Path $workspacePath) {
+        try {
+            $workspaceManifest = (Get-Content -Path $workspacePath -Raw -ErrorAction Stop) | ConvertFrom-Json -ErrorAction Stop
+            if ($workspaceManifest.version) { $workspaceVersion = $workspaceManifest.version }
+            elseif ($workspaceManifest.Version) { $workspaceVersion = $workspaceManifest.Version }
+        }
+        catch {
+            # If the workspace manifest cannot be parsed we will overwrite it with the bucket manifest.
+        }
+    }
+
+    if (-not (Test-Path -Path $workspacePath)) {
+        try {
+            Copy-Item -Path $bucketPath -Destination $workspacePath -Force
+        }
+        catch { }
+        return
+    }
+
+    $status = Get-Status -Installed $workspaceVersion -Latest $bucketVersion
+    if ($status -eq 'UpdateAvailable' -or [string]::IsNullOrWhiteSpace($workspaceVersion)) {
+        try {
+            Copy-Item -Path $bucketPath -Destination $workspacePath -Force
+        }
+        catch { }
+    }
 }
 
 function Get-ManagerInstalledVersion {
@@ -660,6 +859,9 @@ try {
     $statusBefore = Get-Status -Installed $installedBefore -Latest $latestBefore
 
     if ($statusBefore -eq 'UpdateAvailable') {
+        if ($managerKey -eq 'scoop') {
+            Reset-ScoopWorkspaceManifestIfOutdated -PackageId $PackageId -LatestVersion $latestBefore
+        }
         $attempted = $true
         $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId
         $exitCode = $executionInfo.ExitCode
