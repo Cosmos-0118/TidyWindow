@@ -195,6 +195,115 @@
                                 Cursor="Hand"/>
                     </StackPanel>
 
+                    <StackPanel Orientation="Horizontal"
+                                Margin="0,0,0,12"
+                                HorizontalAlignment="Stretch">
+                        <TextBlock Text="Quick locations"
+                                   Width="100"
+                                   VerticalAlignment="Center"
+                                   Foreground="#94A3B8"/>
+                        <ComboBox ItemsSource="{Binding PresetLocations}"
+                                  SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                                  Width="260"
+                                  Background="Transparent"
+                                  Foreground="#E2E8F0"
+                                  BorderThickness="0"
+                                  Padding="0">
+                            <ComboBox.Template>
+                                <ControlTemplate TargetType="ComboBox">
+                                    <Grid>
+                                        <ToggleButton x:Name="ToggleButton"
+                                                      Template="{StaticResource ComboToggleButtonTemplate}"
+                                                      Grid.ColumnSpan="2"
+                                                      Focusable="False"
+                                                      IsHitTestVisible="True"
+                                                      ClickMode="Press"
+                                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                        <ContentPresenter x:Name="ContentSite"
+                                                          Margin="14,4,36,4"
+                                                          VerticalAlignment="Center"
+                                                          HorizontalAlignment="Left"
+                                                          RecognizesAccessKey="True"
+                                                          Content="{TemplateBinding SelectionBoxItem}"
+                                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
+                                        <Popup x:Name="PART_Popup"
+                                               Placement="Bottom"
+                                               AllowsTransparency="True"
+                                               Focusable="False"
+                                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                                               PopupAnimation="Slide">
+                                            <Border x:Name="PopupBorder"
+                                                    Background="#0F172A"
+                                                    BorderBrush="#1E293B"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="4">
+                                                <ScrollViewer Margin="0"
+                                                              SnapsToDevicePixels="True">
+                                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                </ScrollViewer>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="HasItems"
+                                                 Value="False">
+                                            <Setter TargetName="PopupBorder"
+                                                    Property="MinHeight"
+                                                    Value="24"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled"
+                                                 Value="False">
+                                            <Setter Property="Foreground"
+                                                    Value="#64748B"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ComboBox.Template>
+                            <ComboBox.ItemContainerStyle>
+                                <Style TargetType="ComboBoxItem">
+                                    <Setter Property="Foreground"
+                                            Value="#E2E8F0"/>
+                                    <Setter Property="Background"
+                                            Value="Transparent"/>
+                                    <Setter Property="Padding"
+                                            Value="8,4"/>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter Property="Background"
+                                                    Value="#1B2942"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected"
+                                                 Value="True">
+                                            <Setter Property="Background"
+                                                    Value="#1E3A8A"/>
+                                            <Setter Property="Foreground"
+                                                    Value="#F8FAFC"/>
+                                        </Trigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ComboBox.ItemContainerStyle>
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}"
+                                                   Foreground="#E2E8F0"/>
+                                        <TextBlock Text="{Binding Description}"
+                                                   Foreground="#64748B"
+                                                   FontSize="11"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="{Binding SelectedPreset.Description, TargetNullValue=Select a preset to jump there}"
+                                   Foreground="#64748B"
+                                   Margin="12,0,0,0"
+                                   VerticalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding SelectedPreset.Description}"/>
+                    </StackPanel>
+
                     <StackPanel Orientation="Vertical">
                         <StackPanel Orientation="Horizontal"
                                     Margin="0,0,0,12">
@@ -279,7 +388,7 @@
                                                                   Content="{TemplateBinding SelectionBoxItem}"
                                                                   ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                                                   ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
-                                                <Popup x:Name="Popup"
+                                                <Popup x:Name="PART_Popup"
                                                        Placement="Bottom"
                                                        AllowsTransparency="True"
                                                        Focusable="False"
@@ -353,25 +462,123 @@
                           BorderThickness="0"
                           Foreground="#F8FAFC"
                           ScrollViewer.VerticalScrollBarVisibility="Auto">
+                    <ListView.ItemContainerStyle>
+                        <Style TargetType="ListViewItem">
+                            <Setter Property="HorizontalContentAlignment"
+                                    Value="Stretch"/>
+                            <Setter Property="Padding"
+                                    Value="8"/>
+                            <Setter Property="Background"
+                                    Value="#111C33"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListViewItem">
+                                        <Border x:Name="Row"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="8"
+                                                Padding="{TemplateBinding Padding}">
+                                            <GridViewRowPresenter Margin="0"
+                                                                  Content="{TemplateBinding Content}"
+                                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter TargetName="Row"
+                                                        Property="Background"
+                                                        Value="#1B2942"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListView.ItemContainerStyle>
                     <ListView.View>
                         <GridView AllowsColumnReorder="False">
-                            <GridViewColumn Header="Name"
-                                            Width="220"
-                                            DisplayMemberBinding="{Binding Name}"/>
-                            <GridViewColumn Header="Type"
-                                            Width="100"
-                                            DisplayMemberBinding="{Binding KindDisplay}"/>
-                            <GridViewColumn Header="Size"
-                                            Width="120"
-                                            DisplayMemberBinding="{Binding SizeDisplay}"/>
-                            <GridViewColumn Header="Last modified"
-                                            Width="160"
-                                            DisplayMemberBinding="{Binding ModifiedDisplay}"/>
-                            <GridViewColumn Header="Directory"
-                                            Width="320"
-                                            DisplayMemberBinding="{Binding Directory}"/>
-                            <GridViewColumn Header="Actions"
-                                            Width="140">
+                            <GridView.ColumnHeaderContainerStyle>
+                                <Style TargetType="GridViewColumnHeader">
+                                    <Setter Property="Foreground"
+                                            Value="#94A3B8"/>
+                                    <Setter Property="FontSize"
+                                            Value="12"/>
+                                    <Setter Property="FontWeight"
+                                            Value="SemiBold"/>
+                                    <Setter Property="HorizontalContentAlignment"
+                                            Value="Left"/>
+                                    <Setter Property="Padding"
+                                            Value="6,4"/>
+                                    <Setter Property="Background"
+                                            Value="Transparent"/>
+                                </Style>
+                            </GridView.ColumnHeaderContainerStyle>
+                            <GridViewColumn Width="320">
+                                <GridViewColumn.Header>
+                                    <TextBlock Text="Item"/>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Name}"/>
+                                            <TextBlock Text="{Binding Directory}"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding Path}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Width="100"
+                                            DisplayMemberBinding="{Binding KindDisplay}">
+                                <GridViewColumn.Header>
+                                    <TextBlock Text="Type"/>
+                                </GridViewColumn.Header>
+                            </GridViewColumn>
+                            <GridViewColumn Width="140">
+                                <GridViewColumn.Header>
+                                    <TextBlock Text="Size"/>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding SizeDisplay}"
+                                                   TextAlignment="Right"
+                                                   HorizontalAlignment="Stretch"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Width="180">
+                                <GridViewColumn.Header>
+                                    <TextBlock Text="Last modified"/>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ModifiedDisplay}"
+                                                   TextAlignment="Right"
+                                                   HorizontalAlignment="Stretch"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Width="260">
+                                <GridViewColumn.Header>
+                                    <TextBlock Text="Path"/>
+                                </GridViewColumn.Header>
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Path}"
+                                                   Foreground="#94A3B8"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding Path}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Width="140">
+                                <GridViewColumn.Header>
+                                    <TextBlock Text="Actions"/>
+                                </GridViewColumn.Header>
                                 <GridViewColumn.CellTemplate>
                                     <DataTemplate>
                                         <Button Content="Open location"
@@ -387,26 +594,6 @@
                             </GridViewColumn>
                         </GridView>
                     </ListView.View>
-
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="HorizontalContentAlignment"
-                                    Value="Stretch"/>
-                            <Setter Property="Padding"
-                                    Value="6"/>
-                            <Setter Property="Margin"
-                                    Value="0,2"/>
-                            <Setter Property="Background"
-                                    Value="Transparent"/>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver"
-                                         Value="True">
-                                    <Setter Property="Background"
-                                            Value="#1B2942"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ListView.ItemContainerStyle>
 
                     <ListView.IsEnabled>
                         <Binding Path="IsBusy"

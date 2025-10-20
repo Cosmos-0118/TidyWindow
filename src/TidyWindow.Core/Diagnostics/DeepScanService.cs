@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.IO.Enumeration;
 using System.Linq;
 using System.Security;
 using System.Threading;
@@ -54,10 +55,13 @@ public sealed class DeepScanService
         if (File.Exists(resolvedRoot))
         {
             var queue = new PriorityQueue<DeepScanFinding, long>(1);
-            var finding = TryCreateFileFinding(resolvedRoot, context);
-            if (finding is not null)
+            var rootFile = CreateFileEntry(resolvedRoot);
+            if (rootFile is not null && TryProcessFileEntry(rootFile.Value, context, out var rootFinding, out _))
             {
-                AddCandidate(queue, finding, context.Limit);
+                if (rootFinding is not null)
+                {
+                    AddCandidate(queue, rootFinding, context.Limit);
+                }
             }
 
             var single = DrainQueue(queue);
@@ -67,11 +71,20 @@ public sealed class DeepScanService
         var results = new PriorityQueue<DeepScanFinding, long>(context.Limit);
         var totalSize = ProcessDirectory(resolvedRoot, results, context, cancellationToken);
 
-        if (context.IncludeDirectories)
+        if (context.IncludeDirectories && totalSize >= context.MinSizeBytes)
         {
-            var rootFinding = TryCreateFindingForDirectory(resolvedRoot, totalSize, context);
-            if (rootFinding is not null)
+            if (CreateDirectoryEntry(resolvedRoot) is { } rootDirectory
+                && !ShouldSkipDirectory(rootDirectory, context.IncludeHidden)
+                && MatchesName(rootDirectory.Name, context))
             {
+                var rootFinding = new DeepScanFinding(
+                    path: rootDirectory.FullPath,
+                    name: rootDirectory.Name,
+                    directory: rootDirectory.Directory,
+                    sizeBytes: totalSize,
+                    modifiedUtc: rootDirectory.LastWriteUtc,
+                    extension: string.Empty,
+                    isDirectory: true);
                 AddCandidate(results, rootFinding, context.Limit);
             }
         }
@@ -86,13 +99,13 @@ public sealed class DeepScanService
 
         long directorySize = 0;
 
-        foreach (var entry in EnumerateEntriesSafe(directoryPath, context))
+        foreach (var entry in EnumerateEntries(directoryPath, context))
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            if (entry is FileInfo fileInfo)
+            if (!entry.IsDirectory)
             {
-                if (!TryProcessFileEntry(fileInfo, context, out var fileFinding, out var fileSize))
+                if (!TryProcessFileEntry(entry, context, out var fileFinding, out var fileSize))
                 {
                     continue;
                 }
@@ -107,95 +120,37 @@ public sealed class DeepScanService
                 continue;
             }
 
-            if (entry is DirectoryInfo directoryInfo)
+            if (ShouldSkipDirectory(entry, context.IncludeHidden))
             {
-                try
-                {
-                    if (ShouldSkipDirectory(directoryInfo, context.IncludeHidden))
-                    {
-                        continue;
-                    }
-                }
-                catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
-                {
-                    continue;
-                }
-
-                var childSize = ProcessDirectory(directoryInfo.FullName, queue, context, cancellationToken);
-                directorySize += childSize;
-
-                if (!context.IncludeDirectories || childSize < context.MinSizeBytes)
-                {
-                    continue;
-                }
-
-                var directoryFinding = TryCreateFindingForDirectory(directoryInfo, childSize, context);
-                if (directoryFinding is not null)
-                {
-                    AddCandidate(queue, directoryFinding, context.Limit);
-                }
+                continue;
             }
+
+            var childSize = ProcessDirectory(entry.FullPath, queue, context, cancellationToken);
+            directorySize += childSize;
+
+            if (!context.IncludeDirectories || childSize < context.MinSizeBytes)
+            {
+                continue;
+            }
+
+            if (!MatchesName(entry.Name, context))
+            {
+                continue;
+            }
+
+            var directoryFinding = new DeepScanFinding(
+                path: entry.FullPath,
+                name: entry.Name,
+                directory: entry.Directory,
+                sizeBytes: childSize,
+                modifiedUtc: entry.LastWriteUtc,
+                extension: string.Empty,
+                isDirectory: true);
+
+            AddCandidate(queue, directoryFinding, context.Limit);
         }
 
         return directorySize;
-    }
-
-    private static DeepScanFinding? TryCreateFileFinding(string filePath, ScanContext context)
-    {
-        try
-        {
-            var fileInfo = new FileInfo(filePath);
-            return TryCreateFileFinding(fileInfo, context);
-        }
-        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
-        {
-            return null;
-        }
-    }
-
-    private static DeepScanFinding? TryCreateFileFinding(FileInfo fileInfo, ScanContext context)
-        => TryProcessFileEntry(fileInfo, context, out var finding, out _) ? finding : null;
-
-    private static DeepScanFinding? TryCreateFindingForDirectory(string directoryPath, long sizeBytes, ScanContext context)
-        => TryCreateFindingForDirectory(new DirectoryInfo(directoryPath), sizeBytes, context);
-
-    private static DeepScanFinding? TryCreateFindingForDirectory(DirectoryInfo directoryInfo, long sizeBytes, ScanContext context)
-    {
-        if (sizeBytes < context.MinSizeBytes)
-        {
-            return null;
-        }
-
-        try
-        {
-            if (!directoryInfo.Exists)
-            {
-                return null;
-            }
-
-            if (ShouldSkipDirectory(directoryInfo, context.IncludeHidden))
-            {
-                return null;
-            }
-        }
-        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
-        {
-            return null;
-        }
-
-        if (!MatchesName(directoryInfo.Name, context))
-        {
-            return null;
-        }
-
-        return new DeepScanFinding(
-            path: directoryInfo.FullName,
-            name: directoryInfo.Name,
-            directory: directoryInfo.Parent?.FullName ?? string.Empty,
-            sizeBytes: sizeBytes,
-            modifiedUtc: directoryInfo.LastWriteTimeUtc,
-            extension: string.Empty,
-            isDirectory: true);
     }
 
     private static void AddCandidate(PriorityQueue<DeepScanFinding, long> queue, DeepScanFinding candidate, int limit)
@@ -279,132 +234,104 @@ public sealed class DeepScanService
         }
     }
 
-    private static IEnumerable<FileSystemInfo> EnumerateEntriesSafe(string directoryPath, ScanContext context)
+    private static IEnumerable<FileEntry> EnumerateEntries(string directoryPath, ScanContext context)
     {
-        DirectoryInfo directoryInfo;
+        FileSystemEnumerable<FileEntry>? enumerable;
         try
         {
-            directoryInfo = new DirectoryInfo(directoryPath);
-        }
-        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
-        {
-            yield break;
-        }
-
-        if (!directoryInfo.Exists)
-        {
-            yield break;
-        }
-
-        IEnumerator<FileSystemInfo>? enumerator = null;
-        try
-        {
-            enumerator = directoryInfo
-                .EnumerateFileSystemInfos("*", context.DirectoryEnumerationOptions)
-                .GetEnumerator();
-        }
-        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
-        {
-            yield break;
-        }
-
-        try
-        {
-            while (true)
+            enumerable = new FileSystemEnumerable<FileEntry>(
+                directoryPath,
+                static (ref FileSystemEntry entry) =>
+                {
+                    var fullPath = entry.ToFullPath();
+                    var name = entry.FileName.ToString();
+                    var directory = Path.GetDirectoryName(fullPath) ?? string.Empty;
+                    var extension = entry.IsDirectory ? string.Empty : Path.GetExtension(name);
+                    return new FileEntry(
+                        fullPath: fullPath,
+                        name: name,
+                        directory: directory,
+                        sizeBytes: entry.IsDirectory ? 0 : entry.Length,
+                        lastWriteUtc: entry.LastWriteTimeUtc,
+                        attributes: entry.Attributes,
+                        isDirectory: entry.IsDirectory,
+                        extension: extension);
+                },
+                context.DirectoryEnumerationOptions)
             {
-                bool moved;
-                try
-                {
-                    moved = enumerator.MoveNext();
-                }
-                catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
-                {
-                    yield break;
-                }
-
-                if (!moved)
-                {
-                    yield break;
-                }
-
-                var current = enumerator.Current;
-                if (current is not null)
-                {
-                    yield return current;
-                }
-            }
+                ShouldIncludePredicate = static (ref FileSystemEntry entry) => true,
+                ShouldRecursePredicate = static (ref FileSystemEntry entry) => false
+            };
         }
-        finally
+        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
         {
-            enumerator?.Dispose();
+            yield break;
+        }
+
+        using var enumerator = enumerable.GetEnumerator();
+        while (true)
+        {
+            FileEntry current;
+            try
+            {
+                if (!enumerator.MoveNext())
+                {
+                    yield break;
+                }
+
+                current = enumerator.Current;
+            }
+            catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
+            {
+                yield break;
+            }
+
+            yield return current;
         }
     }
 
-    private static bool TryProcessFileEntry(FileInfo fileInfo, ScanContext context, out DeepScanFinding? finding, out long fileSize)
+    private static bool TryProcessFileEntry(FileEntry entry, ScanContext context, out DeepScanFinding? finding, out long fileSize)
     {
         finding = null;
         fileSize = 0;
 
-        try
-        {
-            if (!fileInfo.Exists)
-            {
-                return false;
-            }
-
-            var attributes = fileInfo.Attributes;
-            if (ShouldSkipFile(attributes, fileInfo.Name, context.IncludeHidden))
-            {
-                return false;
-            }
-
-            var length = fileInfo.Length;
-            fileSize = length;
-
-            if (length < context.MinSizeBytes)
-            {
-                return true;
-            }
-
-            if (!MatchesName(fileInfo.Name, context))
-            {
-                return true;
-            }
-
-            finding = new DeepScanFinding(
-                path: fileInfo.FullName,
-                name: fileInfo.Name,
-                directory: fileInfo.DirectoryName ?? string.Empty,
-                sizeBytes: length,
-                modifiedUtc: fileInfo.LastWriteTimeUtc,
-                extension: fileInfo.Extension,
-                isDirectory: false);
-
-            return true;
-        }
-        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
+        if (ShouldSkipFile(entry.Attributes, entry.Name, context.IncludeHidden))
         {
             return false;
         }
+
+        fileSize = entry.SizeBytes;
+
+        if (entry.SizeBytes < context.MinSizeBytes)
+        {
+            return true;
+        }
+
+        if (!MatchesName(entry.Name, context))
+        {
+            return true;
+        }
+
+        finding = new DeepScanFinding(
+            path: entry.FullPath,
+            name: entry.Name,
+            directory: entry.Directory,
+            sizeBytes: entry.SizeBytes,
+            modifiedUtc: entry.LastWriteUtc,
+            extension: entry.Extension,
+            isDirectory: false);
+
+        return true;
     }
 
-    private static bool ShouldSkipDirectory(DirectoryInfo directoryInfo, bool includeHidden)
+    private static bool ShouldSkipDirectory(FileEntry entry, bool includeHidden)
     {
-        try
+        if (IsReparsePoint(entry.Attributes))
         {
-            var attributes = directoryInfo.Attributes;
-
-            if (IsReparsePoint(attributes))
-            {
-                return true;
-            }
-
-            if (!includeHidden && IsHidden(directoryInfo.Name, attributes))
-            {
-                return true;
-            }
+            return true;
         }
-        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
+
+        if (!includeHidden && IsHidden(entry.Name, entry.Attributes))
         {
             return true;
         }
@@ -458,6 +385,95 @@ public sealed class DeepScanService
         var readOnly = new ReadOnlyCollection<DeepScanFinding>(findings);
         var totalSize = findings.Sum(static item => item.SizeBytes);
         return new DeepScanResult(readOnly, rootPath, DateTimeOffset.UtcNow, findings.Count, totalSize);
+    }
+
+    private static FileEntry? CreateFileEntry(string filePath)
+    {
+        try
+        {
+            var fileInfo = new FileInfo(filePath);
+            if (!fileInfo.Exists)
+            {
+                return null;
+            }
+
+            return new FileEntry(
+                fullPath: fileInfo.FullName,
+                name: fileInfo.Name,
+                directory: fileInfo.DirectoryName ?? string.Empty,
+                sizeBytes: fileInfo.Length,
+                lastWriteUtc: ToUtcOffset(fileInfo.LastWriteTimeUtc),
+                attributes: fileInfo.Attributes,
+                isDirectory: false,
+                extension: fileInfo.Extension);
+        }
+        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
+        {
+            return null;
+        }
+    }
+
+    private static FileEntry? CreateDirectoryEntry(string directoryPath)
+    {
+        try
+        {
+            var directoryInfo = new DirectoryInfo(directoryPath);
+            if (!directoryInfo.Exists)
+            {
+                return null;
+            }
+
+            return new FileEntry(
+                fullPath: directoryInfo.FullName,
+                name: directoryInfo.Name,
+                directory: directoryInfo.Parent?.FullName ?? string.Empty,
+                sizeBytes: 0,
+                lastWriteUtc: ToUtcOffset(directoryInfo.LastWriteTimeUtc),
+                attributes: directoryInfo.Attributes,
+                isDirectory: true,
+                extension: string.Empty);
+        }
+        catch (Exception ex) when (IsNonCriticalFileSystemException(ex))
+        {
+            return null;
+        }
+    }
+
+    private static DateTimeOffset ToUtcOffset(DateTime value)
+    {
+        var specified = DateTime.SpecifyKind(value, DateTimeKind.Utc);
+        return new DateTimeOffset(specified);
+    }
+
+    private readonly struct FileEntry
+    {
+        public FileEntry(string fullPath, string name, string directory, long sizeBytes, DateTimeOffset lastWriteUtc, FileAttributes attributes, bool isDirectory, string extension)
+        {
+            FullPath = fullPath;
+            Name = name;
+            Directory = directory;
+            SizeBytes = sizeBytes;
+            LastWriteUtc = lastWriteUtc;
+            Attributes = attributes;
+            IsDirectory = isDirectory;
+            Extension = extension ?? string.Empty;
+        }
+
+        public string FullPath { get; }
+
+        public string Name { get; }
+
+        public string Directory { get; }
+
+        public long SizeBytes { get; }
+
+        public DateTimeOffset LastWriteUtc { get; }
+
+        public FileAttributes Attributes { get; }
+
+        public bool IsDirectory { get; }
+
+        public string Extension { get; }
     }
 
     private sealed class ScanContext

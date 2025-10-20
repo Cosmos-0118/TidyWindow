@@ -1,6 +1,8 @@
 param(
     [int] $PreviewCount = 10,
-    [bool] $IncludeDownloads = $false
+    [bool] $IncludeDownloads = $false,
+    [ValidateSet('Files', 'Folders', 'Both')]
+    [string] $ItemKind = 'Files'
 )
 
 $callerModulePath = $PSCmdlet.MyInvocation.MyCommand.Path
@@ -21,7 +23,49 @@ if (-not (Test-Path -Path $modulePath)) {
 
 Import-Module $modulePath -Force
 
-Write-TidyLog -Level Information -Message "Starting cleanup preview scan (PreviewCount=$PreviewCount, IncludeDownloads=$IncludeDownloads)."
+Write-TidyLog -Level Information -Message "Starting cleanup preview scan (PreviewCount=$PreviewCount, IncludeDownloads=$IncludeDownloads, ItemKind=$ItemKind)."
+
+function Add-TidyTopItem {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[object]] $Container,
+        [Parameter(Mandatory = $true)]
+        [int] $Capacity,
+        [Parameter(Mandatory = $true)]
+        [pscustomobject] $Item
+    )
+
+    if ($Capacity -le 0) {
+        return
+    }
+
+    if ($null -eq $Item) {
+        return
+    }
+
+    if ($Container.Count -lt $Capacity) {
+        $null = $Container.Add($Item)
+        return
+    }
+
+    $minIndex = 0
+    $minSize = [long]$Container[0].SizeBytes
+
+    for ($index = 1; $index -lt $Container.Count; $index++) {
+        $candidateSize = [long]$Container[$index].SizeBytes
+        if ($candidateSize -lt $minSize) {
+            $minSize = $candidateSize
+            $minIndex = $index
+        }
+    }
+
+    if ([long]$Item.SizeBytes -le $minSize) {
+        return
+    }
+
+    $Container[$minIndex] = $Item
+}
 
 function Resolve-TidyPath {
     param(
@@ -52,7 +96,8 @@ function Get-TidyDirectoryReport {
         [Parameter(Mandatory = $true)]
         [string] $Path,
         [int] $PreviewCount,
-        [string] $Notes
+        [string] $Notes,
+        [string] $ItemKind
     )
 
     $effectiveNotes = if ([string]::IsNullOrWhiteSpace($Notes)) {
@@ -94,54 +139,151 @@ function Get-TidyDirectoryReport {
         }
     }
 
-    $fileItems = @()
-    try {
-        $fileItems = Get-ChildItem -LiteralPath $resolvedPath -Force -Recurse -ErrorAction Stop -File
-    }
-    catch {
-        Write-TidyLog -Level Warning -Message "Category '$Category' [Type=$Classification] encountered errors enumerating '$resolvedPath': $($_.Exception.Message)"
+    $directoryInfo = [System.IO.DirectoryInfo]::new($resolvedPath)
+    $fileCount = 0
+    $totalSize = [long]0
+
+    $topFiles = [System.Collections.Generic.List[object]]::new()
+    $topDirectories = [System.Collections.Generic.List[object]]::new()
+
+    $allOptions = [System.IO.EnumerationOptions]::new()
+    $allOptions.RecurseSubdirectories = $true
+    $allOptions.IgnoreInaccessible = $true
+    $allOptions.AttributesToSkip = [System.IO.FileAttributes]::ReparsePoint -bor [System.IO.FileAttributes]::Offline
+
+    $directOptions = [System.IO.EnumerationOptions]::new()
+    $directOptions.RecurseSubdirectories = $false
+    $directOptions.IgnoreInaccessible = $true
+    $directOptions.AttributesToSkip = [System.IO.FileAttributes]::ReparsePoint -bor [System.IO.FileAttributes]::Offline
+
+    $directoryStats = [System.Collections.Hashtable]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $immediateDirectories = @()
+    if ($ItemKind -ne 'Files') {
         try {
-            $fileItems = Get-ChildItem -LiteralPath $resolvedPath -Force -Recurse -ErrorAction SilentlyContinue -File
+            $immediateDirectories = $directoryInfo.EnumerateDirectories('*', $directOptions)
         }
         catch {
-            $fileItems = @()
+            Write-TidyLog -Level Warning -Message "Category '$Category' [Type=$Classification] encountered errors enumerating directories under '$resolvedPath': $($_.Exception.Message)"
+            $immediateDirectories = @()
+        }
+
+        foreach ($directory in $immediateDirectories) {
+            if ($null -eq $directory) {
+                continue
+            }
+
+            $directoryStats[$directory.FullName] = [pscustomobject]@{
+                SizeBytes    = [long]0
+                LastModified = $directory.LastWriteTimeUtc
+            }
         }
     }
 
-    $itemCount = $fileItems.Count
-    $totalSize = 0
+    try {
+        foreach ($file in $directoryInfo.EnumerateFiles('*', $allOptions)) {
+            if ($null -eq $file) {
+                continue
+            }
 
-    if ($itemCount -gt 0) {
-        $totalSize = ($fileItems | Measure-Object -Property Length -Sum).Sum
+            $fileCount++
+            $size = [long]$file.Length
+            $totalSize += $size
+
+            if ($PreviewCount -gt 0 -and $ItemKind -ne 'Folders') {
+                $extension = $file.Extension
+                if ($null -ne $extension) {
+                    $extension = $extension.ToLowerInvariant()
+                }
+
+                $filePreview = [pscustomobject]@{
+                    Name         = $file.Name
+                    FullName     = $file.FullName
+                    SizeBytes    = $size
+                    LastModified = $file.LastWriteTimeUtc
+                    IsDirectory  = $false
+                    Extension    = $extension
+                }
+
+                Add-TidyTopItem -Container $topFiles -Capacity $PreviewCount -Item $filePreview
+            }
+
+            if ($directoryStats.Count -gt 0) {
+                $parentPath = $file.DirectoryName
+
+                while ($parentPath -and -not $directoryStats.ContainsKey($parentPath)) {
+                    $parentPath = [System.IO.Path]::GetDirectoryName($parentPath)
+                }
+
+                if ($parentPath -and $directoryStats.ContainsKey($parentPath)) {
+                    $stat = $directoryStats[$parentPath]
+                    $stat.SizeBytes = [long]$stat.SizeBytes + $size
+                    if ($file.LastWriteTimeUtc -gt $stat.LastModified) {
+                        $stat.LastModified = $file.LastWriteTimeUtc
+                    }
+                }
+            }
+        }
+    }
+    catch {
+        Write-TidyLog -Level Warning -Message "Category '$Category' [Type=$Classification] encountered errors enumerating files under '$resolvedPath': $($_.Exception.Message)"
     }
 
-    if ($null -eq $totalSize) {
-        $totalSize = 0
+    $directoryPreviewItems = @()
+    if ($ItemKind -ne 'Files' -and $PreviewCount -gt 0 -and $directoryStats.Count -gt 0) {
+        foreach ($entry in $directoryStats.GetEnumerator()) {
+            $dirPath = $entry.Key
+            $stat = $entry.Value
+            if (-not $dirPath) {
+                continue
+            }
+
+            $name = [System.IO.Path]::GetFileName($dirPath)
+            if ([string]::IsNullOrWhiteSpace($name)) {
+                $name = $directoryInfo.Name
+            }
+
+            $dirPreview = [pscustomobject]@{
+                Name         = $name
+                FullName     = $dirPath
+                SizeBytes    = [long]$stat.SizeBytes
+                LastModified = $stat.LastModified
+                IsDirectory  = $true
+                Extension    = $null
+            }
+
+            Add-TidyTopItem -Container $topDirectories -Capacity $PreviewCount -Item $dirPreview
+        }
+
+        if ($topDirectories.Count -gt 0) {
+            $directoryPreviewItems = $topDirectories.ToArray() | Sort-Object -Property SizeBytes -Descending
+        }
+    }
+
+    $filePreviewItems = @()
+    if ($topFiles.Count -gt 0) {
+        $filePreviewItems = $topFiles.ToArray() | Sort-Object -Property SizeBytes -Descending
+    }
+
+    switch ($ItemKind) {
+        'Folders' { $itemCount = ($directoryStats.Keys).Count }
+        'Both' { $itemCount = $fileCount + ($directoryStats.Keys).Count }
+        default { $itemCount = $fileCount }
     }
 
     $previewItems = @()
-    if ($itemCount -gt 0 -and $PreviewCount -gt 0) {
-        $previewItems = $fileItems |
-            Sort-Object -Property Length -Descending |
-            Select-Object -First $PreviewCount |
-            ForEach-Object {
-                [pscustomobject]@{
-                    Name         = $_.Name
-                    FullName     = $_.FullName
-                    SizeBytes    = [long]$_.Length
-                    LastModified = $_.LastWriteTimeUtc
-                }
-            }
-    }
+    if ($PreviewCount -gt 0) {
+        $combined = @()
+        if ($filePreviewItems.Count -gt 0) {
+            $combined += $filePreviewItems
+        }
+        if ($directoryPreviewItems.Count -gt 0) {
+            $combined += $directoryPreviewItems
+        }
 
-    $normalizedPreview = @()
-    foreach ($previewItem in $previewItems) {
-        if ($null -ne $previewItem) {
-            $normalizedPreview += $previewItem
+        if ($combined.Count -gt 0) {
+            $previewItems = $combined | Sort-Object -Property SizeBytes -Descending | Select-Object -First $PreviewCount
         }
     }
-
-    $previewItems = $normalizedPreview
 
     return [pscustomobject]@{
         Category       = $Category
@@ -245,18 +387,29 @@ function Get-TidyCleanupDefinitions {
                     return @()
                 }
 
+                $targets = @(
+                    @{ SubPath = 'Cache'; Suffix = 'Cache'; Notes = 'Browser cache for Microsoft Edge profiles. Close Edge before cleaning.' },
+                    @{ SubPath = 'Code Cache'; Suffix = 'Code Cache'; Notes = 'JavaScript bytecode cache for Microsoft Edge profiles.' },
+                    @{ SubPath = 'GPUCache'; Suffix = 'GPU Cache'; Notes = 'GPU shader cache for Microsoft Edge profiles.' },
+                    @{ SubPath = 'Service Worker\CacheStorage'; Suffix = 'Service Worker Cache'; Notes = 'Service Worker cache data for Microsoft Edge profiles.' }
+                )
+
                 Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
-                    ForEach-Object {
-                        $cachePath = Join-Path -Path $_.FullName -ChildPath 'Cache'
-                        if (Test-Path -LiteralPath $cachePath) {
-                            $label = if ($_.Name -eq 'Default') { 'Microsoft Edge (Default profile)' } else { "Microsoft Edge ($($_.Name))" }
+                ForEach-Object {
+                    $profileRoot = $_.FullName
+                    $labelPrefix = if ($_.Name -eq 'Default') { 'Microsoft Edge (Default profile)' } else { "Microsoft Edge ($($_.Name))" }
+
+                    foreach ($target in $targets) {
+                        $candidate = Join-Path -Path $profileRoot -ChildPath $target.SubPath
+                        if (Test-Path -LiteralPath $candidate) {
                             [pscustomobject]@{
-                                Path  = $cachePath
-                                Label = $label
-                                Notes = 'Browser cache for Microsoft Edge profiles. Close Edge before cleaning.'
+                                Path  = $candidate
+                                Label = "$labelPrefix $($target.Suffix)"
+                                Notes = $target.Notes
                             }
                         }
                     }
+                }
             }
         },
         @{ Classification = 'Cache'; Name = 'Google Chrome Cache'; Resolve = {
@@ -265,19 +418,30 @@ function Get-TidyCleanupDefinitions {
                     return @()
                 }
 
+                $targets = @(
+                    @{ SubPath = 'Cache'; Suffix = 'Cache'; Notes = 'Browser cache for Google Chrome profiles. Close Chrome before cleaning.' },
+                    @{ SubPath = 'Code Cache'; Suffix = 'Code Cache'; Notes = 'JavaScript bytecode cache for Google Chrome profiles.' },
+                    @{ SubPath = 'GPUCache'; Suffix = 'GPU Cache'; Notes = 'GPU shader cache for Google Chrome profiles.' },
+                    @{ SubPath = 'Service Worker\CacheStorage'; Suffix = 'Service Worker Cache'; Notes = 'Service Worker cache data for Google Chrome profiles.' }
+                )
+
                 Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
-                    Where-Object { $_.Name -like 'Default' -or $_.Name -like 'Profile *' -or $_.Name -like 'Guest Profile*' } |
-                    ForEach-Object {
-                        $cachePath = Join-Path -Path $_.FullName -ChildPath 'Cache'
-                        if (Test-Path -LiteralPath $cachePath) {
-                            $label = if ($_.Name -eq 'Default') { 'Google Chrome (Default profile)' } else { "Google Chrome ($($_.Name))" }
+                Where-Object { $_.Name -like 'Default' -or $_.Name -like 'Profile *' -or $_.Name -like 'Guest Profile*' } |
+                ForEach-Object {
+                    $profileRoot = $_.FullName
+                    $labelPrefix = if ($_.Name -eq 'Default') { 'Google Chrome (Default profile)' } else { "Google Chrome ($($_.Name))" }
+
+                    foreach ($target in $targets) {
+                        $candidate = Join-Path -Path $profileRoot -ChildPath $target.SubPath
+                        if (Test-Path -LiteralPath $candidate) {
                             [pscustomobject]@{
-                                Path  = $cachePath
-                                Label = $label
-                                Notes = 'Browser cache for Google Chrome profiles. Close Chrome before cleaning.'
+                                Path  = $candidate
+                                Label = "$labelPrefix $($target.Suffix)"
+                                Notes = $target.Notes
                             }
                         }
                     }
+                }
             }
         },
         @{ Classification = 'Cache'; Name = 'Mozilla Firefox Cache'; Resolve = {
@@ -287,16 +451,16 @@ function Get-TidyCleanupDefinitions {
                 }
 
                 Get-ChildItem -LiteralPath $base -Directory -ErrorAction SilentlyContinue |
-                    ForEach-Object {
-                        $cachePath = Join-Path -Path $_.FullName -ChildPath 'cache2'
-                        if (Test-Path -LiteralPath $cachePath) {
-                            [pscustomobject]@{
-                                Path  = $cachePath
-                                Label = "Mozilla Firefox ($($_.Name))"
-                                Notes = 'Firefox disk cache. Close Firefox before cleaning.'
-                            }
+                ForEach-Object {
+                    $cachePath = Join-Path -Path $_.FullName -ChildPath 'cache2'
+                    if (Test-Path -LiteralPath $cachePath) {
+                        [pscustomobject]@{
+                            Path  = $cachePath
+                            Label = "Mozilla Firefox ($($_.Name))"
+                            Notes = 'Firefox disk cache. Close Firefox before cleaning.'
                         }
                     }
+                }
             }
         },
         @{ Classification = 'Cache'; Name = 'Microsoft Teams Cache'; Resolve = {
@@ -351,7 +515,7 @@ foreach ($definition in $definitions) {
         $category = if ([string]::IsNullOrWhiteSpace($target.Label)) { $definition.Name } else { $target.Label }
         $classification = if ([string]::IsNullOrWhiteSpace($definition.Classification)) { 'Other' } else { $definition.Classification }
 
-        $report = Get-TidyDirectoryReport -Category $category -Classification $classification -Path $target.Path -PreviewCount $PreviewCount -Notes $target.Notes
+        $report = Get-TidyDirectoryReport -Category $category -Classification $classification -Path $target.Path -PreviewCount $PreviewCount -Notes $target.Notes -ItemKind $ItemKind
 
         if ($report.Exists -and $seenPaths.Contains($report.Path)) {
             Write-TidyLog -Level Information -Message "Skipping duplicate directory '$($report.Path)' for category '$category'."

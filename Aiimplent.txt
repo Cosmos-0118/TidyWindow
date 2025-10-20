@@ -1,0 +1,105 @@
+AI CLEANUP ASSISTANT IMPLEMENTATION PLAN
+
+1. User Flow
+
+   a. Cleanup scan completes and the user navigates to the Cleanup page.
+   b. If no OpenRouter API key is stored, show an inline setup card with:
+      - Short instructions on creating an account at https://openrouter.ai
+      - A hyperlink to their API key dashboard
+      - A secure `PasswordBox` for pasting the key
+      - A "Save" button bound to `SaveApiKeyCommand`
+   c. After a valid key is saved, trigger `RequestAiRecommendationsCommand`.
+   d. Display AI-labelled recommendations next to each scanned item with selector checkboxes and an "Apply Cleanup" button.
+
+2. View Model Changes (TidyWindow.App, Cleanup module)
+
+   - Extend `CleanupViewModel` with:
+     * `string? OpenRouterApiKey` stored via `ISecretStorageService`
+     * `ObservableCollection<CleanupCandidate>` bound to existing scan results
+     * `ObservableCollection<CleanupRecommendation>` produced by AI
+     * Relay commands: `SaveApiKeyCommand`, `RequestAiRecommendationsCommand`, `ApplyRecommendationsCommand`
+   - Add `IsBusy` and `AiErrorMessage` properties for UI state handling.
+
+3. UI Updates (CleanupView.xaml)
+
+   - Add a collapsible API key setup card shown when `OpenRouterApiKey` is null.
+   - Show an informational `TextBlock` disclaimer: "AI suggestions can be wrong. Review files before deleting."
+   - Present a table combining existing scan data with AI fields:
+       Columns: File Name, Size, Last Modified, AI Recommendation, Confidence, Select checkbox.
+   - Append `Apply Cleanup` button bound to `ApplyRecommendationsCommand`.
+
+4. AI Integration Service (TidyWindow.Core)
+
+   - Create `IAiCleanupService` in `Cleanup/Services` with method:
+       `Task<IReadOnlyList<CleanupRecommendation>> GetRecommendationsAsync(IEnumerable<CleanupCandidate> candidates, CancellationToken ct)`
+   - Implement `OpenRouterCleanupService` that:
+       * Injects `HttpClient`
+       * Builds payload using existing cleanup metadata
+       * Calls `https://openrouter.ai/api/v1/chat/completions`
+       * Sends headers: `Content-Type: application/json`, `Authorization: Bearer {apiKey}`
+       * Uses model `deepseek/deepseek-chat-v3.1:free`
+       * Parses `choices[0].message.content` into strongly typed recommendations
+
+   Example payload body:
+   {
+     "model": "deepseek/deepseek-chat-v3.1:free",
+     "messages": [
+       { "role": "system", "content": "You are a cleanup advisor. Respond with JSON." },
+       {
+         "role": "user",
+         "content": "<CleanupCandidatesJson>"
+       }
+     ],
+     "response_format": { "type": "json_object" }
+   }
+
+   Expect AI response structure:
+   {
+     "choices": [
+       {
+         "message": {
+            "role": "assistant",
+            "content": "{\"recommendations\":[...]}"
+         }
+       }
+     ]
+   }
+
+5. Data Contracts
+
+   - `CleanupCandidate`: existing model enriched with `SizeBytes`, `LastUsedUtc`, `IsSystemFile`.
+   - `CleanupRecommendation`: new model containing `FileId`, `Action` (Keep/Delete/Review), `Confidence` (0-1), `Justification` (string).
+   - Serialize candidates via `System.Text.Json` using camelCase.
+
+6. Safety & Error Handling
+
+   - Wrap HTTP calls in try/catch, map failures to `AiErrorMessage`.
+   - On HTTP 401, surface "API key invalid" message and prompt for re-entry.
+   - Log all request/response pairs (excluding API key) via existing logging abstractions.
+   - Enforce a max payload size; limit candidate list to top 200 items ordered by size.
+
+7. Periodic Package Update Suggestions (Stretch Goal)
+
+   - Reuse `IAiCleanupService` to create `IAiPackageAdvisor` under `Updates` namespace.
+   - Schedule a background task in `TidyWindow.Core` that:
+       * Runs weekly via existing scheduler infrastructure
+       * Sends manifest summaries to AI for upgrade advice
+       * Stores results in `PackageAdviceRepository` and surfaces them in the Updates page.
+
+8. Configuration & Secrets
+
+   - Persist API key using `ISecretStorageService.SetAsync("OpenRouterApiKey", key)`.
+   - Support environment override via `OPENROUTER_API_KEY` for automation flows.
+   - Add OpenRouter base URL and model name to `appsettings.json` with sensible defaults.
+
+9. Testing Plan
+
+   - Unit test `OpenRouterCleanupService` with mocked `HttpMessageHandler` for JSON parsing.
+   - Unit test `CleanupViewModel` command flows using fake services.
+   - Add integration smoke test gated by presence of `OPENROUTER_API_KEY`.
+   - Verify UI manually: key capture, AI call, disclaimer display, delete workflow.
+
+10. Documentation
+
+   - Update `docs/runtime-updates.md` and `docs/automation.md` with API setup steps.
+   - Capture screenshots of the Cleanup page AI card for the getting started guide.

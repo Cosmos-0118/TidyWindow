@@ -10,12 +10,68 @@ using TidyWindow.Core.Cleanup;
 
 namespace TidyWindow.App.ViewModels;
 
+public enum CleanupExtensionFilterMode
+{
+    None,
+    IncludeOnly,
+    Exclude
+}
+
+public sealed record CleanupItemKindOption(CleanupItemKind Kind, string Label)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record CleanupExtensionFilterOption(CleanupExtensionFilterMode Mode, string Label, string Description)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record CleanupExtensionProfile(string Name, string Description, IReadOnlyList<string> Extensions)
+{
+    public override string ToString() => Name;
+}
+
 public sealed partial class CleanupViewModel : ViewModelBase
 {
     private readonly CleanupService _cleanupService;
     private readonly MainViewModel _mainViewModel;
 
+    private readonly HashSet<string> _activeExtensions = new(StringComparer.OrdinalIgnoreCase);
     private int _previewCount = 10;
+
+    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel)
+    {
+        _cleanupService = cleanupService;
+        _mainViewModel = mainViewModel;
+
+        ItemKindOptions = new List<CleanupItemKindOption>
+        {
+            new(CleanupItemKind.Files, "Files only"),
+            new(CleanupItemKind.Folders, "Folders only"),
+            new(CleanupItemKind.Both, "Files and folders")
+        };
+
+        ExtensionFilterOptions = new List<CleanupExtensionFilterOption>
+        {
+            new(CleanupExtensionFilterMode.None, "No extension filter", "Show every item regardless of extension."),
+            new(CleanupExtensionFilterMode.IncludeOnly, "Include only", "Keep the extensions listed below."),
+            new(CleanupExtensionFilterMode.Exclude, "Exclude", "Hide the extensions listed below.")
+        };
+
+        ExtensionProfiles = new List<CleanupExtensionProfile>
+        {
+            new("Documents", "Common document formats", new[] { ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".txt", ".rtf" }),
+            new("Spreadsheets", "Spreadsheet data", new[] { ".xls", ".xlsx", ".ods", ".csv" }),
+            new("Images", "Photo and bitmap formats", new[] { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tiff" }),
+            new("Media", "Audio and video clips", new[] { ".mp3", ".wav", ".mp4", ".mov", ".mkv" }),
+            new("Archives", "Compressed archives", new[] { ".zip", ".rar", ".7z", ".tar", ".gz" }),
+            new("Logs", "Plain-text logs", new[] { ".log" })
+        };
+
+        SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
+        RebuildExtensionCache();
+    }
 
     [ObservableProperty]
     private bool _includeDownloads = true;
@@ -26,17 +82,56 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private string _headline = "Preview and clean up system clutter";
 
-    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel)
-    {
-        _cleanupService = cleanupService;
-        _mainViewModel = mainViewModel;
+    [ObservableProperty]
+    private CleanupTargetGroupViewModel? _selectedTarget;
 
-    }
+    [ObservableProperty]
+    private CleanupItemKind _selectedItemKind = CleanupItemKind.Both;
+
+    [ObservableProperty]
+    private CleanupExtensionFilterMode _selectedExtensionFilterMode = CleanupExtensionFilterMode.None;
+
+    [ObservableProperty]
+    private CleanupExtensionProfile? _selectedExtensionProfile;
+
+    [ObservableProperty]
+    private string _customExtensionInput = string.Empty;
 
     public ObservableCollection<CleanupTargetGroupViewModel> Targets { get; } = new();
 
-    [ObservableProperty]
-    private CleanupTargetGroupViewModel? _selectedTarget;
+    public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
+
+    public IReadOnlyList<CleanupItemKindOption> ItemKindOptions { get; }
+
+    public IReadOnlyList<CleanupExtensionFilterOption> ExtensionFilterOptions { get; }
+
+    public IReadOnlyList<CleanupExtensionProfile> ExtensionProfiles { get; }
+
+    public bool HasResults => Targets.Count > 0;
+
+    public bool HasFilteredResults => FilteredItems.Count > 0;
+
+    public bool IsExtensionSelectorEnabled => SelectedExtensionFilterMode != CleanupExtensionFilterMode.None;
+
+    public string ExtensionStatusText
+    {
+        get
+        {
+            if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.None)
+            {
+                return "Extension filter disabled.";
+            }
+
+            if (_activeExtensions.Count == 0)
+            {
+                return "No extensions configured yet.";
+            }
+
+            var verb = SelectedExtensionFilterMode == CleanupExtensionFilterMode.IncludeOnly ? "Including" : "Excluding";
+            var formatted = string.Join(", ", _activeExtensions.OrderBy(static x => x));
+            return $"{verb} {formatted}";
+        }
+    }
 
     public int PreviewCount
     {
@@ -47,8 +142,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
             SetProperty(ref _previewCount, sanitized);
         }
     }
-
-    public bool HasResults => Targets.Count > 0;
 
     public string SummaryText
     {
@@ -84,7 +177,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             IsBusy = true;
             ClearTargets();
 
-            var report = await _cleanupService.PreviewAsync(IncludeDownloads, PreviewCount);
+            var report = await _cleanupService.PreviewAsync(IncludeDownloads, PreviewCount, SelectedItemKind);
             foreach (var target in report.Targets.OrderByDescending(t => t.TotalSizeBytes))
             {
                 AddTargetGroup(new CleanupTargetGroupViewModel(target));
@@ -145,6 +238,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 RemoveTargetGroup(emptyGroup);
             }
 
+            RefreshFilteredItems();
             OnPropertyChanged(nameof(SummaryText));
             OnPropertyChanged(nameof(SelectedItemCount));
             OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
@@ -167,34 +261,24 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSelectAllCurrent))]
     private void SelectAllCurrent()
     {
-        if (SelectedTarget is null)
-        {
-            return;
-        }
-
-        foreach (var item in SelectedTarget.Items)
+        foreach (var item in FilteredItems)
         {
             item.IsSelected = true;
         }
     }
 
-    private bool CanSelectAllCurrent() => SelectedTarget is not null && SelectedTarget.Items.Count > 0;
+    private bool CanSelectAllCurrent() => FilteredItems.Count > 0;
 
     [RelayCommand(CanExecute = nameof(CanClearCurrentSelection))]
     private void ClearCurrentSelection()
     {
-        if (SelectedTarget is null)
-        {
-            return;
-        }
-
-        foreach (var item in SelectedTarget.Items)
+        foreach (var item in FilteredItems)
         {
             item.IsSelected = false;
         }
     }
 
-    private bool CanClearCurrentSelection() => SelectedTarget is not null && SelectedTarget.SelectedCount > 0;
+    private bool CanClearCurrentSelection() => FilteredItems.Any(static item => item.IsSelected);
 
     partial void OnIsBusyChanged(bool value)
     {
@@ -213,15 +297,40 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         if (newValue is null || newValue.Items.Count == 0)
         {
+            RefreshFilteredItems();
             SelectAllCurrentCommand.NotifyCanExecuteChanged();
             ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
             return;
         }
 
-        // Keep current selection state when switching between groups.
+        RefreshFilteredItems();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedItemKindChanged(CleanupItemKind value)
+    {
+        RefreshFilteredItems();
+    }
+
+    partial void OnSelectedExtensionFilterModeChanged(CleanupExtensionFilterMode value)
+    {
+        RebuildExtensionCache();
+        OnPropertyChanged(nameof(IsExtensionSelectorEnabled));
+        RefreshFilteredItems();
+    }
+
+    partial void OnSelectedExtensionProfileChanged(CleanupExtensionProfile? value)
+    {
+        RebuildExtensionCache();
+        RefreshFilteredItems();
+    }
+
+    partial void OnCustomExtensionInputChanged(string value)
+    {
+        RebuildExtensionCache();
+        RefreshFilteredItems();
     }
 
     private void OnGroupSelectionChanged(object? sender, EventArgs e)
@@ -230,11 +339,13 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
         OnPropertyChanged(nameof(HasSelection));
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+        SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
     }
 
     private void OnGroupItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        RefreshFilteredItems();
         OnPropertyChanged(nameof(SummaryText));
         OnPropertyChanged(nameof(HasResults));
         OnPropertyChanged(nameof(HasSelection));
@@ -251,9 +362,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         SelectedTarget = null;
+        FilteredItems.Clear();
         OnPropertyChanged(nameof(SelectedItemCount));
         OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
         OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(HasFilteredResults));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
@@ -280,9 +393,138 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             SelectedTarget = Targets.FirstOrDefault();
         }
+
+        RefreshFilteredItems();
         OnPropertyChanged(nameof(HasResults));
         OnPropertyChanged(nameof(SummaryText));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RefreshFilteredItems()
+    {
+        FilteredItems.Clear();
+
+        if (SelectedTarget is null)
+        {
+            OnPropertyChanged(nameof(HasFilteredResults));
+            OnPropertyChanged(nameof(ExtensionStatusText));
+            SelectAllCurrentCommand.NotifyCanExecuteChanged();
+            ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        foreach (var item in SelectedTarget.Items)
+        {
+            if (MatchesFilters(item))
+            {
+                FilteredItems.Add(item);
+            }
+        }
+
+        OnPropertyChanged(nameof(HasFilteredResults));
+        OnPropertyChanged(nameof(ExtensionStatusText));
+        SelectAllCurrentCommand.NotifyCanExecuteChanged();
+        ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool MatchesFilters(CleanupPreviewItemViewModel item)
+    {
+        switch (SelectedItemKind)
+        {
+            case CleanupItemKind.Files when item.IsDirectory:
+                return false;
+            case CleanupItemKind.Folders when !item.IsDirectory:
+                return false;
+        }
+
+        if (item.IsDirectory)
+        {
+            if (SelectedItemKind == CleanupItemKind.Files)
+            {
+                return false;
+            }
+
+            if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.IncludeOnly && _activeExtensions.Count > 0)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.None || _activeExtensions.Count == 0)
+        {
+            return true;
+        }
+
+        var extension = NormalizeExtension(item.Extension);
+        return SelectedExtensionFilterMode switch
+        {
+            CleanupExtensionFilterMode.IncludeOnly => _activeExtensions.Contains(extension),
+            CleanupExtensionFilterMode.Exclude => !_activeExtensions.Contains(extension),
+            _ => true
+        };
+    }
+
+    private void RebuildExtensionCache()
+    {
+        _activeExtensions.Clear();
+
+        if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.None)
+        {
+            return;
+        }
+
+        if (SelectedExtensionProfile?.Extensions is { } presetExtensions)
+        {
+            foreach (var preset in presetExtensions)
+            {
+                var normalized = NormalizeExtension(preset);
+                if (!string.IsNullOrEmpty(normalized))
+                {
+                    _activeExtensions.Add(normalized);
+                }
+            }
+        }
+
+        foreach (var entry in ParseExtensions(CustomExtensionInput))
+        {
+            var normalized = NormalizeExtension(entry);
+            if (!string.IsNullOrEmpty(normalized))
+            {
+                _activeExtensions.Add(normalized);
+            }
+        }
+    }
+
+    private static IEnumerable<string> ParseExtensions(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            yield break;
+        }
+
+        var tokens = value.Split(new[] { ',', ';', '|', ' ' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        foreach (var token in tokens)
+        {
+            yield return token;
+        }
+    }
+
+    private static string NormalizeExtension(string? extension)
+    {
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = extension.Trim();
+        if (!trimmed.StartsWith(".", StringComparison.Ordinal))
+        {
+            trimmed = "." + trimmed;
+        }
+
+        return trimmed.ToLowerInvariant();
     }
 }

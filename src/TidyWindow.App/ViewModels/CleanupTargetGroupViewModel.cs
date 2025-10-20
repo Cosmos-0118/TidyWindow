@@ -139,6 +139,10 @@ public sealed partial class CleanupPreviewItemViewModel : ObservableObject
 
     public double SizeMegabytes => Model.SizeMegabytes;
 
+    public bool IsDirectory => Model.IsDirectory;
+
+    public string Extension => Model.Extension;
+
     [ObservableProperty]
     private bool _isSelected;
 }

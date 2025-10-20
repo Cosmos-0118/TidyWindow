@@ -27,7 +27,7 @@ public sealed class CleanupService
         _powerShellInvoker = powerShellInvoker;
     }
 
-    public async Task<CleanupReport> PreviewAsync(bool includeDownloads, int previewCount, CancellationToken cancellationToken = default)
+    public async Task<CleanupReport> PreviewAsync(bool includeDownloads, int previewCount, CleanupItemKind itemKind = CleanupItemKind.Files, CancellationToken cancellationToken = default)
     {
         if (previewCount < 0)
         {
@@ -45,6 +45,13 @@ public sealed class CleanupService
         {
             parameters["IncludeDownloads"] = true;
         }
+
+        parameters["ItemKind"] = itemKind switch
+        {
+            CleanupItemKind.Folders => "Folders",
+            CleanupItemKind.Both => "Both",
+            _ => "Files"
+        };
 
         var result = await _powerShellInvoker.InvokeScriptAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
 
@@ -150,7 +157,7 @@ public sealed class CleanupService
             .Select(item =>
             {
                 var lastModified = item.LastModified?.ToUniversalTime();
-                return new CleanupPreviewItem(item.Name, item.FullName, item.SizeBytes, lastModified);
+                return new CleanupPreviewItem(item.Name, item.FullName, item.SizeBytes, lastModified, item.IsDirectory, item.Extension);
             })
             .ToList();
 
@@ -229,5 +236,7 @@ public sealed class CleanupService
         public string? FullName { get; set; }
         public long SizeBytes { get; set; }
         public DateTime? LastModified { get; set; }
+        public bool IsDirectory { get; set; }
+        public string? Extension { get; set; }
     }
 }

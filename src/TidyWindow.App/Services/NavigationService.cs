@@ -47,6 +47,14 @@ public sealed class NavigationService
                    ?? ActivatorUtilities.CreateInstance(_serviceProvider, pageType) as Page
                    ?? throw new InvalidOperationException($"Unable to resolve page instance for {pageType.FullName}.");
 
-        _frame.Navigate(page);
+        try
+        {
+            _frame.Navigate(page);
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Navigation failure for {pageType.FullName}: {ex}");
+            throw;
+        }
     }
 }

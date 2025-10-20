@@ -3,11 +3,15 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Diagnostics;
+using System.IO;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.Core.Diagnostics;
 
 namespace TidyWindow.App.ViewModels;
+
+public sealed record DeepScanLocationOption(string Label, string Path, string Description);
 
 public sealed partial class DeepScanViewModel : ViewModelBase
 {
@@ -47,18 +51,26 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     [ObservableProperty]
     private bool _includeDirectories;
 
+    [ObservableProperty]
+    private DeepScanLocationOption? _selectedPreset;
+
     public DeepScanViewModel(DeepScanService deepScanService, MainViewModel mainViewModel)
     {
         _deepScanService = deepScanService;
         _mainViewModel = mainViewModel;
 
         _targetPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        PresetLocations = BuildPresetLocations(_targetPath);
+        SelectedPreset = PresetLocations.FirstOrDefault(option => string.Equals(option.Path, _targetPath, StringComparison.OrdinalIgnoreCase));
+
         Findings.CollectionChanged += OnFindingsChanged;
     }
 
     public ObservableCollection<DeepScanItemViewModel> Findings { get; } = new();
 
     public IReadOnlyList<DeepScanNameMatchMode> NameMatchModes { get; } = Enum.GetValues<DeepScanNameMatchMode>();
+
+    public IReadOnlyList<DeepScanLocationOption> PresetLocations { get; }
 
     public bool HasResults => Findings.Count > 0;
 
@@ -91,6 +103,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 SelectedMatchMode,
                 IsCaseSensitiveMatch,
                 IncludeDirectories);
+
             var result = await _deepScanService.RunScanAsync(request);
 
             Findings.Clear();
@@ -149,13 +162,102 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
     partial void OnSummaryChanged(string value)
     {
-        // Update binding dependents when summary text shifts.
         OnPropertyChanged(nameof(HasResults));
     }
 
     private void OnFindingsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasResults));
+    }
+
+    partial void OnSelectedPresetChanged(DeepScanLocationOption? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        if (!string.Equals(TargetPath, value.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            TargetPath = value.Path;
+        }
+    }
+
+    partial void OnTargetPathChanged(string value)
+    {
+        var match = PresetLocations.FirstOrDefault(option => string.Equals(option.Path, value, StringComparison.OrdinalIgnoreCase));
+        if (!EqualityComparer<DeepScanLocationOption?>.Default.Equals(match, SelectedPreset))
+        {
+            SelectedPreset = match;
+        }
+    }
+
+    private static IReadOnlyList<DeepScanLocationOption> BuildPresetLocations(string defaultRoot)
+    {
+        var items = new List<DeepScanLocationOption>();
+
+        if (!string.IsNullOrWhiteSpace(defaultRoot))
+        {
+            items.Add(new DeepScanLocationOption("User profile", defaultRoot, "Scan the full user profile."));
+
+            var downloads = SafeCombine(defaultRoot, "Downloads");
+            if (!string.IsNullOrWhiteSpace(downloads))
+            {
+                items.Add(new DeepScanLocationOption("Downloads", downloads, "Focus on downloaded installers and archives."));
+            }
+
+            var desktop = SafeCombine(defaultRoot, "Desktop");
+            if (!string.IsNullOrWhiteSpace(desktop))
+            {
+                items.Add(new DeepScanLocationOption("Desktop", desktop, "Review files stacked on the desktop."));
+            }
+        }
+
+        void AddKnownFolder(Environment.SpecialFolder folder, string label, string description)
+        {
+            var path = Environment.GetFolderPath(folder);
+            if (!string.IsNullOrWhiteSpace(path))
+            {
+                items.Add(new DeepScanLocationOption(label, path, description));
+            }
+        }
+
+        AddKnownFolder(Environment.SpecialFolder.MyDocuments, "Documents", "Large documents and archives.");
+        AddKnownFolder(Environment.SpecialFolder.MyPictures, "Pictures", "High-resolution photos and media.");
+        AddKnownFolder(Environment.SpecialFolder.MyVideos, "Videos", "Video captures and renders.");
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            items.Add(new DeepScanLocationOption("Local AppData", localAppData, "Application caches and logs."));
+
+            var browserCache = SafeCombine(localAppData, "Microsoft", "Edge", "User Data");
+            if (!string.IsNullOrWhiteSpace(browserCache))
+            {
+                items.Add(new DeepScanLocationOption("Edge profiles", browserCache, "Inspect heavy browser profiles."));
+            }
+        }
+
+        return items
+            .Where(option => !string.IsNullOrWhiteSpace(option.Path) && Directory.Exists(option.Path))
+            .ToList();
+    }
+
+    private static string SafeCombine(string basePath, params string[] segments)
+    {
+        if (string.IsNullOrWhiteSpace(basePath))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.Combine(new[] { basePath }.Concat(segments).ToArray());
+        }
+        catch (Exception)
+        {
+            return string.Empty;
+        }
     }
 }
 

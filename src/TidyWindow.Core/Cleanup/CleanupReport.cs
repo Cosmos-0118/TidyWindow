@@ -69,12 +69,14 @@ public sealed class CleanupTargetReport
 
 public sealed class CleanupPreviewItem
 {
-    public CleanupPreviewItem(string? name, string? fullName, long sizeBytes, DateTime? lastModifiedUtc)
+    public CleanupPreviewItem(string? name, string? fullName, long sizeBytes, DateTime? lastModifiedUtc, bool isDirectory, string? extension)
     {
         Name = string.IsNullOrWhiteSpace(name) ? "(unknown)" : name;
         FullName = fullName ?? string.Empty;
         SizeBytes = sizeBytes < 0 ? 0 : sizeBytes;
         LastModifiedUtc = lastModifiedUtc ?? DateTime.MinValue;
+        IsDirectory = isDirectory;
+        Extension = NormalizeExtension(extension);
     }
 
     public string Name { get; }
@@ -85,5 +87,25 @@ public sealed class CleanupPreviewItem
 
     public DateTime LastModifiedUtc { get; }
 
+    public bool IsDirectory { get; }
+
+    public string Extension { get; }
+
     public double SizeMegabytes => SizeBytes / 1_048_576d;
+
+    private static string NormalizeExtension(string? extension)
+    {
+        if (string.IsNullOrWhiteSpace(extension))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = extension.Trim();
+        if (!trimmed.StartsWith(".", StringComparison.Ordinal))
+        {
+            trimmed = "." + trimmed;
+        }
+
+        return trimmed.ToLowerInvariant();
+    }
 }
