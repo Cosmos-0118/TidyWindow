@@ -426,9 +426,18 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSelectAllCurrent))]
     private void SelectAllCurrent()
     {
-        foreach (var item in FilteredItems)
+        var target = SelectedTarget;
+        if (target is null || FilteredItems.Count == 0)
         {
-            item.IsSelected = true;
+            return;
+        }
+
+        using (target.BeginSelectionUpdate())
+        {
+            foreach (var item in FilteredItems)
+            {
+                item.IsSelected = true;
+            }
         }
     }
 
@@ -437,21 +446,26 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanSelectAcrossPages))]
     private void SelectAllPages()
     {
-        if (SelectedTarget is null)
+        var target = SelectedTarget;
+        if (target is null)
         {
             return;
         }
 
-        foreach (var item in SelectedTarget.Items.Where(MatchesFilters))
+        using (target.BeginSelectionUpdate())
         {
-            item.IsSelected = true;
+            foreach (var item in target.Items.Where(MatchesFilters))
+            {
+                item.IsSelected = true;
+            }
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanSelectAcrossPages))]
     private void SelectPageRange()
     {
-        if (SelectedTarget is null)
+        var target = SelectedTarget;
+        if (target is null)
         {
             return;
         }
@@ -482,18 +496,21 @@ public sealed partial class CleanupViewModel : ViewModelBase
         var endExclusive = end * PageSize;
         var index = 0;
 
-        foreach (var item in SelectedTarget.Items.Where(MatchesFilters))
+        using (target.BeginSelectionUpdate())
         {
-            if (index >= startIndex && index < endExclusive)
+            foreach (var item in target.Items.Where(MatchesFilters))
             {
-                item.IsSelected = true;
-            }
-            else if (index >= endExclusive)
-            {
-                break;
-            }
+                if (index >= startIndex && index < endExclusive)
+                {
+                    item.IsSelected = true;
+                }
+                else if (index >= endExclusive)
+                {
+                    break;
+                }
 
-            index++;
+                index++;
+            }
         }
     }
 
@@ -505,9 +522,18 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanClearCurrentSelection))]
     private void ClearCurrentSelection()
     {
-        foreach (var item in FilteredItems)
+        var target = SelectedTarget;
+        if (target is null || FilteredItems.Count == 0)
         {
-            item.IsSelected = false;
+            return;
+        }
+
+        using (target.BeginSelectionUpdate())
+        {
+            foreach (var item in FilteredItems)
+            {
+                item.IsSelected = false;
+            }
         }
     }
 
@@ -522,9 +548,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
     {
         if (oldValue is not null)
         {
-            foreach (var item in oldValue.Items)
+            using (oldValue.BeginSelectionUpdate())
             {
-                item.IsSelected = false;
+                foreach (var item in oldValue.Items)
+                {
+                    item.IsSelected = false;
+                }
             }
         }
 

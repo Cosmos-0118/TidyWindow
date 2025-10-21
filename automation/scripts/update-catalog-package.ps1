@@ -31,6 +31,67 @@ if (-not (Test-Path -Path $modulePath)) {
 
 Import-Module $modulePath -Force
 
+$script:CommandPathCache = @{}
+$script:AnsiEscapeRegex = [System.Text.RegularExpressions.Regex]::new('\x1B\[[0-9;]*[A-Za-z]', [System.Text.RegularExpressions.RegexOptions]::Compiled)
+$script:WhitespaceCollapseRegex = [System.Text.RegularExpressions.Regex]::new('\s{2,}', [System.Text.RegularExpressions.RegexOptions]::Compiled)
+
+function Get-CachedCommandPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $CommandName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CommandName)) {
+        return $null
+    }
+
+    $key = $CommandName.ToLowerInvariant()
+    if ($script:CommandPathCache.ContainsKey($key)) {
+        $value = $script:CommandPathCache[$key]
+        return if ([string]::IsNullOrWhiteSpace([string]$value)) { $null } else { [string]$value }
+    }
+
+    $resolved = Get-Command -Name $CommandName -ErrorAction SilentlyContinue
+    $path = if ($resolved) {
+        if (-not [string]::IsNullOrWhiteSpace($resolved.Source)) { $resolved.Source } else { $CommandName }
+    } else {
+        $null
+    }
+
+    $script:CommandPathCache[$key] = $path
+    return $path
+}
+
+function Set-CachedCommandPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $CommandName,
+        [Parameter()]
+        [string] $CommandPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CommandName)) {
+        return
+    }
+
+    $key = $CommandName.ToLowerInvariant()
+    $script:CommandPathCache[$key] = $CommandPath
+}
+
+function Remove-TidyAnsiSequences {
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [string] $Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $Text
+    }
+
+    return $script:AnsiEscapeRegex.Replace($Text, '').Replace("`r", '').Trim()
+}
+
 $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
@@ -100,15 +161,15 @@ function Test-TidyAdmin {
 
 function Get-TidyPowerShellExecutable {
     if ($PSVersionTable.PSEdition -eq 'Core') {
-        $pwsh = Get-Command -Name 'pwsh' -ErrorAction SilentlyContinue
-        if ($pwsh) {
-            return $pwsh.Source
+        $pwshPath = Get-CachedCommandPath -CommandName 'pwsh'
+        if ($pwshPath) {
+            return $pwshPath
         }
     }
 
-    $legacy = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
-    if ($legacy) {
-        return $legacy.Source
+    $legacyPath = Get-CachedCommandPath -CommandName 'powershell.exe'
+    if ($legacyPath) {
+        return $legacyPath
     }
 
     throw 'Unable to locate a PowerShell executable to request elevation.'
@@ -239,25 +300,22 @@ function Resolve-ManagerExecutable {
 
     switch ($Key) {
         'winget' {
-            $cmd = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
-            if (-not $cmd) { throw 'winget CLI was not found on this machine.' }
-            if ($cmd.Source) { return $cmd.Source }
-            return 'winget'
+            $path = Get-CachedCommandPath -CommandName 'winget'
+            if (-not $path) { throw 'winget CLI was not found on this machine.' }
+            return $path
         }
         'choco' {
-            $cmd = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
-            if (-not $cmd) { throw 'Chocolatey (choco) CLI was not found on this machine.' }
-            if ($cmd.Source) { return $cmd.Source }
-            return 'choco'
+            $path = Get-CachedCommandPath -CommandName 'choco'
+            if (-not $path) { throw 'Chocolatey (choco) CLI was not found on this machine.' }
+            return $path
         }
         'chocolatey' {
             return Resolve-ManagerExecutable -Key 'choco'
         }
         'scoop' {
-            $cmd = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
-            if (-not $cmd) { throw 'Scoop CLI was not found on this machine.' }
-            if ($cmd.Source) { return $cmd.Source }
-            return 'scoop'
+            $path = Get-CachedCommandPath -CommandName 'scoop'
+            if (-not $path) { throw 'Scoop CLI was not found on this machine.' }
+            return $path
         }
         default {
             throw "Unsupported package manager '$Key'."
@@ -327,10 +385,8 @@ function Select-PreferredVersion {
 function Get-WingetAvailableVersion {
     param([string] $PackageId)
 
-    $command = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'winget' }
+    $exe = Get-CachedCommandPath -CommandName 'winget'
+    if (-not $exe) { return $null }
     $versions = [System.Collections.Generic.List[string]]::new()
 
     try {
@@ -339,8 +395,7 @@ function Get-WingetAvailableVersion {
             foreach ($line in @($showOutput)) {
                 if ($null -eq $line) { continue }
 
-                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
-                $clean = $clean.Replace("`r", '').Trim()
+                $clean = Remove-TidyAnsiSequences -Text [string]$line
                 if ([string]::IsNullOrWhiteSpace($clean)) { continue }
 
                 if ($clean -match '^\s*(Available Version|Latest Version|Version)\s*:\s*(.+)$') {
@@ -363,8 +418,7 @@ function Get-WingetAvailableVersion {
             foreach ($line in @($versionsOutput)) {
                 if ($null -eq $line) { continue }
 
-                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
-                $clean = $clean.Replace("`r", '').Trim()
+                $clean = Remove-TidyAnsiSequences -Text [string]$line
                 if ([string]::IsNullOrWhiteSpace($clean)) { continue }
                 if ($clean -match '^(?i:found\s)') { continue }
                 if ($clean -match '^(?i:version)$') { continue }
@@ -391,8 +445,7 @@ function Get-WingetAvailableVersion {
             foreach ($line in @($searchOutput)) {
                 if ($null -eq $line) { continue }
 
-                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
-                $clean = $clean.Replace("`r", '')
+                $clean = Remove-TidyAnsiSequences -Text [string]$line
                 if ([string]::IsNullOrWhiteSpace($clean)) { continue }
                 if ($clean -match '^(?i)\s*Name\s+Id\s+Version') { continue }
                 if ($clean -match '^-{3,}') { continue }
@@ -418,10 +471,8 @@ function Get-WingetAvailableVersion {
 function Get-ChocoAvailableVersion {
     param([string] $PackageId)
 
-    $command = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'choco' }
+    $exe = Get-CachedCommandPath -CommandName 'choco'
+    if (-not $exe) { return $null }
     $versions = [System.Collections.Generic.List[string]]::new()
     $pipePattern = '^(?i)' + [Regex]::Escape($PackageId) + '\|([^|]+)'
     $spacePattern = '^(?i)' + [Regex]::Escape($PackageId) + '\s+([0-9][^\s]*)'
@@ -432,8 +483,7 @@ function Get-ChocoAvailableVersion {
             foreach ($line in @($output)) {
                 if ($null -eq $line) { continue }
 
-                $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
-                $trimmed = $clean.Trim()
+                $trimmed = (Remove-TidyAnsiSequences -Text [string]$line)
                 if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
                 if ($trimmed -match '^(?i)Chocolatey\s') { continue }
                 if ($trimmed -match '^\d+\s+packages?\s+(?:found|installed).*') { continue }
@@ -458,8 +508,7 @@ function Get-ChocoAvailableVersion {
                 foreach ($line in @($output)) {
                     if ($null -eq $line) { continue }
 
-                    $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
-                    $trimmed = $clean.Trim()
+                    $trimmed = (Remove-TidyAnsiSequences -Text [string]$line)
                     if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
                     if ($trimmed -match '^(?i)Chocolatey\s') { continue }
                     if ($trimmed -match '^\d+\s+packages?\s+(?:found|installed).*') { continue }
@@ -485,7 +534,7 @@ function Get-ChocoAvailableVersion {
                 foreach ($line in @($infoOutput)) {
                     if ($null -eq $line) { continue }
 
-                    $clean = [Regex]::Replace([string]$line, '\x1B\[[0-9;]*[A-Za-z]', '')
+                    $clean = Remove-TidyAnsiSequences -Text [string]$line
                     if ([string]::IsNullOrWhiteSpace($clean)) { continue }
 
                     if ($clean -match '^\s*Latest Version\s*:\s*(.+)$') {
@@ -569,10 +618,8 @@ function Get-ScoopManifestPaths {
 function Get-ScoopAvailableVersion {
     param([string] $PackageId)
 
-    $command = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
-    if (-not $command) { return $null }
-
-    $exe = if ($command.Source) { $command.Source } else { 'scoop' }
+    $exe = Get-CachedCommandPath -CommandName 'scoop'
+    if (-not $exe) { return $null }
     try {
         $paths = Get-ScoopManifestPaths -PackageId $PackageId
         if ($paths.BucketPath -and (Test-Path -Path $paths.BucketPath)) {
@@ -622,8 +669,10 @@ function Get-ScoopAvailableVersion {
     try {
         $fallback = & $exe 'info' $PackageId 2>$null
         foreach ($line in @($fallback)) {
-            if ($line -match '^\s*Latest Version\s*:\s*(.+)$') { return $matches[1].Trim() }
-            if ($line -match '^\s*Version\s*:\s*(.+)$') { return $matches[1].Trim() }
+            $clean = Remove-TidyAnsiSequences -Text [string]$line
+            if ([string]::IsNullOrWhiteSpace($clean)) { continue }
+            if ($clean -match '^\s*Latest Version\s*:\s*(.+)$') { return $matches[1].Trim() }
+            if ($clean -match '^\s*Version\s*:\s*(.+)$') { return $matches[1].Trim() }
         }
     }
     catch { }

@@ -24,6 +24,45 @@ if (-not (Test-Path -Path $modulePath)) {
 
 Import-Module $modulePath -Force
 
+$script:CommandPathCache = @{}
+
+function Get-CachedTidyCommandPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $CommandName
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CommandName)) {
+        return $null
+    }
+
+    $key = $CommandName.ToLowerInvariant()
+    if ($script:CommandPathCache.ContainsKey($key)) {
+        $cached = $script:CommandPathCache[$key]
+        return if ([string]::IsNullOrWhiteSpace([string]$cached)) { $null } else { [string]$cached }
+    }
+
+    $resolved = Get-TidyCommandPath -CommandName $CommandName
+    $script:CommandPathCache[$key] = $resolved
+    return $resolved
+}
+
+function Set-CachedTidyCommandPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $CommandName,
+        [Parameter()]
+        [string] $CommandPath
+    )
+
+    if ([string]::IsNullOrWhiteSpace($CommandName)) {
+        return
+    }
+
+    $key = $CommandName.ToLowerInvariant()
+    $script:CommandPathCache[$key] = $CommandPath
+}
+
 function Write-TidyOutput {
     param(
         [Parameter(Mandatory = $true)]
@@ -61,7 +100,10 @@ function Get-TidyCommandVersion {
     )
 
     if ([string]::IsNullOrWhiteSpace($CommandPath)) {
-        $CommandPath = Get-TidyCommandPath -CommandName $CommandName
+        $CommandPath = Get-CachedTidyCommandPath -CommandName $CommandName
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($CommandName)) {
+        Set-CachedTidyCommandPath -CommandName $CommandName -CommandPath $CommandPath
     }
 
     if ([string]::IsNullOrWhiteSpace($CommandPath)) {
@@ -103,7 +145,7 @@ function Test-TidyCommand {
         [string] $CommandName
     )
 
-    $null -ne (Get-Command -Name $CommandName -ErrorAction SilentlyContinue)
+    -not [string]::IsNullOrWhiteSpace(Get-CachedTidyCommandPath -CommandName $CommandName)
 }
 
 function Test-ChocolateyInstalled {
@@ -121,6 +163,7 @@ function Test-ChocolateyInstalled {
 
     foreach ($path in $candidatePaths) {
         if (Test-Path -LiteralPath $path) {
+            Set-CachedTidyCommandPath -CommandName 'choco' -CommandPath $path
             return $true
         }
     }
@@ -145,6 +188,7 @@ function Test-ScoopInstalled {
 
     foreach ($path in $candidatePaths) {
         if (Test-Path -LiteralPath $path) {
+            Set-CachedTidyCommandPath -CommandName 'scoop' -CommandPath $path
             return $true
         }
     }
@@ -204,13 +248,14 @@ function Add-TidyManagerResult {
 }
 
 try {
-    $wingetPath = Get-TidyCommandPath -CommandName 'winget'
+    $wingetPath = Get-CachedTidyCommandPath -CommandName 'winget'
     $wingetFound = -not [string]::IsNullOrWhiteSpace($wingetPath)
     if (-not $wingetFound) {
         $candidate = Join-Path -Path ([Environment]::GetFolderPath('LocalApplicationData')) -ChildPath 'Microsoft\WindowsApps\winget.exe'
         if (Test-Path -LiteralPath $candidate) {
             $wingetPath = $candidate
             $wingetFound = $true
+            Set-CachedTidyCommandPath -CommandName 'winget' -CommandPath $wingetPath
         }
     }
 
@@ -223,7 +268,7 @@ try {
 
     if ($IncludeChocolatey) {
         $chocoFound = Test-ChocolateyInstalled
-        $chocoPath = if ($chocoFound) { Get-TidyCommandPath -CommandName 'choco' } else { $null }
+    $chocoPath = if ($chocoFound) { Get-CachedTidyCommandPath -CommandName 'choco' } else { $null }
         $chocoVersion = if ($chocoFound -and $chocoPath) {
             Get-TidyCommandVersion -CommandPath $chocoPath -CommandName 'choco'
         } else {
@@ -235,7 +280,7 @@ try {
 
     if ($IncludeScoop) {
         $scoopFound = Test-ScoopInstalled
-        $scoopPath = if ($scoopFound) { Get-TidyCommandPath -CommandName 'scoop' } else { $null }
+    $scoopPath = if ($scoopFound) { Get-CachedTidyCommandPath -CommandName 'scoop' } else { $null }
         $scoopVersion = if ($scoopFound -and $scoopPath) {
             try {
                 (& $scoopPath '--version' 2>$null | Select-Object -First 1).Trim()
@@ -250,9 +295,17 @@ try {
         Add-TidyManagerResult -Name 'scoop' -DisplayName 'Scoop package manager' -IsInstalled:$scoopFound -Notes 'Scoop package manager' -CommandPath $scoopPath -Version $scoopVersion
     }
 
-    $installedCount = ($results | Where-Object { $_.Found }).Count
+    $installedCount = 0
+    foreach ($entry in $results) {
+        if ($null -ne $entry -and $entry.Found) {
+            $installedCount++
+        }
+    }
+
+    $missingCount = $results.Count - $installedCount
+
     Write-TidyLog -Level Information -Message ("Package manager detection completed • {0} detected." -f $installedCount)
-    Write-TidyOutput -Message ("Detection summary • {0} detected, {1} missing." -f $installedCount, ($results.Count - $installedCount))
+    Write-TidyOutput -Message ("Detection summary • {0} detected, {1} missing." -f $installedCount, $missingCount)
 }
 catch {
     $message = $_.Exception.Message

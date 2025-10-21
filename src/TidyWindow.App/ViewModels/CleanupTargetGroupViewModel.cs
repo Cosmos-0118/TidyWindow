@@ -18,6 +18,8 @@ namespace TidyWindow.App.ViewModels;
 public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDisposable
 {
     private bool _isDisposed;
+    private int _selectionNotificationSuppression;
+    private bool _selectionDirty;
 
     public CleanupTargetGroupViewModel(CleanupTargetReport model)
     {
@@ -100,11 +102,44 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
             return;
         }
 
+        if (_selectionNotificationSuppression > 0)
+        {
+            _selectionDirty = true;
+            return;
+        }
+
+        NotifySelectionChanged();
+    }
+
+    private void NotifySelectionChanged()
+    {
         SelectionChanged?.Invoke(this, EventArgs.Empty);
 
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectedSizeBytes));
         OnPropertyChanged(nameof(SelectedSizeMegabytes));
+    }
+
+    public IDisposable BeginSelectionUpdate()
+    {
+        _selectionNotificationSuppression++;
+        return new SelectionUpdateScope(this);
+    }
+
+    private void EndSelectionUpdate()
+    {
+        if (_selectionNotificationSuppression == 0)
+        {
+            return;
+        }
+
+        _selectionNotificationSuppression--;
+
+        if (_selectionNotificationSuppression == 0 && _selectionDirty)
+        {
+            _selectionDirty = false;
+            NotifySelectionChanged();
+        }
     }
 
     public void Dispose()
@@ -120,6 +155,28 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
         foreach (var item in Items)
         {
             item.PropertyChanged -= OnItemPropertyChanged;
+        }
+    }
+
+    private sealed class SelectionUpdateScope : IDisposable
+    {
+        private readonly CleanupTargetGroupViewModel _owner;
+        private bool _disposed;
+
+        public SelectionUpdateScope(CleanupTargetGroupViewModel owner)
+        {
+            _owner = owner;
+        }
+
+        public void Dispose()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            _owner.EndSelectionUpdate();
         }
     }
 }

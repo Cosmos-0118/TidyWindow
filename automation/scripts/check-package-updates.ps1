@@ -6,6 +6,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$script:SplitColumnsRegex = [System.Text.RegularExpressions.Regex]::new('\s{2,}', [System.Text.RegularExpressions.RegexOptions]::Compiled)
+
 $wingetCommand = Get-Command -Name 'winget' -ErrorAction SilentlyContinue
 $chocoCommand = Get-Command -Name 'choco' -ErrorAction SilentlyContinue
 $scoopCommand = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
@@ -25,7 +27,7 @@ function Split-TableColumns {
         return @()
     }
 
-    return [System.Text.RegularExpressions.Regex]::Split($Line.Trim(), '\s{2,}') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    return $script:SplitColumnsRegex.Split($Line.Trim()) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 }
 
 $callerModulePath = $MyInvocation.MyCommand.Path
@@ -57,37 +59,22 @@ function Get-WingetInstalledCache {
     try {
         $lines = & $exe 'list' '--accept-source-agreements' '--disable-interactivity' 2>$null
         if ($LASTEXITCODE -eq 0 -and $lines) {
-            Set-Content -LiteralPath 'winget-lines.txt' -Value $lines
-            Write-Host ("winget list lines: {0}" -f $lines.Count)
-            $debugCount = 0
             foreach ($line in $lines) {
-                if ($line.IndexOf('Visual Studio Code') -ge 0) { Write-Host "VS Code raw: $line" }
                 if ([string]::IsNullOrWhiteSpace($line)) { continue }
                 if ($line -match '^-{3,}') { continue }
                 if ($line -match '^\s*Name\s+Id\s+Version') { continue }
 
                 $parts = Split-TableColumns -Line $line
-                if ($debugCount -lt 15) {
-                    Write-Host ("parts[{0}] :: {1}" -f $parts.Length, $line)
-                    $debugCount++
-                }
                 if ($parts.Length -lt 4) { continue }
 
                 $source = $parts[$parts.Length - 1].Trim()
                 if (-not [string]::IsNullOrWhiteSpace($source)) {
                     $normalizedSource = $source.ToLowerInvariant()
-                    if ($normalizedSource -ne 'winget' -and $normalizedSource -ne 'msstore') {
-                        Write-Host "Skipping $line -> source '$source'"
-                        continue
-                    }
+                    if ($normalizedSource -ne 'winget' -and $normalizedSource -ne 'msstore') { continue }
                 }
 
                 $id = $parts[1].Trim()
                 $version = $parts[2].Trim()
-
-                if ($id -eq 'Microsoft.VisualStudioCode') {
-                    Write-Host "Captured VS Code with version '$version' and source '$source'"
-                }
 
                 if (-not [string]::IsNullOrWhiteSpace($id) -and -not [string]::IsNullOrWhiteSpace($version)) {
                     $cache[$id] = $version
@@ -386,7 +373,16 @@ function Get-CatalogEntries {
 
 $catalogEntries = Get-CatalogEntries -CatalogPath $CatalogPath
 if ($PackageIds -and $PackageIds.Count -gt 0) {
-    $catalogEntries = $catalogEntries | Where-Object { $PackageIds -contains $_.Id }
+    $idSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($candidateId in $PackageIds) {
+        if (-not [string]::IsNullOrWhiteSpace($candidateId)) {
+            [void]$idSet.Add($candidateId.Trim())
+        }
+    }
+
+    if ($idSet.Count -gt 0) {
+        $catalogEntries = $catalogEntries | Where-Object { $_.Id -and $idSet.Contains($_.Id) }
+    }
 }
 
 $managerSet = $catalogEntries |
@@ -401,11 +397,7 @@ if ($managerSet -contains 'winget') {
     $wingetUpgradeCache = Get-WingetUpgradeCache
     $wingetInstalledCount = if ($wingetInstalledCache) { $wingetInstalledCache.Count } else { 0 }
     $wingetUpgradeCount = if ($wingetUpgradeCache) { $wingetUpgradeCache.Count } else { 0 }
-    Write-Host ("winget installed entries: {0}; upgrades: {1}" -f $wingetInstalledCount, $wingetUpgradeCount)
-    if ($wingetInstalledCache) {
-        Write-Host ("Contains Microsoft.VisualStudioCode: {0}" -f $wingetInstalledCache.ContainsKey('Microsoft.VisualStudioCode'))
-        Write-Host ("winget keys: {0}" -f ($wingetInstalledCache.Keys -join ', '))
-    }
+    Write-Verbose ("winget installed entries: {0}; upgrades: {1}" -f $wingetInstalledCount, $wingetUpgradeCount)
 }
 
 $chocoInstalledCache = $null
@@ -415,7 +407,7 @@ if ($managerSet -contains 'choco' -or $managerSet -contains 'chocolatey') {
     $chocoUpgradeCache = Get-ChocoUpgradeCache
     $chocoInstalledCount = if ($chocoInstalledCache) { $chocoInstalledCache.Count } else { 0 }
     $chocoUpgradeCount = if ($chocoUpgradeCache) { $chocoUpgradeCache.Count } else { 0 }
-    Write-Host ("choco installed entries: {0}; upgrades: {1}" -f $chocoInstalledCount, $chocoUpgradeCount)
+    Write-Verbose ("choco installed entries: {0}; upgrades: {1}" -f $chocoInstalledCount, $chocoUpgradeCount)
 }
 
 $scoopInstalledCache = $null
@@ -425,10 +417,10 @@ if ($managerSet -contains 'scoop') {
     $scoopUpgradeCache = Get-ScoopUpgradeCache
     $scoopInstalledCount = if ($scoopInstalledCache) { $scoopInstalledCache.Count } else { 0 }
     $scoopUpgradeCount = if ($scoopUpgradeCache) { $scoopUpgradeCache.Count } else { 0 }
-    Write-Host ("scoop installed entries: {0}; upgrades: {1}" -f $scoopInstalledCount, $scoopUpgradeCount)
+    Write-Verbose ("scoop installed entries: {0}; upgrades: {1}" -f $scoopInstalledCount, $scoopUpgradeCount)
 }
 
-$results = @()
+$results = [System.Collections.Generic.List[psobject]]::new()
 
 foreach ($entry in $catalogEntries) {
     try {
@@ -438,69 +430,61 @@ foreach ($entry in $catalogEntries) {
         $installedVersion = $null
         $latestVersion = $null
 
-        switch ($manager) {
-            'winget' {
-                if ($wingetInstalledCache -and $packageId -and $wingetInstalledCache.ContainsKey($packageId)) {
-                    $installedVersion = $wingetInstalledCache[$packageId]
+        if ($manager -eq 'winget') {
+            if ($wingetInstalledCache -and $packageId) {
+                $installedLookup = $null
+                if ($wingetInstalledCache.TryGetValue($packageId, [ref]$installedLookup)) {
+                    $installedVersion = $installedLookup
                 }
-
-                if ($wingetUpgradeCache -and $packageId -and $wingetUpgradeCache.ContainsKey($packageId)) {
-                    $upgrade = $wingetUpgradeCache[$packageId]
-                    if (-not $installedVersion -and $upgrade.Installed) {
-                        $installedVersion = $upgrade.Installed
-                    }
-                    $latestVersion = $upgrade.Available
-                }
-
-                break
             }
-            'choco' {
-                if ($chocoInstalledCache -and $packageId -and $chocoInstalledCache.ContainsKey($packageId)) {
-                    $installedVersion = $chocoInstalledCache[$packageId]
-                }
 
-                if ($chocoUpgradeCache -and $packageId -and $chocoUpgradeCache.ContainsKey($packageId)) {
-                    $upgrade = $chocoUpgradeCache[$packageId]
-                    if (-not $installedVersion -and $upgrade.Installed) {
-                        $installedVersion = $upgrade.Installed
+            if ($wingetUpgradeCache -and $packageId) {
+                $upgradeLookup = $null
+                if ($wingetUpgradeCache.TryGetValue($packageId, [ref]$upgradeLookup)) {
+                    if (-not $installedVersion -and $upgradeLookup.Installed) {
+                        $installedVersion = $upgradeLookup.Installed
                     }
-                    $latestVersion = $upgrade.Available
-                }
 
-                break
+                    $latestVersion = $upgradeLookup.Available
+                }
             }
-            'chocolatey' {
-                if ($chocoInstalledCache -and $packageId -and $chocoInstalledCache.ContainsKey($packageId)) {
-                    $installedVersion = $chocoInstalledCache[$packageId]
+        }
+        elseif ($manager -in @('choco', 'chocolatey')) {
+            if ($chocoInstalledCache -and $packageId) {
+                $installedLookup = $null
+                if ($chocoInstalledCache.TryGetValue($packageId, [ref]$installedLookup)) {
+                    $installedVersion = $installedLookup
                 }
+            }
 
-                if ($chocoUpgradeCache -and $packageId -and $chocoUpgradeCache.ContainsKey($packageId)) {
-                    $upgrade = $chocoUpgradeCache[$packageId]
-                    if (-not $installedVersion -and $upgrade.Installed) {
-                        $installedVersion = $upgrade.Installed
+            if ($chocoUpgradeCache -and $packageId) {
+                $upgradeLookup = $null
+                if ($chocoUpgradeCache.TryGetValue($packageId, [ref]$upgradeLookup)) {
+                    if (-not $installedVersion -and $upgradeLookup.Installed) {
+                        $installedVersion = $upgradeLookup.Installed
                     }
-                    $latestVersion = $upgrade.Available
-                }
 
-                break
+                    $latestVersion = $upgradeLookup.Available
+                }
             }
-            'scoop' {
-                if ($scoopInstalledCache -and $packageId -and $scoopInstalledCache.ContainsKey($packageId)) {
-                    $installedVersion = $scoopInstalledCache[$packageId]
+        }
+        elseif ($manager -eq 'scoop') {
+            if ($scoopInstalledCache -and $packageId) {
+                $installedLookup = $null
+                if ($scoopInstalledCache.TryGetValue($packageId, [ref]$installedLookup)) {
+                    $installedVersion = $installedLookup
                 }
+            }
 
-                if ($scoopUpgradeCache -and $packageId -and $scoopUpgradeCache.ContainsKey($packageId)) {
-                    $upgrade = $scoopUpgradeCache[$packageId]
-                    if (-not $installedVersion -and $upgrade.Installed) {
-                        $installedVersion = $upgrade.Installed
+            if ($scoopUpgradeCache -and $packageId) {
+                $upgradeLookup = $null
+                if ($scoopUpgradeCache.TryGetValue($packageId, [ref]$upgradeLookup)) {
+                    if (-not $installedVersion -and $upgradeLookup.Installed) {
+                        $installedVersion = $upgradeLookup.Installed
                     }
-                    $latestVersion = $upgrade.Available
-                }
 
-                break
-            }
-            default {
-                # unsupported manager
+                    $latestVersion = $upgradeLookup.Available
+                }
             }
         }
 
@@ -522,7 +506,7 @@ foreach ($entry in $catalogEntries) {
 
         $status = Get-Status -Installed $installedVersion -Latest $latestVersion
 
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Id = $entry.Id
             DisplayName = $entry.DisplayName
             Status = $status
@@ -532,10 +516,10 @@ foreach ($entry in $catalogEntries) {
             PackageId = $entry.PackageId
             Notes = $entry.Notes
             RequiresAdmin = $entry.RequiresAdmin
-        }
+        })
     }
     catch {
-        $results += [pscustomobject]@{
+        $results.Add([pscustomobject]@{
             Id = $entry.Id
             DisplayName = $entry.DisplayName
             Status = 'Unknown'
@@ -546,7 +530,7 @@ foreach ($entry in $catalogEntries) {
             Notes = $entry.Notes
             RequiresAdmin = $entry.RequiresAdmin
             Error = $_.Exception.Message
-        }
+        })
     }
 }
 

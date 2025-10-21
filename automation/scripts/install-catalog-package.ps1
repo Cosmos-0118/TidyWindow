@@ -460,6 +460,29 @@ try {
     Write-TidyLog -Level Information -Message "Installing '$DisplayName' using manager '$Manager'."
 
     $commandText = $Command.Trim()
+
+    if ($commandText.IndexOf("`n") -ge 0 -or $commandText.IndexOf("`r") -ge 0) {
+        $normalizedLines = @()
+
+        foreach ($segment in ($commandText -split "`r?`n")) {
+            if ([string]::IsNullOrWhiteSpace($segment)) {
+                continue
+            }
+
+            $normalizedLines += $segment.Trim()
+        }
+
+        if ($normalizedLines.Count -gt 0) {
+            $commandText = [string]::Join(' ', $normalizedLines)
+        }
+        else {
+            $commandText = ''
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($commandText)) {
+        throw "Resolved command text was empty for '$DisplayName'."
+    }
     if ($Manager -ieq 'choco') {
         if (-not (Get-Command -Name 'choco' -ErrorAction SilentlyContinue)) {
             throw 'Chocolatey command not found. Install Chocolatey first.'

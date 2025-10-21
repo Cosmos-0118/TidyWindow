@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.Core.Diagnostics;
 
@@ -15,7 +16,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 {
     private readonly DeepScanService _deepScanService;
     private readonly MainViewModel _mainViewModel;
-    private readonly List<DeepScanItemViewModel> _allFindings = new();
+    private readonly List<DeepScanFinding> _allFindings = new();
     private readonly int _pageSize = 100;
 
     private bool _isBusy;
@@ -150,37 +151,12 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     public int CurrentPage
     {
         get => _currentPage;
-        private set
-        {
-            var clamped = value < 1 ? 1 : value > TotalPages ? TotalPages : value;
-            if (SetProperty(ref _currentPage, clamped))
-            {
-                OnPropertyChanged(nameof(PageDisplay));
-                OnPropertyChanged(nameof(CanGoToPreviousPage));
-                OnPropertyChanged(nameof(CanGoToNextPage));
-                RefreshVisibleFindings();
-            }
-        }
+        private set => SetCurrentPageInternal(value, refreshVisible: true, raisePaginationProperties: true);
     }
 
-    public int TotalFindings
-    {
-        get => _totalFindings;
-        private set
-        {
-            if (SetProperty(ref _totalFindings, value))
-            {
-                OnPropertyChanged(nameof(HasResults));
-                OnPropertyChanged(nameof(TotalPages));
-                OnPropertyChanged(nameof(PageDisplay));
-                OnPropertyChanged(nameof(CanGoToPreviousPage));
-                OnPropertyChanged(nameof(CanGoToNextPage));
-                RefreshVisibleFindings();
-            }
-        }
-    }
+    public int TotalFindings => _totalFindings;
 
-    public int TotalPages => TotalFindings == 0 ? 1 : (int)Math.Ceiling(TotalFindings / (double)PageSize);
+    public int TotalPages => _totalFindings == 0 ? 1 : (int)Math.Ceiling(_totalFindings / (double)PageSize);
 
     public string PageDisplay => HasResults ? $"Page {CurrentPage} of {TotalPages}" : "Page 0 of 0";
 
@@ -205,10 +181,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             IsBusy = true;
             _mainViewModel.SetStatusMessage("Scanning for large files...");
 
-            _allFindings.Clear();
-            VisibleFindings.Clear();
-            TotalFindings = 0;
-            CurrentPage = 1;
+            ClearFindings();
             Summary = "Scanning…";
 
             var filters = string.IsNullOrWhiteSpace(NameFilter)
@@ -301,11 +274,78 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             return;
         }
 
-        var skip = (CurrentPage - 1) * PageSize;
-        foreach (var item in _allFindings.Skip(skip).Take(PageSize))
+        var startIndex = (_currentPage - 1) * PageSize;
+        var endExclusive = Math.Min(startIndex + PageSize, _allFindings.Count);
+
+        for (var index = startIndex; index < endExclusive; index++)
         {
-            VisibleFindings.Add(item);
+            VisibleFindings.Add(new DeepScanItemViewModel(_allFindings[index]));
         }
+    }
+
+    private void ClearFindings()
+    {
+        _allFindings.Clear();
+        SetTotalFindings(0, resetPage: true, forceRefresh: true);
+    }
+
+    private void SetTotalFindings(int totalCount, bool resetPage, bool forceRefresh = false)
+    {
+        if (totalCount < 0)
+        {
+            totalCount = 0;
+        }
+
+        var previousCount = _totalFindings;
+        var countChanged = previousCount != totalCount;
+
+        if (countChanged)
+        {
+            _totalFindings = totalCount;
+            OnPropertyChanged(nameof(TotalFindings));
+            OnPropertyChanged(nameof(HasResults));
+            OnPropertyChanged(nameof(TotalPages));
+        }
+
+        var targetPage = resetPage
+            ? 1
+            : (_totalFindings == 0 ? 1 : Math.Min(Math.Max(_currentPage, 1), TotalPages));
+
+        var pageChanged = SetCurrentPageInternal(targetPage, refreshVisible: false, raisePaginationProperties: false);
+
+        OnPropertyChanged(nameof(PageDisplay));
+        OnPropertyChanged(nameof(CanGoToPreviousPage));
+        OnPropertyChanged(nameof(CanGoToNextPage));
+
+        if (forceRefresh || countChanged || pageChanged)
+        {
+            RefreshVisibleFindings();
+        }
+    }
+
+    private bool SetCurrentPageInternal(int desiredPage, bool refreshVisible, bool raisePaginationProperties)
+    {
+        var clamped = desiredPage < 1 ? 1 : desiredPage > TotalPages ? TotalPages : desiredPage;
+        var changed = _currentPage != clamped;
+        if (changed)
+        {
+            _currentPage = clamped;
+            OnPropertyChanged(nameof(CurrentPage));
+        }
+
+        if (raisePaginationProperties)
+        {
+            OnPropertyChanged(nameof(PageDisplay));
+            OnPropertyChanged(nameof(CanGoToPreviousPage));
+            OnPropertyChanged(nameof(CanGoToNextPage));
+        }
+
+        if (refreshVisible)
+        {
+            RefreshVisibleFindings();
+        }
+
+        return changed;
     }
 
     private void ApplyProgress(DeepScanProgressUpdate update)
@@ -314,17 +354,20 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         Summary = BuildStreamingSummary(update);
     }
 
-    private void ReplaceFindings(IReadOnlyList<DeepScanFinding> findings)
+    private void ReplaceFindings(IReadOnlyList<DeepScanFinding> findings, bool resetPage = true)
     {
         _allFindings.Clear();
-        foreach (var finding in findings)
+        if (_allFindings.Capacity < findings.Count)
         {
-            _allFindings.Add(new DeepScanItemViewModel(finding));
+            _allFindings.Capacity = findings.Count;
         }
 
-        TotalFindings = _allFindings.Count;
-        CurrentPage = 1;
-        RefreshVisibleFindings();
+        for (var index = 0; index < findings.Count; index++)
+        {
+            _allFindings.Add(findings[index]);
+        }
+
+        SetTotalFindings(_allFindings.Count, resetPage, forceRefresh: true);
     }
 
     private string BuildStreamingSummary(DeepScanProgressUpdate update)
