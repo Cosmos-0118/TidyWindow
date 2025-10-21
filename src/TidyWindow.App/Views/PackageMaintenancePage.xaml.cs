@@ -28,7 +28,8 @@ public partial class PackageMaintenancePage : Page
     private async void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnPageLoaded;
-
+        if (_viewModel.HasLoadedInitialData)
+            return;
         if (_viewModel.RefreshCommand is IAsyncRelayCommand asyncCommand)
         {
             await asyncCommand.ExecuteAsync(null);
@@ -56,13 +57,13 @@ public partial class PackageMaintenancePage : Page
 
     private void OnAdministratorRestartRequested(object? sender, EventArgs e)
     {
-        MessageBox.Show(
-            "TidyWindow will relaunch with administrator privileges. Close this window if it does not exit automatically.",
-            "Restarting as administrator",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        var app = WpfApplication.Current;
+        if (app is null)
+        {
+            return;
+        }
 
-        WpfApplication.Current?.Shutdown();
+        app.Dispatcher.BeginInvoke(new Action(app.Shutdown));
     }
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
@@ -74,7 +75,7 @@ public partial class PackageMaintenancePage : Page
 
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
         _viewModel.ConfirmElevation = null;
-        _viewModel.Dispose();
+        // Do not dispose the viewmodel to preserve state between navigations
         Unloaded -= OnPageUnloaded;
         _disposed = true;
     }

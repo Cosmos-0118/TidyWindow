@@ -105,6 +105,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     public bool HasPackages => Packages.Count > 0;
 
+    public bool HasLoadedInitialData { get; private set; }
+
     public Func<string, bool>? ConfirmElevation { get; set; }
 
     public event EventHandler? AdministratorRestartRequested;
@@ -129,6 +131,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             {
                 ApplySnapshot(snapshot);
                 _lastRefreshedAt = snapshot.GeneratedAt;
+                HasLoadedInitialData = true;
                 OnPropertyChanged(nameof(SummaryText));
                 OnPropertyChanged(nameof(LastRefreshedDisplay));
                 OnPropertyChanged(nameof(HasPackages));

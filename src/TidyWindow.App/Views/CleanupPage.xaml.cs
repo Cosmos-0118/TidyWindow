@@ -48,12 +48,13 @@ public partial class CleanupPage : Page
 
     private void OnAdministratorRestartRequested(object? sender, EventArgs e)
     {
-        MessageBox.Show("TidyWindow will relaunch with administrator privileges. Close this window if it does not exit automatically.",
-            "Restarting as administrator",
-            MessageBoxButton.OK,
-            MessageBoxImage.Information);
+        var app = WpfApplication.Current;
+        if (app is null)
+        {
+            return;
+        }
 
-        WpfApplication.Current?.Shutdown();
+        app.Dispatcher.BeginInvoke(new Action(app.Shutdown));
     }
 
     private void CleanupPage_Unloaded(object sender, RoutedEventArgs e)
