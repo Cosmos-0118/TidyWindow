@@ -13,6 +13,8 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>..\..\resources\applogo.ico</ApplicationIcon>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <AssemblyName>TidyWindow</AssemblyName>
+    <RootNamespace>TidyWindow.App</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
