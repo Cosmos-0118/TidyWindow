@@ -166,6 +166,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public bool CanGoToPreviousPage => CurrentPage > 1;
     public bool CanGoToNextPage => CurrentPage < TotalPages;
 
+    [ObservableProperty]
+    private int _selectRangeStartPage = 1;
+
+    [ObservableProperty]
+    private int _selectRangeEndPage = 1;
+
     [RelayCommand]
     private void NextPage()
     {
@@ -277,6 +283,14 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 ? "No cleanup targets detected."
                 : $"Preview ready: {SummaryText}";
 
+            var warningCount = report.Targets.Sum(static target => target.Warnings.Count);
+            if (warningCount > 0)
+            {
+                status += warningCount == 1
+                    ? " • 1 warning"
+                    : $" • {warningCount} warnings";
+            }
+
             _mainViewModel.SetStatusMessage(status);
         }
         catch (Exception ex)
@@ -382,8 +396,17 @@ public sealed partial class CleanupViewModel : ViewModelBase
             OnPropertyChanged(nameof(SelectedItemCount));
             OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
             OnPropertyChanged(nameof(HasSelection));
-            _mainViewModel.SetStatusMessage(deletionResult.ToStatusMessage());
-            DeletionStatusMessage = deletionResult.ToStatusMessage();
+            var deletionSummary = deletionResult.ToStatusMessage();
+            _mainViewModel.SetStatusMessage(deletionSummary);
+
+            if (deletionResult.HasErrors && deletionResult.Errors.Count > 0)
+            {
+                DeletionStatusMessage = deletionSummary + " • " + deletionResult.Errors[0];
+            }
+            else
+            {
+                DeletionStatusMessage = deletionSummary;
+            }
         }
         catch (Exception ex)
         {
@@ -410,6 +433,74 @@ public sealed partial class CleanupViewModel : ViewModelBase
     }
 
     private bool CanSelectAllCurrent() => FilteredItems.Count > 0;
+
+    [RelayCommand(CanExecute = nameof(CanSelectAcrossPages))]
+    private void SelectAllPages()
+    {
+        if (SelectedTarget is null)
+        {
+            return;
+        }
+
+        foreach (var item in SelectedTarget.Items.Where(MatchesFilters))
+        {
+            item.IsSelected = true;
+        }
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSelectAcrossPages))]
+    private void SelectPageRange()
+    {
+        if (SelectedTarget is null)
+        {
+            return;
+        }
+
+        var totalPages = TotalPages;
+        if (totalPages <= 0)
+        {
+            return;
+        }
+
+        var start = SelectRangeStartPage;
+        var end = SelectRangeEndPage;
+
+        if (start > end)
+        {
+            (start, end) = (end, start);
+        }
+
+        start = Math.Clamp(start, 1, totalPages);
+        end = Math.Clamp(end, 1, totalPages);
+
+        if (start > end)
+        {
+            return;
+        }
+
+        var startIndex = (start - 1) * PageSize;
+        var endExclusive = end * PageSize;
+        var index = 0;
+
+        foreach (var item in SelectedTarget.Items.Where(MatchesFilters))
+        {
+            if (index >= startIndex && index < endExclusive)
+            {
+                item.IsSelected = true;
+            }
+            else if (index >= endExclusive)
+            {
+                break;
+            }
+
+            index++;
+        }
+    }
+
+    private bool CanSelectAcrossPages()
+    {
+        return SelectedTarget is not null && _totalFilteredItems > 0;
+    }
 
     [RelayCommand(CanExecute = nameof(CanClearCurrentSelection))]
     private void ClearCurrentSelection()
@@ -442,6 +533,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
             RefreshFilteredItems();
             SelectAllCurrentCommand.NotifyCanExecuteChanged();
             ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+            SelectAllPagesCommand.NotifyCanExecuteChanged();
+            SelectPageRangeCommand.NotifyCanExecuteChanged();
             return;
         }
 
@@ -449,6 +542,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+        SelectAllPagesCommand.NotifyCanExecuteChanged();
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedItemKindChanged(CleanupItemKind value)
@@ -475,6 +570,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
         RefreshFilteredItems();
     }
 
+    partial void OnSelectRangeStartPageChanged(int value)
+    {
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectRangeEndPageChanged(int value)
+    {
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
+    }
+
     private void OnGroupSelectionChanged(object? sender, EventArgs e)
     {
         OnPropertyChanged(nameof(SelectedItemCount));
@@ -494,6 +599,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+        SelectAllPagesCommand.NotifyCanExecuteChanged();
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     private void ClearTargets()
@@ -512,6 +619,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+        SelectAllPagesCommand.NotifyCanExecuteChanged();
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     private void AddTargetGroup(CleanupTargetGroupViewModel group)
@@ -523,6 +632,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SummaryText));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+        SelectAllPagesCommand.NotifyCanExecuteChanged();
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     private void RemoveTargetGroup(CleanupTargetGroupViewModel group)
@@ -541,6 +652,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SummaryText));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+        SelectAllPagesCommand.NotifyCanExecuteChanged();
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshFilteredItems()
@@ -557,6 +670,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
             OnPropertyChanged(nameof(CanGoToNextPage));
             SelectAllCurrentCommand.NotifyCanExecuteChanged();
             ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+            SelectAllPagesCommand.NotifyCanExecuteChanged();
+            SelectPageRangeCommand.NotifyCanExecuteChanged();
             return;
         }
         // Get all filtered items, but only show current page
@@ -575,6 +690,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(CanGoToNextPage));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
+        SelectAllPagesCommand.NotifyCanExecuteChanged();
+        SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
     private bool MatchesFilters(CleanupPreviewItemViewModel item)

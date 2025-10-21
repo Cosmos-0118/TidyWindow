@@ -23,7 +23,12 @@ public enum DeepScanNameMatchMode
 /// </summary>
 public sealed class DeepScanService
 {
-    public async Task<DeepScanResult> RunScanAsync(DeepScanRequest request, CancellationToken cancellationToken = default)
+    public Task<DeepScanResult> RunScanAsync(DeepScanRequest request, CancellationToken cancellationToken = default)
+    {
+        return RunScanAsync(request, progress: null, cancellationToken);
+    }
+
+    public async Task<DeepScanResult> RunScanAsync(DeepScanRequest request, IProgress<DeepScanProgressUpdate>? progress, CancellationToken cancellationToken = default)
     {
         if (request is null)
         {
@@ -32,11 +37,11 @@ public sealed class DeepScanService
 
         var resolvedRoot = ResolveRootPath(request.RootPath);
         return await Task.Run(
-            () => ExecuteScan(resolvedRoot, request, cancellationToken),
+            () => ExecuteScan(resolvedRoot, request, progress, cancellationToken),
             cancellationToken).ConfigureAwait(false);
     }
 
-    private static DeepScanResult ExecuteScan(string resolvedRoot, DeepScanRequest request, CancellationToken cancellationToken)
+    private static DeepScanResult ExecuteScan(string resolvedRoot, DeepScanRequest request, IProgress<DeepScanProgressUpdate>? progress, CancellationToken cancellationToken)
     {
         var context = new ScanContext(
             request.MaxItems,
@@ -45,7 +50,8 @@ public sealed class DeepScanService
             request.NameFilters,
             request.NameMatchMode,
             request.IsCaseSensitiveNameMatch,
-            request.IncludeDirectories);
+            request.IncludeDirectories,
+            progress);
 
         if (context.Limit <= 0)
         {
@@ -56,14 +62,16 @@ public sealed class DeepScanService
         {
             var queue = new PriorityQueue<DeepScanFinding, long>(1);
             var rootFile = CreateFileEntry(resolvedRoot);
-            if (rootFile is not null && TryProcessFileEntry(rootFile.Value, context, out var rootFinding, out _))
+            if (rootFile is not null && TryProcessFileEntry(rootFile.Value, context, out var rootFinding, out var rootSize))
             {
+                context.RecordProcessed(rootSize, rootFile.Value.FullPath, queue);
                 if (rootFinding is not null)
                 {
-                    AddCandidate(queue, rootFinding, context.Limit);
+                    AddCandidate(queue, rootFinding, context);
                 }
             }
 
+            context.Emit(queue, rootFile?.FullPath, isFinal: true, latestFinding: null, force: true);
             var single = DrainQueue(queue);
             return BuildResult(resolvedRoot, single);
         }
@@ -85,10 +93,11 @@ public sealed class DeepScanService
                     modifiedUtc: rootDirectory.LastWriteUtc,
                     extension: string.Empty,
                     isDirectory: true);
-                AddCandidate(results, rootFinding, context.Limit);
+                AddCandidate(results, rootFinding, context);
             }
         }
 
+        context.Emit(results, resolvedRoot, isFinal: true, latestFinding: null, force: true);
         var findings = DrainQueue(results);
         return BuildResult(resolvedRoot, findings);
     }
@@ -111,10 +120,11 @@ public sealed class DeepScanService
                 }
 
                 directorySize += fileSize;
+                context.RecordProcessed(fileSize, entry.FullPath, queue);
 
                 if (fileFinding is not null)
                 {
-                    AddCandidate(queue, fileFinding, context.Limit);
+                    AddCandidate(queue, fileFinding, context);
                 }
 
                 continue;
@@ -147,16 +157,17 @@ public sealed class DeepScanService
                 extension: string.Empty,
                 isDirectory: true);
 
-            AddCandidate(queue, directoryFinding, context.Limit);
+            AddCandidate(queue, directoryFinding, context);
         }
 
         return directorySize;
     }
 
-    private static void AddCandidate(PriorityQueue<DeepScanFinding, long> queue, DeepScanFinding candidate, int limit)
+    private static void AddCandidate(PriorityQueue<DeepScanFinding, long> queue, DeepScanFinding candidate, ScanContext context)
     {
         queue.Enqueue(candidate, candidate.SizeBytes);
-        TrimQueue(queue, limit);
+        TrimQueue(queue, context.Limit);
+        context.Emit(queue, candidate.Path, isFinal: false, latestFinding: candidate, force: true);
     }
 
     private static void TrimQueue(PriorityQueue<DeepScanFinding, long> queue, int limit)
@@ -569,6 +580,13 @@ public sealed class DeepScanService
 
     private sealed class ScanContext
     {
+        private const int ReportItemThreshold = 250;
+        private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(350);
+        private static readonly IReadOnlyDictionary<string, long> EmptyCategoryTotals = new ReadOnlyDictionary<string, long>(new Dictionary<string, long>());
+
+        private int _itemsSinceLastReport;
+        private DateTime _lastReportTimestamp = DateTime.UtcNow;
+
         public ScanContext(
             int limit,
             long minSizeBytes,
@@ -576,7 +594,8 @@ public sealed class DeepScanService
             IReadOnlyList<string> nameFilters,
             DeepScanNameMatchMode nameMatchMode,
             bool isCaseSensitive,
-            bool includeDirectories)
+            bool includeDirectories,
+            IProgress<DeepScanProgressUpdate>? progress)
         {
             Limit = limit;
             MinSizeBytes = minSizeBytes;
@@ -585,6 +604,8 @@ public sealed class DeepScanService
             NameMatchMode = nameMatchMode;
             NameComparison = isCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
             IncludeDirectories = includeDirectories;
+            Progress = progress;
+
             var attributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System;
             if (!includeHidden)
             {
@@ -618,6 +639,103 @@ public sealed class DeepScanService
         public EnumerationOptions DirectoryEnumerationOptions { get; }
 
         public bool HasNameFilters { get; }
+
+        public long ProcessedEntries { get; private set; }
+
+        public long ProcessedSizeBytes { get; private set; }
+
+        public IProgress<DeepScanProgressUpdate>? Progress { get; }
+
+        public void RecordProcessed(long sizeBytes, string currentPath, PriorityQueue<DeepScanFinding, long> queue)
+        {
+            ProcessedEntries++;
+            if (sizeBytes > 0)
+            {
+                ProcessedSizeBytes += sizeBytes;
+            }
+
+            if (Progress is null)
+            {
+                return;
+            }
+
+            _itemsSinceLastReport++;
+            var now = DateTime.UtcNow;
+            if (_itemsSinceLastReport >= ReportItemThreshold || now - _lastReportTimestamp >= ReportInterval)
+            {
+                EmitSnapshot(queue, currentPath, isFinal: false, latestFinding: null);
+            }
+        }
+
+        public void Emit(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding, bool force)
+        {
+            if (Progress is null)
+            {
+                return;
+            }
+
+            if (!force)
+            {
+                return;
+            }
+
+            EmitSnapshot(queue, currentPath, isFinal, latestFinding);
+        }
+
+        private void EmitSnapshot(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding)
+        {
+            if (Progress is null)
+            {
+                return;
+            }
+
+            var snapshot = BuildSnapshot(queue);
+            IReadOnlyDictionary<string, long> categories;
+            if (snapshot.Count == 0)
+            {
+                categories = EmptyCategoryTotals;
+            }
+            else
+            {
+                var dict = snapshot
+                    .GroupBy(static finding => string.IsNullOrWhiteSpace(finding.Category) ? "Other" : finding.Category)
+                    .ToDictionary(static group => group.Key, static group => group.Sum(static item => Math.Max(item.SizeBytes, 0L)));
+                categories = new ReadOnlyDictionary<string, long>(dict);
+            }
+
+            IReadOnlyList<DeepScanFinding> readOnlySnapshot;
+            if (snapshot.Count == 0)
+            {
+                readOnlySnapshot = Array.Empty<DeepScanFinding>();
+            }
+            else if (snapshot is List<DeepScanFinding> list)
+            {
+                readOnlySnapshot = new ReadOnlyCollection<DeepScanFinding>(list);
+            }
+            else
+            {
+                readOnlySnapshot = new ReadOnlyCollection<DeepScanFinding>(snapshot.ToList());
+            }
+
+            var update = new DeepScanProgressUpdate(readOnlySnapshot, ProcessedEntries, ProcessedSizeBytes, currentPath, latestFinding, categories, isFinal);
+            Progress.Report(update);
+
+            _itemsSinceLastReport = 0;
+            _lastReportTimestamp = DateTime.UtcNow;
+        }
+
+        private static IReadOnlyList<DeepScanFinding> BuildSnapshot(PriorityQueue<DeepScanFinding, long> queue)
+        {
+            if (queue.Count == 0)
+            {
+                return Array.Empty<DeepScanFinding>();
+            }
+
+            return queue.UnorderedItems
+                .Select(static item => item.Element)
+                .OrderByDescending(static finding => finding.SizeBytes)
+                .ToList();
+        }
     }
 }
 
@@ -715,6 +833,43 @@ public sealed class DeepScanRequest
     }
 }
 
+public sealed class DeepScanProgressUpdate
+{
+    public DeepScanProgressUpdate(
+        IReadOnlyList<DeepScanFinding> findings,
+        long processedEntries,
+        long processedSizeBytes,
+        string? currentPath,
+        DeepScanFinding? latestFinding,
+        IReadOnlyDictionary<string, long> categoryTotals,
+        bool isFinal)
+    {
+        Findings = findings ?? Array.Empty<DeepScanFinding>();
+        ProcessedEntries = processedEntries < 0 ? 0 : processedEntries;
+        ProcessedSizeBytes = processedSizeBytes < 0 ? 0 : processedSizeBytes;
+        CurrentPath = string.IsNullOrWhiteSpace(currentPath) ? string.Empty : currentPath;
+        LatestFinding = latestFinding;
+        CategoryTotals = categoryTotals ?? new ReadOnlyDictionary<string, long>(new Dictionary<string, long>());
+        IsFinal = isFinal;
+    }
+
+    public IReadOnlyList<DeepScanFinding> Findings { get; }
+
+    public long ProcessedEntries { get; }
+
+    public long ProcessedSizeBytes { get; }
+
+    public string CurrentPath { get; }
+
+    public DeepScanFinding? LatestFinding { get; }
+
+    public IReadOnlyDictionary<string, long> CategoryTotals { get; }
+
+    public bool IsFinal { get; }
+
+    public string ProcessedSizeDisplay => DeepScanFormatting.FormatBytes(ProcessedSizeBytes);
+}
+
 public sealed class DeepScanResult
 {
     public DeepScanResult(IReadOnlyList<DeepScanFinding> findings, string rootPath, DateTimeOffset generatedAt, int totalCandidates, long totalSizeBytes)
@@ -724,6 +879,11 @@ public sealed class DeepScanResult
         GeneratedAt = generatedAt;
         TotalCandidates = totalCandidates;
         TotalSizeBytes = totalSizeBytes;
+
+        var categories = findings
+            .GroupBy(static finding => string.IsNullOrWhiteSpace(finding.Category) ? "Other" : finding.Category)
+            .ToDictionary(static group => group.Key, static group => group.Sum(static item => Math.Max(item.SizeBytes, 0L)));
+        CategoryTotals = new ReadOnlyDictionary<string, long>(categories);
     }
 
     public IReadOnlyList<DeepScanFinding> Findings { get; }
@@ -738,6 +898,8 @@ public sealed class DeepScanResult
 
     public string TotalSizeDisplay => DeepScanFormatting.FormatBytes(TotalSizeBytes);
 
+    public IReadOnlyDictionary<string, long> CategoryTotals { get; }
+
     public static DeepScanResult FromFindings(string rootPath, IReadOnlyList<DeepScanFinding> findings)
     {
         var list = findings ?? Array.Empty<DeepScanFinding>();
@@ -746,9 +908,189 @@ public sealed class DeepScanResult
     }
 }
 
+internal static class DeepScanClassifier
+{
+    private static readonly string[] GameMarkers =
+    {
+        "\\steamapps\\",
+        "\\steam library",
+        "\\epic games\\",
+        "\\gog galaxy",
+        "\\riot games",
+        "\\league of legends",
+        "\\battle.net",
+        "\\blizzard\\",
+        "\\origin\\",
+        "\\ea games",
+        "\\uplay",
+        "\\ubisoft",
+        "\\rockstar games",
+        "\\xboxgames",
+        "\\windowsapps\\",
+        "\\microsoft flight simulator"
+    };
+
+    private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv", ".webm"
+    };
+
+    private static readonly HashSet<string> PictureExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".tiff", ".heic", ".raw"
+    };
+
+    private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mp3", ".flac", ".wav", ".aac", ".ogg", ".wma"
+    };
+
+    private static readonly HashSet<string> DocumentExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".doc", ".docx", ".ppt", ".pptx", ".xls", ".xlsx", ".pdf", ".txt", ".rtf", ".md"
+    };
+
+    private static readonly HashSet<string> ArchiveExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".zip", ".rar", ".7z", ".tar", ".gz", ".xz", ".bz2"
+    };
+
+    private static readonly HashSet<string> DatabaseExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".mdb", ".accdb", ".sqlite", ".db", ".ndf", ".ldf", ".mdf"
+    };
+
+    private static readonly HashSet<string> LogExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".log", ".etl", ".blg"
+    };
+
+    public static string Resolve(string path, bool isDirectory, string? extension)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "Other";
+        }
+
+        var normalized = path.Replace('/', '\\');
+        var lower = normalized.ToLowerInvariant();
+
+        if (lower.Contains("\\windows\\") || lower.Contains("\\system32") || lower.Contains("\\$recycle.bin\\") || lower.Contains("\\system volume information"))
+        {
+            return "System";
+        }
+
+        if (lower.Contains("\\program files") || lower.Contains("\\program files (x86)") || lower.Contains("\\windowsapps\\"))
+        {
+            return ContainsAny(lower, GameMarkers) ? "Games" : "Applications";
+        }
+
+        if (ContainsAny(lower, GameMarkers) || lower.Contains("\\saved games\\"))
+        {
+            return "Games";
+        }
+
+        if (lower.Contains("\\appdata\\") || lower.Contains("\\programdata\\"))
+        {
+            return "App Data";
+        }
+
+        if (lower.Contains("\\onedrive\\") || lower.Contains("\\dropbox\\") || lower.Contains("\\google drive\\"))
+        {
+            return "Cloud Sync";
+        }
+
+        if (lower.Contains("\\downloads\\"))
+        {
+            return "Downloads";
+        }
+
+        if (lower.Contains("\\documents\\") || lower.Contains("\\my documents\\"))
+        {
+            return "Documents";
+        }
+
+        if (lower.Contains("\\desktop\\"))
+        {
+            return "Desktop";
+        }
+
+        if (lower.Contains("\\pictures\\") || lower.Contains("\\photos\\") || lower.Contains("\\dcim\\"))
+        {
+            return "Pictures";
+        }
+
+        if (lower.Contains("\\videos\\") || lower.Contains("\\movies\\"))
+        {
+            return "Videos";
+        }
+
+        if (lower.Contains("\\music\\") || lower.Contains("\\audio\\"))
+        {
+            return "Music";
+        }
+
+        if (isDirectory && (lower.EndsWith("\\cache") || lower.Contains("\\cache\\") || lower.Contains("\\temp\\") || lower.Contains("\\tmp\\")))
+        {
+            return "Cache";
+        }
+
+        var ext = string.IsNullOrWhiteSpace(extension) ? string.Empty : extension;
+        if (VideoExtensions.Contains(ext))
+        {
+            return "Videos";
+        }
+
+        if (PictureExtensions.Contains(ext))
+        {
+            return "Pictures";
+        }
+
+        if (AudioExtensions.Contains(ext))
+        {
+            return "Music";
+        }
+
+        if (DocumentExtensions.Contains(ext))
+        {
+            return "Documents";
+        }
+
+        if (ArchiveExtensions.Contains(ext))
+        {
+            return "Archives";
+        }
+
+        if (DatabaseExtensions.Contains(ext))
+        {
+            return "Databases";
+        }
+
+        if (LogExtensions.Contains(ext))
+        {
+            return "Logs";
+        }
+
+        return "Other";
+    }
+
+    private static bool ContainsAny(string value, IEnumerable<string> markers)
+    {
+        foreach (var marker in markers)
+        {
+            if (value.Contains(marker, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
 public sealed class DeepScanFinding
 {
-    public DeepScanFinding(string path, string name, string directory, long sizeBytes, DateTimeOffset modifiedUtc, string extension, bool isDirectory = false)
+    public DeepScanFinding(string path, string name, string directory, long sizeBytes, DateTimeOffset modifiedUtc, string extension, bool isDirectory = false, string? category = null)
     {
         Path = path ?? throw new ArgumentNullException(nameof(path));
         Name = string.IsNullOrWhiteSpace(name) ? System.IO.Path.GetFileName(path) : name;
@@ -757,6 +1099,9 @@ public sealed class DeepScanFinding
         ModifiedUtc = modifiedUtc;
         Extension = extension ?? string.Empty;
         IsDirectory = isDirectory;
+        Category = string.IsNullOrWhiteSpace(category)
+            ? DeepScanClassifier.Resolve(path, isDirectory, extension)
+            : category;
     }
 
     public string Path { get; }
@@ -772,6 +1117,8 @@ public sealed class DeepScanFinding
     public string Extension { get; }
 
     public bool IsDirectory { get; }
+
+    public string Category { get; }
 
     public string SizeDisplay => DeepScanFormatting.FormatBytes(SizeBytes);
 

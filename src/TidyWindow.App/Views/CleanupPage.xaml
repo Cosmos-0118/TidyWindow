@@ -502,6 +502,105 @@
                                 </ControlTemplate>
                             </Button.Template>
                         </Button>
+                        <Button Content="Select all pages"
+                                Command="{Binding SelectAllPagesCommand}"
+                                Padding="14,8"
+                                Cursor="Hand"
+                                BorderThickness="0"
+                                Background="#1E293B"
+                                Foreground="#E2E8F0"
+                                Margin="0,0,8,8"
+                                ToolTip="Select every filtered item across all pages.">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="SelectAllPagesBorder"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="8"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled"
+                                                 Value="False">
+                                            <Setter TargetName="SelectAllPagesBorder"
+                                                    Property="Opacity"
+                                                    Value="0.5"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter TargetName="SelectAllPagesBorder"
+                                                    Property="Background"
+                                                    Value="#24324C"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,8,8"
+                                    VerticalAlignment="Center">
+                            <TextBlock Text="Pages"
+                                       Foreground="#94A3B8"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="48"
+                                     Background="#0F172A"
+                                     Foreground="#E2E8F0"
+                                     BorderBrush="#1E293B"
+                                     BorderThickness="1"
+                                     Padding="6,4"
+                                     HorizontalContentAlignment="Center"
+                                     Margin="0,0,6,0"/>
+                            <TextBlock Text="–"
+                                       Foreground="#94A3B8"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0"/>
+                            <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="48"
+                                     Background="#0F172A"
+                                     Foreground="#E2E8F0"
+                                     BorderBrush="#1E293B"
+                                     BorderThickness="1"
+                                     Padding="6,4"
+                                     HorizontalContentAlignment="Center"
+                                     Margin="0,0,6,0"/>
+                            <Button Content="Select range"
+                                    Command="{Binding SelectPageRangeCommand}"
+                                    Padding="12,6"
+                                    Cursor="Hand"
+                                    BorderThickness="0"
+                                    Background="#1E293B"
+                                    Foreground="#E2E8F0"
+                                    ToolTip="Select every filtered item within the inclusive page range.">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="SelectRangeBorder"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="8"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter TargetName="SelectRangeBorder"
+                                                        Property="Opacity"
+                                                        Value="0.5"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter TargetName="SelectRangeBorder"
+                                                        Property="Background"
+                                                        Value="#24324C"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </StackPanel>
                         <Button Content="Delete selected"
                                 Command="{Binding DeleteSelectedCommand}"
                                 Background="#EF4444"
@@ -878,6 +977,12 @@
                                                 <GridViewColumn.CellTemplate>
                                                     <DataTemplate>
                                                         <StackPanel>
+                                                            <StackPanel.ContextMenu>
+                                                                <ContextMenu>
+                                                                    <MenuItem Header="Copy full path"
+                                                                              Command="{Binding PlacementTarget.DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                </ContextMenu>
+                                                            </StackPanel.ContextMenu>
                                                             <StackPanel Orientation="Horizontal">
                                                                 <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                           Margin="0,0,12,0"/>

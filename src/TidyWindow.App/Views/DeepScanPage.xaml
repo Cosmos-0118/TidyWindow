@@ -600,6 +600,12 @@
                                     <TextBlock Text="Type"/>
                                 </GridViewColumn.Header>
                             </GridViewColumn>
+                            <GridViewColumn Width="140"
+                                            DisplayMemberBinding="{Binding Category}">
+                                <GridViewColumn.Header>
+                                    <TextBlock Text="Category"/>
+                                </GridViewColumn.Header>
+                            </GridViewColumn>
                             <GridViewColumn Width="140">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Size"/>

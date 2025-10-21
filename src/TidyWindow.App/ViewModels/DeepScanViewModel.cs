@@ -203,6 +203,13 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            _mainViewModel.SetStatusMessage("Scanning for large files...");
+
+            _allFindings.Clear();
+            VisibleFindings.Clear();
+            TotalFindings = 0;
+            CurrentPage = 1;
+            Summary = "Scanning…";
 
             var filters = string.IsNullOrWhiteSpace(NameFilter)
                 ? Array.Empty<string>()
@@ -218,17 +225,15 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 IsCaseSensitiveMatch,
                 IncludeDirectories);
 
-            var result = await _deepScanService.RunScanAsync(request);
+            var progress = new Progress<DeepScanProgressUpdate>(update => ApplyProgress(update));
 
-            _allFindings.Clear();
-            _allFindings.AddRange(result.Findings.Select(static finding => new DeepScanItemViewModel(finding)));
+            var result = await _deepScanService.RunScanAsync(request, progress);
 
-            TotalFindings = _allFindings.Count;
-            CurrentPage = 1;
+            ReplaceFindings(result.Findings);
 
             LastScanned = result.GeneratedAt;
             Summary = result.TotalCandidates > 0
-                ? $"{result.TotalCandidates} item(s) • {result.TotalSizeDisplay} across findings"
+                ? FormatFinalSummary(result.TotalCandidates, result.TotalSizeDisplay, result.CategoryTotals)
                 : "No items above the configured threshold.";
 
             _mainViewModel.SetStatusMessage(
@@ -301,6 +306,74 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         {
             VisibleFindings.Add(item);
         }
+    }
+
+    private void ApplyProgress(DeepScanProgressUpdate update)
+    {
+        ReplaceFindings(update.Findings);
+        Summary = BuildStreamingSummary(update);
+    }
+
+    private void ReplaceFindings(IReadOnlyList<DeepScanFinding> findings)
+    {
+        _allFindings.Clear();
+        foreach (var finding in findings)
+        {
+            _allFindings.Add(new DeepScanItemViewModel(finding));
+        }
+
+        TotalFindings = _allFindings.Count;
+        CurrentPage = 1;
+        RefreshVisibleFindings();
+    }
+
+    private string BuildStreamingSummary(DeepScanProgressUpdate update)
+    {
+        var categorySuffix = FormatCategorySummary(update.CategoryTotals);
+        return $"Scanning… processed {update.ProcessedEntries:N0} item(s) • {update.ProcessedSizeDisplay}{categorySuffix}";
+    }
+
+    private static string FormatFinalSummary(int totalCandidates, string totalSizeDisplay, IReadOnlyDictionary<string, long> categories)
+    {
+        var categorySuffix = FormatCategorySummary(categories);
+        return $"{totalCandidates} item(s) • {totalSizeDisplay}{categorySuffix}";
+    }
+
+    private static string FormatCategorySummary(IReadOnlyDictionary<string, long>? categories)
+    {
+        if (categories is null || categories.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var top = categories
+            .Where(static pair => pair.Value > 0)
+            .OrderByDescending(static pair => pair.Value)
+            .Take(3)
+            .Select(static pair => $"{pair.Key}: {FormatBytes(pair.Value)}")
+            .ToList();
+
+        return top.Count == 0 ? string.Empty : " • " + string.Join(", ", top);
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes <= 0)
+        {
+            return "0 B";
+        }
+
+        double size = bytes;
+        var units = new[] { "B", "KB", "MB", "GB", "TB", "PB" };
+        var unitIndex = 0;
+
+        while (size >= 1024 && unitIndex < units.Length - 1)
+        {
+            size /= 1024;
+            unitIndex++;
+        }
+
+        return $"{size:0.0} {units[unitIndex]}";
     }
 
     private void ApplyPreset(DeepScanLocationOption? preset)
@@ -438,6 +511,8 @@ public sealed class DeepScanItemViewModel
     public string ModifiedDisplay => Finding.ModifiedDisplay;
 
     public bool IsDirectory => Finding.IsDirectory;
+
+    public string Category => Finding.Category;
 
     public string KindDisplay => Finding.KindDisplay;
 }

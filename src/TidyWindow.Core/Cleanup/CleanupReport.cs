@@ -33,7 +33,8 @@ public sealed class CleanupTargetReport
         IReadOnlyList<CleanupPreviewItem>? preview,
         string? notes = null,
         bool dryRun = true,
-        string? classification = null)
+        string? classification = null,
+        IReadOnlyList<string>? warnings = null)
     {
         Category = string.IsNullOrWhiteSpace(category) ? "Unknown" : category;
         Path = path ?? string.Empty;
@@ -44,6 +45,11 @@ public sealed class CleanupTargetReport
         Notes = notes ?? string.Empty;
         DryRun = dryRun;
         Classification = string.IsNullOrWhiteSpace(classification) ? "Other" : classification;
+        Warnings = warnings is null
+            ? Array.Empty<string>()
+            : warnings.Where(static warning => !string.IsNullOrWhiteSpace(warning))
+                .Select(static warning => warning.Trim())
+                .ToArray();
     }
 
     public string Category { get; }
@@ -64,12 +70,25 @@ public sealed class CleanupTargetReport
 
     public string Notes { get; }
 
+    public IReadOnlyList<string> Warnings { get; }
+
+    public bool HasWarnings => Warnings.Count > 0;
+
     public double TotalSizeMegabytes => TotalSizeBytes / 1_048_576d;
 }
 
 public sealed class CleanupPreviewItem
 {
-    public CleanupPreviewItem(string? name, string? fullName, long sizeBytes, DateTime? lastModifiedUtc, bool isDirectory, string? extension)
+    public CleanupPreviewItem(
+        string? name,
+        string? fullName,
+        long sizeBytes,
+        DateTime? lastModifiedUtc,
+        bool isDirectory,
+        string? extension,
+        bool isHidden = false,
+        bool isSystem = false,
+        bool wasModifiedRecently = false)
     {
         Name = string.IsNullOrWhiteSpace(name) ? "(unknown)" : name;
         FullName = fullName ?? string.Empty;
@@ -77,6 +96,9 @@ public sealed class CleanupPreviewItem
         LastModifiedUtc = lastModifiedUtc ?? DateTime.MinValue;
         IsDirectory = isDirectory;
         Extension = NormalizeExtension(extension);
+        IsHidden = isHidden;
+        IsSystem = isSystem;
+        WasModifiedRecently = wasModifiedRecently;
     }
 
     public string Name { get; }
@@ -90,6 +112,12 @@ public sealed class CleanupPreviewItem
     public bool IsDirectory { get; }
 
     public string Extension { get; }
+
+    public bool IsHidden { get; }
+
+    public bool IsSystem { get; }
+
+    public bool WasModifiedRecently { get; }
 
     public double SizeMegabytes => SizeBytes / 1_048_576d;
 

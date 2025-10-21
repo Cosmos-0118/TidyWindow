@@ -6,7 +6,9 @@ using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using TidyWindow.Core.Cleanup;
+using WindowsClipboard = System.Windows.Clipboard;
 
 namespace TidyWindow.App.ViewModels;
 
@@ -39,6 +41,10 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
     public string Path => Model.Path;
 
     public string Notes => Model.Notes;
+
+    public IReadOnlyList<string> Warnings => Model.Warnings;
+
+    public bool HasWarnings => Model.HasWarnings;
 
     public ObservableCollection<CleanupPreviewItemViewModel> Items { get; }
 
@@ -143,6 +149,30 @@ public sealed partial class CleanupPreviewItemViewModel : ObservableObject
 
     public string Extension => Model.Extension;
 
+    public bool IsHidden => Model.IsHidden;
+
+    public bool IsSystem => Model.IsSystem;
+
+    public bool WasModifiedRecently => Model.WasModifiedRecently;
+
     [ObservableProperty]
     private bool _isSelected;
+
+    [RelayCommand]
+    private void CopyPath()
+    {
+        if (string.IsNullOrWhiteSpace(Model.FullName))
+        {
+            return;
+        }
+
+        try
+        {
+            WindowsClipboard.SetText(Model.FullName);
+        }
+        catch
+        {
+            // Clipboard access can be unavailable in some sessions; ignore failures.
+        }
+    }
 }

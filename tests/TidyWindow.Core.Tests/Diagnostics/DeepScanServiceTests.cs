@@ -32,6 +32,7 @@ public sealed class DeepScanServiceTests
             extension: ".bin");
 
         Assert.Equal(expected, finding.SizeDisplay);
+        Assert.False(string.IsNullOrWhiteSpace(finding.Category));
     }
 
     [Fact]
@@ -139,6 +140,29 @@ public sealed class DeepScanServiceTests
         Assert.Contains(result.Findings, item => item.IsDirectory && item.Path == folder.FullName);
         Assert.Contains(result.Findings, item => item.IsDirectory && item.Path == nestedFolder.FullName);
         Assert.True(result.Findings.First(item => item.Path == folder.FullName).SizeBytes >= 8 * 1024);
+    }
+
+    [Fact]
+    public async Task RunScanAsync_AssignsCategories()
+    {
+        using var temp = new TempDirectoryScope();
+        var root = temp.DirectoryPath;
+
+        var systemFolder = Directory.CreateDirectory(Path.Combine(root, "Windows"));
+        var gameFolder = Directory.CreateDirectory(Path.Combine(root, "SteamLibrary"));
+        var mediaFolder = Directory.CreateDirectory(Path.Combine(root, "Videos"));
+
+        CreateFile(systemFolder.FullName, "kernel.bin", 1024 * 10);
+        CreateFile(gameFolder.FullName, "game.iso", 1024 * 12);
+        CreateFile(mediaFolder.FullName, "clip.mp4", 1024 * 14);
+
+        var service = new DeepScanService();
+        var result = await service.RunScanAsync(new DeepScanRequest(root, 6, 0, includeHiddenFiles: true));
+
+        var categories = result.Findings.Select(finding => finding.Category).ToArray();
+        Assert.Contains("System", categories);
+        Assert.Contains("Games", categories);
+        Assert.Contains("Videos", categories);
     }
 
     private static string CreateFile(string directory, string fileName, long sizeBytes)

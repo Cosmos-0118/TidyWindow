@@ -12,6 +12,7 @@ namespace TidyWindow.Core.Cleanup;
 internal sealed class CleanupScanner
 {
     private readonly CleanupDefinitionProvider _definitionProvider;
+    private static readonly TimeSpan RecentActivityThreshold = TimeSpan.FromHours(12);
 
     public CleanupScanner(CleanupDefinitionProvider definitionProvider)
     {
@@ -61,15 +62,18 @@ internal sealed class CleanupScanner
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        var warnings = new List<string>();
         var resolvedPath = ResolvePath(definition.RawPath);
         if (string.IsNullOrWhiteSpace(resolvedPath))
         {
-            return new CleanupTargetReport(definition.Category, definition.RawPath ?? string.Empty, false, 0, 0, Array.Empty<CleanupPreviewItem>(), definition.Notes, true, definition.Classification);
+            warnings.Add("Unable to resolve cleanup path.");
+            return new CleanupTargetReport(definition.Category, definition.RawPath ?? string.Empty, false, 0, 0, Array.Empty<CleanupPreviewItem>(), definition.Notes, true, definition.Classification, warnings);
         }
 
         if (!Directory.Exists(resolvedPath))
         {
-            return new CleanupTargetReport(definition.Category, resolvedPath, false, 0, 0, Array.Empty<CleanupPreviewItem>(), "No directory located.", true, definition.Classification);
+            warnings.Add("Directory not found when scanning for cleanup items.");
+            return new CleanupTargetReport(definition.Category, resolvedPath, false, 0, 0, Array.Empty<CleanupPreviewItem>(), "No directory located.", true, definition.Classification, warnings);
         }
 
         var fileEnumerationOptions = new EnumerationOptions
@@ -94,6 +98,8 @@ internal sealed class CleanupScanner
 
         var topFiles = new TopN<CleanupPreviewItem>(previewCount);
 
+        var nowUtc = DateTime.UtcNow;
+
         try
         {
             foreach (var file in EnumerateFiles(resolvedPath, fileEnumerationOptions, cancellationToken))
@@ -105,7 +111,16 @@ internal sealed class CleanupScanner
 
                 if (previewCount > 0 && itemKind != CleanupItemKind.Folders)
                 {
-                    var previewItem = new CleanupPreviewItem(file.Name, file.FullPath, file.SizeBytes, file.LastModifiedUtc, isDirectory: false, file.Extension);
+                    var previewItem = new CleanupPreviewItem(
+                        file.Name,
+                        file.FullPath,
+                        file.SizeBytes,
+                        file.LastModifiedUtc,
+                        isDirectory: false,
+                        file.Extension,
+                        file.IsHidden,
+                        file.IsSystem,
+                        IsRecentlyModified(file.LastModifiedUtc, nowUtc));
                     topFiles.TryAdd(previewItem, file.SizeBytes);
                 }
 
@@ -118,11 +133,13 @@ internal sealed class CleanupScanner
         }
         catch (IOException ex)
         {
-            return BuildErrorReport(definition, resolvedPath, ex.Message);
+            warnings.Add(ex.Message);
+            return BuildErrorReport(definition, resolvedPath, ex.Message, warnings);
         }
         catch (UnauthorizedAccessException ex)
         {
-            return BuildErrorReport(definition, resolvedPath, ex.Message);
+            warnings.Add(ex.Message);
+            return BuildErrorReport(definition, resolvedPath, ex.Message, warnings);
         }
 
         var directoriesCount = directoryStats.Count;
@@ -137,7 +154,16 @@ internal sealed class CleanupScanner
                     continue;
                 }
 
-                var directoryItem = new CleanupPreviewItem(stat.Name, stat.FullPath, stat.SizeBytes, stat.LastModifiedUtc, isDirectory: true, extension: string.Empty);
+                var directoryItem = new CleanupPreviewItem(
+                    stat.Name,
+                    stat.FullPath,
+                    stat.SizeBytes,
+                    stat.LastModifiedUtc,
+                    isDirectory: true,
+                    extension: string.Empty,
+                    stat.IsHidden,
+                    stat.IsSystem,
+                    IsRecentlyModified(stat.LastModifiedUtc, nowUtc));
                 topDirectories.TryAdd(directoryItem, stat.SizeBytes);
             }
         }
@@ -160,7 +186,8 @@ internal sealed class CleanupScanner
             combinedPreview,
             definition.Notes,
             dryRun: true,
-            definition.Classification);
+            definition.Classification,
+            warnings);
     }
 
     private static IReadOnlyList<CleanupPreviewItem> CombinePreviews(TopN<CleanupPreviewItem> files, TopN<CleanupPreviewItem> directories, int previewCount)
@@ -197,7 +224,14 @@ internal sealed class CleanupScanner
                 name = directory;
             }
 
-            stats[directory] = new DirectoryAccumulator(directory, name, Directory.GetLastWriteTimeUtc(directory));
+            var attributes = GetFileAttributes(directory);
+            var lastWrite = Directory.GetLastWriteTimeUtc(directory);
+            stats[directory] = new DirectoryAccumulator(
+                directory,
+                name,
+                lastWrite,
+                attributes.HasValue && attributes.Value.HasFlag(FileAttributes.Hidden),
+                attributes.HasValue && attributes.Value.HasFlag(FileAttributes.System));
         }
 
         return stats;
@@ -221,7 +255,9 @@ internal sealed class CleanupScanner
                     DirectoryPath = directoryPath,
                     SizeBytes = entry.Length,
                     LastModifiedUtc = entry.LastWriteTimeUtc.UtcDateTime,
-                    Extension = extension
+                    Extension = extension,
+                    IsHidden = entry.Attributes.HasFlag(FileAttributes.Hidden),
+                    IsSystem = entry.Attributes.HasFlag(FileAttributes.System)
                 };
             },
             options)
@@ -269,7 +305,7 @@ internal sealed class CleanupScanner
         return null;
     }
 
-    private static CleanupTargetReport BuildErrorReport(CleanupTargetDefinition definition, string resolvedPath, string message)
+    private static CleanupTargetReport BuildErrorReport(CleanupTargetDefinition definition, string resolvedPath, string message, IReadOnlyList<string>? warnings = null)
     {
         var preview = Array.Empty<CleanupPreviewItem>();
         var notes = string.IsNullOrWhiteSpace(message)
@@ -285,7 +321,8 @@ internal sealed class CleanupScanner
             preview,
             notes,
             dryRun: true,
-            definition.Classification);
+            definition.Classification,
+            warnings);
     }
 
     private static string? ResolvePath(string? rawPath)
@@ -351,13 +388,43 @@ internal sealed class CleanupScanner
         }
     }
 
+    private static bool IsRecentlyModified(DateTime timestampUtc, DateTime referenceUtc)
+    {
+        if (timestampUtc == DateTime.MinValue)
+        {
+            return false;
+        }
+
+        var delta = referenceUtc - timestampUtc;
+        if (delta < TimeSpan.Zero)
+        {
+            return true;
+        }
+
+        return delta <= RecentActivityThreshold;
+    }
+
+    private static FileAttributes? GetFileAttributes(string path)
+    {
+        try
+        {
+            return File.GetAttributes(path);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private sealed class DirectoryAccumulator
     {
-        public DirectoryAccumulator(string fullPath, string name, DateTime lastModifiedUtc)
+        public DirectoryAccumulator(string fullPath, string name, DateTime lastModifiedUtc, bool isHidden, bool isSystem)
         {
             FullPath = fullPath;
             Name = name;
             LastModifiedUtc = lastModifiedUtc;
+            IsHidden = isHidden;
+            IsSystem = isSystem;
         }
 
         public string FullPath { get; }
@@ -367,6 +434,10 @@ internal sealed class CleanupScanner
         public long SizeBytes { get; private set; }
 
         public DateTime LastModifiedUtc { get; private set; }
+
+        public bool IsHidden { get; }
+
+        public bool IsSystem { get; }
 
         public void Add(long sizeBytes, DateTime lastModifiedUtc)
         {
@@ -391,5 +462,9 @@ internal sealed class CleanupScanner
         public DateTime LastModifiedUtc { get; set; }
 
         public string? Extension { get; set; }
+
+        public bool IsHidden { get; set; }
+
+        public bool IsSystem { get; set; }
     }
 }
