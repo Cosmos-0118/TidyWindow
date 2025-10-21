@@ -22,7 +22,9 @@ jobs:
                   dotnet-version: "8.0.x"
 
             - name: Restore dependencies
-              run: dotnet restore src/TidyWindow.sln
+              run: |
+                  dotnet restore src/TidyWindow.sln
+                  dotnet restore src/TidyWindow.App/TidyWindow.App.csproj --runtime win-x64
 
             - name: Build solution
               run: dotnet build src/TidyWindow.sln --configuration Release --no-restore
