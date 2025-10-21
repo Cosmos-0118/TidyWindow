@@ -550,7 +550,7 @@ foreach ($entry in $catalogEntries) {
     }
 }
 
-$resultsJson = $results | ConvertTo-Json -Depth 4
+$resultsJson = $results | ConvertTo-Json -Depth 4 -Compress
 
 $debugLogPath = $env:TIDYWINDOW_DEBUG_PACKAGE_SCRIPT
 if (-not [string]::IsNullOrWhiteSpace($debugLogPath)) {

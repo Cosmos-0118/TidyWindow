@@ -156,7 +156,7 @@ if ($needsElevation -and -not $Elevated.IsPresent -and -not (Test-TidyAdmin)) {
     }
 
     $result = Request-TidyElevation -ScriptPath $scriptPath -Manager $normalizedManager -PackageId $PackageId -DisplayName $DisplayName
-    $result | ConvertTo-Json -Depth 6
+    $result | ConvertTo-Json -Depth 6 -Compress
     return
 }
 
@@ -198,7 +198,7 @@ function Invoke-Removal {
 
     $exe = Resolve-ManagerExecutable -Key $Key
     $arguments = switch ($Key) {
-    'winget' { @('uninstall', '--id', $PackageId, '-e', '--accept-source-agreements', '--disable-interactivity') }
+        'winget' { @('uninstall', '--id', $PackageId, '-e', '--accept-source-agreements', '--disable-interactivity') }
         'choco' { @('uninstall', $PackageId, '-y', '--no-progress') }
         'chocolatey' { @('uninstall', $PackageId, '-y', '--no-progress') }
         'scoop' { @('uninstall', $PackageId) }
@@ -227,10 +227,10 @@ function Invoke-Removal {
 
     return [pscustomobject]@{
         Attempted = $true
-        ExitCode = $exitCode
-        Output = $logs.ToArray()
-        Errors = $errors.ToArray()
-        Summary = $summary
+        ExitCode  = $exitCode
+        Output    = $logs.ToArray()
+        Errors    = $errors.ToArray()
+        Summary   = $summary
     }
 }
 
@@ -280,25 +280,25 @@ if ([string]::IsNullOrWhiteSpace($summary)) {
 }
 
 $script:ResultPayload = [pscustomobject]@{
-    operation = 'remove'
-    manager = $normalizedManager
-    packageId = $PackageId
-    displayName = $DisplayName
-    requiresAdmin = $needsElevation
-    statusBefore = $statusBefore
-    statusAfter = $statusAfter
+    operation        = 'remove'
+    manager          = $normalizedManager
+    packageId        = $PackageId
+    displayName      = $DisplayName
+    requiresAdmin    = $needsElevation
+    statusBefore     = $statusBefore
+    statusAfter      = $statusAfter
     installedVersion = if ([string]::IsNullOrWhiteSpace($installedAfter)) { $null } else { $installedAfter }
-    succeeded = [bool]$operationSucceeded
-    attempted = [bool]$attempted
-    exitCode = [int]$exitCode
-    summary = $summary
-    output = $script:TidyOutput
-    errors = $script:TidyErrors
+    succeeded        = [bool]$operationSucceeded
+    attempted        = [bool]$attempted
+    exitCode         = [int]$exitCode
+    summary          = $summary
+    output           = $script:TidyOutput
+    errors           = $script:TidyErrors
 }
 
 try {
     Save-TidyResult
 }
 finally {
-    $script:ResultPayload | ConvertTo-Json -Depth 6
+    $script:ResultPayload | ConvertTo-Json -Depth 6 -Compress
 }

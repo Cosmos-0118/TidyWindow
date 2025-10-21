@@ -43,7 +43,8 @@ if ($script:UsingResultFile) {
 
 $targetVersionValue = if ([string]::IsNullOrWhiteSpace($TargetVersion)) {
     $null
-} else {
+}
+else {
     $TargetVersion.Trim()
 }
 
@@ -290,9 +291,9 @@ function Select-PreferredVersion {
         if ($seen.Add($trimmed)) {
             $normalized = Normalize-VersionString -Value $trimmed
             $unique.Add([pscustomobject]@{
-                Original   = $trimmed
-                Normalized = $normalized
-            })
+                    Original   = $trimmed
+                    Normalized = $normalized
+                })
         }
     }
 
@@ -309,9 +310,9 @@ function Select-PreferredVersion {
         $parsed = $null
         if ([version]::TryParse($entry.Normalized, [ref]$parsed)) {
             $numeric.Add([pscustomobject]@{
-                Original = $entry.Original
-                Version  = $parsed
-            })
+                    Original = $entry.Original
+                    Version  = $parsed
+                })
         }
     }
 
@@ -938,7 +939,7 @@ try {
         }
 
         Save-TidyResult
-        $result | ConvertTo-Json -Depth 6
+        $result | ConvertTo-Json -Depth 6 -Compress
         return
     }
 
@@ -978,7 +979,7 @@ try {
             Reset-ScoopWorkspaceManifestIfOutdated -PackageId $PackageId -LatestVersion $latestBefore
         }
         $attempted = $true
-    $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId -TargetVersion $targetVersionValue -InstalledVersion $installedBefore
+        $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId -TargetVersion $targetVersionValue -InstalledVersion $installedBefore
         $exitCode = $executionInfo.ExitCode
 
         foreach ($line in @($executionInfo.Logs)) {
@@ -1081,8 +1082,8 @@ try {
         statusAfter      = $statusAfter
         installedVersion = $installedResult
         latestVersion    = $latestAfter
-    attempted        = [bool]$attempted
-    updateAttempted  = [bool]$attempted
+        attempted        = [bool]$attempted
+        updateAttempted  = [bool]$attempted
         exitCode         = [int]$exitCode
         succeeded        = [bool]($operationSucceeded -and ($script:TidyErrorLines.Count -eq 0))
         requestedVersion = $targetVersionValue
@@ -1134,4 +1135,4 @@ finally {
     Save-TidyResult
 }
 
-$script:ResultPayload | ConvertTo-Json -Depth 6
+$script:ResultPayload | ConvertTo-Json -Depth 6 -Compress

@@ -604,10 +604,10 @@
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment"
                                                 Value="Stretch"/>
-                                        <Setter Property="Padding"
-                                                Value="12"/>
-                                        <Setter Property="Margin"
-                                                Value="0,3"/>
+                    <Setter Property="Padding"
+                        Value="10,8"/>
+                    <Setter Property="Margin"
+                        Value="0,2"/>
                                         <Setter Property="Background"
                                                 Value="#0F172A"/>
                                         <Setter Property="Foreground"
@@ -661,7 +661,7 @@
                                                         Value="Transparent"/>
                                             </Style>
                                         </GridView.ColumnHeaderContainerStyle>
-                                        <GridViewColumn Width="220">
+                                        <GridViewColumn Width="260">
                                             <GridViewColumn.Header>
                                                 <TextBlock Text="Package"/>
                                             </GridViewColumn.Header>
@@ -674,7 +674,8 @@
                                                                       Margin="0,0,8,0"/>
                                                             <TextBlock Text="{Binding DisplayName}"
                                                                        FontWeight="SemiBold"
-                                                                       TextWrapping="Wrap"/>
+                                                                       TextWrapping="NoWrap"
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                             <Border Background="#1F2937"
                                                                     CornerRadius="6"
                                                                     Padding="6,2"
@@ -690,12 +691,18 @@
                                                                    Foreground="#94A3B8"
                                                                    FontSize="12"
                                                                    TextWrapping="Wrap"
-                                                                   Margin="24,2,0,0"/>
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Margin="24,2,0,0"
+                                                                   LineStackingStrategy="BlockLineHeight"
+                                                                   LineHeight="16"
+                                                                   MaxHeight="34"/>
                                                         <TextBlock Text="{Binding TagsDisplay}"
                                                                    Foreground="#64748B"
                                                                    FontSize="11"
-                                                                   TextWrapping="Wrap"
-                                                                   Margin="24,2,0,0"/>
+                                                                   TextWrapping="NoWrap"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Margin="24,2,0,0"
+                                                                   MaxWidth="200"/>
                                                     </StackPanel>
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
@@ -730,11 +737,16 @@
                                                                    FontSize="11"
                                                                    FontWeight="SemiBold"
                                                                    Margin="0,0,0,2"
-                                                                   TextWrapping="Wrap"
+                                                                   TextWrapping="NoWrap"
+                                                                   TextTrimming="CharacterEllipsis"
                                                                    Visibility="{Binding QueueStatus, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         <TextBlock Text="{Binding LastOperationMessage}"
                                                                    TextWrapping="Wrap"
-                                                                   MaxWidth="150">
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   MaxWidth="150"
+                                                                   LineStackingStrategy="BlockLineHeight"
+                                                                   LineHeight="16"
+                                                                   MaxHeight="34">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
                                                                     <Setter Property="Foreground"
@@ -795,7 +807,8 @@
                                                                 MinWidth="0">
                                                             <TextBlock Text="Queue update"
                                                                        TextAlignment="Center"
-                                                                       TextWrapping="Wrap"/>
+                                                                       TextWrapping="NoWrap"
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                             <Button.Style>
                                                                 <Style TargetType="Button"
                                                                        BasedOn="{StaticResource AccentButtonStyle}">
@@ -824,7 +837,8 @@
                                                                 MinWidth="0">
                                                             <TextBlock Text="Remove"
                                                                        TextAlignment="Center"
-                                                                       TextWrapping="Wrap"/>
+                                                                       TextWrapping="NoWrap"
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                             <Button.Style>
                                                                 <Style TargetType="Button"
                                                                        BasedOn="{StaticResource SecondaryButtonStyle}">

@@ -63,4 +63,4 @@ $result = [pscustomobject]@{
     Findings = $findings
 }
 
-$result | ConvertTo-Json -Depth 6
+$result | ConvertTo-Json -Depth 6 -Compress
