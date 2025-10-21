@@ -27,7 +27,15 @@ public sealed class PowerShellInvoker
             throw new FileNotFoundException("The specified PowerShell script was not found.", scriptPath);
         }
 
-        var initialState = InitialSessionState.CreateDefault();
+        // Use the PS Core default session so core modules like Microsoft.PowerShell.Utility load correctly.
+        var initialState = InitialSessionState.CreateDefault2();
+
+        // ImportPSCoreModules exists on PS 6+ and pulls in the intrinsic modules packaged with PowerShell.
+        var importProperty = typeof(InitialSessionState).GetProperty("ImportPSCoreModules");
+        if (importProperty?.CanWrite == true)
+        {
+            importProperty.SetValue(initialState, true);
+        }
 
         var executionPolicyProperty = typeof(InitialSessionState).GetProperty("ExecutionPolicy");
         if (executionPolicyProperty?.CanWrite == true)

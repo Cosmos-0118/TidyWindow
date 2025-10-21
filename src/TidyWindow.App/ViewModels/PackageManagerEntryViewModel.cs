@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TidyWindow.Core.PackageManagers;
 
@@ -77,16 +78,32 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
     {
         var lines = new List<PackageManagerNoteLine>();
 
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddUniqueLine(string text, PackageManagerNoteSeverity severity)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return;
+            }
+
+            var normalized = text.Trim();
+            if (normalized.Length == 0)
+            {
+                return;
+            }
+
+            if (seen.Add(normalized))
+            {
+                lines.Add(new PackageManagerNoteLine(normalized, severity));
+            }
+        }
+
         if (!string.IsNullOrWhiteSpace(Notes))
         {
             foreach (var note in SplitLines(Notes))
             {
-                if (note.Length == 0)
-                {
-                    continue;
-                }
-
-                lines.Add(new PackageManagerNoteLine(note, PackageManagerNoteSeverity.Info));
+                AddUniqueLine(note, PackageManagerNoteSeverity.Info);
             }
         }
 
@@ -99,7 +116,10 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
                 _ => PackageManagerNoteSeverity.Info
             };
 
-            lines.Add(new PackageManagerNoteLine(LastOperationMessage.Trim(), severity));
+            foreach (var note in SplitLines(LastOperationMessage))
+            {
+                AddUniqueLine(note, severity);
+            }
         }
 
         if (lines.Count == 0)
@@ -112,10 +132,62 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
 
     private static IEnumerable<string> SplitLines(string value)
     {
-        return value
-            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-            .Select(line => line.Trim())
-            .Where(line => line.Length > 0);
+        foreach (var segment in value.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+        {
+            foreach (var piece in segment.Split('|', StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (TryNormalizeFragment(piece, out var normalized))
+                {
+                    yield return normalized;
+                }
+            }
+        }
+    }
+
+    private static bool TryNormalizeFragment(string fragment, out string normalized)
+    {
+        normalized = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(fragment))
+        {
+            return false;
+        }
+
+        var trimmed = fragment.Trim();
+        if (trimmed.Length == 0)
+        {
+            return false;
+        }
+
+        trimmed = trimmed.TrimStart('•', '*', '-', '–', '—', '·');
+        trimmed = trimmed.Trim();
+
+        trimmed = Regex.Replace(trimmed, @"^\d+(\.\d+)?\s+", string.Empty, RegexOptions.CultureInvariant);
+        trimmed = Regex.Replace(trimmed, @"^\[[^\]]+\]\s*", string.Empty, RegexOptions.CultureInvariant);
+        trimmed = Regex.Replace(trimmed, @"^(?<token>[A-Fa-f0-9]{6,})\s+", string.Empty, RegexOptions.CultureInvariant);
+
+        trimmed = trimmed.Trim();
+
+        if (trimmed.Length == 0)
+        {
+            return false;
+        }
+
+        if (trimmed.Length <= 3 && trimmed.All(static ch => !char.IsLetter(ch)))
+        {
+            return false;
+        }
+
+        var hasLetter = trimmed.Any(static ch => char.IsLetter(ch));
+        var hasDigit = trimmed.Any(static ch => char.IsDigit(ch));
+
+        if (!hasLetter && hasDigit && trimmed.All(static ch => char.IsDigit(ch) || ch == '.' || ch == ','))
+        {
+            return false;
+        }
+
+        normalized = trimmed;
+        return true;
     }
 }
 
