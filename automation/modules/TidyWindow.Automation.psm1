@@ -251,6 +251,27 @@ function Get-TidyScoopInstalledVersion {
         return $null
     }
 
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    function Add-CandidateValue {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) {
+            return
+        }
+
+        $trimmed = $Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            return
+        }
+
+        if ($trimmed -in @('-', 'n/a', 'Not installed', 'not installed', 'Not Installed')) {
+            return
+        }
+
+        [void]$candidates.Add($trimmed)
+    }
+
     try {
         $output = & $exe 'info' $PackageId 2>$null
         if ($LASTEXITCODE -eq 0 -and $output) {
@@ -267,10 +288,7 @@ function Get-TidyScoopInstalledVersion {
                     elseif ($entry.PSObject.Properties.Match('version')) { $candidate = $entry.version }
 
                     if ($null -ne $candidate) {
-                        $value = $candidate.ToString().Trim()
-                        if (-not [string]::IsNullOrWhiteSpace($value) -and -not ($value -in @('-', 'n/a', 'Not installed', 'not installed', 'Not Installed'))) {
-                            return $value
-                        }
+                        Add-CandidateValue -Value ($candidate.ToString())
                     }
 
                     continue
@@ -282,17 +300,22 @@ function Get-TidyScoopInstalledVersion {
                 }
 
                 if ($text -match '^Installed\s*:\s*(?<ver>.+)$') {
-                    $candidate = $matches['ver'].Trim()
-                    if (-not [string]::IsNullOrWhiteSpace($candidate) -and -not ($candidate -in @('-', 'n/a', 'Not installed', 'not installed', 'Not Installed'))) {
-                        return $candidate
-                    }
+                    Add-CandidateValue -Value $matches['ver']
+                    continue
                 }
 
                 if ($text -match '^Version\s*:\s*(?<ver>.+)$') {
-                    $candidate = $matches['ver'].Trim()
-                    if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-                        return $candidate
-                    }
+                    Add-CandidateValue -Value $matches['ver']
+                    continue
+                }
+
+                if ($text -match '^Latest Version\s*:\s*(?<ver>.+)$') {
+                    Add-CandidateValue -Value $matches['ver']
+                    continue
+                }
+
+                if ($text -match '^\s*(?<ver>[0-9][0-9A-Za-z\.\-_+]*)\s*$') {
+                    Add-CandidateValue -Value $matches['ver']
                 }
             }
         }
@@ -318,10 +341,7 @@ function Get-TidyScoopInstalledVersion {
                         $candidate = $entry.Version
                         if (-not $candidate) { $candidate = $entry.version }
                         if ($candidate) {
-                            $value = $candidate.ToString().Trim()
-                            if (-not [string]::IsNullOrWhiteSpace($value)) {
-                                return $value
-                            }
+                            Add-CandidateValue -Value ($candidate.ToString())
                         }
                     }
 
@@ -339,10 +359,7 @@ function Get-TidyScoopInstalledVersion {
 
                 $match = [System.Text.RegularExpressions.Regex]::Match($text, '^\s*(?<name>\S+)\s+(?<ver>\S+)')
                 if ($match.Success -and [string]::Equals($match.Groups['name'].Value, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    $candidate = $match.Groups['ver'].Value.Trim()
-                    if (-not [string]::IsNullOrWhiteSpace($candidate)) {
-                        return $candidate
-                    }
+                    Add-CandidateValue -Value $match.Groups['ver'].Value
                 }
             }
         }
@@ -351,7 +368,42 @@ function Get-TidyScoopInstalledVersion {
         # No further fallback available.
     }
 
-    return $null
+    if ($candidates.Count -eq 0) {
+        return $null
+    }
+
+    $unique = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $best = $null
+    $bestVersion = $null
+
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) {
+            continue
+        }
+
+        $trimmed = $candidate.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            continue
+        }
+
+        if (-not $unique.Add($trimmed)) {
+            continue
+        }
+
+        $match = [System.Text.RegularExpressions.Regex]::Match($trimmed, '([0-9]+(?:[\._][0-9A-Za-z]+)*)')
+        $parsed = $null
+        if ($match.Success -and [version]::TryParse($match.Groups[1].Value.Replace('_', '.'), [ref]$parsed)) {
+            if (($bestVersion -eq $null) -or ($parsed -gt $bestVersion)) {
+                $bestVersion = $parsed
+                $best = $match.Groups[1].Value.Replace('_', '.')
+            }
+        }
+        elseif (-not $best) {
+            $best = $trimmed
+        }
+    }
+
+    return $best
 }
 
 function Get-TidyInstalledPackageVersion {

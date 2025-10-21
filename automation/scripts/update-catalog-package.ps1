@@ -82,10 +82,11 @@ function Save-TidyResult {
     }
 
     $payload = [pscustomobject]@{
-        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-        Output  = $script:TidyOutputLines
-        Errors  = $script:TidyErrorLines
-        Result  = $script:ResultPayload
+        Success   = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+        Output    = $script:TidyOutputLines
+        Errors    = $script:TidyErrorLines
+        Result    = $script:ResultPayload
+        Attempted = if ($script:ResultPayload -and $script:ResultPayload.PSObject.Properties.Match('attempted')) { [bool]$script:ResultPayload.attempted } else { $false }
     }
 
     $json = $payload | ConvertTo-Json -Depth 6
@@ -1080,7 +1081,8 @@ try {
         statusAfter      = $statusAfter
         installedVersion = $installedResult
         latestVersion    = $latestAfter
-        updateAttempted  = [bool]$attempted
+    attempted        = [bool]$attempted
+    updateAttempted  = [bool]$attempted
         exitCode         = [int]$exitCode
         succeeded        = [bool]($operationSucceeded -and ($script:TidyErrorLines.Count -eq 0))
         requestedVersion = $targetVersionValue
@@ -1113,6 +1115,7 @@ catch {
             statusAfter      = 'Unknown'
             installedVersion = $installedBefore
             latestVersion    = $latestBefore
+            attempted        = [bool]$attempted
             updateAttempted  = [bool]$attempted
             exitCode         = [int]$exitCode
             succeeded        = $false

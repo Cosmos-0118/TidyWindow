@@ -3,264 +3,514 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
       mc:Ignorable="d"
       Title="Bootstrap"
       Background="Transparent">
-    <Grid Margin="32">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
 
-        <StackPanel Orientation="Horizontal">
-            <Border Width="48"
-                    Height="48"
-                    CornerRadius="12"
-                    Background="#1E293B"
-                    Margin="0,0,12,0">
-                <TextBlock Text="🚀"
-                           FontSize="24"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
-            </Border>
-            <StackPanel>
-                <TextBlock Text="Bootstrap"
-                           FontSize="26"
-                           FontWeight="Bold"
-                           Foreground="#F8FAFC"/>
-                <TextBlock Text="Verify installers and prep your environment"
-                           FontSize="14"
-                           Foreground="#94A3B8"/>
-            </StackPanel>
-        </StackPanel>
+        <Style x:Key="BootstrapAccentButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="#22C55E"/>
+            <Setter Property="Foreground"
+                    Value="#06111D"/>
+            <Setter Property="BorderBrush"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Padding"
+                    Value="16,8"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#16A34A"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#15803D"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#14532D"/>
+                                <Setter Property="Foreground"
+                                        Value="#94A3B8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-        <Border Grid.Row="1"
-                Margin="0,24,0,20"
-                Padding="16"
-                Background="#111827"
-                CornerRadius="12">
-            <DockPanel VerticalAlignment="Center">
-                <StackPanel Margin="0,0,18,0"
-                            DockPanel.Dock="Left">
-                    <TextBlock Text="Include package managers"
-                               FontSize="14"
-                               Foreground="#CBD5F5"/>
-                    <TextBlock Text="Toggle optional sources before running detection"
-                               FontSize="12"
-                               Foreground="#64748B"/>
-                </StackPanel>
-                <StackPanel Orientation="Horizontal"
-                            Margin="0,0,18,0"
-                            DockPanel.Dock="Left">
-                    <CheckBox Content="Chocolatey"
-                              FontSize="13"
-                              Foreground="#F8FAFC"
-                              Margin="0,0,12,0"
-                              IsChecked="{Binding IncludeChocolatey, Mode=TwoWay}"/>
-                    <CheckBox Content="Scoop"
-                              FontSize="13"
-                              Foreground="#F8FAFC"
-                              IsChecked="{Binding IncludeScoop, Mode=TwoWay}"/>
-                </StackPanel>
-                <Button Content="Run detection"
-                        Background="#22C55E"
-                        Foreground="#06111D"
-                        FontWeight="Semibold"
-                        HorizontalAlignment="Right"
-                        Command="{Binding DetectCommand}">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="IsEnabled">
-                                <Setter.Value>
-                                    <Binding Path="IsBusy"
-                                             Converter="{StaticResource InverseBooleanConverter}"/>
-                                </Setter.Value>
-                            </Setter>
-                            <Setter Property="Cursor"
-                                    Value="Hand"/>
-                            <Setter Property="BorderThickness"
-                                    Value="0"/>
-                            <Setter Property="Padding"
-                                    Value="16,8"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                CornerRadius="8"
-                                                Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsEnabled"
-                                                     Value="False">
-                                                <Setter Property="Opacity"
-                                                        Value="0.6"/>
-                                            </Trigger>
-                                            <Trigger Property="IsMouseOver"
-                                                     Value="True">
-                                                <Setter Property="Background"
-                                                        Value="#16A34A"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </DockPanel>
-        </Border>
+        <Style x:Key="BootstrapCardStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="#111827"/>
+            <Setter Property="CornerRadius"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="20"/>
+            <Setter Property="BorderBrush"
+                    Value="#1E293B"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+        </Style>
 
-        <Border Grid.Row="2"
-                Background="#111827"
-                CornerRadius="12"
-                Padding="0">
-            <Grid VerticalAlignment="Stretch"
-                  Margin="20,16,20,16"
-                  Grid.IsSharedSizeScope="True">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+        <SolidColorBrush x:Key="BootstrapMutedForeground"
+                          Color="#64748B"/>
+    </Page.Resources>
 
-                <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition SharedSizeGroup="PackageName"
-                                          Width="*"/>
-                        <ColumnDefinition SharedSizeGroup="Status"
-                                          Width="Auto"/>
-                        <ColumnDefinition SharedSizeGroup="Notes"
-                                          Width="2*"/>
-                        <ColumnDefinition SharedSizeGroup="Actions"
-                                          Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <TextBlock Text="Package manager"
-                               Foreground="#CBD5F5"
-                               FontSize="13"/>
-                    <TextBlock Grid.Column="1"
-                               Text="Status"
-                               Foreground="#CBD5F5"
-                               FontSize="13"
+    <ScrollViewer Margin="32"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Auto"
+                  CanContentScroll="False">
+        <Grid MinWidth="720">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Orientation="Horizontal">
+                <Border Width="48"
+                        Height="48"
+                        CornerRadius="12"
+                        Background="#1E293B"
+                        Margin="0,0,12,0">
+                    <TextBlock Text="🧰"
+                               FontSize="24"
                                HorizontalAlignment="Center"
-                               Margin="16,0,16,0"/>
-                    <TextBlock Grid.Column="2"
-                               Text="Notes"
-                               Foreground="#CBD5F5"
-                               FontSize="13"
-                               Margin="16,0,16,0"/>
-                    <TextBlock Grid.Column="3"
-                               Text="Actions"
-                               Foreground="#CBD5F5"
-                               FontSize="13"
-                               HorizontalAlignment="Left"
-                               Margin="16,0,0,0"/>
-                </Grid>
+                               VerticalAlignment="Center"/>
+                </Border>
+                <StackPanel>
+                    <TextBlock Text="Bootstrap workspace"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="{Binding Headline}"
+                               FontSize="14"
+                               Foreground="#94A3B8"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </StackPanel>
 
-                <ListView Grid.Row="1"
-                          ItemsSource="{Binding Managers}"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          Foreground="#F8FAFC"
-                          Margin="0,12,0,0"
-                          HorizontalAlignment="Stretch"
-                          VerticalAlignment="Stretch">
-                    <ListView.ItemTemplate>
-                        <DataTemplate>
-                            <Grid Margin="0,4,0,4">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition SharedSizeGroup="PackageName"
-                                                      Width="*"/>
-                                    <ColumnDefinition SharedSizeGroup="Status"
-                                                      Width="Auto"/>
-                                    <ColumnDefinition SharedSizeGroup="Notes"
-                                                      Width="2*"/>
-                                    <ColumnDefinition SharedSizeGroup="Actions"
-                                                      Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Text="{Binding Name}"/>
-                                <TextBlock Grid.Column="1"
-                                           Text="{Binding IsInstalled, Converter={StaticResource BooleanToYesNoConverter}}"
-                                           HorizontalAlignment="Center"
-                                           Margin="16,0,16,0"/>
-                                <TextBlock Grid.Column="2"
-                                           Text="{Binding NotesDisplay}"
-                                           Margin="16,0,16,0"
+            <Grid Grid.Row="1"
+                  Margin="0,28,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="2*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Margin="0,0,24,0">
+                    <Border Style="{StaticResource BootstrapCardStyle}"
+                            Margin="0,0,0,24">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel>
+                                <TextBlock Text="Detection controls"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="#E2E8F0"/>
+                                <TextBlock Text="Choose sources then run a deep profile of package managers installed on this machine."
+                                           Margin="0,6,0,0"
+                                           FontSize="12"
+                                           Foreground="{StaticResource BootstrapMutedForeground}"
                                            TextWrapping="Wrap"/>
-                                <Button Grid.Column="3"
-                                        Content="{Binding ActionLabel}"
-                                        Command="{Binding DataContext.InstallCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                        CommandParameter="{Binding}"
-                                        Background="#7C3AED"
-                                        Foreground="#F8FAFC"
-                                        FontSize="12"
-                                        BorderThickness="0"
-                                        Padding="12,6"
-                                        Cursor="Hand"
-                                        HorizontalAlignment="Left"
-                                        Margin="16,0,0,0"
-                                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}">
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="Button">
-                                                        <Border Background="{TemplateBinding Background}"
-                                                                CornerRadius="6"
-                                                                Padding="{TemplateBinding Padding}">
-                                                            <ContentPresenter HorizontalAlignment="Center"
-                                                                              VerticalAlignment="Center"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsEnabled"
-                                                                     Value="False">
-                                                                <Setter Property="Opacity"
-                                                                        Value="0.5"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsMouseOver"
-                                                                     Value="True">
-                                                                <Setter Property="Background"
-                                                                        Value="#6D28D9"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                            </StackPanel>
+
+                            <Grid Grid.Row="1"
+                                  Margin="0,18,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <WrapPanel Grid.Column="0"
+                                           Orientation="Horizontal"
+                                           HorizontalAlignment="Left">
+                                    <CheckBox Content="Chocolatey"
+                                              Margin="0,0,12,8"
+                                              Foreground="#F8FAFC"
+                                              IsChecked="{Binding IncludeChocolatey, Mode=TwoWay}"/>
+                                    <CheckBox Content="Scoop"
+                                              Margin="0,0,12,8"
+                                              Foreground="#F8FAFC"
+                                              IsChecked="{Binding IncludeScoop, Mode=TwoWay}"/>
+                                </WrapPanel>
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Right">
+                                    <Button Content="Run detection"
+                                            Command="{Binding DetectCommand}"
+                                            MinWidth="148">
+                                        <Button.Style>
+                                            <Style TargetType="Button"
+                                                   BasedOn="{StaticResource BootstrapAccentButtonStyle}">
+                                                <Setter Property="FontWeight"
+                                                        Value="SemiBold"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                 Value="True">
+                                                        <Setter Property="IsEnabled"
+                                                                Value="False"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
                             </Grid>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                    <ListView.Style>
-                        <Style TargetType="ListView">
-                            <Setter Property="IsEnabled">
-                                <Setter.Value>
-                                    <Binding Path="IsBusy"
-                                             Converter="{StaticResource InverseBooleanConverter}"/>
-                                </Setter.Value>
-                            </Setter>
-                            <Setter Property="ItemContainerStyle">
-                                <Setter.Value>
+
+                            <Grid Grid.Row="2"
+                                  Margin="0,20,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ProgressBar Grid.Column="0"
+                                             Width="140"
+                                             Height="6"
+                                             Margin="0,0,16,0"
+                                             IsIndeterminate="True"
+                                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                             Foreground="#38BDF8"
+                                             Background="#0F172A"/>
+                                <TextBlock Grid.Column="1"
+                                           VerticalAlignment="Center"
+                                           Foreground="#CBD5F5"
+                                           TextWrapping="Wrap"
+                                           Text="{Binding Managers.Count, Mode=OneWay, StringFormat=Detected {0} package manager candidates.}"/>
+                                <TextBlock Grid.Column="2"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource BootstrapMutedForeground}"
+                                           Text="Working..."
+                                           Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource BootstrapCardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Manager inventory"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="#E2E8F0"/>
+                                <Border Margin="12,0,0,0"
+                                        Padding="8,2"
+                                        Background="#1E3A8A"
+                                        CornerRadius="6">
+                     <TextBlock Foreground="#C7D2FE"
+                             FontSize="12">
+                         <Run Text="{Binding Managers.Count, Mode=OneWay}"/>
+                                        <Run Text=" tracked"/>
+                                    </TextBlock>
+                                </Border>
+                            </StackPanel>
+
+                            <ListView Grid.Row="1"
+                                      Margin="0,18,0,0"
+                                      ItemsSource="{Binding Managers}"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Foreground="#F8FAFC"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                      ScrollViewer.CanContentScroll="True"
+                                      VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling"
+                                      VirtualizingStackPanel.ScrollUnit="Pixel">
+                                <ListView.ItemContainerStyle>
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment"
                                                 Value="Stretch"/>
                                         <Setter Property="Padding"
                                                 Value="0"/>
                                         <Setter Property="Margin"
-                                                Value="0"/>
+                                                Value="0,4"/>
                                         <Setter Property="Background"
                                                 Value="Transparent"/>
-                                        <Setter Property="BorderThickness"
-                                                Value="0"/>
                                     </Style>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListView.Style>
-                </ListView>
+                                </ListView.ItemContainerStyle>
+                                <ListView.Style>
+                                    <Style TargetType="ListView">
+                                        <Setter Property="IsEnabled">
+                                            <Setter.Value>
+                                                <Binding Path="IsBusy"
+                                                         Converter="{StaticResource InverseBooleanConverter}"/>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListView.Style>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#0F172A"
+                                                CornerRadius="10"
+                                                Padding="16"
+                                                BorderBrush="#1E293B"
+                                                BorderThickness="1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontSize="14"
+                                                                   FontWeight="SemiBold"/>
+                                                        <Border Margin="12,0,0,0"
+                                                                Padding="8,2"
+                                                                CornerRadius="10">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background"
+                                                                            Value="#F59E0B"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsInstalled}"
+                                                                                     Value="True">
+                                                                            <Setter Property="Background"
+                                                                                    Value="#34D399"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock FontSize="12"
+                                                                       FontWeight="SemiBold">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Text"
+                                                                                Value="Missing"/>
+                                                                        <Setter Property="Foreground"
+                                                                                Value="#0F172A"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsInstalled}"
+                                                                                         Value="True">
+                                                                                <Setter Property="Text"
+                                                                                        Value="Installed"/>
+                                                                                <Setter Property="Foreground"
+                                                                                        Value="#022C22"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Border>
+                                                    </StackPanel>
+
+                                                    <ItemsControl ItemsSource="{Binding NoteLines}"
+                                                                  Margin="0,10,0,0">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel Orientation="Horizontal"
+                                                                            Margin="0,2,0,2">
+                                                                    <TextBlock Text="•"
+                                                                               Foreground="#475569"
+                                                                               Margin="0,0,8,0"
+                                                                               FontSize="12"/>
+                                                                    <TextBlock Text="{Binding Text}"
+                                                                               TextWrapping="Wrap"
+                                                                               Foreground="#E2E8F0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Foreground"
+                                                                                        Value="#E2E8F0"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Severity}"
+                                                                                                 Value="Muted">
+                                                                                        <Setter Property="Foreground"
+                                                                                                Value="#64748B"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Severity}"
+                                                                                                 Value="Success">
+                                                                                        <Setter Property="Foreground"
+                                                                                                Value="#34D399"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Severity}"
+                                                                                                 Value="Error">
+                                                                                        <Setter Property="Foreground"
+                                                                                                Value="#F87171"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Stretch">
+                                                    <Button Content="{Binding ActionLabel}"
+                                                            Command="{Binding DataContext.InstallCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            MinWidth="132">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button"
+                                                                   BasedOn="{StaticResource BootstrapAccentButtonStyle}">
+                                                                <Setter Property="Margin"
+                                                                        Value="0,0,0,8"/>
+                                                                <Setter Property="Padding"
+                                                                        Value="14,6"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <TextBlock Text="{Binding LastOperationMessage}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="#94A3B8"
+                                                               Width="180">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility"
+                                                                        Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding LastOperationMessage}"
+                                                                                 Value="">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding LastOperationMessage}"
+                                                                                 Value="{x:Null}">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                        </Grid>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Margin="16,0,0,0">
+                    <Border Style="{StaticResource BootstrapCardStyle}"
+                            Margin="0,0,0,24">
+                        <StackPanel>
+                            <TextBlock Text="Quick guidance"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="#E2E8F0"/>
+                            <TextBlock Text="Make sure optional managers you care about are toggled on, then run detection. We'll queue suggested fixes automatically after each install run."
+                                       Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="#94A3B8"
+                                       FontSize="12"/>
+                            <ItemsControl Margin="0,16,0,0">
+                                <ItemsControl.Items>
+                                    <TextBlock Text="Detection runs with the least privilege required. Accept elevated prompts if you expect admin tools."
+                                               TextWrapping="Wrap"
+                                               Foreground="#CBD5F5"
+                                               Margin="0,0,0,12"/>
+                                    <TextBlock Text="Use Install or repair to trigger a remediation. We automatically refresh detection when the run finishes."
+                                               TextWrapping="Wrap"
+                                               Foreground="#CBD5F5"
+                                               Margin="0,0,0,12"/>
+                                    <TextBlock Text="Head to the Install hub afterwards to queue curated bundles once your managers are healthy."
+                                               TextWrapping="Wrap"
+                                               Foreground="#CBD5F5"/>
+                                </ItemsControl.Items>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource BootstrapCardStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Status tips"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="#E2E8F0"/>
+                            <StackPanel Margin="0,12,0,0">
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,8">
+                                    <Ellipse Width="10"
+                                             Height="10"
+                                             Fill="#34D399"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="Installed managers are ready for bundle orchestration."
+                                               Margin="12,0,0,0"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,8">
+                                    <Ellipse Width="10"
+                                             Height="10"
+                                             Fill="#F59E0B"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="Missing managers can usually be fixed with a single repair run."
+                                               Margin="12,0,0,0"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="10"
+                                             Height="10"
+                                             Fill="#F87171"
+                                             VerticalAlignment="Center"/>
+                                    <TextBlock Text="Errors stick around with details so you can review the transcript in Activity log."
+                                               Margin="12,0,0,0"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
             </Grid>
-        </Border>
-    </Grid>
+        </Grid>
+    </ScrollViewer>
 </Page>

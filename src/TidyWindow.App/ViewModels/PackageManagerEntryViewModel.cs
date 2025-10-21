@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TidyWindow.Core.PackageManagers;
 
@@ -31,32 +34,9 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool? _lastOperationSucceeded;
 
-    public string NotesDisplay
-    {
-        get
-        {
-            if (string.IsNullOrWhiteSpace(LastOperationMessage))
-            {
-                return Notes;
-            }
+    public string NotesDisplay => string.Join(Environment.NewLine, BuildNoteLines().Select(line => line.Text));
 
-            var prefix = LastOperationSucceeded switch
-            {
-                true => "[Success] ",
-                false => "[Action needed] ",
-                _ => string.Empty
-            };
-
-            var statusLine = prefix + LastOperationMessage.Trim();
-
-            if (string.IsNullOrWhiteSpace(Notes))
-            {
-                return statusLine;
-            }
-
-            return Notes + "\n" + statusLine;
-        }
-    }
+    public IReadOnlyList<PackageManagerNoteLine> NoteLines => BuildNoteLines();
 
     public string ActionLabel => IsBusy ? "Working..." : "Install or repair";
 
@@ -73,11 +53,78 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
         LastOperationSucceeded = null;
     }
 
-    partial void OnNotesChanged(string value) => OnPropertyChanged(nameof(NotesDisplay));
+    partial void OnNotesChanged(string value)
+    {
+        OnPropertyChanged(nameof(NotesDisplay));
+        OnPropertyChanged(nameof(NoteLines));
+    }
 
-    partial void OnLastOperationMessageChanged(string? value) => OnPropertyChanged(nameof(NotesDisplay));
+    partial void OnLastOperationMessageChanged(string? value)
+    {
+        OnPropertyChanged(nameof(NotesDisplay));
+        OnPropertyChanged(nameof(NoteLines));
+    }
 
-    partial void OnLastOperationSucceededChanged(bool? value) => OnPropertyChanged(nameof(NotesDisplay));
+    partial void OnLastOperationSucceededChanged(bool? value)
+    {
+        OnPropertyChanged(nameof(NotesDisplay));
+        OnPropertyChanged(nameof(NoteLines));
+    }
 
     partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(ActionLabel));
+
+    private IReadOnlyList<PackageManagerNoteLine> BuildNoteLines()
+    {
+        var lines = new List<PackageManagerNoteLine>();
+
+        if (!string.IsNullOrWhiteSpace(Notes))
+        {
+            foreach (var note in SplitLines(Notes))
+            {
+                if (note.Length == 0)
+                {
+                    continue;
+                }
+
+                lines.Add(new PackageManagerNoteLine(note, PackageManagerNoteSeverity.Info));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(LastOperationMessage))
+        {
+            var severity = LastOperationSucceeded switch
+            {
+                true => PackageManagerNoteSeverity.Success,
+                false => PackageManagerNoteSeverity.Error,
+                _ => PackageManagerNoteSeverity.Info
+            };
+
+            lines.Add(new PackageManagerNoteLine(LastOperationMessage.Trim(), severity));
+        }
+
+        if (lines.Count == 0)
+        {
+            lines.Add(new PackageManagerNoteLine("No results yet. Run detection to gather status.", PackageManagerNoteSeverity.Muted));
+        }
+
+        return lines;
+    }
+
+    private static IEnumerable<string> SplitLines(string value)
+    {
+        return value
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0);
+    }
+}
+
+public sealed record PackageManagerNoteLine(string Text, PackageManagerNoteSeverity Severity);
+
+public enum PackageManagerNoteSeverity
+{
+    Muted,
+    Info,
+    Success,
+    Error
 }
