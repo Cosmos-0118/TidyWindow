@@ -2,92 +2,31 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using TidyWindow.Core.Automation;
 
 namespace TidyWindow.Core.Cleanup;
 
 /// <summary>
-/// Coordinates execution of the cleanup-preview PowerShell script and materializes typed results.
+/// Provides high-performance cleanup preview and deletion operations without external scripting.
 /// </summary>
 public sealed class CleanupService
 {
-    private readonly PowerShellInvoker _powerShellInvoker;
+    private readonly CleanupScanner _scanner;
 
-    private static readonly JsonSerializerOptions _jsonOptions = new()
+    public CleanupService()
+        : this(new CleanupScanner(new CleanupDefinitionProvider()))
     {
-        PropertyNameCaseInsensitive = true
-    };
-
-    public CleanupService(PowerShellInvoker powerShellInvoker)
-    {
-        _powerShellInvoker = powerShellInvoker;
     }
 
-    public async Task<CleanupReport> PreviewAsync(bool includeDownloads, int previewCount, CleanupItemKind itemKind = CleanupItemKind.Files, CancellationToken cancellationToken = default)
+    internal CleanupService(CleanupScanner scanner)
     {
-        if (previewCount < 0)
-        {
-            previewCount = 0;
-        }
+        _scanner = scanner ?? throw new ArgumentNullException(nameof(scanner));
+    }
 
-        var scriptPath = ResolveScriptPath(Path.Combine("automation", "scripts", "cleanup-preview.ps1"));
-
-        var parameters = new Dictionary<string, object?>
-        {
-            ["PreviewCount"] = previewCount
-        };
-
-        if (includeDownloads)
-        {
-            parameters["IncludeDownloads"] = true;
-        }
-
-        parameters["ItemKind"] = itemKind switch
-        {
-            CleanupItemKind.Folders => "Folders",
-            CleanupItemKind.Both => "Both",
-            _ => "Files"
-        };
-
-        var result = await _powerShellInvoker.InvokeScriptAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
-
-        if (!result.IsSuccess)
-        {
-            throw new InvalidOperationException("Cleanup preview failed: " + string.Join(Environment.NewLine, result.Errors));
-        }
-
-        var jsonPayload = ExtractJsonPayload(result.Output);
-        if (string.IsNullOrWhiteSpace(jsonPayload))
-        {
-            return CleanupReport.Empty;
-        }
-
-        try
-        {
-            var node = JsonNode.Parse(jsonPayload);
-            if (node is not JsonArray array)
-            {
-                return CleanupReport.Empty;
-            }
-
-            var reports = array
-                .Select(entry => entry?.Deserialize<CleanupTargetJson>(_jsonOptions))
-                .Where(entry => entry is not null)
-                .Select(entry => Map(entry!))
-                .Where(mapped => mapped is not null)
-                .Select(mapped => mapped!)
-                .ToList();
-
-            return new CleanupReport(reports);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException("Cleanup preview returned invalid JSON.", ex);
-        }
+    public Task<CleanupReport> PreviewAsync(bool includeDownloads, int previewCount, CleanupItemKind itemKind = CleanupItemKind.Files, CancellationToken cancellationToken = default)
+    {
+        return _scanner.ScanAsync(includeDownloads, previewCount, itemKind, cancellationToken);
     }
 
     public Task<CleanupDeletionResult> DeleteAsync(
@@ -142,7 +81,7 @@ public sealed class CleanupService
                 }
                 else if (Directory.Exists(path))
                 {
-                    Directory.Delete(path, true);
+                    Directory.Delete(path, recursive: true);
                     deleted++;
                 }
                 else
@@ -161,94 +100,5 @@ public sealed class CleanupService
         }
 
         return new CleanupDeletionResult(deleted, skipped, errors);
-    }
-
-    private static CleanupTargetReport? Map(CleanupTargetJson json)
-    {
-        var previewItems = json.Preview?
-            .Select(item =>
-            {
-                var lastModified = item.LastModified?.ToUniversalTime();
-                return new CleanupPreviewItem(item.Name, item.FullName, item.SizeBytes, lastModified, item.IsDirectory, item.Extension);
-            })
-            .ToList();
-
-        return new CleanupTargetReport(
-            json.Category,
-            json.Path,
-            json.Exists,
-            json.ItemCount,
-            json.TotalSizeBytes,
-            previewItems,
-            json.Notes,
-            json.DryRun,
-            json.Classification);
-    }
-
-    private static string? ExtractJsonPayload(IEnumerable<string> outputLines)
-    {
-        foreach (var line in outputLines.Reverse())
-        {
-            var trimmed = line?.Trim();
-            if (string.IsNullOrEmpty(trimmed))
-            {
-                continue;
-            }
-
-            trimmed = trimmed.TrimStart('\uFEFF');
-            if (trimmed.StartsWith("[", StringComparison.Ordinal) || trimmed.StartsWith("{", StringComparison.Ordinal))
-            {
-                return trimmed;
-            }
-        }
-
-        return null;
-    }
-
-    private static string ResolveScriptPath(string relativePath)
-    {
-        var baseDirectory = AppContext.BaseDirectory;
-        var candidate = Path.Combine(baseDirectory, relativePath);
-        if (File.Exists(candidate))
-        {
-            return candidate;
-        }
-
-        var directory = new DirectoryInfo(baseDirectory);
-        while (directory is not null)
-        {
-            candidate = Path.Combine(directory.FullName, relativePath);
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new FileNotFoundException($"Unable to locate automation script at relative path '{relativePath}'.");
-    }
-
-    private sealed class CleanupTargetJson
-    {
-        public string? Category { get; set; }
-        public string? Classification { get; set; }
-        public string? Path { get; set; }
-        public bool Exists { get; set; }
-        public int ItemCount { get; set; }
-        public long TotalSizeBytes { get; set; }
-        public bool DryRun { get; set; }
-        public string? Notes { get; set; }
-        public List<CleanupPreviewItemJson>? Preview { get; set; }
-    }
-
-    private sealed class CleanupPreviewItemJson
-    {
-        public string? Name { get; set; }
-        public string? FullName { get; set; }
-        public long SizeBytes { get; set; }
-        public DateTime? LastModified { get; set; }
-        public bool IsDirectory { get; set; }
-        public string? Extension { get; set; }
     }
 }

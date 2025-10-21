@@ -2,7 +2,6 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using TidyWindow.Core.Automation;
 using TidyWindow.Core.Cleanup;
 
 namespace TidyWindow.Automation.Tests.Cleanup;
@@ -14,8 +13,7 @@ public sealed class CleanupScriptTests
     {
         Assert.True(OperatingSystem.IsWindows(), "Cleanup preview script requires Windows.");
 
-        var invoker = new PowerShellInvoker();
-        var service = new CleanupService(invoker);
+        var service = new CleanupService();
 
         var report = await service.PreviewAsync(includeDownloads: false, previewCount: 5);
 
@@ -31,8 +29,7 @@ public sealed class CleanupScriptTests
     {
         Assert.True(OperatingSystem.IsWindows(), "Cleanup preview script requires Windows.");
 
-        var invoker = new PowerShellInvoker();
-        var service = new CleanupService(invoker);
+        var service = new CleanupService();
 
         var report = await service.PreviewAsync(includeDownloads: true, previewCount: 1);
 
