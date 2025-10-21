@@ -157,6 +157,59 @@ function Test-TidyCommand {
     $null -ne (Get-Command -Name $CommandName -ErrorAction SilentlyContinue)
 }
 
+function Ensure-TidyExecutionPolicy {
+    param(
+        [string] $DesiredPolicy = 'RemoteSigned'
+    )
+
+    Write-TidyLog -Level Information -Message ("Ensuring execution policy {0} for current user." -f $DesiredPolicy)
+
+    $policySatisfied = $false
+
+    try {
+        $currentPolicy = Get-ExecutionPolicy -Scope CurrentUser -ErrorAction Stop
+        if (-not [string]::IsNullOrWhiteSpace($currentPolicy)) {
+            if ([string]::Equals($currentPolicy, $DesiredPolicy, [System.StringComparison]::OrdinalIgnoreCase)) {
+                $policySatisfied = $true
+                Write-TidyOutput -Message ("Execution policy already set to {0} for current user." -f $currentPolicy)
+            }
+            elseif ($currentPolicy -in @('Bypass', 'Unrestricted')) {
+                $policySatisfied = $true
+                Write-TidyOutput -Message ("Execution policy {0} for current user already permits bootstrap scripts." -f $currentPolicy)
+            }
+        }
+    }
+    catch {
+        Write-TidyLog -Level Warning -Message ("Unable to read current user execution policy. {0}" -f $_.Exception.Message)
+    }
+
+    if (-not $policySatisfied) {
+        try {
+            Set-ExecutionPolicy -ExecutionPolicy $DesiredPolicy -Scope CurrentUser -Force -ErrorAction Stop
+            $policySatisfied = $true
+            Write-TidyOutput -Message ("Execution policy set to {0} for current user." -f $DesiredPolicy)
+        }
+        catch {
+            Write-TidyLog -Level Warning -Message ("Failed to set current user execution policy. {0}" -f $_.Exception.Message)
+        }
+    }
+
+    if ($policySatisfied) {
+        return
+    }
+
+    Write-TidyLog -Level Warning -Message 'Unable to persist execution policy change. Falling back to a process-scoped policy for this run.'
+
+    try {
+        Set-ExecutionPolicy -ExecutionPolicy Bypass -Scope Process -Force -ErrorAction Stop
+        Write-TidyOutput -Message 'Process execution policy set to Bypass for bootstrap tasks. You may need to configure your execution policy manually for future sessions.'
+    }
+    catch {
+        $message = "Failed to configure execution policy for bootstrap operations. $($_.Exception.Message)"
+        throw $message
+    }
+}
+
 function Invoke-ScoopBootstrap {
     if (Test-TidyCommand -CommandName 'scoop') {
         Invoke-TidyCommand -Command { scoop update } -Description 'Updating Scoop installation.' -RequireSuccess
@@ -164,7 +217,7 @@ function Invoke-ScoopBootstrap {
     }
 
     Write-TidyLog -Level Information -Message 'Installing Scoop for the current user.'
-    Invoke-TidyCommand -Command { Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force } -Description 'Ensuring execution policy RemoteSigned for current user.'
+    Ensure-TidyExecutionPolicy -DesiredPolicy 'RemoteSigned'
 
     $installScript = Invoke-RestMethod -Uri 'https://get.scoop.sh' -UseBasicParsing
     if ([string]::IsNullOrWhiteSpace($installScript)) {
