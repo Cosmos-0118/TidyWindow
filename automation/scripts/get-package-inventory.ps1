@@ -532,4 +532,4 @@ $result = [pscustomobject]@{
     warnings = $warnings
 }
 
-$result | ConvertTo-Json -Depth 6
+$result | ConvertTo-Json -Depth 6 -Compress
