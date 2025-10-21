@@ -1,0 +1,94 @@
+name: release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+permissions:
+    contents: write
+
+jobs:
+    build-and-publish:
+        runs-on: windows-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Install .NET SDK
+              uses: actions/setup-dotnet@v4
+              with:
+                  dotnet-version: "8.0.x"
+
+            - name: Restore dependencies
+              run: dotnet restore src/TidyWindow.sln
+
+            - name: Build solution
+              run: dotnet build src/TidyWindow.sln --configuration Release --no-restore
+
+            - name: Publish self-contained package
+              run: >-
+                  dotnet publish src/TidyWindow.App/TidyWindow.App.csproj
+                  --configuration Release
+                  --runtime win-x64
+                  --self-contained true
+                  /p:PublishSingleFile=true
+                  /p:IncludeNativeLibrariesForSelfExtract=true
+                  /p:PublishReadyToRun=true
+                  /p:DebugType=None
+                  /p:DebugSymbols=false
+                  --no-build
+
+            - name: Prepare portable bundle
+              shell: pwsh
+              run: |
+                  $publishDir = "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish"
+                  if (-not (Test-Path $publishDir)) {
+                    throw "Publish directory not found: $publishDir"
+                  }
+                  $versionTag = $env:GITHUB_REF.Replace('refs/tags/', '')
+                  $packageName = "TidyWindow-$versionTag-win-x64"
+                  $staging = "artifacts"
+                  New-Item -ItemType Directory -Force -Path $staging | Out-Null
+                  $portableDir = Join-Path $staging $packageName
+                  New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
+                  Copy-Item "$publishDir/*" $portableDir -Recurse -Force
+                  Compress-Archive -Path "$portableDir/*" -DestinationPath "$portableDir.zip" -Force
+                  Remove-Item $portableDir -Recurse -Force
+                  Get-ChildItem $staging
+
+            - name: Install Inno Setup
+              run: choco install innosetup --no-progress -y
+
+            - name: Build installer
+              shell: pwsh
+              run: |
+                  $publishDir = "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish"
+                  $version = $env:GITHUB_REF_NAME
+                  if ($version.StartsWith('v')) { $version = $version.Substring(1) }
+                  $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+                  if (-not (Test-Path $iscc)) {
+                    throw "ISCC.exe not found at $iscc"
+                  }
+                  & $iscc /Qp "/DMyAppVersion=$version" "/DBuildOutput=$publishDir" "installer\TidyWindowInstaller.iss"
+                  $outputDir = "installer\Output"
+                  if (Test-Path $outputDir) {
+                    Copy-Item "$outputDir\*.exe" "artifacts" -Force
+                  } else {
+                    throw "Installer output not found at $outputDir"
+                  }
+
+            - name: Upload artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: windows-packages
+                  path: artifacts/*
+
+            - name: Publish GitHub release asset
+              uses: softprops/action-gh-release@v2
+              if: startsWith(github.ref, 'refs/tags/')
+              with:
+                  files: artifacts/*
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
