@@ -39,7 +39,11 @@ function Get-CachedTidyCommandPath {
     $key = $CommandName.ToLowerInvariant()
     if ($script:CommandPathCache.ContainsKey($key)) {
         $cached = $script:CommandPathCache[$key]
-        return if ([string]::IsNullOrWhiteSpace([string]$cached)) { $null } else { [string]$cached }
+        if ([string]::IsNullOrWhiteSpace([string]$cached)) {
+            return $null
+        }
+
+        return [string]$cached
     }
 
     $resolved = Get-TidyCommandPath -CommandName $CommandName
@@ -145,7 +149,8 @@ function Test-TidyCommand {
         [string] $CommandName
     )
 
-    -not [string]::IsNullOrWhiteSpace(Get-CachedTidyCommandPath -CommandName $CommandName)
+    $commandPath = Get-CachedTidyCommandPath -CommandName $CommandName
+    -not [string]::IsNullOrWhiteSpace($commandPath)
 }
 
 function Test-ChocolateyInstalled {
@@ -236,11 +241,11 @@ function Add-TidyManagerResult {
     Write-TidyOutput -Message $summary
 
     $payload = [pscustomobject]@{
-        Name           = $Name
-        DisplayName    = $DisplayName
-        Found          = $IsInstalled
-        Notes          = $Notes
-        CommandPath    = $CommandPath
+        Name             = $Name
+        DisplayName      = $DisplayName
+        Found            = $IsInstalled
+        Notes            = $Notes
+        CommandPath      = $CommandPath
         InstalledVersion = $Version
     }
 
@@ -268,10 +273,11 @@ try {
 
     if ($IncludeChocolatey) {
         $chocoFound = Test-ChocolateyInstalled
-    $chocoPath = if ($chocoFound) { Get-CachedTidyCommandPath -CommandName 'choco' } else { $null }
+        $chocoPath = if ($chocoFound) { Get-CachedTidyCommandPath -CommandName 'choco' } else { $null }
         $chocoVersion = if ($chocoFound -and $chocoPath) {
             Get-TidyCommandVersion -CommandPath $chocoPath -CommandName 'choco'
-        } else {
+        }
+        else {
             $null
         }
 
@@ -280,7 +286,7 @@ try {
 
     if ($IncludeScoop) {
         $scoopFound = Test-ScoopInstalled
-    $scoopPath = if ($scoopFound) { Get-CachedTidyCommandPath -CommandName 'scoop' } else { $null }
+        $scoopPath = if ($scoopFound) { Get-CachedTidyCommandPath -CommandName 'scoop' } else { $null }
         $scoopVersion = if ($scoopFound -and $scoopPath) {
             try {
                 (& $scoopPath '--version' 2>$null | Select-Object -First 1).Trim()
@@ -288,7 +294,8 @@ try {
             catch {
                 $null
             }
-        } else {
+        }
+        else {
             $null
         }
 

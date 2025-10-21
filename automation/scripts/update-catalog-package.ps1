@@ -48,7 +48,11 @@ function Get-CachedCommandPath {
     $key = $CommandName.ToLowerInvariant()
     if ($script:CommandPathCache.ContainsKey($key)) {
         $value = $script:CommandPathCache[$key]
-        return if ([string]::IsNullOrWhiteSpace([string]$value)) { $null } else { [string]$value }
+        if ([string]::IsNullOrWhiteSpace([string]$value)) {
+            return $null
+        }
+
+        return [string]$value
     }
 
     $resolved = Get-Command -Name $CommandName -ErrorAction SilentlyContinue
@@ -899,16 +903,16 @@ function Invoke-ManagerUpdate {
         }
     }
 
-    $summary = if ($exitCode -eq 0) {
+    if ($exitCode -eq 0) {
         if ($hasTarget) {
-            "Update command completed for version $TargetVersion."
+            $summary = "Update command completed for version $TargetVersion."
         }
         else {
-            'Update command completed.'
+            $summary = 'Update command completed.'
         }
     }
     else {
-        "Update command exited with code $exitCode."
+        $summary = "Update command exited with code $exitCode."
     }
 
     return [pscustomobject]@{

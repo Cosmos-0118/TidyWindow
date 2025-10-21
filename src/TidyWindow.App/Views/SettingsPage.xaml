@@ -157,30 +157,6 @@
                         BorderThickness="1"
                         Margin="0,16,0,0">
                     <StackPanel>
-                        <CheckBox Content="Allow administrative privileges when needed"
-                                  IsChecked="{Binding AdminPrivilegesEnabled, Mode=TwoWay}"
-                                  FontSize="14"
-                                  Foreground="#E2E8F0"
-                                  Margin="0,0,0,12"/>
-                        <TextBlock Text="{Binding AdminPrivilegesStatus}"
-                                   Foreground="#A5B4FC"
-                                   FontSize="12"
-                                   TextWrapping="Wrap"
-                                   Margin="0,0,0,6"/>
-                        <TextBlock Text="Turn this off if you prefer TidyWindow to avoid elevation prompts. Some maintenance actions that require admin access will be skipped."
-                                   Foreground="#F97316"
-                                   FontSize="11"
-                                   TextWrapping="Wrap"/>
-                    </StackPanel>
-                </Border>
-
-                <Border Background="#111827"
-                        Padding="20"
-                        CornerRadius="14"
-                        BorderBrush="#1D2A44"
-                        BorderThickness="1"
-                        Margin="0,16,0,0">
-                    <StackPanel>
                         <TextBlock Text="Elevation status"
                                    Foreground="#E2E8F0"
                                    FontSize="14"
@@ -208,22 +184,11 @@
                                    FontSize="12"
                                    TextWrapping="Wrap"
                                    Margin="0,6,0,12"/>
-                        <WrapPanel Margin="0,0,0,12">
-                            <Button Content="Restart in user mode"
-                                    Command="{Binding RestartAsStandardCommand}"
-                                    IsEnabled="{Binding CanRestartAsStandard}"
-                                    Style="{StaticResource SettingsSecondaryButtonStyle}"
-                                    Margin="0,0,12,8"/>
-                            <Button Content="Restart as admin"
-                                    Command="{Binding RestartAsAdministratorCommand}"
-                                    IsEnabled="{Binding CanRestartAsAdministrator}"
-                                    Style="{StaticResource SettingsAccentButtonStyle}"
-                                    Margin="0,0,0,8"/>
-                        </WrapPanel>
-                        <TextBlock Text="{Binding PrivilegeSwitchGuidance}"
-                                   Foreground="#F97316"
-                                   FontSize="11"
-                                   TextWrapping="Wrap"/>
+                                                <TextBlock Text="TidyWindow always relaunches with administrative privileges so maintenance tasks succeed."
+                                                                   Foreground="#A5B4FC"
+                                                                   FontSize="12"
+                                                                   TextWrapping="Wrap"
+                                                                   Margin="0,6,0,0"/>
                     </StackPanel>
                 </Border>
             </StackPanel>

@@ -1,4 +1,5 @@
-﻿using System.Windows;
+﻿using System;
+using System.Windows;
 using WpfApplication = System.Windows.Application;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,6 +24,12 @@ public partial class App : WpfApplication
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        if (!EnsureElevated())
+        {
+            Shutdown();
+            return;
+        }
+
         base.OnStartup(e);
 
         _host = Host.CreateDefaultBuilder()
@@ -30,7 +37,6 @@ public partial class App : WpfApplication
             {
                 services.AddSingleton<NavigationService>();
                 services.AddSingleton<ActivityLogService>();
-                services.AddSingleton<PrivilegeOptions>();
                 services.AddSingleton<IPrivilegeService, PrivilegeService>();
 
                 services.AddSingleton<PowerShellInvoker>();
@@ -69,6 +75,38 @@ public partial class App : WpfApplication
 
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
         mainWindow.Show();
+    }
+
+    private static bool EnsureElevated()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return true;
+        }
+
+        var privilegeService = new PrivilegeService();
+        if (privilegeService.CurrentMode == PrivilegeMode.Administrator)
+        {
+            return true;
+        }
+
+        var restartResult = privilegeService.Restart(PrivilegeMode.Administrator);
+        if (restartResult.Success)
+        {
+            return false;
+        }
+
+        if (restartResult.AlreadyInTargetMode)
+        {
+            return true;
+        }
+
+        var message = string.IsNullOrWhiteSpace(restartResult.ErrorMessage)
+            ? "Administrator privileges are required to run TidyWindow."
+            : restartResult.ErrorMessage;
+
+        System.Windows.MessageBox.Show(message, "TidyWindow", MessageBoxButton.OK, MessageBoxImage.Warning);
+        return false;
     }
 
     protected override async void OnExit(ExitEventArgs e)

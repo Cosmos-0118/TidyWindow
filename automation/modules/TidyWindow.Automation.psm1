@@ -1,3 +1,21 @@
+function Remove-TidyAnsiSequences {
+    # Strips ANSI escape codes so UI output remains readable.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false)]
+        [string] $Text
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $Text
+    }
+
+    $clean = [System.Text.RegularExpressions.Regex]::Replace($Text, '\x1B\[[0-9;?]*[ -/]*[@-~]', '')
+    $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, '\x1B', '')
+    $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, '\[[0-9;]{1,5}[A-Za-z]', '')
+    return $clean
+}
+
 function Convert-TidyLogMessage {
     # Normalizes log payloads into printable strings to avoid binding errors.
     [CmdletBinding()]
@@ -11,7 +29,7 @@ function Convert-TidyLogMessage {
     }
 
     if ($InputObject -is [string]) {
-        return $InputObject
+        return Remove-TidyAnsiSequences -Text $InputObject
     }
 
     if ($InputObject -is [pscustomobject]) {
@@ -40,10 +58,12 @@ function Convert-TidyLogMessage {
     }
 
     try {
-        return [System.Management.Automation.LanguagePrimitives]::ConvertTo($InputObject, [string])
+        $converted = [System.Management.Automation.LanguagePrimitives]::ConvertTo($InputObject, [string])
+        return Remove-TidyAnsiSequences -Text $converted
     }
     catch {
-        return ($InputObject | Out-String).TrimEnd()
+        $fallback = ($InputObject | Out-String).TrimEnd()
+        return Remove-TidyAnsiSequences -Text $fallback
     }
 }
 

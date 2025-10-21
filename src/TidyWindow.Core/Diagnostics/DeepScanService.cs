@@ -18,6 +18,157 @@ public enum DeepScanNameMatchMode
     Exact
 }
 
+internal static class DeepScanAggregation
+{
+    public static long CalculateUniqueSize(IEnumerable<DeepScanFinding> findings)
+    {
+        if (findings is null)
+        {
+            return 0;
+        }
+
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var directories = new List<string>();
+        var total = 0L;
+
+        foreach (var finding in findings.OrderByDescending(static item => item.SizeBytes))
+        {
+            var size = Math.Max(0L, finding.SizeBytes);
+            if (size == 0)
+            {
+                continue;
+            }
+
+            if (finding.IsDirectory)
+            {
+                var normalizedDirectory = NormalizeDirectoryPath(finding.Path);
+                if (IsUnderExistingParent(normalizedDirectory, directories, comparison))
+                {
+                    continue;
+                }
+
+                directories.Add(normalizedDirectory);
+                total += size;
+                continue;
+            }
+
+            var filePath = NormalizeFilePath(finding.Path);
+            if (IsUnderExistingParent(filePath, directories, comparison))
+            {
+                continue;
+            }
+
+            total += size;
+        }
+
+        return total;
+    }
+
+    public static IReadOnlyDictionary<string, long> CalculateCategoryTotals(IEnumerable<DeepScanFinding> findings)
+    {
+        var totals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        if (findings is null)
+        {
+            return new ReadOnlyDictionary<string, long>(totals);
+        }
+
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var directories = new List<string>();
+
+        foreach (var finding in findings.OrderByDescending(static item => item.SizeBytes))
+        {
+            var size = Math.Max(0L, finding.SizeBytes);
+            if (size == 0)
+            {
+                continue;
+            }
+
+            var category = string.IsNullOrWhiteSpace(finding.Category) ? "Other" : finding.Category;
+
+            if (finding.IsDirectory)
+            {
+                var normalizedDirectory = NormalizeDirectoryPath(finding.Path);
+                if (IsUnderExistingParent(normalizedDirectory, directories, comparison))
+                {
+                    continue;
+                }
+
+                directories.Add(normalizedDirectory);
+                totals[category] = totals.TryGetValue(category, out var current) ? current + size : size;
+                continue;
+            }
+
+            var filePath = NormalizeFilePath(finding.Path);
+            if (IsUnderExistingParent(filePath, directories, comparison))
+            {
+                continue;
+            }
+
+            totals[category] = totals.TryGetValue(category, out var existing) ? existing + size : size;
+        }
+
+        return new ReadOnlyDictionary<string, long>(totals);
+    }
+
+    private static bool IsUnderExistingParent(string candidatePath, IReadOnlyList<string> directories, StringComparison comparison)
+    {
+        if (candidatePath.Length == 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < directories.Count; i++)
+        {
+            if (candidatePath.StartsWith(directories[i], comparison))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizeDirectoryPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var normalized = Path.GetFullPath(path);
+            if (!normalized.EndsWith(Path.DirectorySeparatorChar) && !normalized.EndsWith(Path.AltDirectorySeparatorChar))
+            {
+                normalized += Path.DirectorySeparatorChar;
+            }
+
+            return normalized;
+        }
+        catch (Exception)
+        {
+            return path;
+        }
+    }
+
+    private static string NormalizeFilePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception)
+        {
+            return path;
+        }
+    }
+}
+
 /// <summary>
 /// Executes deep scan automation to surface the largest files and folders under a target path.
 /// </summary>
@@ -394,99 +545,8 @@ public sealed class DeepScanService
     private static DeepScanResult BuildResult(string rootPath, List<DeepScanFinding> findings)
     {
         var readOnly = new ReadOnlyCollection<DeepScanFinding>(findings);
-        var totalSize = CalculateUniqueSize(findings);
+        var totalSize = DeepScanAggregation.CalculateUniqueSize(findings);
         return new DeepScanResult(readOnly, rootPath, DateTimeOffset.UtcNow, findings.Count, totalSize);
-    }
-
-    private static long CalculateUniqueSize(IEnumerable<DeepScanFinding> findings)
-    {
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
-        var directories = new List<string>();
-        var total = 0L;
-
-        foreach (var finding in findings.OrderByDescending(static item => item.SizeBytes))
-        {
-            if (finding.IsDirectory)
-            {
-                var normalizedDirectory = NormalizeDirectoryPath(finding.Path);
-                if (IsUnderExistingParent(normalizedDirectory, directories, comparison))
-                {
-                    continue;
-                }
-
-                directories.Add(normalizedDirectory);
-                total += finding.SizeBytes;
-                continue;
-            }
-
-            var filePath = NormalizeFilePath(finding.Path);
-            if (IsUnderExistingParent(filePath, directories, comparison))
-            {
-                continue;
-            }
-
-            total += finding.SizeBytes;
-        }
-
-        return total;
-    }
-
-    private static bool IsUnderExistingParent(string candidatePath, IReadOnlyList<string> directories, StringComparison comparison)
-    {
-        if (candidatePath.Length == 0)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < directories.Count; i++)
-        {
-            if (candidatePath.StartsWith(directories[i], comparison))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string NormalizeDirectoryPath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return string.Empty;
-        }
-
-        try
-        {
-            var normalized = Path.GetFullPath(path);
-            if (!normalized.EndsWith(Path.DirectorySeparatorChar) && !normalized.EndsWith(Path.AltDirectorySeparatorChar))
-            {
-                normalized += Path.DirectorySeparatorChar;
-            }
-
-            return normalized;
-        }
-        catch (Exception)
-        {
-            return path;
-        }
-    }
-
-    private static string NormalizeFilePath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return string.Empty;
-        }
-
-        try
-        {
-            return Path.GetFullPath(path);
-        }
-        catch (Exception)
-        {
-            return path;
-        }
     }
 
     private static FileEntry? CreateFileEntry(string filePath)
@@ -879,11 +939,7 @@ public sealed class DeepScanResult
         GeneratedAt = generatedAt;
         TotalCandidates = totalCandidates;
         TotalSizeBytes = totalSizeBytes;
-
-        var categories = findings
-            .GroupBy(static finding => string.IsNullOrWhiteSpace(finding.Category) ? "Other" : finding.Category)
-            .ToDictionary(static group => group.Key, static group => group.Sum(static item => Math.Max(item.SizeBytes, 0L)));
-        CategoryTotals = new ReadOnlyDictionary<string, long>(categories);
+        CategoryTotals = DeepScanAggregation.CalculateCategoryTotals(findings);
     }
 
     public IReadOnlyList<DeepScanFinding> Findings { get; }
@@ -903,7 +959,7 @@ public sealed class DeepScanResult
     public static DeepScanResult FromFindings(string rootPath, IReadOnlyList<DeepScanFinding> findings)
     {
         var list = findings ?? Array.Empty<DeepScanFinding>();
-        var totalSize = list.Sum(static item => item.SizeBytes);
+        var totalSize = DeepScanAggregation.CalculateUniqueSize(list);
         return new DeepScanResult(list, rootPath, DateTimeOffset.UtcNow, list.Count, totalSize);
     }
 }
