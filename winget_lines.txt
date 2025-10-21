@@ -1,6 +1,0 @@
-
-   - 
-                                                                                                                        
-Name             Id                   Version Source
------------------------------------------------------
-PowerShell 7-x64 Microsoft.PowerShell 7.5.3.0 winget
