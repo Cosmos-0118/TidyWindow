@@ -627,7 +627,12 @@
                                   BorderThickness="0"
                                   Foreground="#F8FAFC"
                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  ScrollViewer.CanContentScroll="True">
+                                  ScrollViewer.CanContentScroll="True"
+                                  ScrollViewer.IsDeferredScrollingEnabled="True"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.CacheLength="1"
+                                  VirtualizingPanel.CacheLengthUnit="Page">
                             <ListView.ItemContainerStyle>
                                 <Style TargetType="ListViewItem">
                                     <Setter Property="HorizontalContentAlignment"
@@ -771,21 +776,37 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Orientation="Horizontal"
-                                        Margin="16,12,16,8"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="Preview items"
-                                           FontSize="14"
-                                           Foreground="#CBD5F5"/>
-                                <TextBlock Text="{Binding FilteredItems.Count, StringFormat={}{0} items visible}"
-                                           FontSize="12"
-                                           Foreground="#64748B"
-                                           Margin="8,0,0,0"/>
-                                <TextBlock Text="{Binding SelectedTarget.RemainingItemCount, StringFormat={}{0} total, TargetNullValue=0 total}"
-                                           FontSize="12"
-                                           Foreground="#64748B"
-                                           Margin="8,0,0,0"/>
-                            </StackPanel>
+                <StackPanel Orientation="Horizontal"
+                    Margin="16,12,16,8"
+                    VerticalAlignment="Center">
+                <TextBlock Text="Preview items"
+                       FontSize="14"
+                       Foreground="#CBD5F5"/>
+                <TextBlock Text="{Binding FilteredItems.Count, StringFormat={}{0} items visible}"
+                       FontSize="12"
+                       Foreground="#64748B"
+                       Margin="8,0,0,0"/>
+                <TextBlock Text="{Binding SelectedTarget.RemainingItemCount, StringFormat={}{0} total, TargetNullValue=0 total}"
+                       FontSize="12"
+                       Foreground="#64748B"
+                       Margin="8,0,0,0"/>
+                <Button Content="⟨ Prev"
+                    Command="{Binding PreviousPageCommand}"
+                    Margin="16,0,0,0"
+                    Padding="8,2"
+                    FontSize="12"
+                    IsEnabled="{Binding CanGoToPreviousPage}"/>
+                <TextBlock Text="{Binding PageDisplay}"
+                       FontSize="12"
+                       Foreground="#CBD5F5"
+                       Margin="8,0,8,0"
+                       VerticalAlignment="Center"/>
+                <Button Content="Next ⟩"
+                    Command="{Binding NextPageCommand}"
+                    Padding="8,2"
+                    FontSize="12"
+                    IsEnabled="{Binding CanGoToNextPage}"/>
+                </StackPanel>
 
                             <Grid Grid.Row="1"
                                   Margin="8,0,8,12">
@@ -794,7 +815,12 @@
                                           BorderThickness="0"
                                           Foreground="#F8FAFC"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                          ScrollViewer.CanContentScroll="True">
+                                          ScrollViewer.CanContentScroll="True"
+                                          ScrollViewer.IsDeferredScrollingEnabled="True"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingPanel.CacheLength="2"
+                                          VirtualizingPanel.CacheLengthUnit="Page">
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
                                             <Setter Property="HorizontalContentAlignment"

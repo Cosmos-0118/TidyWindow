@@ -120,6 +120,66 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
 
+    // Paging state for preview
+    private int _currentPage = 1;
+    private int _pageSize = 100;
+    private int _totalFilteredItems = 0;
+    public int CurrentPage
+    {
+        get => _currentPage;
+        set
+        {
+            if (value < 1) value = 1;
+            if (value > TotalPages) value = TotalPages;
+            if (_currentPage != value)
+            {
+                _currentPage = value;
+                OnPropertyChanged(nameof(CurrentPage));
+                RefreshFilteredItems();
+                OnPropertyChanged(nameof(PageDisplay));
+                OnPropertyChanged(nameof(CanGoToPreviousPage));
+                OnPropertyChanged(nameof(CanGoToNextPage));
+            }
+        }
+    }
+    public int PageSize
+    {
+        get => _pageSize;
+        set
+        {
+            if (value < 1) value = 1;
+            if (_pageSize != value)
+            {
+                _pageSize = value;
+                OnPropertyChanged(nameof(PageSize));
+                CurrentPage = 1;
+                RefreshFilteredItems();
+                OnPropertyChanged(nameof(PageDisplay));
+                OnPropertyChanged(nameof(TotalPages));
+                OnPropertyChanged(nameof(CanGoToPreviousPage));
+                OnPropertyChanged(nameof(CanGoToNextPage));
+            }
+        }
+    }
+    public int TotalPages => (_totalFilteredItems + PageSize - 1) / PageSize;
+    public string PageDisplay => $"Page {CurrentPage} of {TotalPages}";
+    public bool CanGoToPreviousPage => CurrentPage > 1;
+    public bool CanGoToNextPage => CurrentPage < TotalPages;
+
+    [RelayCommand]
+    private void NextPage()
+    {
+        if (CurrentPage < TotalPages)
+            CurrentPage++;
+    }
+
+    [RelayCommand]
+    private void PreviousPage()
+    {
+        if (CurrentPage > 1)
+            CurrentPage--;
+    }
+
     public IReadOnlyList<CleanupItemKindOption> ItemKindOptions { get; }
 
     public IReadOnlyList<CleanupExtensionFilterOption> ExtensionFilterOptions { get; }
@@ -486,26 +546,33 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private void RefreshFilteredItems()
     {
         FilteredItems.Clear();
-
         if (SelectedTarget is null)
         {
+            _totalFilteredItems = 0;
             OnPropertyChanged(nameof(HasFilteredResults));
             OnPropertyChanged(nameof(ExtensionStatusText));
+            OnPropertyChanged(nameof(PageDisplay));
+            OnPropertyChanged(nameof(TotalPages));
+            OnPropertyChanged(nameof(CanGoToPreviousPage));
+            OnPropertyChanged(nameof(CanGoToNextPage));
             SelectAllCurrentCommand.NotifyCanExecuteChanged();
             ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
             return;
         }
-
-        foreach (var item in SelectedTarget.Items)
+        // Get all filtered items, but only show current page
+        var filtered = SelectedTarget.Items.Where(MatchesFilters).ToList();
+        _totalFilteredItems = filtered.Count;
+        int skip = (CurrentPage - 1) * PageSize;
+        foreach (var item in filtered.Skip(skip).Take(PageSize))
         {
-            if (MatchesFilters(item))
-            {
-                FilteredItems.Add(item);
-            }
+            FilteredItems.Add(item);
         }
-
         OnPropertyChanged(nameof(HasFilteredResults));
         OnPropertyChanged(nameof(ExtensionStatusText));
+        OnPropertyChanged(nameof(PageDisplay));
+        OnPropertyChanged(nameof(TotalPages));
+        OnPropertyChanged(nameof(CanGoToPreviousPage));
+        OnPropertyChanged(nameof(CanGoToNextPage));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
     }
