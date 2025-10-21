@@ -53,8 +53,9 @@ jobs:
                   New-Item -ItemType Directory -Force -Path $staging | Out-Null
                   $portableDir = Join-Path $staging $packageName
                   New-Item -ItemType Directory -Force -Path $portableDir | Out-Null
-                  Copy-Item "$publishDir/*" $portableDir -Recurse -Force
-                  Compress-Archive -Path "$portableDir/*" -DestinationPath "$portableDir.zip" -Force
+                  Copy-Item -Path (Join-Path $publishDir '*') -Destination $portableDir -Recurse -Force
+                  $zipPath = Join-Path $staging "$packageName.zip"
+                  Compress-Archive -Path (Join-Path $portableDir '*') -DestinationPath $zipPath -Force
                   Remove-Item $portableDir -Recurse -Force
                   Get-ChildItem $staging
 

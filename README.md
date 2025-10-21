@@ -66,12 +66,14 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 
 Tagging a semantic version triggers the release workflow and produces both a portable zip and an installer.
 
-```powershell
-git tag v1.2.0
-git push origin v1.2.0
-```
-
 Artifacts (`TidyWindow.exe` zip and `TidyWindow-Setup-<version>.exe`) are attached to the GitHub release once the workflow finishes.
+
+### Manual Release (GitHub UI)
+
+-   Navigate to the repository's Releases tab and choose "Draft a new release".
+-   Select an existing version tag (or create one from the UI) matching the semantic version format.
+-   Provide release notes; copy highlights from the changelog or pull requests if available.
+-   Publish the release to trigger the workflow and attach generated assets automatically.
 
 ## Further Reading
 
