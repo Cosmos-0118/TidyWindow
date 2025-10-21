@@ -120,8 +120,28 @@ public sealed class PowerShellInvoker
         }
         catch (RuntimeException ex)
         {
+            if (IsMissingBuiltInModuleError(ex))
+            {
+                return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
+            }
+
             errors.Add(ex.ToString());
             encounteredRuntimeError = true;
+        }
+
+        // If the runspace failed due to missing built-in modules (common when hosting on Core without $PSHOME),
+        // fall back to launching an external PowerShell process which has the full environment.
+        if (errors.Any(IsMissingBuiltInModuleMessage))
+        {
+            try
+            {
+                return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex2)
+            {
+                errors.Add(ex2.ToString());
+                return new PowerShellInvocationResult(new ReadOnlyCollection<string>(output.ToList()), new ReadOnlyCollection<string>(errors.ToList()), 1);
+            }
         }
 
         return new PowerShellInvocationResult(
@@ -209,6 +229,135 @@ public sealed class PowerShellInvoker
     private static IEnumerable<string> SplitLines(string value)
     {
         return value.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+    }
+
+    private static bool IsMissingBuiltInModuleError(Exception exception)
+    {
+        if (exception is null)
+        {
+            return false;
+        }
+
+        if (IsMissingBuiltInModuleMessage(exception.Message))
+        {
+            return true;
+        }
+
+        if (exception.InnerException is not null && IsMissingBuiltInModuleError(exception.InnerException))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsMissingBuiltInModuleMessage(string? message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.IndexOf("Cannot find the built-in module", StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("command was found in the module", StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("The 'Select-Object' command was found", StringComparison.OrdinalIgnoreCase) >= 0
+            || message.IndexOf("The 'Split-Path' command was found", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static async Task<PowerShellInvocationResult> RunScriptUsingExternalPwshAsync(string scriptPath, IReadOnlyDictionary<string, object?>? parameters, CancellationToken cancellationToken)
+    {
+        // Build argument list: -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "scriptPath" --param1 value1 --flag
+        var args = new List<string> { "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", scriptPath };
+
+        if (parameters is not null)
+        {
+            foreach (var kvp in parameters)
+            {
+                var key = kvp.Key;
+                var value = kvp.Value;
+                if (value is null)
+                {
+                    continue;
+                }
+
+                if (value is bool b)
+                {
+                    if (b)
+                    {
+                        args.Add($"-{key}");
+                    }
+                }
+                else
+                {
+                    var escaped = value.ToString()!.Replace("\"", "\\\"");
+                    args.Add($"-{key}");
+                    args.Add(escaped);
+                }
+            }
+        }
+
+        var output = new List<string>();
+        var errors = new List<string>();
+
+        var pwsh = LocatePowerShellExecutable();
+        var startInfo = new System.Diagnostics.ProcessStartInfo
+        {
+            FileName = pwsh,
+            Arguments = string.Join(' ', args.Select(a => a.Contains(' ') ? '"' + a + '"' : a)),
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        using var proc = new System.Diagnostics.Process { StartInfo = startInfo };
+        proc.Start();
+
+        var outTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await proc.StandardOutput.ReadLineAsync().ConfigureAwait(false)) != null)
+            {
+                output.Add(line);
+            }
+        }, cancellationToken);
+
+        var errTask = Task.Run(async () =>
+        {
+            string? line;
+            while ((line = await proc.StandardError.ReadLineAsync().ConfigureAwait(false)) != null)
+            {
+                errors.Add(line);
+            }
+        }, cancellationToken);
+
+        await Task.WhenAll(outTask, errTask).ConfigureAwait(false);
+        proc.WaitForExit();
+
+        var exit = proc.ExitCode;
+        return new PowerShellInvocationResult(new ReadOnlyCollection<string>(output), new ReadOnlyCollection<string>(errors), exit);
+    }
+
+    private static string LocatePowerShellExecutable()
+    {
+        try
+        {
+            var found = System.Environment.GetEnvironmentVariable("PATH")?.Split(System.IO.Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => System.IO.Path.Combine(p, "pwsh.exe"))
+                .FirstOrDefault(System.IO.File.Exists);
+
+            if (!string.IsNullOrEmpty(found))
+            {
+                return found;
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+
+        // Fallback to powershell.exe
+        return "powershell.exe";
     }
 }
 

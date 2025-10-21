@@ -79,75 +79,6 @@
         <SolidColorBrush x:Key="BootstrapMutedForeground"
                           Color="#64748B"/>
 
-    <Style x:Key="BootstrapNoteBorderStyle"
-           TargetType="Border">
-        <Setter Property="Background"
-            Value="#13213D"/>
-        <Setter Property="CornerRadius"
-            Value="8"/>
-        <Setter Property="Padding"
-            Value="14,10"/>
-        <Setter Property="Margin"
-            Value="0,0,0,0"/>
-        <Setter Property="BorderBrush"
-            Value="#1E293B"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Style.Triggers>
-        <DataTrigger Binding="{Binding Severity}"
-                 Value="Muted">
-            <Setter Property="Background"
-                Value="#0F172A"/>
-            <Setter Property="BorderBrush"
-                Value="#1E293B"/>
-        </DataTrigger>
-        <DataTrigger Binding="{Binding Severity}"
-                 Value="Success">
-            <Setter Property="Background"
-                Value="#064E3B"/>
-            <Setter Property="BorderBrush"
-                Value="#047857"/>
-        </DataTrigger>
-        <DataTrigger Binding="{Binding Severity}"
-                 Value="Error">
-            <Setter Property="Background"
-                Value="#7F1D1D"/>
-            <Setter Property="BorderBrush"
-                Value="#B91C1C"/>
-        </DataTrigger>
-        </Style.Triggers>
-    </Style>
-
-    <Style x:Key="BootstrapNoteIndicatorStyle"
-           TargetType="Ellipse">
-        <Setter Property="Width"
-            Value="8"/>
-        <Setter Property="Height"
-            Value="8"/>
-        <Setter Property="Margin"
-            Value="0,4,8,0"/>
-        <Setter Property="VerticalAlignment"
-            Value="Center"/>
-        <Setter Property="Fill"
-            Value="#38BDF8"/>
-        <Style.Triggers>
-        <DataTrigger Binding="{Binding Severity}"
-                 Value="Muted">
-            <Setter Property="Fill"
-                Value="#475569"/>
-        </DataTrigger>
-        <DataTrigger Binding="{Binding Severity}"
-                 Value="Success">
-            <Setter Property="Fill"
-                Value="#34D399"/>
-        </DataTrigger>
-        <DataTrigger Binding="{Binding Severity}"
-                 Value="Error">
-            <Setter Property="Fill"
-                Value="#F87171"/>
-        </DataTrigger>
-        </Style.Triggers>
-    </Style>
     </Page.Resources>
 
     <ScrollViewer Margin="32"
@@ -400,65 +331,13 @@
                                                         </Border>
                                                     </StackPanel>
 
-                                                    <ItemsControl ItemsSource="{Binding NoteLines}"
-                                                                  Margin="0,12,0,0">
-                                                        <ItemsControl.ItemContainerStyle>
-                                                            <Style TargetType="ContentPresenter">
-                                                                <Setter Property="Margin"
-                                                                        Value="0,8,0,0"/>
-                                                            </Style>
-                                                        </ItemsControl.ItemContainerStyle>
-                                                        <ItemsControl.ItemsPanel>
-                                                            <ItemsPanelTemplate>
-                                                                <StackPanel/>
-                                                            </ItemsPanelTemplate>
-                                                        </ItemsControl.ItemsPanel>
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Border Style="{StaticResource BootstrapNoteBorderStyle}">
-                                                                    <Grid>
-                                                                        <Grid.ColumnDefinitions>
-                                                                            <ColumnDefinition Width="Auto"/>
-                                                                            <ColumnDefinition Width="*"/>
-                                                                        </Grid.ColumnDefinitions>
-                                                                        <Ellipse Grid.Column="0"
-                                                                                 Style="{StaticResource BootstrapNoteIndicatorStyle}"/>
-                                                                        <TextBlock Grid.Column="1"
-                                                                                   Text="{Binding Text}"
-                                                                                   TextWrapping="Wrap"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   LineStackingStrategy="BlockLineHeight"
-                                                                                   LineHeight="18"
-                                                                                   MaxWidth="500">
-                                                                            <TextBlock.Style>
-                                                                                <Style TargetType="TextBlock">
-                                                                                    <Setter Property="Foreground"
-                                                                                            Value="#E2E8F0"/>
-                                                                                    <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding Severity}"
-                                                                                                     Value="Muted">
-                                                                                            <Setter Property="Foreground"
-                                                                                                    Value="#CBD5F5"/>
-                                                                                        </DataTrigger>
-                                                                                        <DataTrigger Binding="{Binding Severity}"
-                                                                                                     Value="Success">
-                                                                                            <Setter Property="Foreground"
-                                                                                                    Value="#BBF7D0"/>
-                                                                                        </DataTrigger>
-                                                                                        <DataTrigger Binding="{Binding Severity}"
-                                                                                                     Value="Error">
-                                                                                            <Setter Property="Foreground"
-                                                                                                    Value="#FECACA"/>
-                                                                                        </DataTrigger>
-                                                                                    </Style.Triggers>
-                                                                                </Style>
-                                                                            </TextBlock.Style>
-                                                                        </TextBlock>
-                                                                    </Grid>
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
+                                                    <TextBlock Text="{Binding StatusMessage}"
+                                                               Margin="0,12,0,0"
+                                                               Foreground="#CBD5F5"
+                                                               TextWrapping="Wrap"
+                                                               LineStackingStrategy="BlockLineHeight"
+                                                               LineHeight="18"
+                                                               MaxWidth="500"/>
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1"

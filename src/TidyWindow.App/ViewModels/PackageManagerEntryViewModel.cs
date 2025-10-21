@@ -35,6 +35,20 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
     [ObservableProperty]
     private bool? _lastOperationSucceeded;
 
+    public string StatusMessage
+    {
+        get
+        {
+            var noteLines = SplitLines(Notes).ToArray();
+            if (noteLines.Length > 0)
+            {
+                return string.Join(Environment.NewLine, noteLines);
+            }
+
+            return "No results yet. Run detection to gather status.";
+        }
+    }
+
     public string NotesDisplay => string.Join(Environment.NewLine, BuildNoteLines().Select(line => line.Text));
 
     public IReadOnlyList<PackageManagerNoteLine> NoteLines => BuildNoteLines();
@@ -58,6 +72,7 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(NotesDisplay));
         OnPropertyChanged(nameof(NoteLines));
+        OnPropertyChanged(nameof(StatusMessage));
     }
 
     partial void OnLastOperationMessageChanged(string? value)
