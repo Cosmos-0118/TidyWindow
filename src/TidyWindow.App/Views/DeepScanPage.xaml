@@ -470,12 +470,60 @@
                     </WrapPanel>
                 </StackPanel>
 
-                <ListView Grid.Row="1"
-                          ItemsSource="{Binding Findings}"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          Foreground="#F8FAFC"
-                          ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0"
+                   Margin="0,0,0,12">
+            <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    DockPanel.Dock="Left">
+                <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
+                       FontSize="12"
+                       Foreground="#CBD5F5"/>
+                <TextBlock Text="•"
+                       Margin="8,0"
+                       FontSize="12"
+                       Foreground="#64748B"/>
+                <TextBlock Text="{Binding PageDisplay}"
+                       FontSize="12"
+                       Foreground="#64748B"/>
+                <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
+                       FontSize="12"
+                       Foreground="#64748B"
+                       Margin="8,0,0,0"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal"
+                    DockPanel.Dock="Right">
+                <Button Content="⟨ Prev"
+                    Command="{Binding PreviousPageCommand}"
+                    IsEnabled="{Binding CanGoToPreviousPage}"
+                    Padding="12,4"
+                    Margin="0,0,8,0"
+                    Background="#1E293B"
+                    Foreground="#E2E8F0"
+                    BorderBrush="#334155"
+                    Cursor="Hand"/>
+                <Button Content="Next ⟩"
+                    Command="{Binding NextPageCommand}"
+                    IsEnabled="{Binding CanGoToNextPage}"
+                    Padding="12,4"
+                    Background="#1E293B"
+                    Foreground="#E2E8F0"
+                    BorderBrush="#334155"
+                    Cursor="Hand"/>
+            </StackPanel>
+            </DockPanel>
+
+            <ListView Grid.Row="1"
+                  ItemsSource="{Binding VisibleFindings}"
+                  Background="Transparent"
+                  BorderThickness="0"
+                  Foreground="#F8FAFC"
+                  ScrollViewer.VerticalScrollBarVisibility="Auto">
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="HorizontalContentAlignment"
@@ -609,37 +657,38 @@
                         </GridView>
                     </ListView.View>
 
-                    <ListView.IsEnabled>
-                        <Binding Path="IsBusy"
-                                 Converter="{StaticResource InverseBooleanConverter}"/>
-                    </ListView.IsEnabled>
-                </ListView>
+                        <ListView.IsEnabled>
+                            <Binding Path="IsBusy"
+                                     Converter="{StaticResource InverseBooleanConverter}"/>
+                        </ListView.IsEnabled>
+                    </ListView>
 
-                <TextBlock Grid.Row="1"
-                           Text="No findings yet. Adjust the filters and run a scan."
-                           Foreground="#64748B"
-                           FontSize="13"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center">
-                    <TextBlock.Style>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Visibility"
-                                    Value="Collapsed"/>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasResults}"
-                                             Value="False">
-                                    <Setter Property="Visibility"
-                                            Value="Visible"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding IsBusy}"
-                                             Value="True">
-                                    <Setter Property="Visibility"
-                                            Value="Collapsed"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </TextBlock.Style>
-                </TextBlock>
+                    <TextBlock Grid.Row="1"
+                               Text="No findings yet. Adjust the filters and run a scan."
+                               Foreground="#64748B"
+                               FontSize="13"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasResults}"
+                                                 Value="False">
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                 Value="True">
+                                        <Setter Property="Visibility"
+                                                Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
             </Grid>
         </Border>
     </Grid>
