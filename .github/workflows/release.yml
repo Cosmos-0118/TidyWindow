@@ -67,7 +67,7 @@ jobs:
             - name: Build installer
               shell: pwsh
               run: |
-                  $publishDir = "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish"
+                  $publishDir = (Resolve-Path "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish").Path
                   $version = $env:GITHUB_REF_NAME
                   if ($version.StartsWith('v')) { $version = $version.Substring(1) }
                   $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
