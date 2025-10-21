@@ -9,6 +9,78 @@
       Background="Transparent">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <ControlTemplate x:Key="LogsComboToggleButtonTemplate"
+                         TargetType="ToggleButton">
+            <Grid>
+                <Border x:Name="ToggleBorder"
+                        Background="#0F172A"
+                        BorderBrush="#1E293B"
+                        BorderThickness="1"
+                        CornerRadius="6"
+                        Padding="8,4"/>
+                <Path Data="M 0 0 L 5 5 L 10 0"
+                      Stroke="#38BDF8"
+                      StrokeThickness="1.5"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center"
+                      Margin="0,0,10,0"/>
+            </Grid>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver"
+                         Value="True">
+                    <Setter TargetName="ToggleBorder"
+                            Property="Background"
+                            Value="#17233C"/>
+                </Trigger>
+                <Trigger Property="IsChecked"
+                         Value="True">
+                    <Setter TargetName="ToggleBorder"
+                            Property="Background"
+                            Value="#132039"/>
+                    <Setter TargetName="ToggleBorder"
+                            Property="BorderBrush"
+                            Value="#38BDF8"/>
+                </Trigger>
+                <Trigger Property="IsPressed"
+                         Value="True">
+                    <Setter TargetName="ToggleBorder"
+                            Property="Background"
+                            Value="#132039"/>
+                    <Setter TargetName="ToggleBorder"
+                            Property="BorderBrush"
+                            Value="#38BDF8"/>
+                </Trigger>
+                <Trigger Property="IsEnabled"
+                         Value="False">
+                    <Setter TargetName="ToggleBorder"
+                            Property="Opacity"
+                            Value="0.5"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+        <Style x:Key="LogsComboBoxItemStyle"
+               TargetType="ComboBoxItem">
+            <Setter Property="Foreground"
+                    Value="#E2E8F0"/>
+            <Setter Property="Background"
+                    Value="Transparent"/>
+            <Setter Property="Padding"
+                    Value="8,4"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver"
+                         Value="True">
+                    <Setter Property="Background"
+                            Value="#1B2942"/>
+                </Trigger>
+                <Trigger Property="IsSelected"
+                         Value="True">
+                    <Setter Property="Background"
+                            Value="#1E3A8A"/>
+                    <Setter Property="Foreground"
+                            Value="#F8FAFC"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
         <Style TargetType="Border"
                 x:Key="LogItemContainerStyle">
             <Setter Property="Background"
@@ -26,129 +98,205 @@
         </Style>
     </Page.Resources>
 
-    <Grid Margin="32">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
+    <ScrollViewer Margin="32"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False">
+        <Grid MinWidth="720">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
 
-        <StackPanel Orientation="Horizontal">
-            <Border Width="48"
-                    Height="48"
-                    CornerRadius="12"
-                    Background="#1E293B"
-                    Margin="0,0,12,0"
-                    BorderBrush="#334155"
-                    BorderThickness="1">
-                <TextBlock Text="LOG"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           VerticalAlignment="Center"
-                           HorizontalAlignment="Center"
-                           Foreground="#F8FAFC"/>
-            </Border>
-            <StackPanel>
-                <TextBlock Text="Activity logs"
-                           FontSize="26"
-                           FontWeight="Bold"
-                           Foreground="#F8FAFC"/>
-                <TextBlock Text="Review automation output and key events"
-                           FontSize="14"
-                           Foreground="#94A3B8"/>
+            <StackPanel Orientation="Horizontal">
+                <Border Width="48"
+                        Height="48"
+                        CornerRadius="12"
+                        Background="#1E293B"
+                        Margin="0,0,12,0"
+                        BorderBrush="#334155"
+                        BorderThickness="1">
+                    <TextBlock Text="LOG"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center"
+                               Foreground="#F8FAFC"/>
+                </Border>
+                <StackPanel>
+                    <TextBlock Text="Activity logs"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="Review automation output and key events"
+                               FontSize="14"
+                               Foreground="#94A3B8"/>
+                </StackPanel>
             </StackPanel>
-        </StackPanel>
+            <Border Grid.Row="1"
+                    Margin="0,24,0,20"
+                    Padding="16"
+                    Background="#111827"
+                    CornerRadius="12">
+                <StackPanel>
+                    <TextBlock Text="Filters"
+                               FontSize="14"
+                               Foreground="#CBD5F5"/>
+                    <TextBlock Text="Search and narrow the activity stream"
+                               FontSize="12"
+                               Foreground="#64748B"
+                               Margin="0,2,0,12"/>
+                    <WrapPanel>
+                        <StackPanel MinWidth="220"
+                                    Width="320"
+                                    Margin="0,0,16,12">
+                            <TextBlock Text="Search text"
+                                       Foreground="#94A3B8"/>
+                            <TextBox Margin="0,6,0,0"
+                                     Padding="10,6"
+                                     MinWidth="200"
+                                     Background="#0F172A"
+                                     Foreground="#F8FAFC"
+                                     BorderBrush="#1E293B"
+                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
 
-        <Grid Grid.Row="1"
-              Margin="0,24,0,12">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="2*"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+                        <StackPanel MinWidth="200"
+                                    Width="240"
+                                    Margin="0,0,16,12">
+                            <TextBlock Text="Level"
+                                       Foreground="#94A3B8"/>
+                            <ComboBox Margin="0,6,0,0"
+                                      ItemsSource="{Binding LevelFilterOptions}"
+                                      SelectedItem="{Binding SelectedLevel, Mode=TwoWay}"
+                                      Background="Transparent"
+                                      Foreground="#E2E8F0"
+                                      BorderThickness="0"
+                                      Padding="0">
+                            <ComboBox.Template>
+                                <ControlTemplate TargetType="ComboBox">
+                                    <Grid>
+                                        <ToggleButton x:Name="ToggleButton"
+                                                      Template="{StaticResource LogsComboToggleButtonTemplate}"
+                                                      Grid.ColumnSpan="2"
+                                                      Focusable="False"
+                                                      IsHitTestVisible="True"
+                                                      ClickMode="Press"
+                                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                        <ContentPresenter x:Name="ContentSite"
+                                                          Margin="14,4,36,4"
+                                                          VerticalAlignment="Center"
+                                                          HorizontalAlignment="Left"
+                                                          RecognizesAccessKey="True"
+                                                          Content="{TemplateBinding SelectionBoxItem}"/>
+                                        <Popup x:Name="Popup"
+                                               Placement="Bottom"
+                                               AllowsTransparency="True"
+                                               Focusable="False"
+                                               IsOpen="{TemplateBinding IsDropDownOpen}"
+                                               PopupAnimation="Slide">
+                                            <Border x:Name="PopupBorder"
+                                                    Background="#0F172A"
+                                                    BorderBrush="#1E293B"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6"
+                                                    Padding="4">
+                                                <ScrollViewer Margin="0"
+                                                              SnapsToDevicePixels="True">
+                                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                </ScrollViewer>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="HasItems"
+                                                 Value="False">
+                                            <Setter TargetName="PopupBorder"
+                                                    Property="MinHeight"
+                                                    Value="24"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled"
+                                                 Value="False">
+                                            <Setter Property="Foreground"
+                                                    Value="#64748B"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ComboBox.Template>
+                            <ComboBox.ItemContainerStyle>
+                                <StaticResource ResourceKey="LogsComboBoxItemStyle"/>
+                            </ComboBox.ItemContainerStyle>
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text"
+                                                        Value="All levels"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding}"
+                                                            Value="{x:Null}">
+                                                        <Setter Property="Text"
+                                                                Value="All levels"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding}"
+                                                            Value="{x:Static svc:ActivityLogLevel.Information}">
+                                                        <Setter Property="Text"
+                                                                Value="Information"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding}"
+                                                            Value="{x:Static svc:ActivityLogLevel.Success}">
+                                                        <Setter Property="Text"
+                                                                Value="Success"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding}"
+                                                            Value="{x:Static svc:ActivityLogLevel.Warning}">
+                                                        <Setter Property="Text"
+                                                                Value="Warning"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding}"
+                                                            Value="{x:Static svc:ActivityLogLevel.Error}">
+                                                        <Setter Property="Text"
+                                                                Value="Error"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </StackPanel>
 
-            <TextBox Grid.Column="0"
-                     Margin="0,0,16,0"
-                     Padding="10,6"
-                     MinWidth="200"
-                     Background="#0F172A"
-                     Foreground="#F8FAFC"
-                     BorderBrush="#1E293B"
-                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-
-            <ComboBox Grid.Column="1"
-                      Margin="0,0,16,0"
-                      Width="160"
-                      ItemsSource="{Binding LevelFilterOptions}"
-                      SelectedItem="{Binding SelectedLevel, Mode=TwoWay}"
-                      Background="#0F172A"
-                      Foreground="#F8FAFC"
-                      BorderBrush="#1E293B">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                        <TextBlock>
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Text"
-                                            Value="All levels"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding}"
-                                                Value="{x:Null}">
-                                            <Setter Property="Text"
-                                                    Value="All levels"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding}"
-                                                Value="{x:Static svc:ActivityLogLevel.Information}">
-                                            <Setter Property="Text"
-                                                    Value="Information"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding}"
-                                                Value="{x:Static svc:ActivityLogLevel.Success}">
-                                            <Setter Property="Text"
-                                                    Value="Success"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding}"
-                                                Value="{x:Static svc:ActivityLogLevel.Warning}">
-                                            <Setter Property="Text"
-                                                    Value="Warning"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding}"
-                                                Value="{x:Static svc:ActivityLogLevel.Error}">
-                                            <Setter Property="Text"
-                                                    Value="Error"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-
-            <CheckBox Grid.Column="2"
-                      Content="Auto-select latest"
-                      VerticalAlignment="Center"
-                      Foreground="#E2E8F0"
-                      IsChecked="{Binding IsAutoSelectLatest, Mode=TwoWay}"
-                      Margin="0,0,0,0"/>
-        </Grid>
-
-        <Border Grid.Row="2"
-                Background="#0F172A"
-                CornerRadius="12"
-                Padding="16"
-                BorderBrush="#1E293B"
-                BorderThickness="1">
-            <ListView ItemsSource="{Binding EntriesView}"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      Foreground="#F8FAFC"
-                      ScrollViewer.VerticalScrollBarVisibility="Visible"
-                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                      ScrollViewer.CanContentScroll="True"
-                      VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling"
-                      SelectedItem="{Binding SelectedEntry, Mode=TwoWay}">
+                    <StackPanel MinWidth="200"
+                                Margin="0,0,0,12">
+                        <TextBlock Text="Options"
+                                   Foreground="#94A3B8"/>
+                        <CheckBox Margin="0,6,0,0"
+                                  Content="Auto-select latest"
+                                  Foreground="#E2E8F0"
+                                  IsChecked="{Binding IsAutoSelectLatest, Mode=TwoWay}"/>
+                    </StackPanel>
+                </WrapPanel>
+            </StackPanel>
+        </Border>
+            <Border Grid.Row="2"
+                    Background="#0F172A"
+                    CornerRadius="12"
+                    Padding="16"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1">
+                <ListView ItemsSource="{Binding EntriesView}"
+                          Background="Transparent"
+                          BorderThickness="0"
+                          Foreground="#F8FAFC"
+                          ScrollViewer.VerticalScrollBarVisibility="Visible"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                          ScrollViewer.CanContentScroll="True"
+                          VirtualizingPanel.IsVirtualizing="True"
+                          VirtualizingPanel.VirtualizationMode="Recycling"
+                          SelectedItem="{Binding SelectedEntry, Mode=TwoWay}">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="HorizontalContentAlignment"
@@ -253,7 +401,8 @@
                         </Border>
                     </DataTemplate>
                 </ListView.ItemTemplate>
-            </ListView>
-        </Border>
-    </Grid>
+                </ListView>
+            </Border>
+        </Grid>
+    </ScrollViewer>
 </Page>

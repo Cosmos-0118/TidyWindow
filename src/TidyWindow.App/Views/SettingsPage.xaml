@@ -6,7 +6,121 @@
       mc:Ignorable="d"
       Background="Transparent"
       Title="Settings">
-    <Grid Margin="32">
+    <Page.Resources>
+        <Style x:Key="SettingsAccentButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="#7C3AED"/>
+            <Setter Property="Foreground"
+                    Value="#F8FAFC"/>
+            <Setter Property="BorderBrush"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Padding"
+                    Value="16,8"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#6D28D9"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#5B21B6"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#312E81"/>
+                                <Setter Property="Foreground"
+                                        Value="#94A3B8"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SettingsSecondaryButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="#1E293B"/>
+            <Setter Property="Foreground"
+                    Value="#E2E8F0"/>
+            <Setter Property="BorderBrush"
+                    Value="#334155"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="16,8"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#243048"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#1A2436"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#111827"/>
+                                <Setter TargetName="Root"
+                                        Property="BorderBrush"
+                                        Value="#1E293B"/>
+                                <Setter Property="Foreground"
+                                        Value="#475569"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer Margin="32"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False">
         <StackPanel>
             <TextBlock Text="Settings"
                        FontSize="30"
@@ -18,7 +132,7 @@
                        Foreground="#94A3B8"/>
 
             <StackPanel Orientation="Vertical">
-                <Border Background="#16213C"
+                <Border Background="#111827"
                         Padding="20"
                         CornerRadius="14"
                         BorderBrush="#1D2A44"
@@ -36,7 +150,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Background="#16213C"
+                <Border Background="#111827"
                         Padding="20"
                         CornerRadius="14"
                         BorderBrush="#1D2A44"
@@ -60,7 +174,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Background="#16213C"
+                <Border Background="#111827"
                         Padding="20"
                         CornerRadius="14"
                         BorderBrush="#1D2A44"
@@ -94,33 +208,25 @@
                                    FontSize="12"
                                    TextWrapping="Wrap"
                                    Margin="0,6,0,12"/>
-                        <StackPanel Orientation="Horizontal">
+                        <WrapPanel Margin="0,0,0,12">
                             <Button Content="Restart in user mode"
                                     Command="{Binding RestartAsStandardCommand}"
                                     IsEnabled="{Binding CanRestartAsStandard}"
-                                    Padding="14,6"
-                                    Margin="0,0,10,0"
-                                    Background="#1E293B"
-                                    Foreground="#E2E8F0"
-                                    BorderBrush="#334155"
-                                    BorderThickness="1"/>
+                                    Style="{StaticResource SettingsSecondaryButtonStyle}"
+                                    Margin="0,0,12,8"/>
                             <Button Content="Restart as admin"
                                     Command="{Binding RestartAsAdministratorCommand}"
                                     IsEnabled="{Binding CanRestartAsAdministrator}"
-                                    Padding="14,6"
-                                    Background="#1E293B"
-                                    Foreground="#E2E8F0"
-                                    BorderBrush="#334155"
-                                    BorderThickness="1"/>
-                        </StackPanel>
+                                    Style="{StaticResource SettingsAccentButtonStyle}"
+                                    Margin="0,0,0,8"/>
+                        </WrapPanel>
                         <TextBlock Text="{Binding PrivilegeSwitchGuidance}"
                                    Foreground="#F97316"
                                    FontSize="11"
-                                   TextWrapping="Wrap"
-                                   Margin="0,12,0,0"/>
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
             </StackPanel>
         </StackPanel>
-    </Grid>
+    </ScrollViewer>
 </Page>
