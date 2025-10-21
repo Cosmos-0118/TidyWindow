@@ -24,7 +24,7 @@ jobs:
             - name: Restore dependencies
               run: |
                   dotnet restore src/TidyWindow.sln
-                  dotnet restore src/TidyWindow.App/TidyWindow.App.csproj --runtime win-x64
+                  dotnet restore src/TidyWindow.App/TidyWindow.App.csproj --runtime win-x64 -p:PublishReadyToRun=true
 
             - name: Build solution
               run: dotnet build src/TidyWindow.sln --configuration Release --no-restore
