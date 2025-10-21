@@ -383,8 +383,99 @@ public sealed class DeepScanService
     private static DeepScanResult BuildResult(string rootPath, List<DeepScanFinding> findings)
     {
         var readOnly = new ReadOnlyCollection<DeepScanFinding>(findings);
-        var totalSize = findings.Sum(static item => item.SizeBytes);
+        var totalSize = CalculateUniqueSize(findings);
         return new DeepScanResult(readOnly, rootPath, DateTimeOffset.UtcNow, findings.Count, totalSize);
+    }
+
+    private static long CalculateUniqueSize(IEnumerable<DeepScanFinding> findings)
+    {
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var directories = new List<string>();
+        var total = 0L;
+
+        foreach (var finding in findings.OrderByDescending(static item => item.SizeBytes))
+        {
+            if (finding.IsDirectory)
+            {
+                var normalizedDirectory = NormalizeDirectoryPath(finding.Path);
+                if (IsUnderExistingParent(normalizedDirectory, directories, comparison))
+                {
+                    continue;
+                }
+
+                directories.Add(normalizedDirectory);
+                total += finding.SizeBytes;
+                continue;
+            }
+
+            var filePath = NormalizeFilePath(finding.Path);
+            if (IsUnderExistingParent(filePath, directories, comparison))
+            {
+                continue;
+            }
+
+            total += finding.SizeBytes;
+        }
+
+        return total;
+    }
+
+    private static bool IsUnderExistingParent(string candidatePath, IReadOnlyList<string> directories, StringComparison comparison)
+    {
+        if (candidatePath.Length == 0)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < directories.Count; i++)
+        {
+            if (candidatePath.StartsWith(directories[i], comparison))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NormalizeDirectoryPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var normalized = Path.GetFullPath(path);
+            if (!normalized.EndsWith(Path.DirectorySeparatorChar) && !normalized.EndsWith(Path.AltDirectorySeparatorChar))
+            {
+                normalized += Path.DirectorySeparatorChar;
+            }
+
+            return normalized;
+        }
+        catch (Exception)
+        {
+            return path;
+        }
+    }
+
+    private static string NormalizeFilePath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception)
+        {
+            return path;
+        }
     }
 
     private static FileEntry? CreateFileEntry(string filePath)

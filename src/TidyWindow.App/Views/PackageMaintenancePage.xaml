@@ -758,27 +758,44 @@
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
-                                        <GridViewColumn Width="160">
+                                        <GridViewColumn Width="120">
+                                            <GridViewColumn.Header>
+                                                <TextBlock Text="Target version"/>
+                                            </GridViewColumn.Header>
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBox Width="90"
+                                                             Margin="0,0,0,8"
+                                                             Padding="8,4"
+                                                             Background="#0F172A"
+                                                             BorderBrush="#1E293B"
+                                                             Foreground="#E2E8F0"
+                                                             Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
+                                                             ToolTip="Optional: specify the version to install."/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="180">
                                             <GridViewColumn.Header>
                                                 <TextBlock Text="Actions"/>
                                             </GridViewColumn.Header>
                                             <GridViewColumn.CellTemplate>
                                                 <DataTemplate>
-                                                    <WrapPanel HorizontalAlignment="Center">
-                                                        <TextBox Width="60"
-                                                                 Margin="0,0,8,8"
-                                                                 Padding="8,4"
-                                                                 Background="#0F172A"
-                                                                 BorderBrush="#1E293B"
-                                                                 Foreground="#E2E8F0"
-                                                                 HorizontalAlignment="Left"
-                                                                 Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
-                                                                 ToolTip="Optional: specify the version to install."/>
-                                                        <Button Content="Queue update"
+                                                    <Grid HorizontalAlignment="Stretch"
+                                                          Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0"
                                                                 Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                 CommandParameter="{Binding}"
-                                                                Margin="0,0,8,8"
-                                                                MinWidth="60">
+                                                                Margin="0,0,6,4"
+                                                                HorizontalAlignment="Stretch"
+                                                                MinWidth="0">
+                                                            <TextBlock Text="Queue update"
+                                                                       TextAlignment="Center"
+                                                                       TextWrapping="Wrap"/>
                                                             <Button.Style>
                                                                 <Style TargetType="Button"
                                                                        BasedOn="{StaticResource AccentButtonStyle}">
@@ -799,10 +816,15 @@
                                                                 </Style>
                                                             </Button.Style>
                                                         </Button>
-                                                        <Button Content="Remove"
+                                                        <Button Grid.Column="1"
                                                                 Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                 CommandParameter="{Binding}"
-                                                                MinWidth="60">
+                                                                HorizontalAlignment="Stretch"
+                                                                Margin="0,0,0,4"
+                                                                MinWidth="0">
+                                                            <TextBlock Text="Remove"
+                                                                       TextAlignment="Center"
+                                                                       TextWrapping="Wrap"/>
                                                             <Button.Style>
                                                                 <Style TargetType="Button"
                                                                        BasedOn="{StaticResource SecondaryButtonStyle}">
@@ -823,7 +845,7 @@
                                                                 </Style>
                                                             </Button.Style>
                                                         </Button>
-                                                    </WrapPanel>
+                                                    </Grid>
                                                 </DataTemplate>
                                             </GridViewColumn.CellTemplate>
                                         </GridViewColumn>
