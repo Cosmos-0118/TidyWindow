@@ -1,228 +1,403 @@
-1st script. [Status: Verified - 2025-10-22]
-
-2025-10-22 09:45:44Z [Success] Essentials
-System health scanner completed.
---- Output ---
-[2025-10-22 15:13:56Z][Information] Starting Windows system health scanner.
-Running System File Checker (this can take 5-15 minutes).
-[2025-10-22 15:13:56Z][Information] Running SFC /scannow.
-Checking Windows component store health.
-[2025-10-22 15:14:34Z][Information] DISM CheckHealth
-Scanning Windows component store for corruption.
-[2025-10-22 15:14:34Z][Information] DISM ScanHealth
-Skipping RestoreHealth. Re-run with -RunRestoreHealth to attempt repairs.
-System health scan completed.
-[2025-10-22 15:15:44Z][Information] System health scanner finished.
-
-2nd script [Status: Verified - 2025-10-22]
-
-2025-10-22 09:43:53Z [Success] Essentials
-Network reset & cache flush completed.
---- Output ---
-[2025-10-22 15:13:53Z][Information] Starting network reset and cache flush sequence.
-Flushing DNS resolver cache.
-[2025-10-22 15:13:53Z][Information] Flushing DNS cache.
-Clearing ARP cache.
-[2025-10-22 15:13:53Z][Information] Clearing ARP cache.
-Resetting TCP global statistics.
-[2025-10-22 15:13:53Z][Information] Resetting TCP interface state.
-Resetting Winsock catalog (reboot required to complete).
-[2025-10-22 15:13:53Z][Information] Resetting Winsock catalog.
-Resetting IP stack bindings.
-[2025-10-22 15:13:53Z][Information] Resetting IP interfaces.
-Network reset sequence completed.
-Reboot recommended to finalize Winsock reset.
-[2025-10-22 15:13:53Z][Information] Network reset script finished.
-
-3rd one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
-
-2025-10-22 09:48:08Z [Error] Essentials
-Disk checkup & repair failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'Output' cannot be found on this object. Verify that the property exists.[0m
+2025-10-22 10:51:19Z [Success] Essentials
+Disk checkup & repair completed.
 --- Output ---
 Target volume: C:
-[2025-10-22 15:17:42Z][Information] Starting disk check for volume C:.
+[2025-10-22 16:20:52Z][Information] Starting disk check for volume C:.
 Running CHKDSK in online scan mode.
-[2025-10-22 15:17:42Z][Information] CHKDSK C: /scan
-[2025-10-22 15:18:08Z][Error] The property 'Output' cannot be found on this object. Verify that the property exists.
-[2025-10-22 15:18:08Z][Information] Disk checkup script finished.
---- Errors ---
-[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\disk-checkup-and-fix.ps1:296[0m
-[31;1m[0m[36;1mLine |[0m
-[31;1m[0m[36;1m[36;1m 296 | [0m     [36;1mWrite-TidyError -Message $message[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'Output' cannot be found on this object. Verify that the property exists.[0m
+[2025-10-22 16:20:52Z][Information] CHKDSK C: /scan
+Collecting SMART health indicators.
+[2025-10-22 16:21:19Z][Warning] SMART status via MSStorageDriver_FailurePredictStatus failed. Not supported
+[Healthy] MSI M450 1TB V1
+  ? Details: HealthStatus=0; OperationalStatus=2
+Disk checkup completed.
+[2025-10-22 16:21:19Z][Information] Disk checkup script finished.
 
-4th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
-
-2025-10-22 09:49:21Z [Error] Essentials
-RAM purge failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mpackage.[0m
+2025-10-22 10:50:43Z [Success] Essentials
+System health scanner completed.
 --- Output ---
-[2025-10-22 15:19:18Z][Information] Starting RAM purge sequence.
-Clearing standby memory lists.
-[2025-10-22 15:19:21Z][Error] Unable to prepare EmptyStandbyList. Unable to prepare EmptyStandbyList helper. Attempts failed:
-https://download.sysinternals.com/files/EmptyStandbyList.exe -> Response status code does not indicate success: 404 (The specified blob does not exist.).
-https://live.sysinternals.com/EmptyStandbyList.exe -> Response status code does not indicate success: 404 (Not Found).
-https://download.sysinternals.com/files/EmptyStandbyList.zip -> Response status code does not indicate success: 404 (The specified blob does not exist.).
-https://download.sysinternals.com/files/RAMMap.zip -> EmptyStandbyList executable not found in downloaded package.
-[2025-10-22 15:19:21Z][Information] RAM purge script finished.
---- Errors ---
-[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\ram-purge.ps1:354[0m
-[31;1m[0m[36;1mLine |[0m
-[31;1m[0m[36;1m[36;1m 354 | [0m     [36;1mWrite-TidyError -Message $message[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mUnable to prepare EmptyStandbyList. Unable to prepare EmptyStandbyList helper. Attempts failed:[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mhttps://download.sysinternals.com/files/EmptyStandbyList.exe -> Response status code does not indicate success:[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1m404 (The specified blob does not exist.). https://live.sysinternals.com/EmptyStandbyList.exe -> Response status[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mcode does not indicate success: 404 (Not Found). https://download.sysinternals.com/files/EmptyStandbyList.zip ->[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mResponse status code does not indicate success: 404 (The specified blob does not exist.).[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mhttps://download.sysinternals.com/files/RAMMap.zip -> EmptyStandbyList executable not found in downloaded[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mpackage.[0m
+[2025-10-22 16:18:45Z][Information] Starting Windows system health scanner.
+Running System File Checker (this can take 5-15 minutes).
+[2025-10-22 16:18:45Z][Information] Running SFC /scannow.
+Checking Windows component store health.
+[2025-10-22 16:19:29Z][Information] DISM CheckHealth
+Scanning Windows component store for corruption.
+[2025-10-22 16:19:30Z][Information] DISM ScanHealth
+Skipping RestoreHealth. Re-run with -RunRestoreHealth to attempt repairs.
+System health scan completed.
+[2025-10-22 16:20:43Z][Information] System health scanner finished.
 
-5th one:
-2025-10-22 09:53:24Z [Success] Essentials
+2025-10-22 10:48:41Z [Success] Essentials
+Network reset & cache flush completed.
+--- Output ---
+[2025-10-22 16:18:40Z][Information] Starting network reset and cache flush sequence.
+Flushing DNS resolver cache.
+[2025-10-22 16:18:40Z][Information] Flushing DNS cache.
+Clearing ARP cache.
+[2025-10-22 16:18:40Z][Information] Clearing ARP cache.
+Resetting TCP global statistics.
+[2025-10-22 16:18:40Z][Information] Resetting TCP interface state.
+Resetting Winsock catalog (reboot required to complete).
+[2025-10-22 16:18:40Z][Information] Resetting Winsock catalog.
+Resetting IP stack bindings.
+[2025-10-22 16:18:40Z][Information] Resetting IP interfaces.
+Network reset sequence completed.
+Reboot recommended to finalize Winsock reset.
+[2025-10-22 16:18:40Z][Information] Network reset script finished.
+
+2025-10-22 10:53:05Z [Success] Essentials
+RAM purge completed.
+--- Output ---
+[2025-10-22 16:22:58Z][Information] Starting RAM purge sequence.
+Clearing standby memory lists.
+Purging standby page lists.
+  ? Command skipped: Exception calling "IssueCommand" with "1" argument(s): "A required privilege is not held by the client."
+Purging low-priority standby lists.
+  ? Command skipped: Exception calling "IssueCommand" with "1" argument(s): "A required privilege is not held by the client."
+Flushing modified page list.
+Emptying working sets via kernel API.
+  ? Command skipped: Exception calling "IssueCommand" with "1" argument(s): "A required privilege is not held by the client."
+Trimming working sets for background processes.
+Requesting working set trims for background processes.
+Trimmed working sets for 246 processes.
+  ? AggregatorHost (PID 7852)
+  ? amdfendrsr (PID 3040)
+  ? AMDInstallManager (PID 20904)
+  ? AmdPpkgSvc (PID 4900)
+  ? AppActions (PID 6196)
+  ? ApplicationFrameHost (PID 8364)
+  ? atieclxx (PID 13384)
+  ? atiesrxx (PID 3048)
+  ? audiodg (PID 18668)
+  ? backgroundTaskHost (PID 5996)
+  ? backgroundTaskHost (PID 9156)
+  ? Blip (PID 13704)
+  ? CC_Engine_x64 (PID 16876)
+  ? Code (PID 2188)
+  ? Code (PID 5224)
+  ? Code (PID 9764)
+  ? Code (PID 10536)
+  ? Code (PID 13324)
+  ? Code (PID 19568)
+  ? Code (PID 20032)
+  ? Code (PID 21560)
+  ? Code (PID 22020)
+  ? Code (PID 22512)
+  ? Code (PID 23164)
+  ? conhost (PID 2424)
+  ? conhost (PID 3544)
+  ? conhost (PID 3940)
+  ? conhost (PID 4128)
+  ? conhost (PID 5956)
+  ? conhost (PID 6172)
+  ? conhost (PID 7240)
+  ? conhost (PID 9116)
+  ? conhost (PID 9200)
+  ? conhost (PID 10980)
+  ? conhost (PID 11964)
+  ? conhost (PID 12640)
+  ? conhost (PID 13640)
+  ? conhost (PID 14412)
+  ? conhost (PID 17400)
+  ? conhost (PID 22084)
+  ? conhost (PID 23032)
+  ? conhost (PID 23912)
+  ? conhost (PID 23956)
+  ? conhost (PID 23980)
+  ? conhost (PID 24360)
+  ? CrossDeviceResume (PID 13160)
+  ? ctfmon (PID 20620)
+  ? dasHost (PID 2788)
+  ? DCv2 (PID 12008)
+  ? dllhost (PID 14348)
+  ? dotnet (PID 2724)
+  ? dotnet (PID 6336)
+  ? dotnet (PID 6872)
+  ? dotnet (PID 8256)
+  ? dotnet (PID 9096)
+  ? dotnet (PID 12644)
+  ? dotnet (PID 15436)
+  ? dotnet (PID 18360)
+  ? dotnet (PID 23340)
+  ? dotnet (PID 23924)
+  ? dotnet (PID 24064)
+  ? dotnet (PID 24388)
+  ? dwm (PID 6604)
+  ? EarTrumpet (PID 12124)
+  ? escape-node-job (PID 22912)
+  ? Everything (PID 4928)
+  ? explorer (PID 4344)
+  ? explorer (PID 5664)
+  ? explorer (PID 6040)
+  ? fontdrvhost (PID 1552)
+  ? fontdrvhost (PID 16500)
+  ? LEDKeeper2 (PID 3240)
+  ? LightKeeperService (PID 4968)
+  ? LockApp (PID 21492)
+  ? LsaIso (PID 1380)
+  ? Microsoft.CmdPal.UI (PID 15896)
+  ? Microsoft.CodeAnalysis.LanguageServer (PID 18496)
+  ? Microsoft.VisualStudio.Code.Server (PID 22428)
+  ? Microsoft.VisualStudio.Code.ServiceController (PID 13092)
+  ? Microsoft.VisualStudio.Code.ServiceHost (PID 5896)
+  ? Microsoft.VisualStudio.Code.ServiceHost (PID 21916)
+  ? msedgewebview2 (PID 764)
+  ? msedgewebview2 (PID 5064)
+  ? msedgewebview2 (PID 5088)
+  ? msedgewebview2 (PID 7196)
+  ? msedgewebview2 (PID 8480)
+  ? msedgewebview2 (PID 10236)
+  ? msedgewebview2 (PID 14568)
+  ? msedgewebview2 (PID 14692)
+  ? msedgewebview2 (PID 15644)
+  ? msedgewebview2 (PID 16088)
+  ? msedgewebview2 (PID 19632)
+  ? msedgewebview2 (PID 20392)
+  ? MSI.CentralServer (PID 6716)
+  ? MSI.TerminalServer (PID 7988)
+  ? MSI.TerminalServer (PID 20856)
+  ? MSI_Case_Service (PID 5004)
+  ? MSI_Central_Service (PID 4988)
+  ? Mystic_Light_Service (PID 4952)
+  ? NgcIso (PID 8028)
+  ? OfficeClickToRun (PID 5092)
+  ? PowerToys (PID 2320)
+  ? PowerToys.AlwaysOnTop (PID 20256)
+  ? PowerToys.Awake (PID 7880)
+  ? PowerToys.CropAndLock (PID 21192)
+  ? PowerToys.FancyZones (PID 18852)
+  ? PowerToys.Peek.UI (PID 2196)
+  ? PowerToys.PowerLauncher (PID 19544)
+  ? PushNotificationsLongRunningTask (PID 15948)
+  ? pwsh (PID 6104)
+  ? pwsh (PID 14704)
+  ? pwsh (PID 18312)
+  ? RuntimeBroker (PID 1528)
+  ? RuntimeBroker (PID 8932)
+  ? RuntimeBroker (PID 12976)
+  ? RuntimeBroker (PID 13936)
+  ? RuntimeBroker (PID 14216)
+  ? RuntimeBroker (PID 18812)
+  ? RuntimeBroker (PID 22192)
+  ? SearchHost (PID 20112)
+  ? SearchIndexer (PID 10648)
+  ? SecurityHealthSystray (PID 15660)
+  ? ShareX (PID 14080)
+  ? ShellExperienceHost (PID 12828)
+  ? ShellHost (PID 10656)
+  ? sihost (PID 21296)
+  ? smartscreen (PID 21036)
+  ? spoolsv (PID 4516)
+  ? Spotify (PID 2132)
+  ? Spotify (PID 2340)
+  ? Spotify (PID 5484)
+  ? Spotify (PID 6352)
+  ? Spotify (PID 6652)
+  ? Spotify (PID 14656)
+  ? StartMenuExperienceHost (PID 7040)
+  ? svchost (PID 1400)
+  ? svchost (PID 1412)
+  ? svchost (PID 1520)
+  ? svchost (PID 1536)
+  ? svchost (PID 1572)
+  ? svchost (PID 1644)
+  ? svchost (PID 1660)
+  ? svchost (PID 1696)
+  ? svchost (PID 1860)
+  ? svchost (PID 1992)
+  ? svchost (PID 2000)
+  ? svchost (PID 2008)
+  ? svchost (PID 2160)
+  ? svchost (PID 2168)
+  ? svchost (PID 2300)
+  ? svchost (PID 2400)
+  ? svchost (PID 2456)
+  ? svchost (PID 2644)
+  ? svchost (PID 2652)
+  ? svchost (PID 2768)
+  ? svchost (PID 2852)
+  ? svchost (PID 2876)
+  ? svchost (PID 3032)
+  ? svchost (PID 3164)
+  ? svchost (PID 3168)
+  ? svchost (PID 3176)
+  ? svchost (PID 3300)
+  ? svchost (PID 3304)
+  ? svchost (PID 3344)
+  ? svchost (PID 3352)
+  ? svchost (PID 3480)
+  ? svchost (PID 3512)
+  ? svchost (PID 3540)
+  ? svchost (PID 3632)
+  ? svchost (PID 3652)
+  ? svchost (PID 3680)
+  ? svchost (PID 3688)
+  ? svchost (PID 3840)
+  ? svchost (PID 3920)
+  ? svchost (PID 4024)
+  ? svchost (PID 4220)
+  ? svchost (PID 4260)
+  ? svchost (PID 4312)
+  ? svchost (PID 4384)
+  ? svchost (PID 4420)
+  ? svchost (PID 4584)
+  ? svchost (PID 4612)
+  ? svchost (PID 4744)
+  ? svchost (PID 4808)
+  ? svchost (PID 4876)
+  ? svchost (PID 4884)
+  ? svchost (PID 4892)
+[truncated]
+
+2025-10-22 10:54:40Z [Success] Essentials
+System Restore manager completed.
+--- Output ---
+Creating restore point 'TidyWindow snapshot 2025-10-22 16:24' (MODIFY_SETTINGS).
+[2025-10-22 16:24:40Z][Information] Creating System Restore snapshot.
+[33;1mWARNING: A new system restore point cannot be created because one has already been created within the past 1440 minutes. The frequency of restore point creation can be changed by creating the DWORD value 'SystemRestorePointCreationFrequency' under the registry key 'HKLM\Software\Microsoft\Windows NT\CurrentVersion\SystemRestore'. The value of this registry key indicates the necessary time interval (in minutes) between two restore point creation. The default value is 1440 minutes (24 hours).[0m
+Current restore points (newest first):
+  #14 - 10/22/2025 1:55:03 AM - Installed Java(TM) SE Development Kit 21.0.9 (64-bit)
+  #13 - 10/20/2025 8:23:39 PM - Installed Python Launcher
+  #12 - 10/19/2025 3:12:42 AM - Installed DirectX
+[2025-10-22 16:24:40Z][Information] System Restore manager finished.
+
+2025-10-22 10:57:41Z [Success] Essentials
 Network fix suite completed.
 --- Output ---
-[2025-10-22 15:19:53Z][Information] Starting advanced network remediation for target '8.8.8.8'.
+[2025-10-22 16:25:03Z][Information] Starting advanced network remediation for target '8.8.8.8'.
 Clearing ARP cache.
-[2025-10-22 15:19:53Z][Information] Clearing ARP table.
+[2025-10-22 16:25:03Z][Information] Clearing ARP table.
 Reloading NetBIOS name cache.
-[2025-10-22 15:19:53Z][Information] nbtstat -R
+[2025-10-22 16:25:03Z][Information] nbtstat -R
 Re-registering NetBIOS names.
-[2025-10-22 15:19:53Z][Information] nbtstat -RR
+[2025-10-22 16:25:03Z][Information] nbtstat -RR
 Resetting IPv4 neighbor cache.
-[2025-10-22 15:19:53Z][Information] netsh interface ip delete arpcache
+[2025-10-22 16:25:03Z][Information] netsh interface ip delete arpcache
 Resetting TCP global heuristics to defaults.
-[2025-10-22 15:19:53Z][Information] Disable TCP heuristics.
-[2025-10-22 15:19:53Z][Information] Restore TCP auto-tuning.
+[2025-10-22 16:25:03Z][Information] Disable TCP heuristics.
+[2025-10-22 16:25:03Z][Information] Restore TCP auto-tuning.
 Registering DNS records with DHCP server.
-[2025-10-22 15:19:53Z][Information] ipconfig /registerdns
+[2025-10-22 16:25:03Z][Information] ipconfig /registerdns
 Capturing adapter link statistics.
-[2025-10-22 15:19:56Z][Information] Adapter statistics snapshot.
+[2025-10-22 16:25:06Z][Information] Adapter statistics snapshot.
 Testing connection to 8.8.8.8.
-[2025-10-22 15:19:57Z][Information] Test-NetConnection probe.
+[2025-10-22 16:25:07Z][Information] Test-NetConnection probe.
 Running latency sample (8 pings).
-[2025-10-22 15:20:17Z][Information] ping sweep.
+[2025-10-22 16:25:27Z][Information] ping sweep.
 Tracing network route.
-[2025-10-22 15:20:24Z][Information] tracert execution.
+[2025-10-22 16:25:34Z][Information] tracert execution.
 Running pathping for loss analysis (this can take several minutes).
-[2025-10-22 15:21:42Z][Information] pathping execution.
+[2025-10-22 16:26:52Z][Information] pathping execution.
 Dumping refreshed ARP table.
-[2025-10-22 15:23:24Z][Information] arp -a snapshot.
+[2025-10-22 16:27:41Z][Information] arp -a snapshot.
 Advanced network routine completed.
-[2025-10-22 15:23:24Z][Information] Network fix suite finished.
+[2025-10-22 16:27:41Z][Information] Network fix suite finished.
 
-6th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
 
-2025-10-22 09:54:56Z [Error] Essentials
-App repair helper failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-000b-295e-e1a9c542dc01[0m
+2025-10-22 10:58:54Z [Error] Essentials
+App repair helper failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-0001-8e10-efa9c542dc01[0m
 --- Output ---
-[2025-10-22 15:24:33Z][Information] Starting Microsoft Store and AppX repair sequence.
+[2025-10-22 16:28:03Z][Information] Starting Microsoft Store and AppX repair sequence.
 Resetting Microsoft Store cache (wsreset.exe).
-[2025-10-22 15:24:33Z][Information] Running wsreset.exe.
+[2025-10-22 16:28:03Z][Information] Running wsreset.exe.
 Re-registering Microsoft Store and dependencies.
 Re-registering Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:34Z][Information] Add-AppxPackage Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:04Z][Information] Add-AppxPackage Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.StorePurchaseApp_22508.1401.4.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:35Z][Information] Add-AppxPackage Microsoft.StorePurchaseApp_22508.1401.4.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:05Z][Information] Add-AppxPackage Microsoft.StorePurchaseApp_22508.1401.4.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:35Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:05Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
 Repairing App Installer integration.
 Re-registering Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:35Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:05Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:36Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:06Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:36Z][Information] Add-AppxPackage Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:06Z][Information] Add-AppxPackage Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.WindowsCalculator_11.2502.2.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:42Z][Information] Add-AppxPackage Microsoft.WindowsCalculator_11.2502.2.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:44Z][Information] Add-AppxPackage Microsoft.WindowsCalculator_11.2502.2.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.WindowsCamera_2025.2505.2.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:42Z][Information] Add-AppxPackage Microsoft.WindowsCamera_2025.2505.2.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:44Z][Information] Add-AppxPackage Microsoft.WindowsCamera_2025.2505.2.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.Windows.Photos_2025.11080.28001.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:43Z][Information] Add-AppxPackage Microsoft.Windows.Photos_2025.11080.28001.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:45Z][Information] Add-AppxPackage Microsoft.Windows.Photos_2025.11080.28001.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.WindowsSoundRecorder_1.1.5.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:43Z][Information] Add-AppxPackage Microsoft.WindowsSoundRecorder_1.1.5.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:45Z][Information] Add-AppxPackage Microsoft.WindowsSoundRecorder_1.1.5.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.WindowsNotepad_11.2507.26.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:43Z][Information] Add-AppxPackage Microsoft.WindowsNotepad_11.2507.26.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:45Z][Information] Add-AppxPackage Microsoft.WindowsNotepad_11.2507.26.0_x64__8wekyb3d8bbwe
 Package 'Microsoft.WindowsCommunicationApps' was not found. Skipping.
 Re-registering Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:44Z][Information] Add-AppxPackage Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:46Z][Information] Add-AppxPackage Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe
 Package 'Microsoft.ZuneVideo' was not found. Skipping.
 Re-registering Microsoft.ZuneMusic_11.2508.31.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:44Z][Information] Add-AppxPackage Microsoft.ZuneMusic_11.2508.31.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:46Z][Information] Add-AppxPackage Microsoft.ZuneMusic_11.2508.31.0_x64__8wekyb3d8bbwe
 Refreshing critical app frameworks (Microsoft.NET.Native, VCLibs, UI.Xaml).
 Re-registering Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:44Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:46Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x86__8wekyb3d8bbwe
-[2025-10-22 15:24:50Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x86__8wekyb3d8bbwe
+[2025-10-22 16:28:47Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x86__8wekyb3d8bbwe
 Re-registering Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x86__8wekyb3d8bbwe
-[2025-10-22 15:24:50Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x86__8wekyb3d8bbwe
+[2025-10-22 16:28:47Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x86__8wekyb3d8bbwe
 Re-registering Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:50Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:47Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:50Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:47Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x86__8wekyb3d8bbwe
-[2025-10-22 15:24:51Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x86__8wekyb3d8bbwe
+[2025-10-22 16:28:48Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x86__8wekyb3d8bbwe
 Re-registering Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x86__8wekyb3d8bbwe
-[2025-10-22 15:24:51Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x86__8wekyb3d8bbwe
+[2025-10-22 16:28:48Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x86__8wekyb3d8bbwe
 Re-registering Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:51Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:48Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x64__8wekyb3d8bbwe
 Re-registering Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:51Z][Information] Add-AppxPackage Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe
-[2025-10-22 15:24:56Z][Error] Deployment failed with HRESULT: 0x80073D06, The package could not be installed because a higher version of this package is already installed.
+[2025-10-22 16:28:48Z][Information] Add-AppxPackage Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe
+[2025-10-22 16:28:54Z][Error] Deployment failed with HRESULT: 0x80073D06, The package could not be installed because a higher version of this package is already installed.
 Windows cannot install package Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe because it has version 14.0.30704.0. A higher version 14.0.33519.0 of this package is already installed.
-NOTE: For additional information, look for [ActivityId] a9dcb115-42c5-000b-295e-e1a9c542dc01 in the Event Log or use the command line Get-AppPackageLog -ActivityID a9dcb115-42c5-000b-295e-e1a9c542dc01
-[2025-10-22 15:24:56Z][Information] App repair helper finished.
+NOTE: For additional information, look for [ActivityId] a9dcb115-42c5-0001-8e10-efa9c542dc01 in the Event Log or use the command line Get-AppPackageLog -ActivityID a9dcb115-42c5-0001-8e10-efa9c542dc01
+[2025-10-22 16:28:54Z][Information] App repair helper finished.
 --- Errors ---
-[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\app-repair-helper.ps1:307[0m
+[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\app-repair-helper.ps1:323[0m
 [31;1m[0m[36;1mLine |[0m
-[31;1m[0m[36;1m[36;1m 307 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m 323 | [0m     [36;1mWrite-TidyError -Message $message[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mDeployment failed with HRESULT: 0x80073D06, The package could not be installed because a higher version of this[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mpackage is already installed.  Windows cannot install package[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mMicrosoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe because it has version 14.0.30704.0. A higher version[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1m14.0.33519.0 of this package is already installed.  NOTE: For additional information, look for [ActivityId][0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-000b-295e-e1a9c542dc01 in the Event Log or use the command line Get-AppPackageLog -ActivityID[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-000b-295e-e1a9c542dc01[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-0001-8e10-efa9c542dc01 in the Event Log or use the command line Get-AppPackageLog -ActivityID[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-0001-8e10-efa9c542dc01[0m
 
-7th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
-
-2025-10-22 09:55:56Z [Error] Essentials
-Startup impact analyzer failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'FileSizeMB' cannot be found on this object. Verify that the property exists.[0m
+2025-10-22 10:59:46Z [Success] Essentials
+Startup impact analyzer completed.
 --- Output ---
-[2025-10-22 15:25:54Z][Information] Starting startup impact analyzer.
-[2025-10-22 15:25:56Z][Error] The property 'FileSizeMB' cannot be found on this object. Verify that the property exists.
-[2025-10-22 15:25:56Z][Information] Startup impact analyzer finished.
---- Errors ---
-[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\startup-impact-analyzer.ps1:437[0m
-[31;1m[0m[36;1mLine |[0m
-[31;1m[0m[36;1m[36;1m 437 | [0m     [36;1mWrite-TidyError -Message $message[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'FileSizeMB' cannot be found on this object. Verify that the property exists.[0m
+[2025-10-22 16:29:43Z][Information] Starting startup impact analyzer.
+Top 12 impact candidates:
+   CanvaAutoLaunchAvailabilityCheckAgent - C:\Users\user\AppData\Local\Programs\Canva\Canva.exe (200.48 MB)
+   OneDriveSetup - C:\Windows\System32\OneDriveSetup.exe (85.61 MB)
+   OneDriveSetup - C:\Windows\System32\OneDriveSetup.exe (85.61 MB)
+   EpicGamesLauncher - C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe (37.67 MB)
+   Tailscale - C:\Program Files\Tailscale\tailscale-ipn.exe (24.81 MB)
+   Steam - C:\Program Files (x86)\Steam\steam.exe (4.48 MB)
+   MicrosoftEdgeAutoLaunch_8714F0D917266FE3AFB7F8BB98EEBC18 - C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe (4.07 MB)
+   Riot Vanguard - C:\Program Files\Riot Vanguard\vgtray.exe (3.95 MB)
+   Everything - C:\Program Files\Everything\Everything.exe (2.16 MB)
+   Discord - C:\Users\user\AppData\Local\Discord\Update.exe (1.52 MB)
+   EarTrumpet - C:\ProgramData\chocolatey\lib\eartrumpet\tools\EarTrumpet\EarTrumpet.exe (1.29 MB)
+   AMDNoiseSuppression - C:\WINDOWS\system32\AMD\ANR\AMDNoiseSuppression.exe (0.3 MB)
+[2025-10-22 16:29:46Z][Information] Startup impact analyzer finished.
 
-8th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
-
-2025-10-22 09:56:33Z [Error] Essentials
-Windows Update repair toolkit failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mFailed to rename Catroot2: Access to the path 'C:\Windows\System32\catroot2' is denied.[0m
+2025-10-22 10:59:46Z [Success] Essentials
+Startup impact analyzer completed.
 --- Output ---
-[2025-10-22 15:26:32Z][Information] Starting Windows Update repair sequence.
-Stopping Windows Update related services.
-[2025-10-22 15:26:32Z][Information] Stopping service wuauserv
-0
-[2025-10-22 15:26:33Z][Information] Stopping service bits
-0
-[2025-10-22 15:26:33Z][Information] Stopping service cryptsvc
-0
-[2025-10-22 15:26:33Z][Information] Stopping service appidsvc
-0
-[2025-10-22 15:26:33Z][Information] Stopping service msiserver
-0
-Resetting SoftwareDistribution and Catroot2 caches.
-Renamed SoftwareDistribution to C:\WINDOWS\SoftwareDistribution.bak-20251022152633.
-[2025-10-22 15:26:33Z][Error] Failed to rename Catroot2: Access to the path 'C:\Windows\System32\catroot2' is denied.
-[2025-10-22 15:26:33Z][Information] Windows Update repair toolkit finished.
---- Errors ---
-[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\windows-update-repair-toolkit.ps1:311[0m
-[31;1m[0m[36;1mLine |[0m
-[31;1m[0m[36;1m[36;1m 311 | [0m     [36;1mWrite-TidyError -Message $message[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mFailed to rename Catroot2: Access to the path 'C:\Windows\System32\catroot2' is denied.[0m
+[2025-10-22 16:29:43Z][Information] Starting startup impact analyzer.
+Top 12 impact candidates:
+   CanvaAutoLaunchAvailabilityCheckAgent - C:\Users\user\AppData\Local\Programs\Canva\Canva.exe (200.48 MB)
+   OneDriveSetup - C:\Windows\System32\OneDriveSetup.exe (85.61 MB)
+   OneDriveSetup - C:\Windows\System32\OneDriveSetup.exe (85.61 MB)
+   EpicGamesLauncher - C:\Program Files (x86)\Epic Games\Launcher\Portal\Binaries\Win64\EpicGamesLauncher.exe (37.67 MB)
+   Tailscale - C:\Program Files\Tailscale\tailscale-ipn.exe (24.81 MB)
+   Steam - C:\Program Files (x86)\Steam\steam.exe (4.48 MB)
+   MicrosoftEdgeAutoLaunch_8714F0D917266FE3AFB7F8BB98EEBC18 - C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe (4.07 MB)
+   Riot Vanguard - C:\Program Files\Riot Vanguard\vgtray.exe (3.95 MB)
+   Everything - C:\Program Files\Everything\Everything.exe (2.16 MB)
+   Discord - C:\Users\user\AppData\Local\Discord\Update.exe (1.52 MB)
+   EarTrumpet - C:\ProgramData\chocolatey\lib\eartrumpet\tools\EarTrumpet\EarTrumpet.exe (1.29 MB)
+   AMDNoiseSuppression - C:\WINDOWS\system32\AMD\ANR\AMDNoiseSuppression.exe (0.3 MB)
+[2025-10-22 16:29:46Z][Information] Startup impact analyzer finished.
