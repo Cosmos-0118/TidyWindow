@@ -64,19 +64,6 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 -   Parameters must be named, and scripts should emit structured objects for consumption by `PowerShellInvoker`.
 -   Terminating errors bubble back to the .NET layer for user-friendly reporting in the dashboard.
 
-## Releasing
-
-Tagging a semantic version triggers the release workflow and produces both a portable zip and an installer.
-
-Artifacts (`TidyWindow.exe` zip and `TidyWindow-Setup-<version>.exe`) are attached to the GitHub release once the workflow finishes.
-
-### Manual Release (GitHub UI)
-
--   Navigate to the repository's Releases tab and choose "Draft a new release".
--   Select an existing version tag (or create one from the UI) matching the semantic version format.
--   Provide release notes; copy highlights from the changelog or pull requests if available.
--   Publish the release to trigger the workflow and attach generated assets automatically.
-
 ## Further Reading
 
 -   `docs/getting-started.md` – Detailed setup walkthrough.
@@ -88,3 +75,4 @@ Artifacts (`TidyWindow.exe` zip and `TidyWindow-Setup-<version>.exe`) are attach
 ## License
 
 TidyWindow is distributed under the MIT License. See `LICENSE` for details.
+
