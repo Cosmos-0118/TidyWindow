@@ -197,7 +197,7 @@ function Invoke-Removal {
     param([string] $Key, [string] $PackageId)
 
     $exe = Resolve-ManagerExecutable -Key $Key
-    $arguments = switch ($Key) {
+    $baseArguments = switch ($Key) {
         'winget' { @('uninstall', '--id', $PackageId, '-e', '--accept-source-agreements', '--disable-interactivity') }
         'choco' { @('uninstall', $PackageId, '-y', '--no-progress') }
         'chocolatey' { @('uninstall', $PackageId, '-y', '--no-progress') }
@@ -205,25 +205,153 @@ function Invoke-Removal {
         default { throw "Unsupported package manager '$Key' for removal." }
     }
 
-    $output = & $exe @arguments 2>&1
-    $exitCode = $LASTEXITCODE
-
     $logs = [System.Collections.Generic.List[string]]::new()
     $errors = [System.Collections.Generic.List[string]]::new()
 
-    foreach ($entry in @($output)) {
-        if ($null -eq $entry) { continue }
-        if ($entry -is [System.Management.Automation.ErrorRecord]) {
-            $message = [string]$entry
-            if (-not [string]::IsNullOrWhiteSpace($message)) { [void]$errors.Add($message) }
+    $invokeAndCollect = {
+        param([string[]] $Args)
+
+        $result = & $exe @Args 2>&1
+        $code = $LASTEXITCODE
+
+        foreach ($entry in @($result)) {
+            if ($null -eq $entry) { continue }
+            if ($entry -is [System.Management.Automation.ErrorRecord]) {
+                $message = [string]$entry
+                if (-not [string]::IsNullOrWhiteSpace($message)) { [void]$errors.Add($message) }
+            }
+            else {
+                $message = [string]$entry
+                if (-not [string]::IsNullOrWhiteSpace($message)) { [void]$logs.Add($message) }
+            }
         }
-        else {
-            $message = [string]$entry
-            if (-not [string]::IsNullOrWhiteSpace($message)) { [void]$logs.Add($message) }
+
+        return $code
+    }
+
+    $exitCode = & $invokeAndCollect $baseArguments
+
+    $summary = 'Removal command completed.'
+
+    if ($exitCode -ne 0) {
+        switch ($Key) {
+            'winget' {
+                $needsRetry = $false
+                foreach ($collection in @($logs, $errors)) {
+                    foreach ($message in $collection) {
+                        if ([string]::IsNullOrWhiteSpace($message)) { continue }
+                        if ($message -like '*Multiple versions of this package are installed*') {
+                            $needsRetry = $true
+                            break
+                        }
+                    }
+
+                    if ($needsRetry) { break }
+                }
+
+                if (-not $needsRetry -and $exitCode -eq -1978335210) {
+                    $needsRetry = $true
+                }
+
+                if ($needsRetry) {
+                    [void]$logs.Add('Detected multiple installed versions; retrying uninstall with --all-versions.')
+                    $retryArgs = @('uninstall', '--id', $PackageId, '-e', '--accept-source-agreements', '--disable-interactivity', '--all-versions')
+                    $exitCode = & $invokeAndCollect $retryArgs
+                    if ($exitCode -eq 0) {
+                        $summary = 'Removal completed after retry with --all-versions.'
+                    }
+                }
+            }
+            'choco' {
+                $needsRetry = $false
+                foreach ($collection in @($logs, $errors)) {
+                    foreach ($message in $collection) {
+                        if ([string]::IsNullOrWhiteSpace($message)) { continue }
+                        if ($message -like '*is not installed*' -or $message -like '*not installed*') {
+                            $needsRetry = $false
+                            break
+                        }
+
+                        if ($message -like '*Unable to resolve dependency*' -or $message -like '*cannot uninstall a package that has dependencies*') {
+                            $needsRetry = $true
+                            break
+                        }
+                    }
+
+                    if ($needsRetry) { break }
+                }
+
+                if ($needsRetry -and $exitCode -ne 0) {
+                    [void]$logs.Add('Detected dependency or multiple install scenario; retrying with --all-versions --remove-dependencies.')
+                    $retryArgs = @('uninstall', $PackageId, '-y', '--no-progress', '--all-versions', '--remove-dependencies')
+                    $exitCode = & $invokeAndCollect $retryArgs
+                    if ($exitCode -eq 0) {
+                        $summary = 'Removal completed after retry with --all-versions and dependency cleanup.'
+                    }
+                }
+            }
+            'chocolatey' {
+                $needsRetry = $false
+                foreach ($collection in @($logs, $errors)) {
+                    foreach ($message in $collection) {
+                        if ([string]::IsNullOrWhiteSpace($message)) { continue }
+                        if ($message -like '*is not installed*' -or $message -like '*not installed*') {
+                            $needsRetry = $false
+                            break
+                        }
+
+                        if ($message -like '*Unable to resolve dependency*' -or $message -like '*cannot uninstall a package that has dependencies*') {
+                            $needsRetry = $true
+                            break
+                        }
+                    }
+
+                    if ($needsRetry) { break }
+                }
+
+                if ($needsRetry -and $exitCode -ne 0) {
+                    [void]$logs.Add('Detected dependency or multiple install scenario; retrying with --all-versions --remove-dependencies.')
+                    $retryArgs = @('uninstall', $PackageId, '-y', '--no-progress', '--all-versions', '--remove-dependencies')
+                    $exitCode = & $invokeAndCollect $retryArgs
+                    if ($exitCode -eq 0) {
+                        $summary = 'Removal completed after retry with --all-versions and dependency cleanup.'
+                    }
+                }
+            }
+            'scoop' {
+                $needsRetry = $false
+                foreach ($collection in @($logs, $errors)) {
+                    foreach ($message in $collection) {
+                        if ([string]::IsNullOrWhiteSpace($message)) { continue }
+                        if ($message -like '*is not installed*') {
+                            $needsRetry = $false
+                            break
+                        }
+
+                        if ($message -like '*Cannot find app*' -or $message -like '*has multiple versions*' -or $message -like '*use "scoop uninstall* -a"*') {
+                            $needsRetry = $true
+                            break
+                        }
+                    }
+
+                    if ($needsRetry) { break }
+                }
+
+                if ($needsRetry -and $exitCode -ne 0) {
+                    [void]$logs.Add('Detected multiple installed versions; retrying uninstall with scoop -a flag.')
+                    $retryArgs = @('uninstall', $PackageId, '-a')
+                    $exitCode = & $invokeAndCollect $retryArgs
+                    if ($exitCode -eq 0) {
+                        $summary = 'Removal completed after retry with scoop -a flag.'
+                    }
+                }
+            }
         }
     }
 
-    $summary = if ($exitCode -eq 0) { 'Removal command completed.' } else { "Removal command exited with code $exitCode." }
+    if ($exitCode -ne 0) {
+        $summary = "Removal command exited with code $exitCode."
+    }
 
     return [pscustomobject]@{
         Attempted = $true

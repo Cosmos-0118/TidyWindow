@@ -49,6 +49,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<BundlePresetService>();
                 services.AddSingleton<PackageInventoryService>();
                 services.AddSingleton<PackageMaintenanceService>();
+                services.AddSingleton<EssentialsTaskCatalog>();
+                services.AddSingleton<EssentialsTaskQueue>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -58,6 +60,7 @@ public partial class App : WpfApplication
                 services.AddTransient<InstallHubViewModel>();
                 services.AddTransient<PackageMaintenanceViewModel>();
                 services.AddTransient<LogsViewModel>();
+                services.AddTransient<EssentialsViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -66,6 +69,7 @@ public partial class App : WpfApplication
                 services.AddTransient<InstallHubPage>();
                 services.AddTransient<PackageMaintenancePage>();
                 services.AddTransient<LogsPage>();
+                services.AddTransient<EssentialsPage>();
 
                 services.AddSingleton<MainWindow>();
             })

@@ -225,7 +225,19 @@ function Invoke-ScoopBootstrap {
     }
 
     Write-TidyOutput -Message 'Downloaded Scoop bootstrap script.'
-    Invoke-TidyCommand -Command { param($content) Invoke-Expression $content } -Arguments @($installScript) -Description 'Running Scoop bootstrap script.' -RequireSuccess
+    if (Test-TidyAdmin) {
+        $tempPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('tidywindow-scoop-install-' + ([System.Guid]::NewGuid().ToString('N')) + '.ps1')
+        try {
+            Set-Content -Path $tempPath -Value $installScript -Encoding UTF8
+            Invoke-TidyCommand -Command { param($path) & $path -RunAsAdmin } -Arguments @($tempPath) -Description 'Running Scoop bootstrap script with -RunAsAdmin.' -RequireSuccess
+        }
+        finally {
+            Remove-Item -Path $tempPath -ErrorAction SilentlyContinue
+        }
+    }
+    else {
+        Invoke-TidyCommand -Command { param($content) Invoke-Expression $content } -Arguments @($installScript) -Description 'Running Scoop bootstrap script.' -RequireSuccess
+    }
     return 'Scoop installation completed.'
 }
 

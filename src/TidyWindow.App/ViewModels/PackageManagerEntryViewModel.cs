@@ -53,7 +53,13 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
 
     public IReadOnlyList<PackageManagerNoteLine> NoteLines => BuildNoteLines();
 
-    public string ActionLabel => IsBusy ? "Working..." : "Install or repair";
+    public string ActionLabel => IsBusy ? "Working..." : (IsInstalled ? "Repair" : "Install");
+
+    public string UninstallLabel => IsBusy ? "Working..." : "Uninstall";
+
+    public bool ShowUninstall => IsInstalled;
+
+    public bool CanUninstall => IsInstalled && !IsBusy;
 
     public void UpdateFromInfo(PackageManagerInfo info)
     {
@@ -87,7 +93,20 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
         OnPropertyChanged(nameof(NoteLines));
     }
 
-    partial void OnIsBusyChanged(bool value) => OnPropertyChanged(nameof(ActionLabel));
+    partial void OnIsBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ActionLabel));
+        OnPropertyChanged(nameof(UninstallLabel));
+        OnPropertyChanged(nameof(CanUninstall));
+    }
+
+    partial void OnIsInstalledChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ActionLabel));
+        OnPropertyChanged(nameof(UninstallLabel));
+        OnPropertyChanged(nameof(ShowUninstall));
+        OnPropertyChanged(nameof(CanUninstall));
+    }
 
     private IReadOnlyList<PackageManagerNoteLine> BuildNoteLines()
     {

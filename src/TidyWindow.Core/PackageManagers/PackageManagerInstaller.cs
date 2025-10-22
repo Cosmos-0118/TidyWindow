@@ -44,6 +44,23 @@ public sealed class PackageManagerInstaller
         return await _powerShellInvoker.InvokeScriptAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<PowerShellInvocationResult> UninstallAsync(string managerName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(managerName))
+        {
+            throw new ArgumentException("Manager name must be provided.", nameof(managerName));
+        }
+
+        var resolvedName = NormalizeManagerName(managerName);
+        var scriptPath = ResolveScriptPath(Path.Combine("automation", "scripts", "remove-package-manager.ps1"));
+        var parameters = new Dictionary<string, object?>
+        {
+            ["Manager"] = resolvedName
+        };
+
+        return await _powerShellInvoker.InvokeScriptAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
+    }
+
     private static string NormalizeManagerName(string managerName)
     {
         var trimmed = managerName.Trim();

@@ -62,6 +62,50 @@
             </Setter>
         </Style>
 
+        <Style x:Key="BootstrapDangerButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource BootstrapAccentButtonStyle}">
+            <Setter Property="Background"
+                    Value="#DC2626"/>
+            <Setter Property="Foreground"
+                    Value="#FEF2F2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#B91C1C"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#991B1B"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#7F1D1D"/>
+                                <Setter Property="Foreground"
+                                        Value="#FCA5A5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="BootstrapCardStyle"
                TargetType="Border">
             <Setter Property="Background"
@@ -352,6 +396,33 @@
                                                                    BasedOn="{StaticResource BootstrapAccentButtonStyle}">
                                                                 <Setter Property="Margin"
                                                                         Value="0,0,0,8"/>
+                                                                <Setter Property="Padding"
+                                                                        Value="14,6"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Button Content="{Binding UninstallLabel}"
+                                                            Command="{Binding DataContext.UninstallCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            MinWidth="132"
+                                                            Margin="0,0,0,8"
+                                                            Visibility="{Binding ShowUninstall, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            IsEnabled="{Binding CanUninstall}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button"
+                                                                   BasedOn="{StaticResource BootstrapDangerButtonStyle}">
                                                                 <Setter Property="Padding"
                                                                         Value="14,6"/>
                                                                 <Style.Triggers>

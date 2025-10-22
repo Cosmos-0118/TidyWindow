@@ -1,0 +1,328 @@
+param(
+    [switch] $ResetServices,
+    [switch] $ResetComponents,
+    [switch] $ReRegisterLibraries,
+    [switch] $RunDismRestoreHealth,
+    [switch] $RunSfc,
+    [switch] $TriggerScan,
+    [switch] $ResetPolicies,
+    [switch] $ResetNetwork,
+    [string] $ResultPath
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
+    $callerModulePath = $PSCommandPath
+}
+
+$scriptDirectory = Split-Path -Parent $callerModulePath
+if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
+    $scriptDirectory = (Get-Location).Path
+}
+
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = [System.IO.Path]::GetFullPath($modulePath)
+if (-not (Test-Path -Path $modulePath)) {
+    throw "Automation module not found at path '$modulePath'."
+}
+
+Import-Module $modulePath -Force
+
+$script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
+$script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
+$script:OperationSucceeded = $true
+$script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+
+if ($script:UsingResultFile) {
+    $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+}
+
+function Write-TidyOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object] $Message
+    )
+
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return
+    }
+
+    [void]$script:TidyOutputLines.Add($text)
+    Write-Output $text
+}
+
+function Write-TidyError {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object] $Message
+    )
+
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        return
+    }
+
+    [void]$script:TidyErrorLines.Add($text)
+    Write-Error -Message $text
+}
+
+function Save-TidyResult {
+    if (-not $script:UsingResultFile) {
+        return
+    }
+
+    $payload = [pscustomobject]@{
+        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+        Output  = $script:TidyOutputLines
+        Errors  = $script:TidyErrorLines
+    }
+
+    $json = $payload | ConvertTo-Json -Depth 5
+    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+}
+
+function Invoke-TidyCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [scriptblock] $Command,
+        [string] $Description = 'Running command.',
+        [object[]] $Arguments = @(),
+        [switch] $RequireSuccess
+    )
+
+    Write-TidyLog -Level Information -Message $Description
+
+    $output = & $Command @Arguments 2>&1
+    $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    foreach ($entry in @($output)) {
+        if ($null -eq $entry) {
+            continue
+        }
+
+        if ($entry -is [System.Management.Automation.ErrorRecord]) {
+            Write-TidyError -Message $entry
+        }
+        else {
+            Write-TidyOutput -Message $entry
+        }
+    }
+
+    if ($RequireSuccess -and $exitCode -ne 0) {
+        throw "$Description failed with exit code $exitCode."
+    }
+
+    return $exitCode
+}
+
+function Test-TidyAdmin {
+    return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Stop-WindowsUpdateServices {
+    Write-TidyOutput -Message 'Stopping Windows Update related services.'
+    $services = @('wuauserv', 'bits', 'cryptsvc', 'appidsvc', 'msiserver')
+    foreach ($service in $services) {
+        Invoke-TidyCommand -Command { param($name) Stop-Service -Name $name -ErrorAction SilentlyContinue } -Arguments @($service) -Description ("Stopping service {0}" -f $service)
+    }
+}
+
+function Start-WindowsUpdateServices {
+    Write-TidyOutput -Message 'Starting Windows Update related services.'
+    $services = @('wuauserv', 'bits', 'cryptsvc', 'appidsvc', 'msiserver')
+    foreach ($service in $services) {
+        Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction SilentlyContinue } -Arguments @($service) -Description ("Starting service {0}" -f $service)
+    }
+}
+
+function Reset-WindowsUpdateComponents {
+    Write-TidyOutput -Message 'Resetting SoftwareDistribution and Catroot2 caches.'
+    $softwareDistribution = Join-Path -Path $env:SystemRoot -ChildPath 'SoftwareDistribution'
+    $catroot = Join-Path -Path $env:SystemRoot -ChildPath 'System32\catroot2'
+
+    if (Test-Path -LiteralPath $softwareDistribution) {
+        $backup = $softwareDistribution + '.bak-' + (Get-Date -Format 'yyyyMMddHHmmss')
+        try {
+            Rename-Item -LiteralPath $softwareDistribution -NewName $backup -Force -ErrorAction Stop
+            Write-TidyOutput -Message ("Renamed SoftwareDistribution to {0}." -f $backup)
+        }
+        catch {
+            Write-TidyError -Message ("Failed to rename SoftwareDistribution: {0}" -f $_.Exception.Message)
+        }
+    }
+
+    if (Test-Path -LiteralPath $catroot) {
+        $backup = $catroot + '.bak-' + (Get-Date -Format 'yyyyMMddHHmmss')
+        try {
+            Rename-Item -LiteralPath $catroot -NewName $backup -Force -ErrorAction Stop
+            Write-TidyOutput -Message ("Renamed Catroot2 to {0}." -f $backup)
+        }
+        catch {
+            Write-TidyError -Message ("Failed to rename Catroot2: {0}" -f $_.Exception.Message)
+        }
+    }
+
+    $qmgrPath = Join-Path -Path $env:ALLUSERSPROFILE -ChildPath 'Microsoft\Network\Downloader'
+    if (Test-Path -LiteralPath $qmgrPath) {
+        Get-ChildItem -Path $qmgrPath -Filter 'qmgr*.dat' -ErrorAction SilentlyContinue | ForEach-Object {
+            try {
+                Remove-Item -LiteralPath $_.FullName -Force -ErrorAction Stop
+                Write-TidyOutput -Message ("Removed job cache file {0}." -f $_.Name)
+            }
+            catch {
+                Write-TidyError -Message ("Failed to remove {0}: {1}" -f $_.Name, $_.Exception.Message)
+            }
+        }
+    }
+}
+
+function ReRegister-WindowsUpdateLibraries {
+    if (-not $ReRegisterLibraries.IsPresent) {
+        return
+    }
+
+    Write-TidyOutput -Message 'Re-registering Windows Update COM libraries.'
+    $libraries = @(
+        'atl.dll', 'urlmon.dll', 'mshtml.dll', 'shdocvw.dll', 'browseui.dll', 'jscript.dll', 'vbscript.dll', 'scrrun.dll',
+        'msxml.dll', 'msxml2.dll', 'msxml3.dll', 'wuapi.dll', 'wuaueng.dll', 'wuaueng1.dll', 'wucltui.dll', 'wups.dll',
+        'wups2.dll', 'wuweb.dll', 'qmgr.dll', 'qmgrprxy.dll', 'wucltux.dll', 'muweb.dll', 'wuwebv.dll'
+    )
+
+    foreach ($library in $libraries) {
+        Invoke-TidyCommand -Command { param($dll) regsvr32.exe /s $dll } -Arguments @($library) -Description ("regsvr32 {0}" -f $library)
+    }
+}
+
+function Invoke-DismRestoreHealth {
+    if (-not $RunDismRestoreHealth.IsPresent) {
+        return
+    }
+
+    Write-TidyOutput -Message 'Running DISM /Online /Cleanup-Image /RestoreHealth. This can take 10-30 minutes.'
+    Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /RestoreHealth } -Description 'DISM RestoreHealth' -RequireSuccess | Out-Null
+}
+
+function Invoke-SystemFileChecker {
+    if (-not $RunSfc.IsPresent) {
+        return
+    }
+
+    Write-TidyOutput -Message 'Running System File Checker (SFC /scannow).' 
+    Invoke-TidyCommand -Command { sfc /scannow } -Description 'SFC Scan' -RequireSuccess | Out-Null
+}
+
+function Reset-WindowsUpdatePolicies {
+    if (-not $ResetPolicies.IsPresent) {
+        return
+    }
+
+    Write-TidyOutput -Message 'Clearing Windows Update policy overrides.'
+    $policyRoots = @(
+        'Registry::HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate',
+        'Registry::HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU'
+    )
+
+    foreach ($root in $policyRoots) {
+        if (Test-Path -LiteralPath $root) {
+            try {
+                Remove-Item -LiteralPath $root -Recurse -Force -ErrorAction Stop
+                Write-TidyOutput -Message ("Removed policy key {0}." -f $root)
+            }
+            catch {
+                Write-TidyError -Message ("Failed to remove policy key {0}: {1}" -f $root, $_.Exception.Message)
+            }
+        }
+    }
+}
+
+function Reset-WindowsUpdateNetwork {
+    if (-not $ResetNetwork.IsPresent) {
+        return
+    }
+
+    Write-TidyOutput -Message 'Resetting Windows Update network stack (Winsock, proxy, IPv4).'
+    Invoke-TidyCommand -Command { netsh winsock reset } -Description 'netsh winsock reset' -RequireSuccess | Out-Null
+    Invoke-TidyCommand -Command { netsh winhttp reset proxy } -Description 'netsh winhttp reset proxy' | Out-Null
+    Invoke-TidyCommand -Command { netsh int ip reset } -Description 'netsh int ip reset' | Out-Null
+}
+
+function Trigger-WindowsUpdateScan {
+    if (-not $TriggerScan.IsPresent) {
+        return
+    }
+
+    Write-TidyOutput -Message 'Triggering Windows Update scan (UsoClient / wuauclt).'
+    Invoke-TidyCommand -Command { UsoClient StartScan } -Description 'UsoClient StartScan' | Out-Null
+    Start-Sleep -Seconds 2
+    Invoke-TidyCommand -Command { UsoClient StartDownload } -Description 'UsoClient StartDownload' | Out-Null
+    Start-Sleep -Seconds 2
+    Invoke-TidyCommand -Command { UsoClient StartInstall } -Description 'UsoClient StartInstall' | Out-Null
+    Invoke-TidyCommand -Command { wuauclt.exe /reportnow } -Description 'wuauclt /reportnow' | Out-Null
+}
+
+if (-not ($ResetServices -or $ResetComponents -or $ReRegisterLibraries -or $RunDismRestoreHealth -or $RunSfc -or $TriggerScan -or $ResetPolicies -or $ResetNetwork)) {
+    $ResetServices = $true
+    $ResetComponents = $true
+    $TriggerScan = $true
+}
+
+try {
+    if (-not (Test-TidyAdmin)) {
+        throw 'Windows Update repair toolkit requires an elevated PowerShell session. Restart as administrator.'
+    }
+
+    Write-TidyLog -Level Information -Message 'Starting Windows Update repair sequence.'
+
+    if ($ResetServices.IsPresent -or $ResetComponents.IsPresent -or $ReRegisterLibraries.IsPresent) {
+        Stop-WindowsUpdateServices
+    }
+
+    if ($ResetComponents.IsPresent) {
+        Reset-WindowsUpdateComponents
+    }
+
+    ReRegister-WindowsUpdateLibraries
+    Reset-WindowsUpdatePolicies
+    Reset-WindowsUpdateNetwork
+
+    if ($ResetServices.IsPresent -or $ResetComponents.IsPresent -or $ReRegisterLibraries.IsPresent) {
+        Start-WindowsUpdateServices
+    }
+
+    Invoke-DismRestoreHealth
+    Invoke-SystemFileChecker
+    Trigger-WindowsUpdateScan
+
+    Write-TidyOutput -Message 'Windows Update repair routine completed.'
+    Write-TidyOutput -Message 'If updates still fail, review WindowsUpdate.log and the Activity log for detailed errors.'
+}
+catch {
+    $script:OperationSucceeded = $false
+    $message = $_.Exception.Message
+    if ([string]::IsNullOrWhiteSpace($message)) {
+        $message = $_ | Out-String
+    }
+
+    Write-TidyLog -Level Error -Message $message
+    Write-TidyError -Message $message
+    if (-not $script:UsingResultFile) {
+        throw
+    }
+}
+finally {
+    Save-TidyResult
+    Write-TidyLog -Level Information -Message 'Windows Update repair toolkit finished.'
+}
+
+if ($script:UsingResultFile) {
+    $wasSuccessful = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+    if ($wasSuccessful) {
+        exit 0
+    }
+
+    exit 1
+}

@@ -150,6 +150,88 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    private async Task UninstallAsync(PackageManagerEntryViewModel? manager)
+    {
+        if (manager is null || string.IsNullOrWhiteSpace(manager.Name) || manager.IsBusy)
+        {
+            return;
+        }
+
+        if (!manager.IsInstalled)
+        {
+            manager.LastOperationMessage = $"{manager.Name} is not currently installed.";
+            manager.LastOperationSucceeded = true;
+            return;
+        }
+
+        var managerName = manager.Name;
+        var refreshAfterUninstall = false;
+
+        try
+        {
+            IsBusy = true;
+            manager.IsBusy = true;
+            manager.LastOperationMessage = "Preparing uninstall...";
+            manager.LastOperationSucceeded = null;
+
+            var statusMessage = $"Uninstalling {managerName}...";
+            _mainViewModel.SetStatusMessage(statusMessage);
+            _activityLog.LogInformation("Bootstrap", statusMessage, BuildManagerContextDetails(manager));
+
+            var result = await _installer.UninstallAsync(managerName);
+            var invocationDetails = BuildInvocationDetails(manager, result);
+
+            if (result.IsSuccess)
+            {
+                var summary = GetOperationSummary(result.Output)
+                               ?? $"Uninstall completed for {managerName}.";
+                manager.LastOperationMessage = summary;
+                manager.LastOperationSucceeded = true;
+                _mainViewModel.SetStatusMessage(summary);
+                _activityLog.LogSuccess("Bootstrap", summary, invocationDetails);
+                refreshAfterUninstall = true;
+            }
+            else
+            {
+                var adminMessage = TryGetAdminMessage(result.Errors);
+                var error = adminMessage
+                            ?? GetOperationSummary(result.Errors)
+                            ?? $"Uninstall failed for {managerName}.";
+                manager.LastOperationMessage = error;
+                manager.LastOperationSucceeded = false;
+                _mainViewModel.SetStatusMessage(error);
+
+                if (!string.IsNullOrWhiteSpace(adminMessage))
+                {
+                    _activityLog.LogWarning("Bootstrap", error, invocationDetails);
+                }
+                else
+                {
+                    _activityLog.LogError("Bootstrap", error, invocationDetails);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            manager.LastOperationMessage = ex.Message;
+            manager.LastOperationSucceeded = false;
+            var failureMessage = $"Uninstall failed for {managerName}: {ex.Message}";
+            _mainViewModel.SetStatusMessage(failureMessage);
+            _activityLog.LogError("Bootstrap", failureMessage, BuildExceptionDetails(manager, ex));
+        }
+        finally
+        {
+            manager.IsBusy = false;
+            IsBusy = false;
+        }
+
+        if (refreshAfterUninstall)
+        {
+            await DetectAsync();
+        }
+    }
+
     private void UpdateManagers(IReadOnlyList<PackageManagerInfo> detected)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

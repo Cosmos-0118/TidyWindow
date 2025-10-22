@@ -493,7 +493,24 @@ try {
         $scoopCommand = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
         if (-not $scoopCommand) {
             Write-TidyLog -Level Warning -Message 'Scoop command not detected. Attempting bootstrap.'
-            Invoke-Expression "iwr -useb get.scoop.sh | iex"
+            $installScript = Invoke-RestMethod -Uri 'https://get.scoop.sh' -UseBasicParsing
+            if ([string]::IsNullOrWhiteSpace($installScript)) {
+                throw 'Failed to download Scoop bootstrap script.'
+            }
+
+            if (Test-TidyAdmin) {
+                $tempScript = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('tidywindow-scoop-install-' + ([System.Guid]::NewGuid().ToString('N')) + '.ps1')
+                try {
+                    Set-Content -Path $tempScript -Value $installScript -Encoding UTF8
+                    & $tempScript -RunAsAdmin
+                }
+                finally {
+                    Remove-Item -Path $tempScript -ErrorAction SilentlyContinue
+                }
+            }
+            else {
+                & ([scriptblock]::Create($installScript))
+            }
             $scoopCommand = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
         }
 
