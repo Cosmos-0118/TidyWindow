@@ -29,3 +29,28 @@ jobs:
 
             - name: Test
               run: dotnet test src/TidyWindow.sln --configuration Release --no-build
+
+            - name: Publish packaging snapshot
+              run: dotnet publish src/TidyWindow.App/TidyWindow.App.csproj --configuration Release --runtime win-x64 --self-contained false --no-restore
+
+            - name: Verify packaged automation assets
+              shell: pwsh
+              run: |
+                  $publishDir = "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish"
+                  if (-not (Test-Path $publishDir)) {
+                    throw "Publish directory not found: $publishDir"
+                  }
+                  $requiredPaths = @(
+                    "automation/essentials/disk-checkup-and-fix.ps1",
+                    "automation/scripts/deep-scan.ps1",
+                    "automation/modules/TidyWindow.Automation.psm1",
+                    "data/catalog/bundles.yml",
+                    "data/catalog/packages/core.yml"
+                  )
+                  foreach ($relative in $requiredPaths) {
+                    $fullPath = Join-Path $publishDir $relative
+                    if (-not (Test-Path $fullPath)) {
+                      throw "Missing packaged asset: $relative"
+                    }
+                  }
+

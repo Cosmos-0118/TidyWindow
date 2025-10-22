@@ -25,6 +25,10 @@ SolidCompression=yes
 WizardStyle=modern
 DisableProgramGroupPage=yes
 UninstallDisplayIcon={app}\\{#MyAppExeName}
+PrivilegesRequired=admin
+ArchitecturesAllowed=x64
+ArchitecturesInstallIn64BitMode=x64
+LicenseFile=TERMS_AND_CONDITIONS.txt
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

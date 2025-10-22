@@ -1,0 +1,37 @@
+TidyWindow Terms and Conditions
+================================
+
+IMPORTANT: PLEASE READ CAREFULLY BEFORE USING TIDYWINDOW OR RUNNING ANY BUILT-IN AUTOMATION TOOLS.
+
+1. Acceptance of Terms
+By installing, copying, or using TidyWindow ("the Software"), you acknowledge that you have read, understood, and agree to be bound by these Terms and Conditions. If you do not agree, do not install or use the Software.
+
+2. Intended Use
+The Software and its accompanying automation scripts are provided to assist with maintaining and troubleshooting Windows systems. You are solely responsible for determining whether the Software is appropriate for your environment and for monitoring its execution.
+
+3. No Liability for Data Loss or Service Interruptions
+Maintenance operations can modify or remove files, registry entries, services, or other system resources. YOU ASSUME ALL RISK FOR ANY DATA LOSS, SERVICE INTERRUPTION, OR OTHER DAMAGE THAT MAY RESULT FROM USING THE SOFTWARE. The authors, contributors, and publishers of TidyWindow disclaim any responsibility or liability for:
+    - Accidental file deletion or modification.
+    - Corruption of data, applications, or operating system components.
+    - Downtime, service outages, or degraded performance.
+    - Any other direct, indirect, incidental, or consequential damages arising from the use or misuse of the Software.
+
+4. Backups Recommended
+You should maintain complete and verified backups of all critical data before running any automation or maintenance tasks provided by the Software.
+
+5. Administrative Privileges
+Many features require elevated (administrator) privileges. You are responsible for ensuring that you have the authority to make the changes initiated by the Software on any device where it is executed.
+
+6. Third-Party Dependencies
+The Software may rely on third-party tools or package managers. These dependencies are subject to their own licensing terms, and you agree to comply with those terms. The authors are not liable for any issues arising from third-party components.
+
+7. Updates
+Updates to the Software may change features or behaviors. You are responsible for reviewing release notes and verifying compatibility before deploying updates in production environments.
+
+8. Termination
+Your rights under these Terms terminate immediately if you fail to comply with any provision. Upon termination, you must uninstall the Software and destroy all copies in your possession.
+
+9. Governing Law
+These Terms are governed by the laws applicable in your jurisdiction unless superseded by local mandatory law.
+
+BY SELECTING "I ACCEPT", INSTALLING, OR USING THE SOFTWARE YOU ACKNOWLEDGE THAT YOU HAVE READ AND UNDERSTOOD THESE TERMS AND AGREE TO BE BOUND BY THEM.

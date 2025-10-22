@@ -297,10 +297,62 @@ try {
         }
         else {
             foreach ($item in $smartData) {
-                $status = if ($item.PredictFailure) { 'At Risk' } else { 'Healthy' }
-                Write-TidyOutput -Message ("[{0}] {1}" -f $status, $item.DevicePath)
-                if (-not [string]::IsNullOrWhiteSpace($item.Reason)) {
-                    Write-TidyOutput -Message ("  ↳ Details: {0}" -f $item.Reason)
+                if ($null -eq $item) {
+                    continue
+                }
+
+                # Guard against unexpected object shapes returned by vendor-specific SMART providers.
+                $predictFailure = $null
+                $devicePath = 'Unknown device'
+                $reason = $null
+
+                if ($item -is [hashtable]) {
+                    if ($item.ContainsKey('PredictFailure')) {
+                        $predictFailure = [bool]$item['PredictFailure']
+                    }
+
+                    if ($item.ContainsKey('DevicePath') -and -not [string]::IsNullOrWhiteSpace([string]$item['DevicePath'])) {
+                        $devicePath = [string]$item['DevicePath']
+                    }
+
+                    if ($item.ContainsKey('Reason')) {
+                        $reason = [string]$item['Reason']
+                    }
+                }
+                elseif ($item -is [psobject]) {
+                    $predictProp = $item.PSObject.Properties['PredictFailure']
+                    if ($predictProp) {
+                        $predictFailure = [bool]$predictProp.Value
+                    }
+
+                    $deviceProp = $item.PSObject.Properties['DevicePath']
+                    if ($deviceProp -and -not [string]::IsNullOrWhiteSpace([string]$deviceProp.Value)) {
+                        $devicePath = [string]$deviceProp.Value
+                    }
+
+                    $reasonProp = $item.PSObject.Properties['Reason']
+                    if ($reasonProp) {
+                        $reason = [string]$reasonProp.Value
+                    }
+                }
+                else {
+                    Write-TidyOutput -Message ("[Unknown] Unexpected SMART entry type: {0}" -f $item.GetType().FullName)
+                    continue
+                }
+
+                $status = switch ($predictFailure) {
+                    $true { 'At Risk' }
+                    $false { 'Healthy' }
+                    default { 'Unknown' }
+                }
+
+                Write-TidyOutput -Message ("[{0}] {1}" -f $status, $devicePath)
+
+                if (-not [string]::IsNullOrWhiteSpace($reason)) {
+                    Write-TidyOutput -Message ("  ↳ Details: {0}" -f $reason)
+                }
+                elseif ($status -eq 'Unknown') {
+                    Write-TidyOutput -Message '  ↳ Predictive failure telemetry unavailable.'
                 }
             }
         }
