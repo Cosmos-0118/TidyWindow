@@ -32,6 +32,8 @@ $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
 $script:SysMainWasRunning = $null
+$script:MemoryPrivilegesEnabled = $false
+$script:PrivilegeHelperReady = $false
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -127,6 +129,124 @@ function Test-TidyAdmin {
 $script:MemoryPurgeHelperReady = $false
 $script:WorkingSetHelperReady = $false
 
+function Initialize-PrivilegeHelper {
+    if ($script:PrivilegeHelperReady) {
+        return
+    }
+
+    $typeDefinition = @"
+using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+
+public static class PrivilegeNative
+{
+    private const uint TOKEN_QUERY = 0x0008;
+    private const uint TOKEN_ADJUST_PRIVILEGES = 0x0020;
+    private const int SE_PRIVILEGE_ENABLED = 0x00000002;
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct LUID
+    {
+        public int LowPart;
+        public int HighPart;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct TOKEN_PRIVILEGES
+    {
+        public int PrivilegeCount;
+        public LUID Luid;
+        public int Attributes;
+    }
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool OpenProcessToken(IntPtr ProcessHandle, uint DesiredAccess, out IntPtr TokenHandle);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern bool LookupPrivilegeValue(string lpSystemName, string lpName, out LUID lpLuid);
+
+    [DllImport("advapi32.dll", SetLastError = true)]
+    private static extern bool AdjustTokenPrivileges(IntPtr TokenHandle, bool DisableAllPrivileges, ref TOKEN_PRIVILEGES NewState, uint Zero, IntPtr Null1, IntPtr Null2);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool CloseHandle(IntPtr hObject);
+
+    public static void EnablePrivilege(string privilege)
+    {
+        IntPtr tokenHandle;
+        var processHandle = Process.GetCurrentProcess().Handle;
+        if (!OpenProcessToken(processHandle, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, out tokenHandle))
+        {
+            throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+
+        try
+        {
+            if (!LookupPrivilegeValue(null, privilege, out var luid))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            var tokenPrivileges = new TOKEN_PRIVILEGES
+            {
+                PrivilegeCount = 1,
+                Luid = luid,
+                Attributes = SE_PRIVILEGE_ENABLED
+            };
+
+            if (!AdjustTokenPrivileges(tokenHandle, false, ref tokenPrivileges, 0, IntPtr.Zero, IntPtr.Zero))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error());
+            }
+
+            var status = Marshal.GetLastWin32Error();
+            if (status != 0)
+            {
+                throw new Win32Exception(status);
+            }
+        }
+        finally
+        {
+            CloseHandle(tokenHandle);
+        }
+    }
+}
+"@
+
+    Add-Type -TypeDefinition $typeDefinition -ErrorAction Stop | Out-Null
+    $script:PrivilegeHelperReady = $true
+}
+
+function Enable-MemoryManagementPrivileges {
+    if ($script:MemoryPrivilegesEnabled) {
+        return
+    }
+
+    Initialize-PrivilegeHelper
+
+    $privileges = @(
+        'SeIncreaseQuotaPrivilege',
+        'SeProfileSingleProcessPrivilege',
+        'SeIncreaseBasePriorityPrivilege',
+        'SeDebugPrivilege'
+    )
+
+    foreach ($privilege in $privileges) {
+        try {
+            [PrivilegeNative]::EnablePrivilege($privilege)
+        }
+        catch {
+            Write-TidyOutput -Message ("  ↳ Unable to enable privilege {0}: {1}" -f $privilege, $_.Exception.Message)
+        }
+    }
+
+    $script:MemoryPrivilegesEnabled = $true
+}
+
+
+
 function Initialize-MemoryPurgeHelper {
     if ($script:MemoryPurgeHelperReady) {
         return
@@ -216,6 +336,8 @@ function Invoke-StandbyMemoryClear {
         return
     }
 
+    Enable-MemoryManagementPrivileges
+
     $commands = @(
         @{ Command = [MemoryListNative+SystemMemoryListCommand]::MemoryPurgeStandbyList; Description = 'Purging standby page lists.' },
         @{ Command = [MemoryListNative+SystemMemoryListCommand]::MemoryPurgeLowPriorityStandbyList; Description = 'Purging low-priority standby lists.' },
@@ -229,7 +351,12 @@ function Invoke-StandbyMemoryClear {
             [MemoryListNative]::IssueCommand($entry.Command)
         }
         catch {
-            Write-TidyOutput -Message ("  ↳ Command skipped: {0}" -f $_.Exception.Message)
+            $errorMessage = $_.Exception.Message
+            if ($_.Exception -is [System.ComponentModel.Win32Exception] -and $_.Exception.NativeErrorCode -eq 1314) {
+                $errorMessage = 'Required privilege still unavailable; run as administrator or enable memory management privileges.'
+            }
+
+            Write-TidyOutput -Message ("  ↳ Command skipped: {0}" -f $errorMessage)
         }
     }
 }
@@ -238,6 +365,7 @@ function Invoke-WorkingSetTrim {
     Write-TidyOutput -Message 'Requesting working set trims for background processes.'
 
     Initialize-WorkingSetHelper
+    Enable-MemoryManagementPrivileges
 
     $skipNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($name in 'Idle', 'System', 'Registry', 'MemCompression', 'csrss', 'winlogon', 'services', 'lsass', 'smss') {

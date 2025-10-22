@@ -35,6 +35,7 @@ $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:AdministratorsGroupName = $null
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)

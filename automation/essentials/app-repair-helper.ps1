@@ -178,23 +178,50 @@ function Invoke-AppxReRegistration {
 
         Write-TidyOutput -Message ("Re-registering {0}" -f $package.PackageFullName)
         Invoke-TidyCommand -Command {
-            param($path)
+            param($path, $packageName)
 
             try {
                 Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $path -ErrorAction Stop
             }
-            catch [System.Runtime.InteropServices.COMException] {
-                $hresult = $_.Exception.HResult
-                $messageText = $_.Exception.Message
-                if ($hresult -eq -2147009274 -or ($messageText -and $messageText -like '*higher version*')) {
-                    Write-TidyOutput -Message 'Package already registered at equal or higher version. Skipping re-registration.'
+            catch {
+                $exception = $_.Exception
+                if (Test-TidyAppxRegistrationBenignFailure -Exception $exception) {
+                    Write-TidyOutput -Message ("{0} already registered at equal or higher version. Skipping re-registration." -f $packageName)
                     return
                 }
 
                 throw
             }
-        } -Arguments @($manifest) -Description ("Add-AppxPackage {0}" -f $package.PackageFullName) | Out-Null
+        } -Arguments @($manifest, $package.PackageFullName) -Description ("Add-AppxPackage {0}" -f $package.PackageFullName) | Out-Null
     }
+}
+
+function Test-TidyAppxRegistrationBenignFailure {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Exception] $Exception
+    )
+
+    $knownHResults = @(
+        -2147009274,  # 0x80073D06: higher version already installed
+        -2147009286   # 0x80073CFA: package already installed
+    )
+
+    $hresult = $null
+    if ($Exception.PSObject.Properties['HResult']) {
+        $hresult = [int]$Exception.HResult
+    }
+
+    if ($null -ne $hresult -and $knownHResults -contains $hresult) {
+        return $true
+    }
+
+    $message = $Exception.Message
+    if ($message -and ($message -like '*higher version*' -or $message -like '*already installed*')) {
+        return $true
+    }
+
+    return $false
 }
 
 function Invoke-AppInstallerRepair {

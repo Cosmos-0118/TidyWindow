@@ -168,6 +168,26 @@ function Get-TidyRestorePoints {
     return $list | Sort-Object -Property CreationTime -Descending
 }
 
+function Get-TidyRestoreCreationFrequencyMinutes {
+    try {
+        $settings = Get-ItemProperty -Path 'Registry::HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore' -ErrorAction Stop
+        $rawValue = $settings.SystemRestorePointCreationFrequency
+        if ($null -ne $rawValue) {
+            $value = [int]$rawValue
+            if ($value -le 0) {
+                return 0
+            }
+
+            return $value
+        }
+    }
+    catch {
+        # Ignore and fall back to default frequency.
+    }
+
+    return 1440
+}
+
 function Remove-TidyRestorePoint {
     param([uint32] $SequenceNumber)
 
@@ -252,10 +272,47 @@ try {
     }
 
     if ($shouldCreate) {
+        if (-not $restorePoints) {
+            $restorePoints = Get-TidyRestorePoints
+        }
+
+        $frequencyMinutes = Get-TidyRestoreCreationFrequencyMinutes
+        $latestPoint = if ($restorePoints.Count -gt 0) { $restorePoints[0] } else { $null }
+        $timeSinceLast = if ($latestPoint) { (New-TimeSpan -Start $latestPoint.CreationTime -End (Get-Date)).TotalMinutes } else { [double]::PositiveInfinity }
+
+        if ($frequencyMinutes -gt 0 -and $timeSinceLast -lt $frequencyMinutes) {
+            Write-TidyOutput -Message (
+                "Skipping restore point creation; last restore point ({0:G}) is within the configured frequency window ({1} minutes)." -f 
+                $latestPoint.CreationTime,
+                $frequencyMinutes
+            )
+        }
+        else {
         $name = if ([string]::IsNullOrWhiteSpace($RestorePointName)) { "TidyWindow snapshot {0}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm') } else { $RestorePointName }
         Write-TidyOutput -Message ("Creating restore point '{0}' ({1})." -f $name, $RestorePointType)
-        Invoke-TidyCommand -Command { param($description, $type) Checkpoint-Computer -Description $description -RestorePointType $type } -Arguments @($name, $RestorePointType) -Description 'Creating System Restore snapshot.' -RequireSuccess | Out-Null
-        $restorePoints = Get-TidyRestorePoints
+            $creationSucceeded = $false
+
+            try {
+                Invoke-TidyCommand -Command {
+                    param($description, $type)
+                    Checkpoint-Computer -Description $description -RestorePointType $type -ErrorAction Stop
+                } -Arguments @($name, $RestorePointType) -Description 'Creating System Restore snapshot.' | Out-Null
+                $creationSucceeded = $true
+            }
+            catch {
+                $message = $_.Exception.Message
+                if ($message -and $message -like '*already been created within the past*') {
+                    Write-TidyOutput -Message 'System Restore rejected the request because a recent restore point already exists. Skipping new creation.'
+                }
+                else {
+                    throw
+                }
+            }
+
+            if ($creationSucceeded) {
+                $restorePoints = Get-TidyRestorePoints
+            }
+        }
     }
 
     if ($shouldList) {
