@@ -128,7 +128,31 @@ function Stop-WindowsUpdateServices {
     Write-TidyOutput -Message 'Stopping Windows Update related services.'
     $services = @('wuauserv', 'bits', 'cryptsvc', 'appidsvc', 'msiserver')
     foreach ($service in $services) {
-        Invoke-TidyCommand -Command { param($name) Stop-Service -Name $name -ErrorAction SilentlyContinue } -Arguments @($service) -Description ("Stopping service {0}" -f $service)
+        Invoke-TidyCommand -Command {
+                param($name)
+
+                try {
+                    $svc = Get-Service -Name $name -ErrorAction Stop
+                }
+                catch {
+                    return ("Service {0} not found. Skipping." -f $name)
+                }
+
+                if ($svc.Status -eq [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+                    return ("Service {0} already stopped." -f $name)
+                }
+
+                Stop-Service -Name $name -Force -ErrorAction SilentlyContinue
+                $svc.Refresh()
+                try {
+                    $svc.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(10)) | Out-Null
+                }
+                catch {
+                    return ("Issued stop for {0}; waiting timed out but operation will continue." -f $name)
+                }
+
+                return ("Service {0} stopped." -f $name)
+            } -Arguments @($service) -Description ("Stopping service {0}" -f $service)
     }
 }
 
@@ -160,16 +184,31 @@ function Invoke-RobustRename {
         [string] $DisplayName
     )
 
-    try {
-        Move-Item -LiteralPath $Path -Destination $Destination -Force -ErrorAction Stop
-        Write-TidyOutput -Message ("Renamed {0} to {1}." -f $DisplayName, $Destination)
-        return $true
-    }
-    catch {
-        $initialError = $_.Exception.Message
-        Write-TidyOutput -Message ("Initial rename of {0} failed: {1}. Attempting ownership reset." -f $DisplayName, $initialError)
-    }
+    $maxAttempts = 3
+    $attempt = 0
+    $lastError = $null
 
+    while ($attempt -lt $maxAttempts) {
+        $attempt++
+        try {
+            Move-Item -LiteralPath $Path -Destination $Destination -Force -ErrorAction Stop
+            $suffix = if ($attempt -eq 1) { 'Renamed' } else { "Renamed after retry" }
+            Write-TidyOutput -Message ("{0} {1} to {2}." -f $suffix, $DisplayName, $Destination)
+            return $true
+        }
+        catch {
+            $lastError = $_.Exception.Message
+            if ($attempt -eq 1) {
+                Write-TidyOutput -Message ("Initial rename of {0} failed: {1}. Attempting ownership reset." -f $DisplayName, $lastError)
+                break
+            }
+
+            if ($attempt -lt $maxAttempts) {
+                Write-TidyOutput -Message ("Retry {0} to move {1} still blocked: {2}." -f $attempt, $DisplayName, $lastError)
+                Start-Sleep -Seconds 2
+            }
+        }
+    }
     $adminGroup = Get-AdministratorsGroupName
 
     try {
@@ -193,13 +232,49 @@ function Invoke-RobustRename {
         Write-TidyOutput -Message ("  ↳ ACL update warning: {0}" -f $_.Exception.Message)
     }
 
+    $lastError = $null
+    while ($attempt -lt $maxAttempts) {
+        $attempt++
+        try {
+            Move-Item -LiteralPath $Path -Destination $Destination -Force -ErrorAction Stop
+            Write-TidyOutput -Message ("Renamed {0} to {1} after resetting permissions." -f $DisplayName, $Destination)
+            return $true
+        }
+        catch {
+            $lastError = $_.Exception.Message
+            if ($attempt -lt $maxAttempts) {
+                Write-TidyOutput -Message ("Retry {0} to move {1} still blocked: {2}." -f $attempt, $DisplayName, $lastError)
+                Start-Sleep -Seconds 2
+            }
+        }
+    }
+
+    Write-TidyOutput -Message ("Scheduling rename of {0} for the next system reboot." -f $DisplayName)
+
     try {
-        Move-Item -LiteralPath $Path -Destination $Destination -Force -ErrorAction Stop
-        Write-TidyOutput -Message ("Renamed {0} to {1} after resetting permissions." -f $DisplayName, $Destination)
+        $resolvedSource = [System.IO.Path]::GetFullPath($Path)
+        $resolvedDestination = [System.IO.Path]::GetFullPath($Destination)
+        $pendingKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager'
+        $existing = (Get-ItemProperty -Path $pendingKey -Name 'PendingFileRenameOperations' -ErrorAction SilentlyContinue).PendingFileRenameOperations
+        $operations = [System.Collections.Generic.List[string]]::new()
+        if ($existing) {
+            $operations.AddRange($existing)
+        }
+
+        $operations.Add("\??\$resolvedSource")
+        $operations.Add("\??\$resolvedDestination")
+        Set-ItemProperty -Path $pendingKey -Name 'PendingFileRenameOperations' -Value $operations.ToArray()
+
+        if (-not (Test-Path -LiteralPath $Path)) {
+            New-Item -Path $Path -ItemType Directory -Force | Out-Null
+        }
+
+        Write-TidyOutput -Message ("Queued rename of {0} to {1}. Reboot required to complete cache reset." -f $DisplayName, $Destination)
         return $true
     }
     catch {
-        Write-TidyError -Message ("Failed to rename {0}: {1}" -f $DisplayName, $_.Exception.Message)
+        $errorMessage = if ($lastError) { $lastError } else { $_.Exception.Message }
+        Write-TidyError -Message ("Failed to rename {0}: {1}" -f $DisplayName, $errorMessage)
         return $false
     }
 }

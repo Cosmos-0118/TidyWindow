@@ -198,6 +198,879 @@ packages:
       manager: winget
       command: "winget install --id Fritzing.Fritzing -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
-      summary: Circuit prototyping and PCB layout tool for electronics education.
+      summary: Open-source tool for designing electronics and PCBs.
       homepage: "https://fritzing.org"
-      tags: [electronics]
+      tags: [electronics, design]
+    - id: todoist
+      name: Todoist
+      manager: winget
+      command: "winget install --id Doist.Todoist -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cross-platform task manager and to-do list application.
+      homepage: "https://todoist.com"
+      tags: [productivity, task-management]
+    - id: bitwarden
+      name: Bitwarden
+      manager: winget
+      command: "winget install --id Bitwarden.Bitwarden -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Open-source password manager with secure vault.
+      homepage: "https://bitwarden.com"
+      tags: [security, productivity]
+    - id: clickup
+      name: ClickUp
+      manager: winget
+      command: "winget install --id ClickUp.ClickUp -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: All-in-one productivity platform for tasks, docs, goals, and chat.
+      homepage: "https://clickup.com"
+      tags: [productivity, project-management]
+    - id: anydesk
+      name: AnyDesk
+      manager: winget
+      command: "winget install --id AnyDeskSoftwareGmbH.AnyDesk -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Remote desktop software with high performance.
+      homepage: "https://anydesk.com"
+      tags: [remote-access, productivity]
+    - id: grammarly
+      name: Grammarly Desktop
+      manager: winget
+      command: "winget install --id Grammarly.Grammarly -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Writing assistant for grammar checking and writing enhancement.
+      homepage: "https://www.grammarly.com"
+      tags: [productivity, writing]
+    - id: microsoft-onenote
+      name: Microsoft OneNote
+      manager: winget
+      command: "winget install --id Microsoft.OneNote -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Digital note-taking app for organizing notes and information.
+      homepage: "https://www.microsoft.com/en-us/microsoft-365/onenote"
+      tags: [productivity, notes]
+    - id: evernote
+      name: Evernote
+      manager: winget
+      command: "winget install --id evernote.evernote -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Note-taking application for capturing ideas and organizing information.
+      homepage: "https://evernote.com"
+      tags: [productivity, notes]
+    - id: dropbox
+      name: Dropbox
+      manager: winget
+      command: "winget install --id Dropbox.Dropbox -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cloud storage and file synchronization service.
+      homepage: "https://www.dropbox.com"
+      tags: [cloud-storage, productivity]
+    - id: rescuetime
+      name: RescueTime
+      manager: winget
+      command: "winget install --id RescueTime.RescueTime -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Time tracking and productivity monitoring software.
+      homepage: "https://www.rescuetime.com"
+      tags: [productivity, time-management]
+    - id: workrave
+      name: Workrave
+      manager: choco
+      command: "choco install workrave -y --no-progress"
+      requiresAdmin: true
+      summary: Break reminder for preventing repetitive strain injury.
+      homepage: "https://workrave.org"
+      tags: [productivity, health]
+    - id: microsoft-teams
+      name: Microsoft Teams
+      manager: winget
+      command: "winget install --id Microsoft.Teams -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Communication and collaboration platform with chat and video.
+      homepage: "https://www.microsoft.com/microsoft-teams"
+      tags: [productivity, communication]
+    - id: slack
+      name: Slack
+      manager: winget
+      command: "winget install --id SlackTechnologies.Slack -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Business communication platform with channels and messaging.
+      homepage: "https://slack.com"
+      tags: [productivity, communication]
+    - id: zoom
+      name: Zoom
+      manager: winget
+      command: "winget install --id Zoom.Zoom -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Video conferencing and online meeting platform.
+      homepage: "https://zoom.us"
+      tags: [productivity, communication]
+    - id: focusrite-audio
+      name: Focusrite Control
+      manager: winget
+      command: "winget install --id Focusrite.FocusriteControl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Control software for Focusrite audio interfaces.
+      homepage: "https://focusrite.com"
+      tags: [productivity, audio]
+    - id: trello
+      name: Trello
+      manager: winget
+      command: "winget install --id Atlassian.Trello -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Visual project management tool with Kanban-style boards.
+      homepage: "https://trello.com"
+      tags: [productivity, project-management]
+    - id: clipboardfusion
+      name: ClipboardFusion
+      manager: choco
+      command: "choco install clipboardfusion -y --no-progress"
+      requiresAdmin: true
+      summary: Enhanced clipboard manager with text scrubbing and macros.
+      homepage: "https://www.clipboardfusion.com"
+      tags: [productivity, clipboard]
+    - id: faststone-capture
+      name: FastStone Capture
+      manager: choco
+      command: "choco install faststone-capture -y --no-progress"
+      requiresAdmin: true
+      summary: Screen capture tool with editor and screen recorder.
+      homepage: "https://www.faststone.org/FSCaptureDetail.htm"
+      tags: [productivity, screenshot]
+    - id: calibre
+      name: Calibre
+      manager: winget
+      command: "winget install --id calibre.calibre -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: E-book library management with format conversion and reading features.
+      homepage: "https://calibre-ebook.com"
+      tags: [productivity, ebook]
+    - id: thunderbird
+      name: Mozilla Thunderbird
+      manager: winget
+      command: "winget install --id Mozilla.Thunderbird -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free email client with calendar and chat features.
+      homepage: "https://www.thunderbird.net"
+      tags: [productivity, email]
+    - id: miro
+      name: Miro
+      manager: winget
+      command: "winget install --id Miro.Miro -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Online collaborative whiteboard platform.
+      homepage: "https://miro.com"
+      tags: [productivity, collaboration]
+    - id: screentogif
+      name: ScreenToGif
+      manager: winget
+      command: "winget install --id NickeManarin.ScreenToGif -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Screen, webcam and sketchboard recorder with integrated editor.
+      homepage: "https://www.screentogif.com"
+      tags: [productivity, screenshot]
+    - id: freefilesync
+      name: FreeFileSync
+      manager: winget
+      command: "winget install --id FreeFileSync.FreeFileSync -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Folder comparison and synchronization tool.
+      homepage: "https://freefilesync.org"
+      tags: [productivity, file-management]
+    - id: treesizefree
+      name: TreeSize Free
+      manager: winget
+      command: "winget install --id JAMSoftware.TreeSizeFree -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Disk space analyzer with graphical display of folder sizes.
+      homepage: "https://www.jam-software.com/treesize_free"
+      tags: [productivity, disk-management]
+    - id: typora
+      name: Typora
+      manager: winget
+      command: "winget install --id Typora.Typora -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Markdown editor with live preview and clean interface.
+      homepage: "https://typora.io"
+      tags: [productivity, markdown]
+    - id: cryptomator
+      name: Cryptomator
+      manager: winget
+      command: "winget install --id Cryptomator.Cryptomator -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cloud storage encryption tool for file security.
+      homepage: "https://cryptomator.org"
+      tags: [productivity, security]
+    - id: discord
+      name: Discord
+      manager: winget
+      command: "winget install --id Discord.Discord -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Voice, video, and text communication platform for communities.
+      homepage: "https://discord.com"
+      tags: [communication]
+    - id: skype
+      name: Skype
+      manager: winget
+      command: "winget install --id Microsoft.Skype -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Video calling and messaging application.
+      homepage: "https://www.skype.com"
+      tags: [communication]
+    - id: telegram
+      name: Telegram Desktop
+      manager: winget
+      command: "winget install --id Telegram.TelegramDesktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Secure messaging app with cloud sync and group features.
+      homepage: "https://telegram.org"
+      tags: [communication]
+    - id: whatsapp
+      name: WhatsApp Desktop
+      manager: winget
+      command: "winget install --id WhatsApp.WhatsApp -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cross-platform messaging and voice calling app.
+      homepage: "https://www.whatsapp.com"
+      tags: [communication]
+    - id: signal
+      name: Signal
+      manager: winget
+      command: "winget install --id OpenWhisperSystems.Signal -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Privacy-focused messaging and voice calling app.
+      homepage: "https://signal.org"
+      tags: [communication, privacy]
+    - id: element
+      name: Element
+      manager: winget
+      command: "winget install --id Element.Element -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Secure messaging app built on Matrix protocol.
+      homepage: "https://element.io"
+      tags: [communication, privacy]
+    - id: steam
+      name: Steam
+      manager: winget
+      command: "winget install --id Valve.Steam -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Digital distribution platform for PC gaming.
+      homepage: "https://store.steampowered.com"
+      tags: [gaming]
+    - id: epic-games
+      name: Epic Games Launcher
+      manager: winget
+      command: "winget install --id EpicGames.EpicGamesLauncher -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Digital distribution platform for games and applications.
+      homepage: "https://www.epicgames.com"
+      tags: [gaming]
+    - id: gog-galaxy
+      name: GOG Galaxy
+      manager: winget
+      command: "winget install --id GOG.Galaxy -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Gaming platform for DRM-free games.
+      homepage: "https://www.gog.com/galaxy"
+      tags: [gaming]
+    - id: origin
+      name: EA App
+      manager: winget
+      command: "winget install --id ElectronicArts.EADesktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Electronic Arts gaming platform and store.
+      homepage: "https://www.ea.com"
+      tags: [gaming]
+    - id: ubisoft-connect
+      name: Ubisoft Connect
+      manager: winget
+      command: "winget install --id Ubisoft.Connect -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Ubisoft gaming platform and social network.
+      homepage: "https://connect.ubisoft.com"
+      tags: [gaming]
+    - id: battle-net
+      name: Battle.net
+      manager: winget
+      command: "winget install --id Blizzard.BattleNet -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Blizzard Entertainment gaming platform.
+      homepage: "https://battle.net"
+      tags: [gaming]
+    - id: itch
+      name: itch.io
+      manager: winget
+      command: "winget install --id itchcorp.itch -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Platform for indie games and creative content.
+      homepage: "https://itch.io"
+      tags: [gaming]
+    - id: gimp
+      name: GIMP
+      manager: winget
+      command: "winget install --id GIMP.GIMP -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source raster graphics editor.
+      homepage: "https://www.gimp.org"
+      tags: [graphics, image-editing]
+    - id: inkscape
+      name: Inkscape
+      manager: winget
+      command: "winget install --id Inkscape.Inkscape -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source vector graphics editor.
+      homepage: "https://inkscape.org"
+      tags: [graphics, vector]
+    - id: blender
+      name: Blender
+      manager: winget
+      command: "winget install --id BlenderFoundation.Blender -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source 3D creation suite.
+      homepage: "https://www.blender.org"
+      tags: [3d, animation]
+    - id: audacity
+      name: Audacity
+      manager: winget
+      command: "winget install --id Audacity.Audacity -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source digital audio editor.
+      homepage: "https://www.audacityteam.org"
+      tags: [audio, editing]
+    - id: vlc
+      name: VLC Media Player
+      manager: winget
+      command: "winget install --id VideoLAN.VLC -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source multimedia player.
+      homepage: "https://www.videolan.org"
+      tags: [media, player]
+    - id: kodi
+      name: Kodi
+      manager: winget
+      command: "winget install --id XBMCFoundation.Kodi -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source media center software.
+      homepage: "https://kodi.tv"
+      tags: [media, center]
+    - id: handbrake
+      name: HandBrake
+      manager: winget
+      command: "winget install --id HandBrake.HandBrake -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source video transcoder.
+      homepage: "https://handbrake.fr"
+      tags: [video, transcoding]
+    - id: da Vinci-resolve
+      name: DaVinci Resolve
+      manager: winget
+      command: "winget install --id BlackmagicDesign.DaVinciResolve -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Professional video editing and color correction software.
+      homepage: "https://www.blackmagicdesign.com/products/davinciresolve"
+      tags: [video, editing]
+    - id: shotcut
+      name: Shotcut
+      manager: winget
+      command: "winget install --id Meltytech.Shotcut -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source video editor.
+      homepage: "https://shotcut.org"
+      tags: [video, editing]
+    - id: openshot
+      name: OpenShot
+      manager: winget
+      command: "winget install --id OpenShot.OpenShot -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source video editor.
+      homepage: "https://www.openshot.org"
+      tags: [video, editing]
+    - id: kdenlive
+      name: Kdenlive
+      manager: winget
+      command: "winget install --id KDE.Kdenlive -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source video editor.
+      homepage: "https://kdenlive.org"
+      tags: [video, editing]
+    - id: krita
+      name: Krita
+      manager: winget
+      command: "winget install --id KDE.Krita -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source digital painting application.
+      homepage: "https://krita.org"
+      tags: [graphics, painting]
+    - id: paint-net
+      name: Paint.NET
+      manager: winget
+      command: "winget install --id PaintDotNet.PaintDotNet -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free image and photo editing software.
+      homepage: "https://www.getpaint.net"
+      tags: [graphics, image-editing]
+    - id: paint-3d
+      name: Paint 3D
+      manager: winget
+      command: "winget install --id Microsoft.Paint3D -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: 3D creation and editing application.
+      homepage: "https://www.microsoft.com/paint-3d"
+      tags: [3d, graphics]
+    - id: sketchup
+      name: SketchUp
+      manager: winget
+      command: "winget install --id Trimble.SketchUp -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: 3D modeling software for architecture and design.
+      homepage: "https://www.sketchup.com"
+      tags: [3d, modeling]
+    - id: fusion-360
+      name: Fusion 360
+      manager: winget
+      command: "winget install --id Autodesk.Fusion360 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: 3D CAD, CAM, and CAE software for product design.
+      homepage: "https://www.autodesk.com/products/fusion-360"
+      tags: [3d, cad]
+    - id: tinkercad
+      name: Tinkercad
+      manager: winget
+      command: "winget install --id Autodesk.Tinkercad -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D design, electronics, and coding platform.
+      homepage: "https://www.tinkercad.com"
+      tags: [3d, education]
+    - id: cura
+      name: Ultimaker Cura
+      manager: winget
+      command: "winget install --id Ultimaker.Cura -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D printing software for slicing and preparation.
+      homepage: "https://ultimaker.com/software/ultimaker-cura"
+      tags: [3d, printing]
+    - id: prusaslicer
+      name: PrusaSlicer
+      manager: winget
+      command: "winget install --id Prusa3D.PrusaSlicer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D printing software for slicing and preparation.
+      homepage: "https://www.prusa3d.com/prusaslicer"
+      tags: [3d, printing]
+    - id: meshlab
+      name: MeshLab
+      manager: winget
+      command: "winget install --id MeshLab.MeshLab -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D mesh processing software.
+      homepage: "https://www.meshlab.net"
+      tags: [3d, mesh]
+    - id: opencad
+      name: OpenCAD
+      manager: winget
+      command: "winget install --id OpenCAD.OpenCAD -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source CAD software.
+      homepage: "https://opencad.org"
+      tags: [cad]
+    - id: solve-space
+      name: SolveSpace
+      manager: winget
+      command: "winget install --id SolveSpace.SolveSpace -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D parametric CAD software.
+      homepage: "https://solvespace.com"
+      tags: [cad]
+    - id: librecad
+      name: LibreCAD
+      manager: winget
+      command: "winget install --id LibreCAD.LibreCAD -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 2D CAD software.
+      homepage: "https://librecad.org"
+      tags: [cad]
+    - id: qcad
+      name: QCAD
+      manager: winget
+      command: "winget install --id RibbonSoft.QCAD -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 2D CAD software for technical drawings.
+      homepage: "https://www.qcad.org"
+      tags: [cad]
+    - id: sweet-home-3d
+      name: Sweet Home 3D
+      manager: winget
+      command: "winget install --id SweetHome3D.SweetHome3D -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free interior design and architecture software.
+      homepage: "https://www.sweethome3d.com"
+      tags: [architecture, design]
+    - id: sketchup-viewer
+      name: SketchUp Viewer
+      manager: winget
+      command: "winget install --id Trimble.SketchUpViewer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D model viewer for SketchUp files.
+      homepage: "https://www.sketchup.com"
+      tags: [3d, viewer]
+    - id: meshmixer
+      name: Meshmixer
+      manager: winget
+      command: "winget install --id Autodesk.Meshmixer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D mesh editing and 3D printing preparation software.
+      homepage: "https://www.meshmixer.com"
+      tags: [3d, mesh]
+    - id: netfabb
+      name: Netfabb
+      manager: winget
+      command: "winget install --id Autodesk.Netfabb -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: 3D printing preparation and optimization software.
+      homepage: "https://www.autodesk.com/products/netfabb"
+      tags: [3d, printing]
+    - id: simplify3d
+      name: Simplify3D
+      manager: winget
+      command: "winget install --id Simplify3D.Simplify3D -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Professional 3D printing software with advanced features.
+      homepage: "https://www.simplify3d.com"
+      tags: [3d, printing]
+    - id: mattercontrol
+      name: MatterControl
+      manager: winget
+      command: "winget install --id MatterHackers.MatterControl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D printing software with cloud integration.
+      homepage: "https://www.matterhackers.com/mattercontrol"
+      tags: [3d, printing]
+    - id: repetier-host
+      name: Repetier-Host
+      manager: winget
+      command: "winget install --id Repetier.RepetierHost -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D printing software with multi-printer support.
+      homepage: "https://www.repetier.com"
+      tags: [3d, printing]
+    - id: slic3r
+      name: Slic3r
+      manager: winget
+      command: "winget install --id Slic3r.Slic3r -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D printing software with advanced slicing features.
+      homepage: "https://slic3r.org"
+      tags: [3d, printing]
+    - id: slic3r-prusa
+      name: Slic3r Prusa Edition
+      manager: winget
+      command: "winget install --id Prusa3D.Slic3rPrusaEdition -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Prusa-specific version of Slic3r with enhanced features.
+      homepage: "https://www.prusa3d.com/slic3r-prusa-edition"
+      tags: [3d, printing]
+    - id: octoprint
+      name: OctoPrint
+      manager: winget
+      command: "winget install --id OctoPrint.OctoPrint -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Web interface for 3D printer control and monitoring.
+      homepage: "https://octoprint.org"
+      tags: [3d, printing]
+    - id: pronterface
+      name: Pronterface
+      manager: winget
+      command: "winget install --id Kliment.Pronterface -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D printing software with printer control interface.
+      homepage: "https://www.pronterface.com"
+      tags: [3d, printing]
+    - id: printrun
+      name: Printrun
+      manager: winget
+      command: "winget install --id Printrun.Printrun -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free 3D printing software with G-code support.
+      homepage: "https://github.com/kliment/Printrun"
+      tags: [3d, printing]
+    - id: repetier-server
+      name: Repetier-Server
+      manager: winget
+      command: "winget install --id Repetier.RepetierServer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Web-based 3D printing management software.
+      homepage: "https://www.repetier.com"
+      tags: [3d, printing]
+    - id: astroprint
+      name: AstroPrint
+      manager: winget
+      command: "winget install --id AstroPrint.AstroPrint -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cloud-based 3D printing management platform.
+      homepage: "https://www.astroprint.com"
+      tags: [3d, printing]
+    - id: 3d-printer-os
+      name: 3D Printer OS
+      manager: winget
+      command: "winget install --id 3DPrinterOS.3DPrinterOS -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Cloud-based 3D printing management software.
+      homepage: "https://www.3dprinteros.com"
+      tags: [3d, printing]
+    - id: microsoft-office
+      name: Microsoft Office
+      manager: winget
+      command: "winget install --id Microsoft.Office -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Office productivity suite.
+      homepage: "https://www.microsoft.com/microsoft-365"
+      tags: [office, productivity]
+    - id: microsoft-word
+      name: Microsoft Word
+      manager: winget
+      command: "winget install --id Microsoft.Word -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Word document editor.
+      homepage: "https://www.microsoft.com/microsoft-365/word"
+      tags: [office, word-processing]
+    - id: microsoft-excel
+      name: Microsoft Excel
+      manager: winget
+      command: "winget install --id Microsoft.Excel -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Excel spreadsheet application.
+      homepage: "https://www.microsoft.com/microsoft-365/excel"
+      tags: [office, spreadsheet]
+    - id: microsoft-powerpoint
+      name: Microsoft PowerPoint
+      manager: winget
+      command: "winget install --id Microsoft.PowerPoint -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft PowerPoint presentation software.
+      homepage: "https://www.microsoft.com/microsoft-365/powerpoint"
+      tags: [office, presentation]
+    - id: microsoft-outlook
+      name: Microsoft Outlook
+      manager: winget
+      command: "winget install --id Microsoft.Outlook -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Outlook email and calendar application.
+      homepage: "https://www.microsoft.com/microsoft-365/outlook"
+      tags: [office, email]
+    - id: microsoft-access
+      name: Microsoft Access
+      manager: winget
+      command: "winget install --id Microsoft.Access -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Access database management system.
+      homepage: "https://www.microsoft.com/microsoft-365/access"
+      tags: [office, database]
+    - id: microsoft-publisher
+      name: Microsoft Publisher
+      manager: winget
+      command: "winget install --id Microsoft.Publisher -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Publisher desktop publishing application.
+      homepage: "https://www.microsoft.com/microsoft-365/publisher"
+      tags: [office, publishing]
+    - id: microsoft-project
+      name: Microsoft Project
+      manager: winget
+      command: "winget install --id Microsoft.Project -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Project project management software.
+      homepage: "https://www.microsoft.com/microsoft-365/project"
+      tags: [office, project-management]
+    - id: microsoft-visio
+      name: Microsoft Visio
+      manager: winget
+      command: "winget install --id Microsoft.Visio -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft Visio diagramming and vector graphics application.
+      homepage: "https://www.microsoft.com/microsoft-365/visio"
+      tags: [office, diagramming]
+    - id: microsoft-sharepoint
+      name: Microsoft SharePoint
+      manager: winget
+      command: "winget install --id Microsoft.SharePoint -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft SharePoint collaboration platform.
+      homepage: "https://www.microsoft.com/microsoft-365/sharepoint"
+      tags: [office, collaboration]
+    - id: microsoft-skype
+      name: Microsoft Skype
+      manager: winget
+      command: "winget install --id Microsoft.Skype -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Microsoft Skype video calling and messaging application.
+      homepage: "https://www.skype.com"
+      tags: [office, communication]
+    - id: microsoft-edge
+      name: Microsoft Edge
+      manager: winget
+      command: "winget install --id Microsoft.Edge -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Microsoft Edge web browser.
+      homepage: "https://www.microsoft.com/edge"
+      tags: [office, browser]
+    - id: microsoft-edge-dev
+      name: Microsoft Edge Dev
+      manager: winget
+      command: "winget install --id Microsoft.EdgeDev -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Microsoft Edge Dev Channel for testing new features.
+      homepage: "https://www.microsoft.com/edge"
+      tags: [office, browser]
+    - id: microsoft-edge-beta
+      name: Microsoft Edge Beta
+      manager: winget
+      command: "winget install --id Microsoft.EdgeBeta -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Microsoft Edge Beta Channel for testing new features.
+      homepage: "https://www.microsoft.com/edge"
+      tags: [office, browser]
+    - id: microsoft-edge-canary
+      name: Microsoft Edge Canary
+      manager: winget
+      command: "winget install --id Microsoft.EdgeCanary -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Microsoft Edge Canary Channel for testing new features.
+      homepage: "https://www.microsoft.com/edge"
+      tags: [office, browser]
+    - id: google-chrome
+      name: Google Chrome
+      manager: winget
+      command: "winget install --id Google.Chrome -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, secure, and free web browser.
+      homepage: "https://www.google.com/chrome"
+      tags: [office, browser]
+    - id: google-chrome-beta
+      name: Google Chrome Beta
+      manager: winget
+      command: "winget install --id Google.Chrome.Beta -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Google Chrome Beta Channel for testing new features.
+      homepage: "https://www.google.com/chrome/beta"
+      tags: [office, browser]
+    - id: google-chrome-dev
+      name: Google Chrome Dev
+      manager: winget
+      command: "winget install --id Google.Chrome.Dev -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Google Chrome Dev Channel for testing new features.
+      homepage: "https://www.google.com/chrome/dev"
+      tags: [office, browser]
+    - id: google-chrome-canary
+      name: Google Chrome Canary
+      manager: winget
+      command: "winget install --id Google.Chrome.Canary -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Google Chrome Canary Channel for testing new features.
+      homepage: "https://www.google.com/chrome/canary"
+      tags: [office, browser]
+    - id: mozilla-firefox
+      name: Mozilla Firefox
+      manager: winget
+      command: "winget install --id Mozilla.Firefox -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source web browser.
+      homepage: "https://www.mozilla.org/firefox"
+      tags: [office, browser]
+    - id: mozilla-firefox-beta
+      name: Mozilla Firefox Beta
+      manager: winget
+      command: "winget install --id Mozilla.Firefox.Beta -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Mozilla Firefox Beta Channel for testing new features.
+      homepage: "https://www.mozilla.org/firefox/beta"
+      tags: [office, browser]
+    - id: mozilla-firefox-developer
+      name: Mozilla Firefox Developer
+      manager: winget
+      command: "winget install --id Mozilla.Firefox.Developer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Mozilla Firefox Developer Edition for web developers.
+      homepage: "https://www.mozilla.org/firefox/developer"
+      tags: [office, browser]
+    - id: mozilla-firefox-nightly
+      name: Mozilla Firefox Nightly
+      manager: winget
+      command: "winget install --id Mozilla.Firefox.Nightly -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Mozilla Firefox Nightly Channel for testing new features.
+      homepage: "https://www.mozilla.org/firefox/nightly"
+      tags: [office, browser]
+    - id: opera
+      name: Opera
+      manager: winget
+      command: "winget install --id Opera.Opera -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, secure, and free web browser.
+      homepage: "https://www.opera.com"
+      tags: [office, browser]
+    - id: opera-gx
+      name: Opera GX
+      manager: winget
+      command: "winget install --id Opera.OperaGX -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Gaming browser with built-in gaming features.
+      homepage: "https://www.opera.com/gx"
+      tags: [office, browser]
+    - id: vivaldi
+      name: Vivaldi
+      manager: winget
+      command: "winget install --id VivaldiTechnologies.Vivaldi -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, secure, and free web browser.
+      homepage: "https://vivaldi.com"
+      tags: [office, browser]
+    - id: brave
+      name: Brave
+      manager: winget
+      command: "winget install --id BraveSoftware.BraveBrowser -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, secure, and free web browser with built-in ad blocker.
+      homepage: "https://brave.com"
+      tags: [office, browser]
+    - id: tor-browser
+      name: Tor Browser
+      manager: winget
+      command: "winget install --id TorProject.TorBrowser -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source web browser for anonymous browsing.
+      homepage: "https://www.torproject.org"
+      tags: [office, browser]
+    - id: waterfox
+      name: Waterfox
+      manager: winget
+      command: "winget install --id Waterfox.Waterfox -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, secure, and free web browser based on Firefox.
+      homepage: "https://www.waterfox.net"
+      tags: [office, browser]
+    - id: palemoon
+      name: Pale Moon
+      manager: winget
+      command: "winget install --id PaleMoon.PaleMoon -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, secure, and free web browser based on Firefox.
+      homepage: "https://www.palemoon.org"
+      tags: [office, browser]
+    - id: seamonkey
+      name: SeaMonkey
+      manager: winget
+      command: "winget install --id SeaMonkey.SeaMonkey -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Free and open-source web browser and email client.
+      homepage: "https://www.seamonkey-project.org"
+      tags: [office, browser]
+    - id: chromium
+      name: Chromium
+      manager: winget
+      command: "winget install --id Chromium.Chromium -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Open-source web browser project.
+      homepage: "https://www.chromium.org"
+      tags: [office, browser]
+

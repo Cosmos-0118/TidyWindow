@@ -175,14 +175,6 @@ packages:
       summary: Lightweight JSON processor.
       homepage: "https://stedolan.github.io/jq"
       tags: [cli]
-    - id: vagrant
-      name: HashiCorp Vagrant
-      manager: winget
-      command: "winget install --id Hashicorp.Vagrant -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Build portable development environments.
-      homepage: "https://www.vagrantup.com"
-      tags: [automation]
     - id: minikube
       name: minikube
       manager: winget
@@ -247,14 +239,6 @@ packages:
       summary: Local tooling for the Distributed Application Runtime.
       homepage: "https://dapr.io"
       tags: [microservices]
-    - id: packer
-      name: Packer
-      manager: winget
-      command: "winget install --id Hashicorp.Packer -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Automated machine image building for multiple platforms.
-      homepage: "https://www.packer.io"
-      tags: [devops]
     - id: talosctl
       name: talosctl
       manager: winget
@@ -279,6 +263,14 @@ packages:
       summary: Kubernetes and container management alternative to Docker Desktop.
       homepage: "https://rancherdesktop.io"
       tags: [kubernetes]
+    - id: podman-desktop
+      name: Podman Desktop
+      manager: winget
+      command: "winget install --id RedHat.Podman-Desktop -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Desktop application for managing Podman containers.
+      homepage: "https://podman-desktop.io"
+      tags: [containers, desktop]
     - id: rclone
       name: rclone
       manager: winget
@@ -287,3 +279,220 @@ packages:
       summary: Command-line tool to sync files across local and cloud storage providers.
       homepage: "https://rclone.org"
       tags: [cloud]
+    - id: portainer
+      name: Portainer
+      manager: winget
+      command: "winget install --id Portainer.Portainer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Container management UI for Docker and Kubernetes.
+      homepage: "https://www.portainer.io"
+      tags: [containers, ui]
+    - id: kustomize
+      name: Kustomize
+      manager: winget
+      command: "winget install --id Kubernetes.Kustomize -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Kubernetes native configuration management.
+      homepage: "https://kustomize.io"
+      tags: [kubernetes, configuration]
+    - id: lens
+      name: Lens
+      manager: winget
+      command: "winget install --id Mirantis.Lens -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Kubernetes IDE for managing clusters.
+      homepage: "https://k8slens.dev"
+      tags: [kubernetes, ide]
+    - id: hadolint
+      name: Hadolint
+      manager: winget
+      command: "winget install --id Hadolint.Hadolint -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Dockerfile linter for best practices.
+      homepage: "https://hadolint.github.io/hadolint"
+      tags: [containers, linting]
+    - id: docker-slim
+      name: Docker Slim
+      manager: winget
+      command: "winget install --id DockerSlim.DockerSlim -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Tool for minimizing Docker images.
+      homepage: "https://github.com/docker-slim/docker-slim"
+      tags: [containers, optimization]
+    - id: buildx
+      name: Docker Buildx
+      manager: winget
+      command: "winget install --id Docker.DockerCLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Extended build capabilities for Docker.
+      homepage: "https://docs.docker.com/buildx"
+      tags: [containers, build]
+    - id: kompose
+      name: Kompose
+      manager: winget
+      command: "winget install --id Kubernetes.Kompose -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Tool to convert Docker Compose to Kubernetes.
+      homepage: "https://kompose.io"
+      tags: [kubernetes, migration]
+    - id: tilt
+      name: Tilt
+      manager: winget
+      command: "winget install --id Tilt.Tilt -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Development environment for Kubernetes applications.
+      homepage: "https://tilt.dev"
+      tags: [kubernetes, development]
+    - id: garden
+      name: Garden
+      manager: winget
+      command: "winget install --id Garden.Garden -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Development workflow automation for Kubernetes.
+      homepage: "https://garden.io"
+      tags: [kubernetes, automation]
+    - id: istio
+      name: Istio
+      manager: choco
+      command: "choco install istio -y --no-progress"
+      requiresAdmin: true
+      summary: Service mesh for microservices.
+      homepage: "https://istio.io"
+      tags: [service-mesh, microservices]
+    - id: linkerd
+      name: Linkerd
+      manager: choco
+      command: "choco install linkerd -y --no-progress"
+      requiresAdmin: true
+      summary: Lightweight service mesh for Kubernetes.
+      homepage: "https://linkerd.io"
+      tags: [service-mesh, kubernetes]
+    - id: envoy
+      name: Envoy Proxy
+      manager: choco
+      command: "choco install envoy -y --no-progress"
+      requiresAdmin: true
+      summary: High-performance edge and service proxy.
+      homepage: "https://envoyproxy.io"
+      tags: [proxy, microservices]
+    - id: consul-template
+      name: Consul Template
+      manager: choco
+      command: "choco install consul-template -y --no-progress"
+      requiresAdmin: true
+      summary: Template rendering with Consul data.
+      homepage: "https://github.com/hashicorp/consul-template"
+      tags: [consul, templating]
+    - id: consul-connect
+      name: Consul Connect
+      manager: choco
+      command: "choco install consul-connect -y --no-progress"
+      requiresAdmin: true
+      summary: Service mesh solution from HashiCorp.
+      homepage: "https://www.consul.io/docs/connect"
+      tags: [service-mesh, consul]
+    - id: consul-k8s
+      name: Consul on Kubernetes
+      manager: choco
+      command: "choco install consul-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Consul service mesh for Kubernetes.
+      homepage: "https://www.consul.io/docs/k8s"
+      tags: [consul, kubernetes]
+    - id: vault-k8s
+      name: Vault on Kubernetes
+      manager: choco
+      command: "choco install vault-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Vault secrets management for Kubernetes.
+      homepage: "https://www.vaultproject.io/docs/platform/k8s"
+      tags: [vault, kubernetes]
+    - id: nomad-k8s
+      name: Nomad on Kubernetes
+      manager: choco
+      command: "choco install nomad-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Nomad workload orchestrator for Kubernetes.
+      homepage: "https://www.nomadproject.io/docs/kubernetes"
+      tags: [nomad, kubernetes]
+    - id: waypoint-k8s
+      name: Waypoint on Kubernetes
+      manager: choco
+      command: "choco install waypoint-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Waypoint application delivery for Kubernetes.
+      homepage: "https://www.waypointproject.io/docs/kubernetes"
+      tags: [waypoint, kubernetes]
+    - id: boundary-k8s
+      name: Boundary on Kubernetes
+      manager: choco
+      command: "choco install boundary-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Boundary secure access for Kubernetes.
+      homepage: "https://www.boundaryproject.io/docs/kubernetes"
+      tags: [boundary, kubernetes]
+    - id: terraform-k8s
+      name: Terraform Kubernetes Provider
+      manager: choco
+      command: "choco install terraform-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Terraform provider for Kubernetes.
+      homepage: "https://registry.terraform.io/providers/hashicorp/kubernetes"
+      tags: [terraform, kubernetes]
+    - id: pulumi-k8s
+      name: Pulumi Kubernetes
+      manager: choco
+      command: "choco install pulumi-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Pulumi provider for Kubernetes.
+      homepage: "https://www.pulumi.com/registry/packages/kubernetes"
+      tags: [pulumi, kubernetes]
+    - id: ansible-k8s
+      name: Ansible Kubernetes
+      manager: choco
+      command: "choco install ansible-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Ansible modules for Kubernetes.
+      homepage: "https://docs.ansible.com/ansible/latest/collections/kubernetes/core"
+      tags: [ansible, kubernetes]
+    - id: chef-k8s
+      name: Chef Kubernetes
+      manager: choco
+      command: "choco install chef-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Chef cookbooks for Kubernetes.
+      homepage: "https://supermarket.chef.io/cookbooks/kubernetes"
+      tags: [chef, kubernetes]
+    - id: puppet-k8s
+      name: Puppet Kubernetes
+      manager: choco
+      command: "choco install puppet-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Puppet modules for Kubernetes.
+      homepage: "https://forge.puppet.com/modules/puppetlabs/kubernetes"
+      tags: [puppet, kubernetes]
+    - id: salt-k8s
+      name: Salt Kubernetes
+      manager: choco
+      command: "choco install salt-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: Salt states for Kubernetes.
+      homepage: "https://docs.saltproject.io/en/latest/ref/states/all/salt.states.kubernetes"
+      tags: [salt, kubernetes]
+    - id: gitlab-k8s
+      name: GitLab Kubernetes
+      manager: choco
+      command: "choco install gitlab-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: GitLab integration with Kubernetes.
+      homepage: "https://docs.gitlab.com/ee/user/clusters/kubernetes"
+      tags: [gitlab, kubernetes]
+    - id: github-k8s
+      name: GitHub Kubernetes
+      manager: choco
+      command: "choco install github-k8s -y --no-progress"
+      requiresAdmin: true
+      summary: GitHub Actions for Kubernetes.
+      homepage: "https://github.com/actions/kubernetes"
+      tags: [github, kubernetes]
+

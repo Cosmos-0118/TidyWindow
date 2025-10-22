@@ -43,14 +43,6 @@ packages:
       name: Git LFS
       manager: winget
       command: "winget install --id GitHub.GitLFS -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Large file storage extension for Git.
-      homepage: "https://git-lfs.com"
-      tags: [vcs]
-    - id: vscode
-      name: Visual Studio Code
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudioCode -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Lightweight cross-platform editor.
       homepage: "https://code.visualstudio.com"
@@ -309,3 +301,196 @@ packages:
       summary: Dependency manager for PHP projects.
       homepage: "https://getcomposer.org"
       tags: [php, package-manager]
+    - id: wsl2
+      name: Windows Subsystem for Linux
+      manager: winget
+      command: "winget install --id Microsoft.WindowsSubsystemForLinux -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Windows Subsystem for Linux 2 for running Linux environments.
+      homepage: "https://docs.microsoft.com/windows/wsl"
+      tags: [linux, subsystem]
+    - id: wsl-ubuntu
+      name: Ubuntu on WSL
+      manager: winget
+      command: "winget install --id Canonical.Ubuntu -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Ubuntu Linux distribution for Windows Subsystem for Linux.
+      homepage: "https://ubuntu.com/wsl"
+      tags: [linux, ubuntu]
+    - id: wsl-debian
+      name: Debian on WSL
+      manager: winget
+      command: "winget install --id Debian.Debian -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Debian Linux distribution for Windows Subsystem for Linux.
+      homepage: "https://www.debian.org"
+      tags: [linux, debian]
+    - id: wsl-kali
+      name: Kali Linux on WSL
+      manager: winget
+      command: "winget install --id KaliLinux.Kali -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Kali Linux distribution for penetration testing on WSL.
+      homepage: "https://www.kali.org"
+      tags: [linux, security]
+    - id: hyper-v
+      name: Hyper-V
+      manager: winget
+      command: "winget install --id Microsoft.HyperV -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Windows hypervisor for running virtual machines.
+      homepage: "https://docs.microsoft.com/virtualization/hyper-v"
+      tags: [virtualization, hypervisor]
+    - id: vmware-workstation
+      name: VMware Workstation Pro
+      manager: winget
+      command: "winget install --id VMware.WorkstationPro -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Professional desktop virtualization platform.
+      homepage: "https://www.vmware.com/products/workstation-pro.html"
+      tags: [virtualization, professional]
+    - id: qemu
+      name: QEMU
+      manager: choco
+      command: "choco install qemu -y --no-progress"
+      requiresAdmin: true
+      summary: Generic and open source machine emulator and virtualizer.
+      homepage: "https://www.qemu.org"
+      tags: [virtualization, emulation]
+    - id: multipass
+      name: Multipass
+      manager: winget
+      command: "winget install --id Canonical.Multipass -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Lightweight VM manager for Linux development.
+      homepage: "https://multipass.run"
+      tags: [virtualization, linux]
+    - id: chef-workstation
+      name: Chef Workstation
+      manager: winget
+      command: "winget install --id ChefSoftware.ChefWorkstation -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Chef development environment and tools.
+      homepage: "https://docs.chef.io/workstation"
+      tags: [automation, configuration]
+    - id: puppet-agent
+      name: Puppet Agent
+      manager: winget
+      command: "winget install --id Puppet.PuppetAgent -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Configuration management agent for Puppet.
+      homepage: "https://puppet.com"
+      tags: [automation, configuration]
+    - id: salt-minion
+      name: Salt Minion
+      manager: choco
+      command: "choco install salt-minion -y --no-progress"
+      requiresAdmin: true
+      summary: SaltStack configuration management agent.
+      homepage: "https://docs.saltproject.io"
+      tags: [automation, configuration]
+    - id: cloudformation-cli
+      name: AWS CloudFormation CLI
+      manager: choco
+      command: "choco install aws-cloudformation-cli -y --no-progress"
+      requiresAdmin: true
+      summary: AWS CloudFormation command-line interface.
+      homepage: "https://aws.amazon.com/cloudformation"
+      tags: [iac, aws]
+    - id: cdk
+      name: AWS CDK
+      manager: choco
+      command: "choco install aws-cdk -y --no-progress"
+      requiresAdmin: true
+      summary: AWS Cloud Development Kit for defining cloud infrastructure.
+      homepage: "https://aws.amazon.com/cdk"
+      tags: [iac, aws]
+    - id: windows-subsystem-for-linux
+      name: Windows Subsystem for Linux
+      manager: winget
+      command: "winget install --id Microsoft.WindowsSubsystemForLinux -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Windows Subsystem for Linux 2 for running Linux environments.
+      homepage: "https://docs.microsoft.com/windows/wsl"
+      tags: [linux, subsystem]
+    - id: powershell-7
+      name: PowerShell 7
+      manager: winget
+      command: "winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Cross-platform automation shell.
+      homepage: "https://learn.microsoft.com/powershell"
+      tags: [shell, automation]
+    - id: git-for-windows
+      name: Git for Windows
+      manager: winget
+      command: "winget install --id Git.Git -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Distributed version control system.
+      homepage: "https://git-scm.com"
+      tags: [vcs, git]
+    - id: gitlab-cli
+      name: GitLab CLI
+      manager: winget
+      command: "winget install --id GitLab.GitLabCLI -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line interface for GitLab automation and workflows.
+      homepage: "https://gitlab.com/gitlab-org/cli"
+      tags: [cli, gitlab]
+    - id: google-cloud-cli
+      name: Google Cloud CLI
+      manager: winget
+      command: "winget install --id Google.CloudSDK -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Command-line interface for Google Cloud Platform.
+      homepage: "https://cloud.google.com/sdk"
+      tags: [cli, gcp]
+    - id: kubernetes-cli
+      name: Kubernetes CLI
+      manager: winget
+      command: "winget install --id Kubernetes.kubectl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Command-line tool for controlling Kubernetes clusters.
+      homepage: "https://kubernetes.io/docs/reference/kubectl"
+      tags: [cli, kubernetes]
+    - id: ansible-cli
+      name: Ansible CLI
+      manager: winget
+      command: "winget install --id RedHat.Ansible -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Automation platform for configuration management.
+      homepage: "https://www.ansible.com"
+      tags: [cli, automation]
+    - id: vagrant-cli
+      name: Vagrant CLI
+      manager: winget
+      command: "winget install --id Hashicorp.Vagrant -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Tool for building and managing virtual machine environments.
+      homepage: "https://www.vagrantup.com"
+      tags: [cli, virtualization]
+    - id: packer-cli
+      name: Packer CLI
+      manager: winget
+      command: "winget install --id Hashicorp.Packer -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Tool for creating machine images for multiple platforms.
+      homepage: "https://www.packer.io"
+      tags: [cli, virtualization]
+    - id: consul-cli
+      name: Consul CLI
+      manager: winget
+      command: "winget install --id Hashicorp.Consul -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Service mesh and service discovery platform.
+      homepage: "https://www.consul.io"
+      tags: [cli, service-mesh]
+    - id: vault-cli
+      name: Vault CLI
+      manager: winget
+      command: "winget install --id Hashicorp.Vault -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Secrets management and data protection platform.
+      homepage: "https://www.vaultproject.io"
+      tags: [cli, secrets]
+

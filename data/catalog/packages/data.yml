@@ -207,3 +207,292 @@ packages:
       summary: Visual tool to create, design, and edit SQLite databases.
       homepage: "https://sqlitebrowser.org"
       tags: [database]
+    - id: mysql-workbench
+      name: MySQL Workbench
+      manager: winget
+      command: "winget install --id Oracle.MySQLWorkbench -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Visual database design and administration tool for MySQL.
+      homepage: "https://www.mysql.com/products/workbench"
+      tags: [database, mysql]
+    - id: phpmyadmin
+      name: phpMyAdmin
+      manager: choco
+      command: "choco install phpmyadmin -y --no-progress"
+      requiresAdmin: true
+      summary: Web-based MySQL administration tool.
+      homepage: "https://www.phpmyadmin.net"
+      tags: [database, mysql, web]
+    - id: adminer
+      name: Adminer
+      manager: choco
+      command: "choco install adminer -y --no-progress"
+      requiresAdmin: true
+      summary: Single-file database management tool.
+      homepage: "https://www.adminer.org"
+      tags: [database, web]
+    - id: sequel-pro
+      name: Sequel Pro
+      manager: winget
+      command: "winget install --id SequelPro.SequelPro -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Native Mac database management application for MySQL.
+      homepage: "https://sequelpro.com"
+      tags: [database, mysql]
+    - id: navicat
+      name: Navicat
+      manager: winget
+      command: "winget install --id PremiumSoft.NavicatPremium -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Multi-database management and development tool.
+      homepage: "https://www.navicat.com"
+      tags: [database, professional]
+    - id: datagrip
+      name: DataGrip
+      manager: winget
+      command: "winget install --id JetBrains.DataGrip -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Cross-platform database IDE by JetBrains.
+      homepage: "https://www.jetbrains.com/datagrip"
+      tags: [database, ide]
+    - id: dbeaver-ce
+      name: DBeaver Community Edition
+      manager: winget
+      command: "winget install --id DBeaverCorp.DBeaverCommunity -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Universal database tool and SQL client.
+      homepage: "https://dbeaver.io"
+      tags: [database, universal]
+    - id: redis-commander
+      name: Redis Commander
+      manager: choco
+      command: "choco install redis-commander -y --no-progress"
+      requiresAdmin: true
+      summary: Web-based Redis management interface.
+      homepage: "https://github.com/joeferner/redis-commander"
+      tags: [database, redis, web]
+    - id: redis-insight
+      name: RedisInsight
+      manager: winget
+      command: "winget install --id Redis.RedisInsight -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: GUI for Redis data visualization and management.
+      homepage: "https://redis.com/redis-enterprise/redis-insight"
+      tags: [database, redis, gui]
+    - id: studio-3t
+      name: Studio 3T
+      manager: winget
+      command: "winget install --id Studio3T.Studio3T -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Professional MongoDB IDE and client.
+      homepage: "https://studio3t.com"
+      tags: [database, mongodb, professional]
+    - id: robo-3t
+      name: Robo 3T
+      manager: winget
+      command: "winget install --id Robo3T.Robo3T -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Lightweight MongoDB management tool.
+      homepage: "https://robomongo.org"
+      tags: [database, mongodb, lightweight]
+    - id: elasticsearch
+      name: Elasticsearch
+      manager: choco
+      command: "choco install elasticsearch -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed search and analytics engine.
+      homepage: "https://www.elastic.co/elasticsearch"
+      tags: [database, search, analytics]
+    - id: kibana
+      name: Kibana
+      manager: choco
+      command: "choco install kibana -y --no-progress"
+      requiresAdmin: true
+      summary: Data visualization and exploration platform for Elasticsearch.
+      homepage: "https://www.elastic.co/kibana"
+      tags: [database, visualization, elasticsearch]
+    - id: logstash
+      name: Logstash
+      manager: choco
+      command: "choco install logstash -y --no-progress"
+      requiresAdmin: true
+      summary: Data processing pipeline for Elasticsearch.
+      homepage: "https://www.elastic.co/logstash"
+      tags: [database, processing, elasticsearch]
+    - id: apache-cassandra
+      name: Apache Cassandra
+      manager: choco
+      command: "choco install cassandra -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed NoSQL database for handling large amounts of data.
+      homepage: "https://cassandra.apache.org"
+      tags: [database, nosql, distributed]
+    - id: apache-hbase
+      name: Apache HBase
+      manager: choco
+      command: "choco install hbase -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed, scalable, big data store.
+      homepage: "https://hbase.apache.org"
+      tags: [database, bigdata, distributed]
+    - id: apache-kafka
+      name: Apache Kafka
+      manager: choco
+      command: "choco install kafka -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed event streaming platform.
+      homepage: "https://kafka.apache.org"
+      tags: [database, streaming, distributed]
+    - id: apache-spark
+      name: Apache Spark
+      manager: choco
+      command: "choco install spark -y --no-progress"
+      requiresAdmin: true
+      summary: Unified analytics engine for large-scale data processing.
+      homepage: "https://spark.apache.org"
+      tags: [bigdata, analytics]
+    - id: apache-hadoop
+      name: Apache Hadoop
+      manager: choco
+      command: "choco install hadoop -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed storage and processing framework.
+      homepage: "https://hadoop.apache.org"
+      tags: [bigdata, distributed]
+    - id: apache-hive
+      name: Apache Hive
+      manager: choco
+      command: "choco install hive -y --no-progress"
+      requiresAdmin: true
+      summary: Data warehouse software for querying and managing large datasets.
+      homepage: "https://hive.apache.org"
+      tags: [bigdata, warehouse]
+    - id: apache-pig
+      name: Apache Pig
+      manager: choco
+      command: "choco install pig -y --no-progress"
+      requiresAdmin: true
+      summary: Platform for analyzing large datasets using high-level language.
+      homepage: "https://pig.apache.org"
+      tags: [bigdata, analytics]
+    - id: apache-zeppelin
+      name: Apache Zeppelin
+      manager: choco
+      command: "choco install zeppelin -y --no-progress"
+      requiresAdmin: true
+      summary: Web-based notebook for interactive data analytics.
+      homepage: "https://zeppelin.apache.org"
+      tags: [notebook, analytics]
+    - id: apache-airflow
+      name: Apache Airflow
+      manager: choco
+      command: "choco install airflow -y --no-progress"
+      requiresAdmin: true
+      summary: Platform to programmatically author, schedule, and monitor workflows.
+      homepage: "https://airflow.apache.org"
+      tags: [workflow, automation]
+    - id: apache-beam
+      name: Apache Beam
+      manager: choco
+      command: "choco install beam -y --no-progress"
+      requiresAdmin: true
+      summary: Unified programming model for batch and streaming data processing.
+      homepage: "https://beam.apache.org"
+      tags: [bigdata, streaming]
+    - id: apache-flink
+      name: Apache Flink
+      manager: choco
+      command: "choco install flink -y --no-progress"
+      requiresAdmin: true
+      summary: Stream processing framework for real-time analytics.
+      homepage: "https://flink.apache.org"
+      tags: [streaming, analytics]
+    - id: apache-storm
+      name: Apache Storm
+      manager: choco
+      command: "choco install storm -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed real-time computation system.
+      homepage: "https://storm.apache.org"
+      tags: [streaming, real-time]
+    - id: apache-drill
+      name: Apache Drill
+      manager: choco
+      command: "choco install drill -y --no-progress"
+      requiresAdmin: true
+      summary: Schema-free SQL query engine for Big Data.
+      homepage: "https://drill.apache.org"
+      tags: [bigdata, sql]
+    - id: apache-impala
+      name: Apache Impala
+      manager: choco
+      command: "choco install impala -y --no-progress"
+      requiresAdmin: true
+      summary: High-performance SQL query engine for Hadoop.
+      homepage: "https://impala.apache.org"
+      tags: [bigdata, sql]
+    - id: apache-kudu
+      name: Apache Kudu
+      manager: choco
+      command: "choco install kudu -y --no-progress"
+      requiresAdmin: true
+      summary: Columnar storage engine for fast analytics on fast data.
+      homepage: "https://kudu.apache.org"
+      tags: [bigdata, storage]
+    - id: apache-phoenix
+      name: Apache Phoenix
+      manager: choco
+      command: "choco install phoenix -y --no-progress"
+      requiresAdmin: true
+      summary: SQL skin over HBase for low latency queries.
+      homepage: "https://phoenix.apache.org"
+      tags: [bigdata, sql]
+    - id: apache-solr
+      name: Apache Solr
+      manager: choco
+      command: "choco install solr -y --no-progress"
+      requiresAdmin: true
+      summary: Open source enterprise search platform.
+      homepage: "https://solr.apache.org"
+      tags: [search, enterprise]
+    - id: apache-lucene
+      name: Apache Lucene
+      manager: choco
+      command: "choco install lucene -y --no-progress"
+      requiresAdmin: true
+      summary: High-performance, full-featured text search engine library.
+      homepage: "https://lucene.apache.org"
+      tags: [search, library]
+    - id: apache-nifi
+      name: Apache NiFi
+      manager: choco
+      command: "choco install nifi -y --no-progress"
+      requiresAdmin: true
+      summary: Data flow system for managing data movement between systems.
+      homepage: "https://nifi.apache.org"
+      tags: [dataflow, integration]
+    - id: apache-superset
+      name: Apache Superset
+      manager: choco
+      command: "choco install superset -y --no-progress"
+      requiresAdmin: true
+      summary: Modern data exploration and visualization platform.
+      homepage: "https://superset.apache.org"
+      tags: [visualization, bi]
+    - id: apache-atlas
+      name: Apache Atlas
+      manager: choco
+      command: "choco install atlas -y --no-progress"
+      requiresAdmin: true
+      summary: Data governance and metadata framework for Hadoop.
+      homepage: "https://atlas.apache.org"
+      tags: [governance, metadata]
+    - id: apache-ranger
+      name: Apache Ranger
+      manager: choco
+      command: "choco install ranger -y --no-progress"
+      requiresAdmin: true
+      summary: Framework to enable, monitor and manage comprehensive data security.
+      homepage: "https://ranger.apache.org"
+      tags: [security, governance]
+

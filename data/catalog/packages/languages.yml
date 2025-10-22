@@ -23,14 +23,6 @@ packages:
       summary: Standalone Kotlin compiler for JVM and multiplatform projects.
       homepage: "https://kotlinlang.org"
       tags: [runtime, kotlin]
-    - id: lua
-      name: Lua
-      manager: choco
-      command: "choco install lua -y --no-progress"
-      requiresAdmin: true
-      summary: Lightweight scripting language runtime.
-      homepage: "https://www.lua.org"
-      tags: [runtime, lua]
     - id: luarocks
       name: LuaRocks
       manager: choco
@@ -39,22 +31,6 @@ packages:
       summary: Package manager for Lua modules.
       homepage: "https://luarocks.org"
       tags: [lua, package-manager]
-    - id: elixir
-      name: Elixir
-      manager: choco
-      command: "choco install elixir -y --no-progress"
-      requiresAdmin: true
-      summary: Functional language for scalable applications built on the Erlang VM.
-      homepage: "https://elixir-lang.org"
-      tags: [runtime, beam]
-    - id: erlang
-      name: Erlang/OTP
-      manager: choco
-      command: "choco install erlang -y --no-progress"
-      requiresAdmin: true
-      summary: Erlang runtime system and toolchain for BEAM-based languages.
-      homepage: "https://www.erlang.org"
-      tags: [runtime, beam]
     - id: ghcup
       name: GHCup
       manager: scoop
@@ -79,3 +55,462 @@ packages:
       summary: Statistical computing language popular for analytics and research.
       homepage: "https://www.r-project.org"
       tags: [runtime, data]
+    - id: go
+      name: Go Language
+      manager: winget
+      command: "winget install --id GoLang.Go -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Open source programming language designed for building simple, fast, reliable software.
+      homepage: "https://golang.org"
+      tags: [runtime, go]
+    - id: python
+      name: Python
+      manager: winget
+      command: "winget install --id Python.Python.3.11 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Interpreted high-level programming language with dynamic semantics.
+      homepage: "https://www.python.org"
+      tags: [runtime, python]
+    - id: node-lts
+      name: Node.js LTS
+      manager: winget
+      command: "winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: JavaScript runtime built on Chrome's V8 JavaScript engine (LTS version).
+      homepage: "https://nodejs.org"
+      tags: [runtime, javascript]
+    - id: openjdk
+      name: OpenJDK
+      manager: winget
+      command: "winget install --id EclipseAdoptium.Temurin.17.JDK -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Open-source implementation of the Java Platform, Standard Edition.
+      homepage: "https://adoptium.net"
+      tags: [runtime, java]
+    - id: dotnet-sdk
+      name: .NET SDK
+      manager: winget
+      command: "winget install --id Microsoft.DotNet.SDK.7 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Tools, libraries, and frameworks for developing .NET applications.
+      homepage: "https://dotnet.microsoft.com"
+      tags: [runtime, dotnet, csharp]
+    - id: dart-sdk
+      name: Dart SDK
+      manager: winget
+      command: "winget install --id Dart.Dart -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: SDK for the Dart programming language used for Flutter development.
+      homepage: "https://dart.dev"
+      tags: [runtime, dart]
+    - id: flutter
+      name: Flutter SDK
+      manager: winget
+      command: "winget install --id Google.Flutter -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: UI toolkit for building natively compiled applications from a single codebase.
+      homepage: "https://flutter.dev"
+      tags: [sdk, dart]
+    - id: swiftforwindows
+      name: Swift for Windows
+      manager: scoop
+      command: "scoop install swift"
+      requiresAdmin: false
+      buckets:
+          - extras
+      summary: Swift programming language support for Windows.
+      homepage: "https://swift.org"
+      tags: [runtime, swift]
+    - id: ghc
+      name: Glasgow Haskell Compiler
+      manager: choco
+      command: "choco install ghc -y --no-progress"
+      requiresAdmin: true
+      summary: Compiler and interactive environment for Haskell.
+      homepage: "https://www.haskell.org/ghc/"
+      tags: [runtime, haskell]
+    - id: racket
+      name: Racket
+      manager: choco
+      command: "choco install racket -y --no-progress"
+      requiresAdmin: true
+      summary: Programming language and ecosystem for language-oriented programming.
+      homepage: "https://racket-lang.org"
+      tags: [runtime, lisp]
+    - id: coq
+      name: Coq
+      manager: choco
+      command: "choco install coq -y --no-progress"
+      requiresAdmin: true
+      summary: Formal proof management system for interactive theorem proving.
+      homepage: "https://coq.inria.fr"
+      tags: [runtime, proof-assistant]
+    - id: scheme
+      name: MIT/GNU Scheme
+      manager: choco
+      command: "choco install mit-scheme -y --no-progress"
+      requiresAdmin: true
+      summary: Implementation of the Scheme programming language.
+      homepage: "https://www.gnu.org/software/mit-scheme"
+      tags: [runtime, scheme]
+    - id: powershell-core
+      name: PowerShell Core
+      manager: winget
+      command: "winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Cross-platform automation and configuration tool/framework.
+      homepage: "https://github.com/PowerShell/PowerShell"
+      tags: [runtime, powershell]
+    - id: f-sharp
+      name: F# Compiler
+      manager: winget
+      command: "winget install --id Microsoft.FSharp -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Functional-first programming language for .NET ecosystem.
+      homepage: "https://fsharp.org"
+      tags: [runtime, fsharp]
+    - id: gcc
+      name: MinGW-w64 GCC
+      manager: scoop
+      command: "scoop install mingw"
+      requiresAdmin: false
+      summary: Minimalist GNU for Windows with GCC toolchain.
+      homepage: "https://www.mingw-w64.org"
+      tags: [compiler, c, cpp]
+    - id: clang
+      name: Clang
+      manager: winget
+      command: "winget install --id LLVM.LLVM -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: C/C++ compiler based on LLVM infrastructure.
+      homepage: "https://clang.llvm.org"
+      tags: [compiler, c, cpp]
+    - id: msvc
+      name: Microsoft Visual C++ Build Tools
+      manager: winget
+      command: "winget install --id Microsoft.VisualStudio.2022.BuildTools -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Microsoft C++ compiler and build tools.
+      homepage: "https://visualstudio.microsoft.com/vs/features/cplusplus"
+      tags: [compiler, c, cpp, microsoft]
+    - id: intel-c-compiler
+      name: Intel C++ Compiler
+      manager: winget
+      command: "winget install --id Intel.IntelCCompiler -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: High-performance C++ compiler from Intel.
+      homepage: "https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html"
+      tags: [compiler, c, cpp, intel]
+    - id: tcc
+      name: Tiny C Compiler
+      manager: choco
+      command: "choco install tcc -y --no-progress"
+      requiresAdmin: true
+      summary: Small and fast C compiler.
+      homepage: "https://bellard.org/tcc"
+      tags: [compiler, c]
+    - id: pcc
+      name: Portable C Compiler
+      manager: choco
+      command: "choco install pcc -y --no-progress"
+      requiresAdmin: true
+      summary: Portable C compiler for multiple platforms.
+      homepage: "http://pcc.ludd.ltu.se"
+      tags: [compiler, c]
+    - id: swift
+      name: Swift
+      manager: winget
+      command: "winget install --id Swift.Swift -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Apple's programming language for iOS, macOS, and Linux.
+      homepage: "https://swift.org"
+      tags: [compiler, swift]
+    - id: kotlin
+      name: Kotlin
+      manager: choco
+      command: "choco install kotlin -y --no-progress"
+      requiresAdmin: true
+      summary: Statically typed programming language for JVM, Android, and multiplatform.
+      homepage: "https://kotlinlang.org"
+      tags: [compiler, kotlin]
+    - id: scala
+      name: Scala
+      manager: choco
+      command: "choco install scala -y --no-progress"
+      requiresAdmin: true
+      summary: Object-oriented and functional programming language for JVM.
+      homepage: "https://www.scala-lang.org"
+      tags: [compiler, scala]
+    - id: clojure
+      name: Clojure
+      manager: choco
+      command: "choco install clojure -y --no-progress"
+      requiresAdmin: true
+      summary: Dynamic functional programming language for JVM.
+      homepage: "https://clojure.org"
+      tags: [compiler, clojure]
+    - id: groovy
+      name: Groovy
+      manager: choco
+      command: "choco install groovy -y --no-progress"
+      requiresAdmin: true
+      summary: Dynamic programming language for JVM with Java-like syntax.
+      homepage: "https://groovy-lang.org"
+      tags: [compiler, groovy]
+    - id: ceylon
+      name: Ceylon
+      manager: choco
+      command: "choco install ceylon -y --no-progress"
+      requiresAdmin: true
+      summary: Object-oriented programming language for JVM and JavaScript.
+      homepage: "https://ceylon-lang.org"
+      tags: [compiler, ceylon]
+    - id: frege
+      name: Frege
+      manager: choco
+      command: "choco install frege -y --no-progress"
+      requiresAdmin: true
+      summary: Functional programming language for JVM inspired by Haskell.
+      homepage: "https://github.com/Frege/frege"
+      tags: [compiler, frege]
+    - id: xtend
+      name: Xtend
+      manager: choco
+      command: "choco install xtend -y --no-progress"
+      requiresAdmin: true
+      summary: Programming language for JVM with Java interoperability.
+      homepage: "https://www.eclipse.org/xtend"
+      tags: [compiler, xtend]
+    - id: kotlin-native
+      name: Kotlin/Native
+      manager: choco
+      command: "choco install kotlin-native -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin compiler for native platforms.
+      homepage: "https://kotlinlang.org/docs/native-overview.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-js
+      name: Kotlin/JS
+      manager: choco
+      command: "choco install kotlin-js -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin compiler for JavaScript.
+      homepage: "https://kotlinlang.org/docs/js-overview.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-multiplatform
+      name: Kotlin Multiplatform
+      manager: choco
+      command: "choco install kotlin-multiplatform -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin Multiplatform Mobile for cross-platform development.
+      homepage: "https://kotlinlang.org/docs/multiplatform.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-android
+      name: Kotlin for Android
+      manager: choco
+      command: "choco install kotlin-android -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin compiler for Android development.
+      homepage: "https://kotlinlang.org/docs/android-overview.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-jvm
+      name: Kotlin/JVM
+      manager: choco
+      command: "choco install kotlin-jvm -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin compiler for JVM platforms.
+      homepage: "https://kotlinlang.org/docs/jvm-overview.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-common
+      name: Kotlin Common
+      manager: choco
+      command: "choco install kotlin-common -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin common library for multiplatform projects.
+      homepage: "https://kotlinlang.org/docs/multiplatform.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-stdlib
+      name: Kotlin Standard Library
+      manager: choco
+      command: "choco install kotlin-stdlib -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin standard library for all platforms.
+      homepage: "https://kotlinlang.org/docs/basic-types.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-coroutines
+      name: Kotlin Coroutines
+      manager: choco
+      command: "choco install kotlin-coroutines -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin coroutines library for asynchronous programming.
+      homepage: "https://kotlinlang.org/docs/coroutines-overview.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-serialization
+      name: Kotlin Serialization
+      manager: choco
+      command: "choco install kotlin-serialization -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin serialization library for multiplatform projects.
+      homepage: "https://kotlinlang.org/docs/serialization.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-test
+      name: Kotlin Test
+      manager: choco
+      command: "choco install kotlin-test -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin testing framework for multiplatform projects.
+      homepage: "https://kotlinlang.org/docs/multiplatform-test.html"
+      tags: [compiler, kotlin]
+    - id: kotlin-reflect
+      name: Kotlin Reflection
+      manager: choco
+      command: "choco install kotlin-reflect -y --no-progress"
+      requiresAdmin: true
+      summary: Kotlin reflection library for runtime introspection.
+      homepage: "https://kotlinlang.org/docs/reflection.html"
+      tags: [compiler, kotlin]
+    - id: rust
+      name: Rust
+      manager: winget
+      command: "winget install --id Rustlang.Rust.MSVC -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Systems programming language focused on safety and performance.
+      homepage: "https://www.rust-lang.org"
+      tags: [compiler, systems]
+    - id: rustup
+      name: Rustup
+      manager: winget
+      command: "winget install --id Rustlang.Rustup -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Rust toolchain installer and version manager.
+      homepage: "https://rustup.rs"
+      tags: [compiler, rust]
+    - id: cargo
+      name: Cargo
+      manager: winget
+      command: "winget install --id Rustlang.Cargo -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Rust package manager and build system.
+      homepage: "https://doc.rust-lang.org/cargo"
+      tags: [compiler, rust]
+    - id: zig
+      name: Zig
+      manager: winget
+      command: "winget install --id Zig.Zig -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: General-purpose programming language and toolchain.
+      homepage: "https://ziglang.org"
+      tags: [compiler, systems]
+    - id: nim
+      name: Nim
+      manager: winget
+      command: "winget install --id Nim.Nim -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Statically typed compiled systems programming language.
+      homepage: "https://nim-lang.org"
+      tags: [compiler, systems]
+    - id: crystal
+      name: Crystal
+      manager: winget
+      command: "winget install --id Crystal.Crystal -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Fast, statically typed compiled language with Ruby-like syntax.
+      homepage: "https://crystal-lang.org"
+      tags: [compiler, systems]
+    - id: v
+      name: V
+      manager: winget
+      command: "winget install --id V.V -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Simple, fast, safe, compiled language for developing maintainable software.
+      homepage: "https://vlang.io"
+      tags: [compiler, systems]
+    - id: ocaml
+      name: OCaml
+      manager: winget
+      command: "winget install --id OCaml.OCaml -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Functional programming language with object-oriented features.
+      homepage: "https://ocaml.org"
+      tags: [compiler, functional]
+    - id: fsharp
+      name: F#
+      manager: winget
+      command: "winget install --id Microsoft.FSharp -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Functional programming language for .NET.
+      homepage: "https://fsharp.org"
+      tags: [compiler, functional]
+    - id: haskell
+      name: Haskell
+      manager: winget
+      command: "winget install --id Haskell.Haskell -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Purely functional programming language.
+      homepage: "https://www.haskell.org"
+      tags: [compiler, functional]
+    - id: elixir
+      name: Elixir
+      manager: winget
+      command: "winget install --id Elixir.Elixir -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Dynamic, functional language for building maintainable applications.
+      homepage: "https://elixir-lang.org"
+      tags: [compiler, functional]
+    - id: erlang
+      name: Erlang
+      manager: winget
+      command: "winget install --id Erlang.OTP -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Programming language and runtime system for building massively scalable soft real-time systems.
+      homepage: "https://www.erlang.org"
+      tags: [compiler, functional]
+    - id: lua
+      name: Lua
+      manager: winget
+      command: "winget install --id Lua.Lua -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Lightweight, embeddable scripting language.
+      homepage: "https://www.lua.org"
+      tags: [compiler, scripting]
+    - id: lua-jit
+      name: LuaJIT
+      manager: winget
+      command: "winget install --id LuaJIT.LuaJIT -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Just-in-time compiler for Lua programming language.
+      homepage: "https://luajit.org"
+      tags: [compiler, scripting]
+    - id: lua-rocks
+      name: LuaRocks
+      manager: winget
+      command: "winget install --id LuaRocks.LuaRocks -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Package manager for Lua modules.
+      homepage: "https://luarocks.org"
+      tags: [compiler, lua]
+    - id: perl
+      name: Perl
+      manager: winget
+      command: "winget install --id Perl.Perl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: High-level, general-purpose, interpreted, dynamic programming language.
+      homepage: "https://www.perl.org"
+      tags: [compiler, scripting]
+    - id: raku
+      name: Raku
+      manager: winget
+      command: "winget install --id Raku.Raku -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Multi-paradigm programming language, formerly known as Perl 6.
+      homepage: "https://raku.org"
+      tags: [compiler, scripting]
+    - id: tcl
+      name: Tcl
+      manager: winget
+      command: "winget install --id Tcl.Tcl -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: High-level, general-purpose, interpreted, dynamic programming language.
+      homepage: "https://www.tcl.tk"
+      tags: [compiler, scripting]
+

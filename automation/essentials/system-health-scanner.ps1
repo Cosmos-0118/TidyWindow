@@ -2,6 +2,7 @@ param(
     [switch] $SkipSfc,
     [switch] $SkipDism,
     [switch] $RunRestoreHealth,
+    [switch] $SkipRestoreHealth,
     [switch] $ComponentCleanup,
     [switch] $AnalyzeComponentStore,
     [string] $ResultPath
@@ -120,6 +121,14 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+$shouldRunRestoreHealth = $true
+if ($PSBoundParameters.ContainsKey('RunRestoreHealth')) {
+    $shouldRunRestoreHealth = $RunRestoreHealth.IsPresent
+}
+elseif ($SkipRestoreHealth.IsPresent) {
+    $shouldRunRestoreHealth = $false
+}
+
 try {
     if (-not (Test-TidyAdmin)) {
         throw 'System health scan requires an elevated PowerShell session. Restart as administrator.'
@@ -142,12 +151,12 @@ try {
         Write-TidyOutput -Message 'Scanning Windows component store for corruption.'
         Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /ScanHealth } -Description 'DISM ScanHealth' -RequireSuccess | Out-Null
 
-        if ($RunRestoreHealth.IsPresent) {
+        if ($shouldRunRestoreHealth) {
             Write-TidyOutput -Message 'Repairing Windows component store corruption (RestoreHealth).'
             Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /RestoreHealth } -Description 'DISM RestoreHealth' -RequireSuccess | Out-Null
         }
         else {
-            Write-TidyOutput -Message 'Skipping RestoreHealth. Re-run with -RunRestoreHealth to attempt repairs.'
+            Write-TidyOutput -Message 'Skipping RestoreHealth per operator request.'
         }
 
         if ($ComponentCleanup.IsPresent) {

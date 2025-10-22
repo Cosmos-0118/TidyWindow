@@ -164,32 +164,55 @@ function Resolve-VolumePath {
 function Get-SmartStatus {
     $results = @()
 
-    try {
-        $statusEntries = Get-WmiObject -Namespace 'root/wmi' -Class 'MSStorageDriver_FailurePredictStatus' -ErrorAction Stop
-        foreach ($entry in @($statusEntries)) {
-            $results += [pscustomobject]@{
-                DevicePath = $entry.InstanceName
-                PredictFailure = [bool]$entry.PredictFailure
-                Reason         = $entry.Reason
-            }
-        }
+    $statusProvider = $null
+    if (Get-Command -Name Get-CimInstance -ErrorAction SilentlyContinue) {
+        $statusProvider = { Get-CimInstance -Namespace 'root/wmi' -ClassName 'MSStorageDriver_FailurePredictStatus' -ErrorAction Stop }
     }
-    catch {
-        Write-TidyLog -Level Warning -Message ("SMART status via MSStorageDriver_FailurePredictStatus failed. {0}" -f $_.Exception.Message)
+    elseif (Get-Command -Name Get-WmiObject -ErrorAction SilentlyContinue) {
+        $statusProvider = { Get-WmiObject -Namespace 'root/wmi' -Class 'MSStorageDriver_FailurePredictStatus' -ErrorAction Stop }
     }
 
-    try {
-        $detailEntries = Get-WmiObject -Namespace 'root/microsoft/windows/storage' -Class 'MSFT_PhysicalDisk' -ErrorAction Stop
-        foreach ($detail in @($detailEntries)) {
-            $results += [pscustomobject]@{
-                DevicePath    = $detail.FriendlyName
-                PredictFailure = $detail.HealthStatus -ne 0
-                Reason         = "HealthStatus=$($detail.HealthStatus); OperationalStatus=$($detail.OperationalStatus -join ',')"
+    if ($null -ne $statusProvider) {
+        try {
+            $statusEntries = & $statusProvider
+            foreach ($entry in @($statusEntries)) {
+                $results += [pscustomobject]@{
+                    DevicePath    = $entry.InstanceName
+                    PredictFailure = [bool]$entry.PredictFailure
+                    Reason         = $entry.Reason
+                }
             }
         }
+        catch {
+            Write-TidyOutput -Message ("SMART predictive status provider not available ({0})." -f $_.Exception.Message)
+        }
     }
-    catch {
-        Write-TidyLog -Level Warning -Message ("SMART status via MSFT_PhysicalDisk failed. {0}" -f $_.Exception.Message)
+    else {
+        Write-TidyOutput -Message 'SMART predictive status provider APIs are not available on this platform.'
+    }
+
+    $detailProvider = $null
+    if (Get-Command -Name Get-CimInstance -ErrorAction SilentlyContinue) {
+        $detailProvider = { Get-CimInstance -Namespace 'root/microsoft/windows/storage' -ClassName 'MSFT_PhysicalDisk' -ErrorAction Stop }
+    }
+    elseif (Get-Command -Name Get-WmiObject -ErrorAction SilentlyContinue) {
+        $detailProvider = { Get-WmiObject -Namespace 'root/microsoft/windows/storage' -Class 'MSFT_PhysicalDisk' -ErrorAction Stop }
+    }
+
+    if ($null -ne $detailProvider) {
+        try {
+            $detailEntries = & $detailProvider
+            foreach ($detail in @($detailEntries)) {
+                $results += [pscustomobject]@{
+                    DevicePath     = if ($detail.PSObject.Properties['FriendlyName']) { $detail.FriendlyName } else { $detail.DeviceId }
+                    PredictFailure = ($detail.PSObject.Properties['HealthStatus'] -and $detail.HealthStatus -ne 0)
+                    Reason         = if ($detail.PSObject.Properties['HealthStatus']) { "HealthStatus=$($detail.HealthStatus); OperationalStatus=$($detail.OperationalStatus -join ',')" } else { 'Health telemetry not exposed.' }
+                }
+            }
+        }
+        catch {
+            Write-TidyOutput -Message ("Physical disk health telemetry unavailable ({0})." -f $_.Exception.Message)
+        }
     }
 
     return $results

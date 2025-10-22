@@ -34,7 +34,7 @@ Target volume: C:
 Running CHKDSK in online scan mode.
 [2025-10-22 16:55:07Z][Information] CHKDSK C: /scan
 Collecting SMART health indicators.
-[2025-10-22 16:55:35Z][Warning] SMART status via MSStorageDriver_FailurePredictStatus failed. Not supported
+[2025-10-22 16:55:35Z][Warning] SMART status via MSStorageDriver_FailurePredictStatus failed. Not supported 
 [Healthy] MSI M450 1TB V1
   ? Details: HealthStatus=0; OperationalStatus=2
 Disk checkup completed.

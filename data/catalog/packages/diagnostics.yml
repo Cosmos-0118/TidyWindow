@@ -31,14 +31,6 @@ packages:
       summary: Advanced text editor for Windows.
       homepage: "https://notepad-plus-plus.org"
       tags: [editor]
-    - id: powershell-ise
-      name: Windows PowerShell ISE
-      manager: choco
-      command: "choco install powershell-ise -y --no-progress"
-      requiresAdmin: true
-      summary: Classic scripting environment for PowerShell.
-      homepage: "https://learn.microsoft.com/powershell/scripting/windows-powershell/ise"
-      tags: [shell]
     - id: redisinsight
       name: RedisInsight
       manager: winget
@@ -295,3 +287,276 @@ packages:
       summary: Graph visualization software for generating diagrams from DOT files.
       homepage: "https://graphviz.org"
       tags: [visualization]
+    - id: htop
+      name: htop
+      manager: choco
+      command: "choco install htop -y --no-progress"
+      requiresAdmin: true
+      summary: Interactive process viewer and system monitor.
+      homepage: "https://htop.dev"
+      tags: [monitoring, processes]
+    - id: iotop
+      name: iotop
+      manager: choco
+      command: "choco install iotop -y --no-progress"
+      requiresAdmin: true
+      summary: I/O monitoring tool for tracking disk usage by processes.
+      homepage: "https://github.com/Tomas-M/iotop"
+      tags: [monitoring, io]
+    - id: nethogs
+      name: nethogs
+      manager: choco
+      command: "choco install nethogs -y --no-progress"
+      requiresAdmin: true
+      summary: Network traffic monitor showing bandwidth usage per process.
+      homepage: "https://github.com/raboof/nethogs"
+      tags: [monitoring, network]
+    - id: iftop
+      name: iftop
+      manager: choco
+      command: "choco install iftop -y --no-progress"
+      requiresAdmin: true
+      summary: Network bandwidth monitoring tool.
+      homepage: "https://github.com/raboof/iftop"
+      tags: [monitoring, network]
+    - id: nload
+      name: nload
+      manager: choco
+      command: "choco install nload -y --no-progress"
+      requiresAdmin: true
+      summary: Real-time network traffic monitor with graphs.
+      homepage: "https://github.com/rolandriegel/nload"
+      tags: [monitoring, network]
+    - id: bmon
+      name: bmon
+      manager: choco
+      command: "choco install bmon -y --no-progress"
+      requiresAdmin: true
+      summary: Bandwidth monitor and rate estimator.
+      homepage: "https://github.com/tgraf/bmon"
+      tags: [monitoring, network]
+    - id: dstat
+      name: dstat
+      manager: choco
+      command: "choco install dstat -y --no-progress"
+      requiresAdmin: true
+      summary: Versatile system resource statistics tool.
+      homepage: "https://github.com/dagwieers/dstat"
+      tags: [monitoring, system]
+    - id: sar
+      name: sysstat
+      manager: choco
+      command: "choco install sysstat -y --no-progress"
+      requiresAdmin: true
+      summary: System performance monitoring tools including sar.
+      homepage: "https://github.com/sysstat/sysstat"
+      tags: [monitoring, performance]
+    - id: atop
+      name: atop
+      manager: choco
+      command: "choco install atop -y --no-progress"
+      requiresAdmin: true
+      summary: Advanced system and process monitor.
+      homepage: "https://www.atoptool.nl"
+      tags: [monitoring, system]
+    - id: glances
+      name: glances
+      manager: choco
+      command: "choco install glances -y --no-progress"
+      requiresAdmin: true
+      summary: Cross-platform system monitoring tool.
+      homepage: "https://github.com/nicolargo/glances"
+      tags: [monitoring, cross-platform]
+    - id: netdata
+      name: netdata
+      manager: choco
+      command: "choco install netdata -y --no-progress"
+      requiresAdmin: true
+      summary: Real-time performance monitoring dashboard.
+      homepage: "https://www.netdata.cloud"
+      tags: [monitoring, dashboard]
+    - id: prometheus
+      name: Prometheus
+      manager: choco
+      command: "choco install prometheus -y --no-progress"
+      requiresAdmin: true
+      summary: Monitoring system and time series database.
+      homepage: "https://prometheus.io"
+      tags: [monitoring, metrics]
+    - id: telegraf
+      name: Telegraf
+      manager: choco
+      command: "choco install telegraf -y --no-progress"
+      requiresAdmin: true
+      summary: Metrics collection agent for InfluxData TICK stack.
+      homepage: "https://www.influxdata.com/time-series-platform/telegraf"
+      tags: [monitoring, metrics]
+    - id: chronograf
+      name: Chronograf
+      manager: choco
+      command: "choco install chronograf -y --no-progress"
+      requiresAdmin: true
+      summary: Monitoring and alerting platform for InfluxData.
+      homepage: "https://www.influxdata.com/time-series-platform/chronograf"
+      tags: [monitoring, alerting]
+    - id: kapacitor
+      name: Kapacitor
+      manager: choco
+      command: "choco install kapacitor -y --no-progress"
+      requiresAdmin: true
+      summary: Data processing framework for InfluxData.
+      homepage: "https://www.influxdata.com/time-series-platform/kapacitor"
+      tags: [monitoring, processing]
+    - id: zabbix
+      name: Zabbix
+      manager: choco
+      command: "choco install zabbix -y --no-progress"
+      requiresAdmin: true
+      summary: Enterprise-class open source monitoring solution.
+      homepage: "https://www.zabbix.com"
+      tags: [monitoring, enterprise]
+    - id: nagios
+      name: Nagios
+      manager: choco
+      command: "choco install nagios -y --no-progress"
+      requiresAdmin: true
+      summary: IT infrastructure monitoring and alerting solution.
+      homepage: "https://www.nagios.org"
+      tags: [monitoring, infrastructure]
+    - id: icinga
+      name: Icinga
+      manager: choco
+      command: "choco install icinga -y --no-progress"
+      requiresAdmin: true
+      summary: Open source monitoring system for IT infrastructure.
+      homepage: "https://icinga.com"
+      tags: [monitoring, infrastructure]
+    - id: checkmk
+      name: Checkmk
+      manager: choco
+      command: "choco install checkmk -y --no-progress"
+      requiresAdmin: true
+      summary: IT infrastructure monitoring solution.
+      homepage: "https://checkmk.com"
+      tags: [monitoring, infrastructure]
+    - id: prtg
+      name: PRTG Network Monitor
+      manager: choco
+      command: "choco install prtg -y --no-progress"
+      requiresAdmin: true
+      summary: Network monitoring and management solution.
+      homepage: "https://www.paessler.com/prtg"
+      tags: [monitoring, network]
+    - id: solarwinds
+      name: SolarWinds
+      manager: choco
+      command: "choco install solarwinds -y --no-progress"
+      requiresAdmin: true
+      summary: IT infrastructure monitoring and management platform.
+      homepage: "https://www.solarwinds.com"
+      tags: [monitoring, enterprise]
+    - id: datadog
+      name: Datadog
+      manager: choco
+      command: "choco install datadog -y --no-progress"
+      requiresAdmin: true
+      summary: Cloud-scale monitoring and analytics platform.
+      homepage: "https://www.datadoghq.com"
+      tags: [monitoring, cloud]
+    - id: new-relic
+      name: New Relic
+      manager: choco
+      command: "choco install newrelic -y --no-progress"
+      requiresAdmin: true
+      summary: Application performance monitoring and observability platform.
+      homepage: "https://newrelic.com"
+      tags: [monitoring, apm]
+    - id: appdynamics
+      name: AppDynamics
+      manager: choco
+      command: "choco install appdynamics -y --no-progress"
+      requiresAdmin: true
+      summary: Application performance monitoring and business intelligence.
+      homepage: "https://www.appdynamics.com"
+      tags: [monitoring, apm]
+    - id: dynatrace
+      name: Dynatrace
+      manager: choco
+      command: "choco install dynatrace -y --no-progress"
+      requiresAdmin: true
+      summary: AI-powered observability and application security platform.
+      homepage: "https://www.dynatrace.com"
+      tags: [monitoring, ai]
+    - id: splunk
+      name: Splunk
+      manager: choco
+      command: "choco install splunk -y --no-progress"
+      requiresAdmin: true
+      summary: Data platform for security, IT operations, and business analytics.
+      homepage: "https://www.splunk.com"
+      tags: [monitoring, analytics]
+    - id: elastic-stack
+      name: Elastic Stack
+      manager: choco
+      command: "choco install elastic-stack -y --no-progress"
+      requiresAdmin: true
+      summary: Elasticsearch, Logstash, and Kibana for data analysis.
+      homepage: "https://www.elastic.co/elastic-stack"
+      tags: [monitoring, analytics]
+    - id: jaeger
+      name: Jaeger
+      manager: choco
+      command: "choco install jaeger -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed tracing system for microservices.
+      homepage: "https://www.jaegertracing.io"
+      tags: [monitoring, tracing]
+    - id: zipkin
+      name: Zipkin
+      manager: choco
+      command: "choco install zipkin -y --no-progress"
+      requiresAdmin: true
+      summary: Distributed tracing system for microservices.
+      homepage: "https://zipkin.io"
+      tags: [monitoring, tracing]
+    - id: opentelemetry
+      name: OpenTelemetry
+      manager: choco
+      command: "choco install opentelemetry -y --no-progress"
+      requiresAdmin: true
+      summary: Observability framework for cloud-native software.
+      homepage: "https://opentelemetry.io"
+      tags: [monitoring, observability]
+    - id: prometheus-operator
+      name: Prometheus Operator
+      manager: choco
+      command: "choco install prometheus-operator -y --no-progress"
+      requiresAdmin: true
+      summary: Kubernetes operator for Prometheus monitoring.
+      homepage: "https://github.com/prometheus-operator/prometheus-operator"
+      tags: [monitoring, kubernetes]
+    - id: thanos
+      name: Thanos
+      manager: choco
+      command: "choco install thanos -y --no-progress"
+      requiresAdmin: true
+      summary: Highly available Prometheus setup with long term storage capabilities.
+      homepage: "https://thanos.io"
+      tags: [monitoring, storage]
+    - id: cortex
+      name: Cortex
+      manager: choco
+      command: "choco install cortex -y --no-progress"
+      requiresAdmin: true
+      summary: Horizontally scalable, highly available Prometheus-compatible monitoring system.
+      homepage: "https://cortexmetrics.io"
+      tags: [monitoring, scalable]
+    - id: victoriametrics
+      name: VictoriaMetrics
+      manager: choco
+      command: "choco install victoriametrics -y --no-progress"
+      requiresAdmin: true
+      summary: Fast, cost-effective monitoring solution and time series database.
+      homepage: "https://victoriametrics.com"
+      tags: [monitoring, database]
+
