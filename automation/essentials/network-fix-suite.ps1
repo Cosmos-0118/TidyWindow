@@ -179,14 +179,14 @@ try {
     }
 
     Write-TidyOutput -Message ("Testing connection to {0}." -f $TargetHost)
-    Invoke-TidyCommand -Command { param($host) Test-NetConnection -ComputerName $host -InformationLevel Detailed } -Arguments @($TargetHost) -Description 'Test-NetConnection probe.' | Out-Null
+    Invoke-TidyCommand -Command { param($computerName) Test-NetConnection -ComputerName $computerName -InformationLevel Detailed } -Arguments @($TargetHost) -Description 'Test-NetConnection probe.' | Out-Null
 
     Write-TidyOutput -Message ("Running latency sample ({0} pings)." -f $LatencySamples)
-    Invoke-TidyCommand -Command { param($host, $count) ping.exe -n $count $host } -Arguments @($TargetHost, [Math]::Max(1, $LatencySamples)) -Description 'ping sweep.' -RequireSuccess | Out-Null
+    Invoke-TidyCommand -Command { param($computerName, $count) ping.exe -n $count $computerName } -Arguments @($TargetHost, [Math]::Max(1, $LatencySamples)) -Description 'ping sweep.' -RequireSuccess | Out-Null
 
     if (-not $SkipTraceroute.IsPresent) {
         Write-TidyOutput -Message 'Tracing network route.'
-        Invoke-TidyCommand -Command { param($host) tracert.exe $host } -Arguments @($TargetHost) -Description 'tracert execution.' | Out-Null
+        Invoke-TidyCommand -Command { param($computerName) tracert.exe $computerName } -Arguments @($TargetHost) -Description 'tracert execution.' | Out-Null
     }
     else {
         Write-TidyOutput -Message 'Skipping traceroute per operator request.'
@@ -194,7 +194,7 @@ try {
 
     if (-not $SkipPathPing.IsPresent) {
         Write-TidyOutput -Message 'Running pathping for loss analysis (this can take several minutes).'
-        Invoke-TidyCommand -Command { param($host) pathping.exe $host } -Arguments @($TargetHost) -Description 'pathping execution.' | Out-Null
+        Invoke-TidyCommand -Command { param($computerName) pathping.exe $computerName } -Arguments @($TargetHost) -Description 'pathping execution.' | Out-Null
     }
     else {
         Write-TidyOutput -Message 'Skipping pathping per operator request.'

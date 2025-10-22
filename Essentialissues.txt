@@ -1,0 +1,201 @@
+
+1 faileur: [Status: Resolved - 2025-10-22]
+2025-10-22 09:16:10Z [Error] Essentials
+RAM purge failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mUnable to prepare EmptyStandbyList. EmptyStandbyList executable not found in downloaded package.[0m
+--- Output ---
+[2025-10-22 14:46:10Z][Information] Starting RAM purge sequence.
+Clearing standby memory lists.
+[2025-10-22 14:46:10Z][Error] Unable to prepare EmptyStandbyList. EmptyStandbyList executable not found in downloaded package.
+[2025-10-22 14:46:10Z][Information] RAM purge script finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\ram-purge.ps1:321[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 321 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mUnable to prepare EmptyStandbyList. EmptyStandbyList executable not found in downloaded package.[0m
+
+2 failer: [Status: Resolved - 2025-10-22]
+2025-10-22 09:16:16Z [Error] Essentials
+Network fix suite failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot overwrite variable host because it is read-only or constant.[0m
+--- Output ---
+[2025-10-22 14:46:12Z][Information] Starting advanced network remediation for target '8.8.8.8'.
+Clearing ARP cache.
+[2025-10-22 14:46:12Z][Information] Clearing ARP table.
+Reloading NetBIOS name cache.
+[2025-10-22 14:46:12Z][Information] nbtstat -R
+Re-registering NetBIOS names.
+[2025-10-22 14:46:12Z][Information] nbtstat -RR
+Resetting IPv4 neighbor cache.
+[2025-10-22 14:46:12Z][Information] netsh interface ip delete arpcache
+Resetting TCP global heuristics to defaults.
+[2025-10-22 14:46:13Z][Information] Disable TCP heuristics.
+[2025-10-22 14:46:13Z][Information] Restore TCP auto-tuning.
+Registering DNS records with DHCP server.
+[2025-10-22 14:46:13Z][Information] ipconfig /registerdns
+Capturing adapter link statistics.
+[2025-10-22 14:46:16Z][Information] Adapter statistics snapshot.
+Testing connection to 8.8.8.8.
+[2025-10-22 14:46:16Z][Information] Test-NetConnection probe.
+[2025-10-22 14:46:16Z][Error] Cannot overwrite variable host because it is read-only or constant.
+[2025-10-22 14:46:16Z][Information] Network fix suite finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\network-fix-suite.ps1:216[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 216 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot overwrite variable host because it is read-only or constant.[0m
+
+3 faileur: [Status: Resolved - 2025-10-22]
+
+2025-10-22 09:16:16Z [Error] Essentials
+Network fix suite failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot overwrite variable host because it is read-only or constant.[0m
+--- Output ---
+[2025-10-22 14:46:12Z][Information] Starting advanced network remediation for target '8.8.8.8'.
+Clearing ARP cache.
+[2025-10-22 14:46:12Z][Information] Clearing ARP table.
+Reloading NetBIOS name cache.
+[2025-10-22 14:46:12Z][Information] nbtstat -R
+Re-registering NetBIOS names.
+[2025-10-22 14:46:12Z][Information] nbtstat -RR
+Resetting IPv4 neighbor cache.
+[2025-10-22 14:46:12Z][Information] netsh interface ip delete arpcache
+Resetting TCP global heuristics to defaults.
+[2025-10-22 14:46:13Z][Information] Disable TCP heuristics.
+[2025-10-22 14:46:13Z][Information] Restore TCP auto-tuning.
+Registering DNS records with DHCP server.
+[2025-10-22 14:46:13Z][Information] ipconfig /registerdns
+Capturing adapter link statistics.
+[2025-10-22 14:46:16Z][Information] Adapter statistics snapshot.
+Testing connection to 8.8.8.8.
+[2025-10-22 14:46:16Z][Information] Test-NetConnection probe.
+[2025-10-22 14:46:16Z][Error] Cannot overwrite variable host because it is read-only or constant.
+[2025-10-22 14:46:16Z][Information] Network fix suite finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\network-fix-suite.ps1:216[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 216 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mCannot overwrite variable host because it is read-only or constant.[0m
+
+4 failer [Status: Resolved - 2025-10-22]
+
+2025-10-22 09:17:06Z [Error] Essentials
+App repair helper failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-0004-5ea1-e3a9c542dc01[0m
+--- Output ---
+[2025-10-22 14:46:17Z][Information] Starting Microsoft Store and AppX repair sequence.
+Resetting Microsoft Store cache (wsreset.exe).
+[2025-10-22 14:46:17Z][Information] Running wsreset.exe.
+Re-registering Microsoft Store and dependencies.
+Re-registering Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:18Z][Information] Add-AppxPackage Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.StorePurchaseApp_22508.1401.4.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:19Z][Information] Add-AppxPackage Microsoft.StorePurchaseApp_22508.1401.4.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:19Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+Repairing App Installer integration.
+Re-registering Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:20Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:20Z][Information] Add-AppxPackage Microsoft.DesktopAppInstaller_1.26.510.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:21Z][Information] Add-AppxPackage Microsoft.WindowsStore_22509.1401.11.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.WindowsCalculator_11.2502.2.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:55Z][Information] Add-AppxPackage Microsoft.WindowsCalculator_11.2502.2.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.WindowsCamera_2025.2505.2.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:55Z][Information] Add-AppxPackage Microsoft.WindowsCamera_2025.2505.2.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.Windows.Photos_2025.11080.28001.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:56Z][Information] Add-AppxPackage Microsoft.Windows.Photos_2025.11080.28001.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.WindowsSoundRecorder_1.1.5.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:56Z][Information] Add-AppxPackage Microsoft.WindowsSoundRecorder_1.1.5.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.WindowsNotepad_11.2507.26.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:56Z][Information] Add-AppxPackage Microsoft.WindowsNotepad_11.2507.26.0_x64__8wekyb3d8bbwe
+Package 'Microsoft.WindowsCommunicationApps' was not found. Skipping.
+Re-registering Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:57Z][Information] Add-AppxPackage Microsoft.WindowsTerminal_1.23.12811.0_x64__8wekyb3d8bbwe
+Package 'Microsoft.ZuneVideo' was not found. Skipping.
+Re-registering Microsoft.ZuneMusic_11.2508.31.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:58Z][Information] Add-AppxPackage Microsoft.ZuneMusic_11.2508.31.0_x64__8wekyb3d8bbwe
+Refreshing critical app frameworks (Microsoft.NET.Native, VCLibs, UI.Xaml).
+Re-registering Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:58Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x86__8wekyb3d8bbwe
+[2025-10-22 14:46:59Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.2.2_2.2.28604.0_x86__8wekyb3d8bbwe
+Re-registering Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x86__8wekyb3d8bbwe
+[2025-10-22 14:46:59Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x86__8wekyb3d8bbwe
+Re-registering Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:59Z][Information] Add-AppxPackage Microsoft.NET.Native.Runtime.1.7_1.7.27422.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:46:59Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x86__8wekyb3d8bbwe
+[2025-10-22 14:47:00Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.2.2_2.2.29512.0_x86__8wekyb3d8bbwe
+Re-registering Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x86__8wekyb3d8bbwe
+[2025-10-22 14:47:00Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x86__8wekyb3d8bbwe
+Re-registering Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:47:01Z][Information] Add-AppxPackage Microsoft.NET.Native.Framework.1.7_1.7.27413.0_x64__8wekyb3d8bbwe
+Re-registering Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:47:01Z][Information] Add-AppxPackage Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe
+[2025-10-22 14:47:06Z][Error] Deployment failed with HRESULT: 0x80073D06, The package could not be installed because a higher version of this package is already installed.
+Windows cannot install package Microsoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe because it has version 14.0.30704.0. A higher version 14.0.33519.0 of this package is already installed.
+NOTE: For additional information, look for [ActivityId] a9dcb115-42c5-0004-5ea1-e3a9c542dc01 in the Event Log or use the command line Get-AppPackageLog -ActivityID a9dcb115-42c5-0004-5ea1-e3a9c542dc01
+[2025-10-22 14:47:06Z][Information] App repair helper finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\app-repair-helper.ps1:307[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 307 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mDeployment failed with HRESULT: 0x80073D06, The package could not be installed because a higher version of this[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mpackage is already installed.  Windows cannot install package[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mMicrosoft.VCLibs.140.00_14.0.30704.0_x64__8wekyb3d8bbwe because it has version 14.0.30704.0. A higher version[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1m14.0.33519.0 of this package is already installed.  NOTE: For additional information, look for [ActivityId][0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-0004-5ea1-e3a9c542dc01 in the Event Log or use the command line Get-AppPackageLog -ActivityID[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-0004-5ea1-e3a9c542dc01[0m
+
+5th Status: Verified - 2025-10-22 (Success; warning about restore-point frequency noted)
+
+2025-10-22 09:16:12Z [Success] Essentials
+System Restore manager completed.
+--- Output ---
+Creating restore point 'TidyWindow snapshot 2025-10-22 14:46' (MODIFY_SETTINGS).
+[2025-10-22 14:46:11Z][Information] Creating System Restore snapshot.
+[33;1mWARNING: A new system restore point cannot be created because one has already been created within the past 1440 minutes. The frequency of restore point creation can be changed by creating the DWORD value 'SystemRestorePointCreationFrequency' under the registry key 'HKLM\Software\Microsoft\Windows NT\CurrentVersion\SystemRestore'. The value of this registry key indicates the necessary time interval (in minutes) between two restore point creation. The default value is 1440 minutes (24 hours).[0m
+Current restore points (newest first):
+  #14 - 10/22/2025 1:55:03 AM - Installed Java(TM) SE Development Kit 21.0.9 (64-bit)
+  #13 - 10/20/2025 8:23:39 PM - Installed Python Launcher
+  #12 - 10/19/2025 3:12:42 AM - Installed DirectX
+[2025-10-22 14:46:12Z][Information] System Restore manager finished.
+
+6th  Status: Verified - 2025-10-22
+
+2025-10-22 09:16:09Z [Success] Essentials
+System health scanner completed.
+--- Output ---
+[2025-10-22 14:44:23Z][Information] Starting Windows system health scanner.
+Running System File Checker (this can take 5-15 minutes).
+[2025-10-22 14:44:23Z][Information] Running SFC /scannow.
+Checking Windows component store health.
+[2025-10-22 14:45:01Z][Information] DISM CheckHealth
+Scanning Windows component store for corruption.
+[2025-10-22 14:45:02Z][Information] DISM ScanHealth
+Skipping RestoreHealth. Re-run with -RunRestoreHealth to attempt repairs.
+System health scan completed.
+[2025-10-22 14:46:09Z][Information] System health scanner finished.
+
+7th Status: Verified - 2025-10-22
+
+2025-10-22 09:14:22Z [Success] Essentials
+Network reset & cache flush completed.
+--- Output ---
+[2025-10-22 14:44:22Z][Information] Starting network reset and cache flush sequence.
+Flushing DNS resolver cache.
+[2025-10-22 14:44:22Z][Information] Flushing DNS cache.
+Clearing ARP cache.
+[2025-10-22 14:44:22Z][Information] Clearing ARP cache.
+Resetting TCP global statistics.
+[2025-10-22 14:44:22Z][Information] Resetting TCP interface state.
+Resetting Winsock catalog (reboot required to complete).
+[2025-10-22 14:44:22Z][Information] Resetting Winsock catalog.
+Resetting IP stack bindings.
+[2025-10-22 14:44:22Z][Information] Resetting IP interfaces.
+Network reset sequence completed.
+Reboot recommended to finalize Winsock reset.
+[2025-10-22 14:44:22Z][Information] Network reset script finished.

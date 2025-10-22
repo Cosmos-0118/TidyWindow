@@ -133,30 +133,63 @@ function Ensure-EmptyStandbyList {
         return $targetPath
     }
 
-    $downloadUri = 'https://download.sysinternals.com/files/RAMMap.zip'
-    $tempZip = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("rammap-" + [System.Guid]::NewGuid().ToString('N') + '.zip')
-    $extractRoot = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("rammap-" + [System.Guid]::NewGuid().ToString('N'))
+    $attempts = @(
+        @{ Uri = 'https://download.sysinternals.com/files/EmptyStandbyList.exe'; Kind = 'File' },
+        @{ Uri = 'https://live.sysinternals.com/EmptyStandbyList.exe'; Kind = 'File' },
+        @{ Uri = 'https://download.sysinternals.com/files/EmptyStandbyList.zip'; Kind = 'Archive'; Filter = 'EmptyStandbyList*.exe' },
+        @{ Uri = 'https://download.sysinternals.com/files/RAMMap.zip'; Kind = 'Archive'; Filter = 'EmptyStandbyList*.exe' }
+    )
 
-    Write-TidyOutput -Message 'Downloading EmptyStandbyList helper from Sysinternals.'
-    try {
-        Invoke-WebRequest -Uri $downloadUri -OutFile $tempZip -UseBasicParsing -ErrorAction Stop
-        Expand-Archive -Path $tempZip -DestinationPath $extractRoot -Force
-        $candidate = Get-ChildItem -Path $extractRoot -Recurse -Filter 'EmptyStandbyList*.exe' -File -ErrorAction SilentlyContinue |
-            Sort-Object -Property Name -Descending |
-            Select-Object -First 1
-        if (-not $candidate) {
-            throw 'EmptyStandbyList executable not found in downloaded package.'
-        }
+    $errors = [System.Collections.Generic.List[string]]::new()
 
-        Copy-Item -Path $candidate.FullName -Destination $targetPath -Force
-        return $targetPath
-    }
-    finally {
-        Remove-Item -LiteralPath $tempZip -ErrorAction SilentlyContinue
-        if (Test-Path -LiteralPath $extractRoot) {
-            Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+    foreach ($attempt in $attempts) {
+        $uri = [System.Uri]::new($attempt.Uri)
+        $tempPrefix = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('emptystandbylist-' + [System.Guid]::NewGuid().ToString('N'))
+        $downloadPath = if ($attempt.Kind -eq 'File') { $tempPrefix + [System.IO.Path]::GetExtension($uri.AbsolutePath) } else { $tempPrefix + '.zip' }
+        $extractRoot = $null
+
+        try {
+            $message = if ($attempt.Kind -eq 'File') { 'Downloading EmptyStandbyList helper.' } else { 'Downloading EmptyStandbyList archive.' }
+            Write-TidyOutput -Message ($message + " Source: " + $uri.Host)
+
+            Invoke-WebRequest -Uri $uri -OutFile $downloadPath -UseBasicParsing -ErrorAction Stop
+
+            if ($attempt.Kind -eq 'File') {
+                Copy-Item -Path $downloadPath -Destination $targetPath -Force
+                return $targetPath
+            }
+
+            $extractRoot = $tempPrefix + '-extract'
+            Expand-Archive -Path $downloadPath -DestinationPath $extractRoot -Force
+
+            $filter = if ($attempt.ContainsKey('Filter')) { $attempt.Filter } else { 'EmptyStandbyList*.exe' }
+            $candidate = Get-ChildItem -Path $extractRoot -Recurse -Filter $filter -File -ErrorAction SilentlyContinue |
+                Sort-Object -Property Name -Descending |
+                Select-Object -First 1
+
+            if (-not $candidate) {
+                throw 'EmptyStandbyList executable not found in downloaded package.'
+            }
+
+            Copy-Item -Path $candidate.FullName -Destination $targetPath -Force
+            return $targetPath
+        }
+        catch {
+            $errors.Add(('{0} -> {1}' -f $uri.AbsoluteUri, $_.Exception.Message)) | Out-Null
+        }
+        finally {
+            if ($extractRoot -and (Test-Path -LiteralPath $extractRoot)) {
+                Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
+            }
+
+            if (Test-Path -LiteralPath $downloadPath) {
+                Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
+            }
         }
     }
+
+    $joinedErrors = if ($errors.Count -gt 0) { [string]::Join([System.Environment]::NewLine, $errors) } else { 'Unknown failure.' }
+    throw ('Unable to prepare EmptyStandbyList helper. Attempts failed:' + [System.Environment]::NewLine + $joinedErrors)
 }
 
 $script:WorkingSetHelperReady = $false
