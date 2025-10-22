@@ -139,6 +139,70 @@ function Start-WindowsUpdateServices {
     }
 }
 
+function Get-AdministratorsGroupName {
+    if ($script:AdministratorsGroupName) {
+        return $script:AdministratorsGroupName
+    }
+
+    $sid = New-Object System.Security.Principal.SecurityIdentifier 'S-1-5-32-544'
+    $script:AdministratorsGroupName = $sid.Translate([System.Security.Principal.NTAccount]).Value
+    return $script:AdministratorsGroupName
+}
+
+function Invoke-RobustRename {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Path,
+        [Parameter(Mandatory = $true)]
+        [string] $Destination,
+        [Parameter(Mandatory = $true)]
+        [string] $DisplayName
+    )
+
+    try {
+        Move-Item -LiteralPath $Path -Destination $Destination -Force -ErrorAction Stop
+        Write-TidyOutput -Message ("Renamed {0} to {1}." -f $DisplayName, $Destination)
+        return $true
+    }
+    catch {
+        $initialError = $_.Exception.Message
+        Write-TidyOutput -Message ("Initial rename of {0} failed: {1}. Attempting ownership reset." -f $DisplayName, $initialError)
+    }
+
+    $adminGroup = Get-AdministratorsGroupName
+
+    try {
+        Invoke-TidyCommand -Command { param($target) attrib.exe -s -h -r $target } -Arguments @($Path) -Description ("Clearing attributes on {0}" -f $DisplayName) | Out-Null
+    }
+    catch {
+        Write-TidyOutput -Message ("  ↳ Attribute reset warning: {0}" -f $_.Exception.Message)
+    }
+
+    try {
+        Invoke-TidyCommand -Command { param($target) takeown.exe /f $target /r /d y } -Arguments @($Path) -Description ("Taking ownership of {0}" -f $DisplayName) | Out-Null
+    }
+    catch {
+        Write-TidyOutput -Message ("  ↳ Ownership reset warning: {0}" -f $_.Exception.Message)
+    }
+
+    try {
+        Invoke-TidyCommand -Command { param($target, $principal) icacls $target /grant "$principal":F /t /c } -Arguments @($Path, $adminGroup) -Description ("Granting full control on {0}" -f $DisplayName) | Out-Null
+    }
+    catch {
+        Write-TidyOutput -Message ("  ↳ ACL update warning: {0}" -f $_.Exception.Message)
+    }
+
+    try {
+        Move-Item -LiteralPath $Path -Destination $Destination -Force -ErrorAction Stop
+        Write-TidyOutput -Message ("Renamed {0} to {1} after resetting permissions." -f $DisplayName, $Destination)
+        return $true
+    }
+    catch {
+        Write-TidyError -Message ("Failed to rename {0}: {1}" -f $DisplayName, $_.Exception.Message)
+        return $false
+    }
+}
+
 function Reset-WindowsUpdateComponents {
     Write-TidyOutput -Message 'Resetting SoftwareDistribution and Catroot2 caches.'
     $softwareDistribution = Join-Path -Path $env:SystemRoot -ChildPath 'SoftwareDistribution'
@@ -146,24 +210,12 @@ function Reset-WindowsUpdateComponents {
 
     if (Test-Path -LiteralPath $softwareDistribution) {
         $backup = $softwareDistribution + '.bak-' + (Get-Date -Format 'yyyyMMddHHmmss')
-        try {
-            Rename-Item -LiteralPath $softwareDistribution -NewName $backup -Force -ErrorAction Stop
-            Write-TidyOutput -Message ("Renamed SoftwareDistribution to {0}." -f $backup)
-        }
-        catch {
-            Write-TidyError -Message ("Failed to rename SoftwareDistribution: {0}" -f $_.Exception.Message)
-        }
+        Invoke-RobustRename -Path $softwareDistribution -Destination $backup -DisplayName 'SoftwareDistribution' | Out-Null
     }
 
     if (Test-Path -LiteralPath $catroot) {
         $backup = $catroot + '.bak-' + (Get-Date -Format 'yyyyMMddHHmmss')
-        try {
-            Rename-Item -LiteralPath $catroot -NewName $backup -Force -ErrorAction Stop
-            Write-TidyOutput -Message ("Renamed Catroot2 to {0}." -f $backup)
-        }
-        catch {
-            Write-TidyError -Message ("Failed to rename Catroot2: {0}" -f $_.Exception.Message)
-        }
+        Invoke-RobustRename -Path $catroot -Destination $backup -DisplayName 'Catroot2' | Out-Null
     }
 
     $qmgrPath = Join-Path -Path $env:ALLUSERSPROFILE -ChildPath 'Microsoft\Network\Downloader'

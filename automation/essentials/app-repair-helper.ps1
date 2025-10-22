@@ -177,7 +177,23 @@ function Invoke-AppxReRegistration {
         }
 
         Write-TidyOutput -Message ("Re-registering {0}" -f $package.PackageFullName)
-        Invoke-TidyCommand -Command { param($path) Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $path } -Arguments @($manifest) -Description ("Add-AppxPackage {0}" -f $package.PackageFullName) | Out-Null
+        Invoke-TidyCommand -Command {
+            param($path)
+
+            try {
+                Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $path -ErrorAction Stop
+            }
+            catch [System.Runtime.InteropServices.COMException] {
+                $hresult = $_.Exception.HResult
+                $messageText = $_.Exception.Message
+                if ($hresult -eq -2147009274 -or ($messageText -and $messageText -like '*higher version*')) {
+                    Write-TidyOutput -Message 'Package already registered at equal or higher version. Skipping re-registration.'
+                    return
+                }
+
+                throw
+            }
+        } -Arguments @($manifest) -Description ("Add-AppxPackage {0}" -f $package.PackageFullName) | Out-Null
     }
 }
 

@@ -1,4 +1,4 @@
-1st script.
+1st script. [Status: Verified - 2025-10-22]
 
 2025-10-22 09:45:44Z [Success] Essentials
 System health scanner completed.
@@ -14,7 +14,7 @@ Skipping RestoreHealth. Re-run with -RunRestoreHealth to attempt repairs.
 System health scan completed.
 [2025-10-22 15:15:44Z][Information] System health scanner finished.
 
-2nd script
+2nd script [Status: Verified - 2025-10-22]
 
 2025-10-22 09:43:53Z [Success] Essentials
 Network reset & cache flush completed.
@@ -34,7 +34,7 @@ Network reset sequence completed.
 Reboot recommended to finalize Winsock reset.
 [2025-10-22 15:13:53Z][Information] Network reset script finished.
 
-3rd one failed:
+3rd one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
 
 2025-10-22 09:48:08Z [Error] Essentials
 Disk checkup & repair failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'Output' cannot be found on this object. Verify that the property exists.[0m
@@ -52,7 +52,7 @@ Running CHKDSK in online scan mode.
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'Output' cannot be found on this object. Verify that the property exists.[0m
 
-4th one failed:
+4th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
 
 2025-10-22 09:49:21Z [Error] Essentials
 RAM purge failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1mpackage.[0m
@@ -111,7 +111,7 @@ Dumping refreshed ARP table.
 Advanced network routine completed.
 [2025-10-22 15:23:24Z][Information] Network fix suite finished.
 
-6th one failed:
+6th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
 
 2025-10-22 09:54:56Z [Error] Essentials
 App repair helper failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-000b-295e-e1a9c542dc01[0m
@@ -184,7 +184,7 @@ NOTE: For additional information, look for [ActivityId] a9dcb115-42c5-000b-295e-
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-000b-295e-e1a9c542dc01 in the Event Log or use the command line Get-AppPackageLog -ActivityID[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m[31;1m[36;1m     | [31;1ma9dcb115-42c5-000b-295e-e1a9c542dc01[0m
 
-7th one failed:
+7th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
 
 2025-10-22 09:55:56Z [Error] Essentials
 Startup impact analyzer failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'FileSizeMB' cannot be found on this object. Verify that the property exists.[0m
@@ -199,7 +199,7 @@ Startup impact analyzer failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
 [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'FileSizeMB' cannot be found on this object. Verify that the property exists.[0m
 
-8th one failed:
+8th one failed: [Status: Patched - 2025-10-22 (Awaiting retest)]
 
 2025-10-22 09:56:33Z [Error] Essentials
 Windows Update repair toolkit failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mFailed to rename Catroot2: Access to the path 'C:\Windows\System32\catroot2' is denied.[0m

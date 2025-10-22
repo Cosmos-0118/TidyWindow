@@ -230,7 +230,7 @@ try {
     }
 
     Write-TidyOutput -Message ("Running CHKDSK in {0} mode." -f $modeDescription)
-    $chkdskResult = Invoke-TidyCommand -Command { param($args) & chkdsk @args } -Arguments @($arguments) -Description ("CHKDSK {0}" -f ($arguments -join ' '))
+    $chkdskResult = Invoke-TidyCommand -Command { param($args) & chkdsk @args } -Arguments @($arguments) -Description ("CHKDSK {0}" -f ($arguments -join ' ')) | Select-Object -Last 1
 
     $scheduleRequired = $false
     foreach ($line in $chkdskResult.Output) {
@@ -249,7 +249,7 @@ try {
                 $confirmArgs += '/r'
             }
 
-            $scheduleResult = Invoke-TidyCommand -Command { param($drive, $params) cmd.exe /c ("echo Y|chkdsk {0} {1}" -f $drive, ($params -join ' ')) } -Arguments @($targetVolume, $confirmArgs) -Description 'Scheduling CHKDSK at next reboot.'
+            $scheduleResult = Invoke-TidyCommand -Command { param($drive, $params) cmd.exe /c ("echo Y|chkdsk {0} {1}" -f $drive, ($params -join ' ')) } -Arguments @($targetVolume, $confirmArgs) -Description 'Scheduling CHKDSK at next reboot.' | Select-Object -Last 1
             foreach ($entry in $scheduleResult.Output) {
                 if ([string]::IsNullOrWhiteSpace($entry)) {
                     continue

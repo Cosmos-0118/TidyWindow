@@ -122,77 +122,66 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Ensure-EmptyStandbyList {
-    $toolsDirectory = Join-Path -Path $env:ProgramData -ChildPath 'TidyWindow\tools'
-    if (-not (Test-Path -LiteralPath $toolsDirectory)) {
-        [void](New-Item -Path $toolsDirectory -ItemType Directory -Force)
-    }
 
-    $targetPath = Join-Path -Path $toolsDirectory -ChildPath 'EmptyStandbyList.exe'
-    if (Test-Path -LiteralPath $targetPath) {
-        return $targetPath
-    }
 
-    $attempts = @(
-        @{ Uri = 'https://download.sysinternals.com/files/EmptyStandbyList.exe'; Kind = 'File' },
-        @{ Uri = 'https://live.sysinternals.com/EmptyStandbyList.exe'; Kind = 'File' },
-        @{ Uri = 'https://download.sysinternals.com/files/EmptyStandbyList.zip'; Kind = 'Archive'; Filter = 'EmptyStandbyList*.exe' },
-        @{ Uri = 'https://download.sysinternals.com/files/RAMMap.zip'; Kind = 'Archive'; Filter = 'EmptyStandbyList*.exe' }
-    )
-
-    $errors = [System.Collections.Generic.List[string]]::new()
-
-    foreach ($attempt in $attempts) {
-        $uri = [System.Uri]::new($attempt.Uri)
-        $tempPrefix = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('emptystandbylist-' + [System.Guid]::NewGuid().ToString('N'))
-        $downloadPath = if ($attempt.Kind -eq 'File') { $tempPrefix + [System.IO.Path]::GetExtension($uri.AbsolutePath) } else { $tempPrefix + '.zip' }
-        $extractRoot = $null
-
-        try {
-            $message = if ($attempt.Kind -eq 'File') { 'Downloading EmptyStandbyList helper.' } else { 'Downloading EmptyStandbyList archive.' }
-            Write-TidyOutput -Message ($message + " Source: " + $uri.Host)
-
-            Invoke-WebRequest -Uri $uri -OutFile $downloadPath -UseBasicParsing -ErrorAction Stop
-
-            if ($attempt.Kind -eq 'File') {
-                Copy-Item -Path $downloadPath -Destination $targetPath -Force
-                return $targetPath
-            }
-
-            $extractRoot = $tempPrefix + '-extract'
-            Expand-Archive -Path $downloadPath -DestinationPath $extractRoot -Force
-
-            $filter = if ($attempt.ContainsKey('Filter')) { $attempt.Filter } else { 'EmptyStandbyList*.exe' }
-            $candidate = Get-ChildItem -Path $extractRoot -Recurse -Filter $filter -File -ErrorAction SilentlyContinue |
-                Sort-Object -Property Name -Descending |
-                Select-Object -First 1
-
-            if (-not $candidate) {
-                throw 'EmptyStandbyList executable not found in downloaded package.'
-            }
-
-            Copy-Item -Path $candidate.FullName -Destination $targetPath -Force
-            return $targetPath
-        }
-        catch {
-            $errors.Add(('{0} -> {1}' -f $uri.AbsoluteUri, $_.Exception.Message)) | Out-Null
-        }
-        finally {
-            if ($extractRoot -and (Test-Path -LiteralPath $extractRoot)) {
-                Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
-            }
-
-            if (Test-Path -LiteralPath $downloadPath) {
-                Remove-Item -LiteralPath $downloadPath -Force -ErrorAction SilentlyContinue
-            }
-        }
-    }
-
-    $joinedErrors = if ($errors.Count -gt 0) { [string]::Join([System.Environment]::NewLine, $errors) } else { 'Unknown failure.' }
-    throw ('Unable to prepare EmptyStandbyList helper. Attempts failed:' + [System.Environment]::NewLine + $joinedErrors)
-}
-
+$script:MemoryPurgeHelperReady = $false
 $script:WorkingSetHelperReady = $false
+
+function Initialize-MemoryPurgeHelper {
+    if ($script:MemoryPurgeHelperReady) {
+        return
+    }
+
+    $typeDefinition = @"
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+
+public static class MemoryListNative
+{
+    private const int SystemMemoryListInformation = 80;
+
+    public enum SystemMemoryListCommand
+    {
+        MemoryCaptureAccessedBits = 0,
+        MemoryCaptureAndResetAccessedBits = 1,
+        MemoryEmptyWorkingSets = 2,
+        MemoryFlushModifiedList = 3,
+        MemoryPurgeStandbyList = 4,
+        MemoryPurgeLowPriorityStandbyList = 5,
+        MemoryCommandMax = 6
+    }
+
+    [DllImport("ntdll.dll")]
+    private static extern int NtSetSystemInformation(
+        int SystemInformationClass,
+        ref int SystemInformation,
+        int SystemInformationLength);
+
+    [DllImport("ntdll.dll")]
+    private static extern int RtlNtStatusToDosError(int status);
+
+    public static void IssueCommand(SystemMemoryListCommand command)
+    {
+        int data = (int)command;
+        int status = NtSetSystemInformation(SystemMemoryListInformation, ref data, sizeof(int));
+        if (status != 0)
+        {
+            int error = RtlNtStatusToDosError(status);
+            if (error != 0)
+            {
+                throw new Win32Exception(error);
+            }
+
+            throw new Win32Exception(status);
+        }
+    }
+}
+"@
+
+    Add-Type -TypeDefinition $typeDefinition -ErrorAction Stop | Out-Null
+    $script:MemoryPurgeHelperReady = $true
+}
 
 function Initialize-WorkingSetHelper {
     if ($script:WorkingSetHelperReady) {
@@ -219,17 +208,29 @@ function Invoke-StandbyMemoryClear {
     Write-TidyOutput -Message 'Clearing standby memory lists.'
 
     try {
-        $emptyStandbyPath = Ensure-EmptyStandbyList
+        Initialize-MemoryPurgeHelper
     }
     catch {
-        Write-TidyError -Message ("Unable to prepare EmptyStandbyList. {0}" -f $_.Exception.Message)
+        Write-TidyOutput -Message ("Unable to initialize native memory purge helper: {0}" -f $_.Exception.Message)
+        Write-TidyOutput -Message 'Skipping standby memory purge. Consider rerunning after confirming administrator privileges.'
         return
     }
 
-    $modes = @('standbylist', 'priority0standbylist', 'modifiedpagelist', 'workingsets')
-    foreach ($mode in $modes) {
-        Write-TidyOutput -Message ("Invoking EmptyStandbyList mode '{0}'." -f $mode)
-        Invoke-TidyCommand -Command { param($exe, $argument) & $exe $argument } -Arguments @($emptyStandbyPath, $mode) -Description ("EmptyStandbyList {0}" -f $mode)
+    $commands = @(
+        @{ Command = [MemoryListNative+SystemMemoryListCommand]::MemoryPurgeStandbyList; Description = 'Purging standby page lists.' },
+        @{ Command = [MemoryListNative+SystemMemoryListCommand]::MemoryPurgeLowPriorityStandbyList; Description = 'Purging low-priority standby lists.' },
+        @{ Command = [MemoryListNative+SystemMemoryListCommand]::MemoryFlushModifiedList; Description = 'Flushing modified page list.' },
+        @{ Command = [MemoryListNative+SystemMemoryListCommand]::MemoryEmptyWorkingSets; Description = 'Emptying working sets via kernel API.' }
+    )
+
+    foreach ($entry in $commands) {
+        Write-TidyOutput -Message $entry.Description
+        try {
+            [MemoryListNative]::IssueCommand($entry.Command)
+        }
+        catch {
+            Write-TidyOutput -Message ("  ↳ Command skipped: {0}" -f $_.Exception.Message)
+        }
     }
 }
 

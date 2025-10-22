@@ -188,31 +188,39 @@ function Enrich-StartupRecord {
     param([pscustomobject] $Record)
 
     $path = $Record.ExecutablePath
-    if ([string]::IsNullOrWhiteSpace($path)) {
-        return $Record
+    $company = $null
+    $product = $null
+    $fileVersion = $null
+    $fileSize = $null
+    $lastWrite = $null
+    $signatureStatus = 'Unknown'
+
+    if (-not [string]::IsNullOrWhiteSpace($path)) {
+        try {
+            $item = Get-Item -LiteralPath $path -ErrorAction Stop
+            $signature = Get-AuthenticodeSignature -FilePath $path -ErrorAction SilentlyContinue
+
+            $company = $item.VersionInfo.CompanyName
+            $product = $item.VersionInfo.ProductName
+            $fileVersion = $item.VersionInfo.FileVersion
+            $fileSize = [Math]::Round($item.Length / 1MB, 2)
+            $lastWrite = $item.LastWriteTime
+            if ($null -ne $signature) {
+                $signatureStatus = $signature.Status
+            }
+        }
+        catch {
+            # Leave defaults when metadata cannot be resolved.
+        }
     }
 
-    try {
-        $item = Get-Item -LiteralPath $path -ErrorAction Stop
-        $signature = Get-AuthenticodeSignature -FilePath $path -ErrorAction SilentlyContinue
-
-        return $Record | Select-Object *,
-            @{ Name = 'Company'; Expression = { $item.VersionInfo.CompanyName } },
-            @{ Name = 'Product'; Expression = { $item.VersionInfo.ProductName } },
-            @{ Name = 'FileVersion'; Expression = { $item.VersionInfo.FileVersion } },
-            @{ Name = 'FileSizeMB'; Expression = { [Math]::Round($item.Length / 1MB, 2) } },
-            @{ Name = 'LastWriteTime'; Expression = { $item.LastWriteTime } },
-            @{ Name = 'SignatureStatus'; Expression = { if ($null -ne $signature) { $signature.Status } else { 'Unknown' } } }
-    }
-    catch {
-        return $Record | Select-Object *,
-            @{ Name = 'Company'; Expression = { $null } },
-            @{ Name = 'Product'; Expression = { $null } },
-            @{ Name = 'FileVersion'; Expression = { $null } },
-            @{ Name = 'FileSizeMB'; Expression = { $null } },
-            @{ Name = 'LastWriteTime'; Expression = { $null } },
-            @{ Name = 'SignatureStatus'; Expression = { 'Unknown' } }
-    }
+    return $Record | Select-Object *,
+        @{ Name = 'Company'; Expression = { $company } },
+        @{ Name = 'Product'; Expression = { $product } },
+        @{ Name = 'FileVersion'; Expression = { $fileVersion } },
+        @{ Name = 'FileSizeMB'; Expression = { $fileSize } },
+        @{ Name = 'LastWriteTime'; Expression = { $lastWrite } },
+        @{ Name = 'SignatureStatus'; Expression = { $signatureStatus } }
 }
 
 function Add-StartupRecord {
