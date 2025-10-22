@@ -465,7 +465,7 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
     public string AttemptLabel { get; private set; } = string.Empty;
 
     public IReadOnlyList<string> DisplayLines
-        => !_errors.IsDefaultOrEmpty && _errors.Length > 0 ? _errors : _output;
+        => !Errors.IsDefaultOrEmpty && Errors.Length > 0 ? Errors : Output;
 
     public void Update(EssentialsQueueOperationSnapshot snapshot)
     {

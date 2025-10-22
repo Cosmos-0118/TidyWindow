@@ -141,7 +141,9 @@ function Ensure-EmptyStandbyList {
     try {
         Invoke-WebRequest -Uri $downloadUri -OutFile $tempZip -UseBasicParsing -ErrorAction Stop
         Expand-Archive -Path $tempZip -DestinationPath $extractRoot -Force
-        $candidate = Get-ChildItem -Path $extractRoot -Recurse -Filter 'EmptyStandbyList.exe' | Select-Object -First 1
+        $candidate = Get-ChildItem -Path $extractRoot -Recurse -Filter 'EmptyStandbyList*.exe' -File -ErrorAction SilentlyContinue |
+            Sort-Object -Property Name -Descending |
+            Select-Object -First 1
         if (-not $candidate) {
             throw 'EmptyStandbyList executable not found in downloaded package.'
         }

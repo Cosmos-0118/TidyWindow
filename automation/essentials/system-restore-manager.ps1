@@ -135,7 +135,7 @@ function Normalize-TidyDrive {
 
     $trimmed = $Drive.Trim()
     if ($trimmed.Length -eq 1) {
-        $trimmed = "$trimmed:"
+        $trimmed = "${trimmed}:"
     }
 
     if ($trimmed.Length -lt 2 -or $trimmed[1] -ne ':') {

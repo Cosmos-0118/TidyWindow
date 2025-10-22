@@ -176,19 +176,66 @@ function Test-ChocolateyInstalled {
     return $false
 }
 
+function Get-TidyScoopRootCandidates {
+    $roots = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    $add = {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) {
+            return
+        }
+
+        $trimmed = $Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            return
+        }
+
+        try {
+            $normalized = [System.IO.Path]::GetFullPath($trimmed)
+        }
+        catch {
+            $normalized = $trimmed
+        }
+
+        if ($seen.Add($normalized)) {
+            [void]$roots.Add($normalized)
+        }
+    }
+
+    foreach ($candidate in @($env:SCOOP, $env:SCOOP_GLOBAL)) {
+        & $add $candidate
+    }
+
+    $programData = [Environment]::GetFolderPath('CommonApplicationData')
+    if (-not [string]::IsNullOrWhiteSpace($programData)) {
+        & $add (Join-Path -Path $programData -ChildPath 'scoop')
+    }
+
+    $userProfile = [Environment]::GetFolderPath('UserProfile')
+    if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+        & $add (Join-Path -Path $userProfile -ChildPath 'scoop')
+    }
+
+    return $roots
+}
+
 function Test-ScoopInstalled {
     if (Test-TidyCommand -CommandName 'scoop') {
         return $true
     }
 
-    $candidatePaths = @()
+    $candidatePaths = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-    if ($env:SCOOP) {
-        $candidatePaths += Join-Path -Path $env:SCOOP -ChildPath 'shims\scoop.cmd'
-    }
-
-    if ($env:USERPROFILE) {
-        $candidatePaths += Join-Path -Path $env:USERPROFILE -ChildPath 'scoop\shims\scoop.cmd'
+    foreach ($root in Get-TidyScoopRootCandidates) {
+        foreach ($relative in @('shims\scoop.exe', 'shims\scoop.cmd')) {
+            $path = Join-Path -Path $root -ChildPath $relative
+            if ($seen.Add($path)) {
+                [void]$candidatePaths.Add($path)
+            }
+        }
     }
 
     foreach ($path in $candidatePaths) {

@@ -126,6 +126,51 @@ function Test-TidyCommand {
 function Test-TidyAdmin {
     return [bool](New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
+ 
+function Get-TidyScoopRootCandidates {
+    $roots = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    $add = {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) {
+            return
+        }
+
+        $trimmed = $Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            return
+        }
+
+        try {
+            $normalized = [System.IO.Path]::GetFullPath($trimmed)
+        }
+        catch {
+            $normalized = $trimmed
+        }
+
+        if ($seen.Add($normalized)) {
+            [void]$roots.Add($normalized)
+        }
+    }
+
+    foreach ($candidate in @($env:SCOOP, $env:SCOOP_GLOBAL)) {
+        & $add $candidate
+    }
+
+    $programData = [Environment]::GetFolderPath('CommonApplicationData')
+    if (-not [string]::IsNullOrWhiteSpace($programData)) {
+        & $add (Join-Path -Path $programData -ChildPath 'scoop')
+    }
+
+    $userProfile = [Environment]::GetFolderPath('UserProfile')
+    if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+        & $add (Join-Path -Path $userProfile -ChildPath 'scoop')
+    }
+
+    return $roots
+}
 
 function Get-TidyPowerShellExecutable {
     if ($PSVersionTable.PSEdition -eq 'Core') {
@@ -204,9 +249,28 @@ function Invoke-ScoopRemoval {
 
     Write-TidyLog -Level Information -Message 'Removing Scoop for the current user.'
 
-    $scoopRoot = $env:SCOOP
+    $scoopRoot = $null
+    $rootCandidates = Get-TidyScoopRootCandidates
+    foreach ($candidate in $rootCandidates) {
+        if (-not $scoopRoot) {
+            $scoopRoot = $candidate
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {
+            $scoopRoot = $candidate
+            break
+        }
+    }
+
+    if (-not $scoopRoot) {
+        $scoopRoot = $env:SCOOP
+    }
+
     if ([string]::IsNullOrWhiteSpace($scoopRoot)) {
-        $scoopRoot = Join-Path -Path $env:USERPROFILE -ChildPath 'scoop'
+        $userProfile = [Environment]::GetFolderPath('UserProfile')
+        if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+            $scoopRoot = Join-Path -Path $userProfile -ChildPath 'scoop'
+        }
     }
 
     $canonicalRoot = $null
@@ -235,7 +299,24 @@ function Invoke-ScoopRemoval {
         Invoke-TidyCommand -Command { scoop uninstall scoop } -Description 'Running Scoop self-uninstall.' -RequireSuccess | Out-Null
     }
 
-    foreach ($path in @($env:SCOOP, (Join-Path -Path $env:USERPROFILE -ChildPath 'scoop'), (Join-Path -Path $env:USERPROFILE -ChildPath 'scoop-global'))) {
+    $cleanupTargets = [System.Collections.Generic.List[string]]::new()
+    foreach ($candidate in $rootCandidates) {
+        if (-not [string]::IsNullOrWhiteSpace($candidate)) {
+            [void]$cleanupTargets.Add($candidate)
+        }
+    }
+
+    $userProfile = [Environment]::GetFolderPath('UserProfile')
+    if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+        [void]$cleanupTargets.Add((Join-Path -Path $userProfile -ChildPath 'scoop-global'))
+    }
+
+    $programData = [Environment]::GetFolderPath('CommonApplicationData')
+    if (-not [string]::IsNullOrWhiteSpace($programData)) {
+        [void]$cleanupTargets.Add((Join-Path -Path $programData -ChildPath 'scoop-global'))
+    }
+
+    foreach ($path in $cleanupTargets) {
         if ([string]::IsNullOrWhiteSpace($path)) {
             continue
         }
@@ -261,6 +342,7 @@ function Invoke-ScoopRemoval {
     }
 
     Remove-Item Env:SCOOP -ErrorAction SilentlyContinue
+    Remove-Item Env:SCOOP_GLOBAL -ErrorAction SilentlyContinue
 
     return 'Scoop removal completed.'
 }
@@ -367,7 +449,7 @@ function Invoke-WingetRemoval {
 
     $packages = @()
     try {
-        $packages = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction Stop
+        $packages = @(Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction Stop)
     }
     catch {
         $packages = @()
@@ -403,13 +485,13 @@ function Invoke-WingetRemoval {
     try {
         $provisioned = @()
         if ($isAdmin) {
-            $provisioned = Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq 'Microsoft.DesktopAppInstaller' }
+            $provisioned = @(Get-AppxProvisionedPackage -Online | Where-Object { $_.DisplayName -eq 'Microsoft.DesktopAppInstaller' })
             foreach ($entry in @($provisioned)) {
                 Invoke-TidyCommand -Command { param($packageName) Remove-AppxProvisionedPackage -Online -PackageName $packageName -ErrorAction Stop } -Arguments @($entry.PackageName) -Description ("Removing provisioned App Installer package '{0}'." -f $entry.PackageName) -RequireSuccess | Out-Null
             }
         }
         else {
-            $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Microsoft.DesktopAppInstaller' }
+            $provisioned = @(Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq 'Microsoft.DesktopAppInstaller' })
             if ($provisioned.Count -gt 0) {
                 Write-TidyOutput -Message 'Provisioned App Installer package detected. Run removal again from an elevated session to remove it for all users.'
             }

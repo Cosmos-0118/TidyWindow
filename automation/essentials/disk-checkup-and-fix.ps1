@@ -133,7 +133,7 @@ function Resolve-VolumePath {
 
     $trimmed = $Value.Trim()
     if ($trimmed.Length -eq 1) {
-        $trimmed = "$trimmed:"
+        $trimmed = "${trimmed}:"
     }
 
     if ($trimmed.Length -eq 2 -and $trimmed[1] -eq ':') {

@@ -21,6 +21,7 @@ function Convert-TidyLogMessage {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
+        [AllowNull()]
         [object] $InputObject
     )
 

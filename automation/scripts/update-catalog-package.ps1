@@ -96,6 +96,51 @@ function Remove-TidyAnsiSequences {
     return $script:AnsiEscapeRegex.Replace($Text, '').Replace("`r", '').Trim()
 }
 
+function Get-TidyScoopRootCandidates {
+    $roots = [System.Collections.Generic.List[string]]::new()
+    $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    $add = {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) {
+            return
+        }
+
+        $trimmed = $Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
+            return
+        }
+
+        try {
+            $normalized = [System.IO.Path]::GetFullPath($trimmed)
+        }
+        catch {
+            $normalized = $trimmed
+        }
+
+        if ($seen.Add($normalized)) {
+            [void]$roots.Add($normalized)
+        }
+    }
+
+    foreach ($candidate in @($env:SCOOP, $env:SCOOP_GLOBAL)) {
+        & $add $candidate
+    }
+
+    $programData = [Environment]::GetFolderPath('CommonApplicationData')
+    if (-not [string]::IsNullOrWhiteSpace($programData)) {
+        & $add (Join-Path -Path $programData -ChildPath 'scoop')
+    }
+
+    $userProfile = [Environment]::GetFolderPath('UserProfile')
+    if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+        & $add (Join-Path -Path $userProfile -ChildPath 'scoop')
+    }
+
+    return $roots
+}
+
 $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
@@ -571,9 +616,28 @@ function Get-ChocoAvailableVersion {
 function Get-ScoopManifestPaths {
     param([string] $PackageId)
 
-    $root = $env:SCOOP
+    $root = $null
+    $candidates = Get-TidyScoopRootCandidates
+    foreach ($candidate in $candidates) {
+        if (-not $root) {
+            $root = $candidate
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -Path $candidate)) {
+            $root = $candidate
+            break
+        }
+    }
+
+    if (-not $root) {
+        $root = $env:SCOOP
+    }
+
     if ([string]::IsNullOrWhiteSpace($root)) {
-        $root = Join-Path -Path ([Environment]::GetFolderPath('UserProfile')) -ChildPath 'scoop'
+        $userProfile = [Environment]::GetFolderPath('UserProfile')
+        if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+            $root = Join-Path -Path $userProfile -ChildPath 'scoop'
+        }
     }
 
     if ([string]::IsNullOrWhiteSpace($PackageId) -or [string]::IsNullOrWhiteSpace($root)) {

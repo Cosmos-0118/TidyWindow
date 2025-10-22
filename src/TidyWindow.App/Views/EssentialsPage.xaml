@@ -288,10 +288,14 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Horizontal"
-                                    Grid.Row="0"
-                                    Margin="0,0,0,12">
-                            <StackPanel>
+                        <Grid Grid.Row="0"
+                              Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
                                 <TextBlock Text="Queued runs"
                                            FontSize="16"
                                            FontWeight="SemiBold"
@@ -300,9 +304,11 @@
                                            FontSize="12"
                                            Foreground="#64748B"/>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal"
+
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
                                         HorizontalAlignment="Right"
-                                        Margin="Auto,0,0,0">
+                                        VerticalAlignment="Center">
                                 <Button Content="Retry failed"
                                         Command="{Binding RetryFailedCommand}"
                                         Margin="0,0,8,0"
@@ -311,7 +317,7 @@
                                         Command="{Binding ClearCompletedCommand}"
                                         Style="{StaticResource EssentialsSecondaryButtonStyle}"/>
                             </StackPanel>
-                        </StackPanel>
+                        </Grid>
 
                         <ListView Grid.Row="1"
                                   ItemsSource="{Binding Operations}"
