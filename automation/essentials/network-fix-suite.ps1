@@ -182,7 +182,11 @@ try {
     Invoke-TidyCommand -Command { param($computerName) Test-NetConnection -ComputerName $computerName -InformationLevel Detailed } -Arguments @($TargetHost) -Description 'Test-NetConnection probe.' | Out-Null
 
     Write-TidyOutput -Message ("Running latency sample ({0} pings)." -f $LatencySamples)
-    Invoke-TidyCommand -Command { param($computerName, $count) ping.exe -n $count $computerName } -Arguments @($TargetHost, [Math]::Max(1, $LatencySamples)) -Description 'ping sweep.' -RequireSuccess | Out-Null
+    $pingExitCode = Invoke-TidyCommand -Command { param($computerName, $count) ping.exe -n $count $computerName } -Arguments @($TargetHost, [Math]::Max(1, $LatencySamples)) -Description 'ping sweep.'
+    if ($pingExitCode -ne 0) {
+        Write-TidyLog -Level Warning -Message ("Ping sweep to {0} returned exit code {1}. Continuing diagnostics." -f $TargetHost, $pingExitCode)
+        Write-TidyOutput -Message ("Ping sweep could not reach {0} (exit code {1}). Continuing diagnostics for additional insight." -f $TargetHost, $pingExitCode)
+    }
 
     if (-not $SkipTraceroute.IsPresent) {
         Write-TidyOutput -Message 'Tracing network route.'

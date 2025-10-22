@@ -165,7 +165,12 @@ function Get-TidyRestorePoints {
         }) | Out-Null
     }
 
-    return $list | Sort-Object -Property CreationTime -Descending
+    $sorted = $list | Sort-Object -Property CreationTime -Descending
+    if ($sorted) {
+        return @($sorted)
+    }
+
+    return @()
 }
 
 function Get-TidyRestoreCreationFrequencyMinutes {

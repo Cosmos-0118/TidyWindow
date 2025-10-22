@@ -1,0 +1,44 @@
+2025-10-22 16:13:25Z [Error] Essentials
+Network fix suite failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mping sweep. failed with exit code 1.[0m
+--- Output ---
+[2025-10-22 21:42:25Z][Information] Starting advanced network remediation for target '8.8.8.8'.
+Clearing ARP cache.
+[2025-10-22 21:42:25Z][Information] Clearing ARP table.
+Reloading NetBIOS name cache.
+[2025-10-22 21:42:25Z][Information] nbtstat -R
+Re-registering NetBIOS names.
+[2025-10-22 21:42:25Z][Information] nbtstat -RR
+Resetting IPv4 neighbor cache.
+[2025-10-22 21:42:25Z][Information] netsh interface ip delete arpcache
+Resetting TCP global heuristics to defaults.
+[2025-10-22 21:42:25Z][Information] Disable TCP heuristics.
+[2025-10-22 21:42:25Z][Information] Restore TCP auto-tuning.
+Registering DNS records with DHCP server.
+[2025-10-22 21:42:26Z][Information] ipconfig /registerdns
+Capturing adapter link statistics.
+[2025-10-22 21:42:29Z][Information] Adapter statistics snapshot.
+Testing connection to 8.8.8.8.
+[2025-10-22 21:42:32Z][Information] Test-NetConnection probe.
+[33;1mWARNING: Ping to 8.8.8.8 failed with status: TimedOut[0m
+Running latency sample (8 pings).
+[2025-10-22 21:42:46Z][Information] ping sweep.
+[2025-10-22 21:43:25Z][Error] ping sweep. failed with exit code 1.
+[2025-10-22 21:43:25Z][Information] Network fix suite finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Program Files\TidyWindow\automation\essentials\network-fix-suite.ps1:216[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 216 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mping sweep. failed with exit code 1.[0m
+
+2025-10-22 16:13:26Z [Error] Essentials
+System Restore manager failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'Count' cannot be found on this object. Verify that the property exists.[0m
+--- Output ---
+[2025-10-22 21:43:26Z][Error] The property 'Count' cannot be found on this object. Verify that the property exists.
+[2025-10-22 21:43:26Z][Information] System Restore manager finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Program Files\TidyWindow\automation\essentials\system-restore-manager.ps1:338[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 338 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'Count' cannot be found on this object. Verify that the property exists.[0m
