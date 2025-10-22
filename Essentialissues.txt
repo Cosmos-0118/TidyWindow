@@ -1,55 +1,16 @@
-2025-10-22 11:30:39Z [Error] Essentials
-Windows Update repair toolkit failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mFailed to rename Catroot2: The process cannot access the file because it is being used by another process.[0m
---- Output ---
-[2025-10-22 17:00:38Z][Information] Starting Windows Update repair sequence.
-Stopping Windows Update related services.
-[2025-10-22 17:00:38Z][Information] Stopping service wuauserv
-0
-[2025-10-22 17:00:38Z][Information] Stopping service bits
-0
-[2025-10-22 17:00:38Z][Information] Stopping service cryptsvc
-0
-[2025-10-22 17:00:38Z][Information] Stopping service appidsvc
-0
-[2025-10-22 17:00:38Z][Information] Stopping service msiserver
-0
-Resetting SoftwareDistribution and Catroot2 caches.
-[2025-10-22 17:00:38Z][Information] Clearing attributes on Catroot2
-[2025-10-22 17:00:38Z][Information] Taking ownership of Catroot2
-[2025-10-22 17:00:38Z][Information] Granting full control on Catroot2
-[2025-10-22 17:00:38Z][Error] Failed to rename Catroot2: The process cannot access the file because it is being used by another process.
-[2025-10-22 17:00:38Z][Information] Windows Update repair toolkit finished.
---- Errors ---
-[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\windows-update-repair-toolkit.ps1:364[0m
-[31;1m[0m[36;1mLine |[0m
-[31;1m[0m[36;1m[36;1m 364 | [0m     [36;1mWrite-TidyError -Message $message[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
-[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mFailed to rename Catroot2: The process cannot access the file because it is being used by another process.[0m
-
-2025-10-22 11:25:35Z [Success] Essentials
-Disk checkup & repair completed.
+2025-10-22 13:24:42Z [Error] Essentials
+Disk checkup & repair failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'PredictFailure' cannot be found on this object. Verify that the property exists.[0m
 --- Output ---
 Target volume: C:
-[2025-10-22 16:55:07Z][Information] Starting disk check for volume C:.
+[2025-10-22 18:54:14Z][Information] Starting disk check for volume C:.
 Running CHKDSK in online scan mode.
-[2025-10-22 16:55:07Z][Information] CHKDSK C: /scan
+[2025-10-22 18:54:14Z][Information] CHKDSK C: /scan
 Collecting SMART health indicators.
-[2025-10-22 16:55:35Z][Warning] SMART status via MSStorageDriver_FailurePredictStatus failed. Not supported 
-[Healthy] MSI M450 1TB V1
-  ? Details: HealthStatus=0; OperationalStatus=2
-Disk checkup completed.
-[2025-10-22 16:55:35Z][Information] Disk checkup script finished.
-
-2025-10-22 11:25:07Z [Success] Essentials
-System health scanner completed.
---- Output ---
-[2025-10-22 16:53:16Z][Information] Starting Windows system health scanner.
-Running System File Checker (this can take 5-15 minutes).
-[2025-10-22 16:53:16Z][Information] Running SFC /scannow.
-Checking Windows component store health.
-[2025-10-22 16:54:01Z][Information] DISM CheckHealth
-Scanning Windows component store for corruption.
-[2025-10-22 16:54:01Z][Information] DISM ScanHealth
-Skipping RestoreHealth. Re-run with -RunRestoreHealth to attempt repairs.
-System health scan completed.
-[2025-10-22 16:55:07Z][Information] System health scanner finished.
+[2025-10-22 18:54:42Z][Error] The property 'PredictFailure' cannot be found on this object. Verify that the property exists.
+[2025-10-22 18:54:42Z][Information] Disk checkup script finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\disk-checkup-and-fix.ps1:319[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 319 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe property 'PredictFailure' cannot be found on this object. Verify that the property exists.[0m
