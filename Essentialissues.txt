@@ -401,3 +401,28 @@ Top 12 impact candidates:
    EarTrumpet - C:\ProgramData\chocolatey\lib\eartrumpet\tools\EarTrumpet\EarTrumpet.exe (1.29 MB)
    AMDNoiseSuppression - C:\WINDOWS\system32\AMD\ANR\AMDNoiseSuppression.exe (0.3 MB)
 [2025-10-22 16:29:46Z][Information] Startup impact analyzer finished.
+
+2025-10-22 11:00:41Z [Error] Essentials
+Windows Update repair toolkit failed: [31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe variable '$script:AdministratorsGroupName' cannot be retrieved because it has not been set.[0m
+--- Output ---
+[2025-10-22 16:30:40Z][Information] Starting Windows Update repair sequence.
+Stopping Windows Update related services.
+[2025-10-22 16:30:40Z][Information] Stopping service wuauserv
+0
+[2025-10-22 16:30:41Z][Information] Stopping service bits
+0
+[2025-10-22 16:30:41Z][Information] Stopping service cryptsvc
+0
+[2025-10-22 16:30:41Z][Information] Stopping service appidsvc
+0
+[2025-10-22 16:30:41Z][Information] Stopping service msiserver
+0
+Resetting SoftwareDistribution and Catroot2 caches.
+[2025-10-22 16:30:41Z][Error] The variable '$script:AdministratorsGroupName' cannot be retrieved because it has not been set.
+[2025-10-22 16:30:41Z][Information] Windows Update repair toolkit finished.
+--- Errors ---
+[31;1mWrite-TidyError: [0mC:\Users\user\Documents\Developer\My-projects\TidyWindow\src\TidyWindow.App\bin\Debug\net8.0-windows\win-x64\automation\essentials\windows-update-repair-toolkit.ps1:363[0m
+[31;1m[0m[36;1mLine |[0m
+[31;1m[0m[36;1m[36;1m 363 | [0m     [36;1mWrite-TidyError -Message $message[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m     | [31;1m     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~[0m
+[31;1m[0m[36;1m[36;1m[0m[36;1m[0m[36;1m[31;1m[31;1m[36;1m     | [31;1mThe variable '$script:AdministratorsGroupName' cannot be retrieved because it has not been set.[0m
