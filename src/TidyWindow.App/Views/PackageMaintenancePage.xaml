@@ -808,6 +808,19 @@
                                           VirtualizingStackPanel.ScrollUnit="Pixel"
                                           Loaded="PackagesListView_Loaded"
                                           SizeChanged="PackagesListView_SizeChanged">
+                                    <ListView.Style>
+                                        <Style TargetType="ListView">
+                                            <Setter Property="Visibility"
+                                                    Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Packages.Count}"
+                                                             Value="0">
+                                                    <Setter Property="Visibility"
+                                                            Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListView.Style>
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
                                             <Setter Property="HorizontalContentAlignment"

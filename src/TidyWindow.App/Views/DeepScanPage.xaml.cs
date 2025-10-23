@@ -60,6 +60,7 @@ public partial class DeepScanPage : Page
         DataContext = _viewModel;
         Loaded += Page_OnLoaded;
         Unloaded += OnPageUnloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
     }
 
     private async void Page_OnLoaded(object sender, RoutedEventArgs e)
@@ -106,6 +107,27 @@ public partial class DeepScanPage : Page
 
         Unloaded -= OnPageUnloaded;
         _disposed = true;
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible && _disposed)
+        {
+            RestorePageBindings();
+        }
+    }
+
+    private void RestorePageBindings()
+    {
+        if (_findingsListView is not null)
+        {
+            _findingsListView.Loaded += FindingsListView_Loaded;
+            _findingsListView.SizeChanged += FindingsListView_SizeChanged;
+        }
+
+        Unloaded += OnPageUnloaded;
+        _disposed = false;
+        UpdateColumnWidths();
     }
 
     private void FindingsListView_Loaded(object sender, RoutedEventArgs e)

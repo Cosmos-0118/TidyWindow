@@ -59,6 +59,7 @@ public partial class PackageMaintenancePage : Page
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
         Unloaded += OnPageUnloaded;
         Loaded += OnPageLoaded;
+        IsVisibleChanged += OnIsVisibleChanged;
     }
 
     private async void OnPageLoaded(object sender, RoutedEventArgs e)
@@ -119,6 +120,28 @@ public partial class PackageMaintenancePage : Page
         // Do not dispose the viewmodel to preserve state between navigations
         Unloaded -= OnPageUnloaded;
         _disposed = true;
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible && _disposed)
+        {
+            RestoreViewModelBindings();
+        }
+    }
+
+    private void RestoreViewModelBindings()
+    {
+        _viewModel.ConfirmElevation = ConfirmElevation;
+        _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
+        if (_packagesListView is not null)
+        {
+            _packagesListView.Loaded += PackagesListView_Loaded;
+            _packagesListView.SizeChanged += PackagesListView_SizeChanged;
+        }
+
+        Unloaded += OnPageUnloaded;
+        _disposed = false;
     }
 
     private void PackagesListView_Loaded(object sender, RoutedEventArgs e)

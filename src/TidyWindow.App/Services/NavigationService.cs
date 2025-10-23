@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows.Controls;
 using System.Windows.Navigation;
 using Microsoft.Extensions.DependencyInjection;
@@ -11,6 +12,7 @@ namespace TidyWindow.App.Services;
 public sealed class NavigationService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly Dictionary<Type, Page> _pageCache = new();
     private Frame? _frame;
 
     public NavigationService(IServiceProvider serviceProvider)
@@ -43,9 +45,17 @@ public sealed class NavigationService
             return;
         }
 
-        var page = _serviceProvider.GetService(pageType) as Page
+        if (!_pageCache.TryGetValue(pageType, out var page))
+        {
+            page = _serviceProvider.GetService(pageType) as Page
                    ?? ActivatorUtilities.CreateInstance(_serviceProvider, pageType) as Page
                    ?? throw new InvalidOperationException($"Unable to resolve page instance for {pageType.FullName}.");
+
+            if (page is ICacheablePage)
+            {
+                _pageCache[pageType] = page;
+            }
+        }
 
         try
         {
@@ -54,6 +64,7 @@ public sealed class NavigationService
         catch (Exception ex)
         {
             Console.Error.WriteLine($"Navigation failure for {pageType.FullName}: {ex}");
+            _pageCache.Remove(pageType);
             throw;
         }
     }

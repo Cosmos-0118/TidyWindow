@@ -10,6 +10,7 @@ namespace TidyWindow.App.Views;
 public partial class CleanupPage : Page
 {
     private readonly CleanupViewModel _viewModel;
+    private bool _disposed;
 
     public CleanupPage(CleanupViewModel viewModel)
     {
@@ -21,6 +22,7 @@ public partial class CleanupPage : Page
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
         Unloaded += CleanupPage_Unloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
     }
 
     private bool ConfirmDeletion(CleanupDeletionConfirmation context)
@@ -59,9 +61,32 @@ public partial class CleanupPage : Page
 
     private void CleanupPage_Unloaded(object sender, RoutedEventArgs e)
     {
+        if (_disposed)
+        {
+            return;
+        }
+
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
         _viewModel.ConfirmDeletion = null;
         _viewModel.ConfirmElevation = null;
         Unloaded -= CleanupPage_Unloaded;
+        _disposed = true;
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible && _disposed)
+        {
+            RestoreViewModelBindings();
+        }
+    }
+
+    private void RestoreViewModelBindings()
+    {
+        _viewModel.ConfirmDeletion = ConfirmDeletion;
+        _viewModel.ConfirmElevation = ConfirmElevation;
+        _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
+        Unloaded += CleanupPage_Unloaded;
+        _disposed = false;
     }
 }
