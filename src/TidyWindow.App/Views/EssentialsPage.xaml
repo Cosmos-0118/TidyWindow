@@ -238,16 +238,19 @@
                                            TextWrapping="Wrap"/>
                             </StackPanel>
 
-                            <ListBox Grid.Row="1"
+                            <ListBox x:Name="TasksListBox"
+                                     Grid.Row="1"
                                      ItemsSource="{Binding Tasks}"
                                      Background="Transparent"
                                      BorderThickness="0"
                                      Foreground="#F8FAFC"
                                      MinHeight="220"
                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      VirtualizingPanel.IsVirtualizing="True"
                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                     VirtualizingStackPanel.ScrollUnit="Pixel">
+                                     VirtualizingStackPanel.ScrollUnit="Pixel"
+                                     Grid.IsSharedSizeScope="True">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
                                         <Setter Property="Padding"
@@ -288,12 +291,14 @@
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid>
+                                        <Grid Margin="0">
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"
+                                                                  SharedSizeGroup="TaskContent"/>
+                                                <ColumnDefinition Width="Auto"
+                                                                  SharedSizeGroup="TaskActions"/>
                                             </Grid.ColumnDefinitions>
-                                            <StackPanel>
+                                            <StackPanel Margin="0,0,12,0">
                                                 <StackPanel Orientation="Horizontal"
                                                             VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding Title}"
@@ -324,9 +329,22 @@
                                                            FontSize="12"
                                                            TextWrapping="Wrap"/>
                                                 <ItemsControl ItemsSource="{Binding Highlights}">
+                                                    <ItemsControl.Template>
+                                                        <ControlTemplate TargetType="ItemsControl">
+                                                            <Border>
+                                                                <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                                                                              VerticalScrollBarVisibility="Disabled"
+                                                                              Focusable="False">
+                                                                    <ItemsPresenter/>
+                                                                </ScrollViewer>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </ItemsControl.Template>
                                                     <ItemsControl.ItemsPanel>
                                                         <ItemsPanelTemplate>
-                                                            <WrapPanel/>
+                                                            <WrapPanel MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=StackPanel}}"
+                                                                       ItemHeight="Auto"
+                                                                       ItemWidth="Auto"/>
                                                         </ItemsPanelTemplate>
                                                     </ItemsControl.ItemsPanel>
                                                     <ItemsControl.ItemTemplate>
@@ -372,14 +390,16 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="1"
-                                                        VerticalAlignment="Center"
-                                                        Orientation="Vertical">
-                                                <Button Content="Run"
+                        <StackPanel Grid.Column="1"
+                            VerticalAlignment="Center"
+                                                        Orientation="Vertical"
+                                                        MinWidth="96">
+                        <Button Content="Run"
                                                         Command="{Binding DataContext.QueueTaskCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                         CommandParameter="{Binding}"
-                                                        Width="96"
-                                                        Style="{StaticResource EssentialsAccentButtonStyle}"/>
+                            MinWidth="96"
+                            HorizontalAlignment="Stretch"
+                            Style="{StaticResource EssentialsAccentButtonStyle}"/>
                                                 <TextBlock Text="Queued"
                                                            Margin="0,8,0,0"
                                                            Foreground="#94A3B8"

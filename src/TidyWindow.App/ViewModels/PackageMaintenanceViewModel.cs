@@ -31,6 +31,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly List<PackageMaintenanceItemViewModel> _allPackages = new();
     private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByKey = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<PackageMaintenanceItemViewModel> _attachedItems = new();
+    private readonly HashSet<PackageMaintenanceOperationViewModel> _attachedOperations = new();
     private readonly Queue<MaintenanceOperationRequest> _pendingOperations = new();
     private readonly object _operationLock = new();
 
@@ -81,6 +82,9 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     [ObservableProperty]
     private PackageMaintenanceItemViewModel? _selectedPackage;
+
+    [ObservableProperty]
+    private PackageMaintenanceOperationViewModel? _selectedOperation;
 
     [ObservableProperty]
     private string _headline = "Maintain installed packages";
@@ -224,6 +228,63 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         EnqueueMaintenanceOperation(item, MaintenanceOperationKind.Remove);
     }
 
+    [RelayCommand(CanExecute = nameof(CanRetryFailed))]
+    private void RetryFailed()
+    {
+        var failed = Operations
+            .Where(operation => operation.Status == MaintenanceOperationStatus.Failed)
+            .ToList();
+
+        if (failed.Count == 0)
+        {
+            _mainViewModel.SetStatusMessage("No failed maintenance operations to retry.");
+            return;
+        }
+
+        var enqueued = 0;
+        foreach (var operation in failed)
+        {
+            if (EnqueueMaintenanceOperation(operation.Item, operation.Kind))
+            {
+                enqueued++;
+            }
+        }
+
+        _mainViewModel.SetStatusMessage(enqueued == 0
+            ? "No failed maintenance operations to retry."
+            : $"Retrying {enqueued} operation(s)...");
+    }
+
+    private bool CanRetryFailed()
+    {
+        return Operations.Any(operation => operation.Status == MaintenanceOperationStatus.Failed);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearCompleted))]
+    private void ClearCompleted()
+    {
+        var completed = Operations
+            .Where(operation => !operation.IsPendingOrRunning)
+            .ToList();
+
+        if (completed.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var operation in completed)
+        {
+            Operations.Remove(operation);
+        }
+
+        _mainViewModel.SetStatusMessage($"Cleared {completed.Count} completed operation(s).");
+    }
+
+    private bool CanClearCompleted()
+    {
+        return Operations.Any(operation => !operation.IsPendingOrRunning);
+    }
+
     private bool EnqueueMaintenanceOperation(PackageMaintenanceItemViewModel item, MaintenanceOperationKind kind)
     {
         if (item is null)
@@ -297,7 +358,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         item.LastOperationSucceeded = null;
         item.LastOperationMessage = queuedMessage;
 
-        Operations.Add(operation);
+        Operations.Insert(0, operation);
+        SelectedOperation = operation;
         _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} queued for '{item.DisplayName}'.", BuildOperationDetails(item, kind, packageId, requiresAdmin, requestedVersion));
 
         _mainViewModel.SetStatusMessage($"{operation.OperationDisplay} queued for '{item.DisplayName}'.");
@@ -372,6 +434,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
             await RunOnUiThreadAsync(() =>
             {
+                operation.UpdateTranscript(result.Output, result.Errors);
                 operation.MarkCompleted(result.Success, message);
                 item.IsBusy = false;
                 item.IsQueued = false;
@@ -403,6 +466,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
             await RunOnUiThreadAsync(() =>
             {
+                operation.UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray.Create(message));
                 operation.MarkCompleted(false, message);
                 item.IsBusy = false;
                 item.IsQueued = false;
@@ -778,9 +842,80 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
     }
 
+    private void AttachOperation(PackageMaintenanceOperationViewModel operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+
+        if (_attachedOperations.Add(operation))
+        {
+            operation.PropertyChanged += OnOperationPropertyChanged;
+        }
+    }
+
+    private void DetachOperation(PackageMaintenanceOperationViewModel operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+
+        if (_attachedOperations.Remove(operation))
+        {
+            operation.PropertyChanged -= OnOperationPropertyChanged;
+        }
+    }
+
+    private void OnOperationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PackageMaintenanceOperationViewModel.Status))
+        {
+            RetryFailedCommand.NotifyCanExecuteChanged();
+            ClearCompletedCommand.NotifyCanExecuteChanged();
+        }
+    }
+
     private void OnOperationsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (e.NewItems is not null)
+        {
+            foreach (PackageMaintenanceOperationViewModel operation in e.NewItems)
+            {
+                AttachOperation(operation);
+            }
+        }
+
+        if (e.OldItems is not null)
+        {
+            foreach (PackageMaintenanceOperationViewModel operation in e.OldItems)
+            {
+                DetachOperation(operation);
+            }
+        }
+
+        if (e.Action == NotifyCollectionChangedAction.Reset)
+        {
+            foreach (var operation in _attachedOperations.ToList())
+            {
+                DetachOperation(operation);
+            }
+        }
+
         OnPropertyChanged(nameof(HasOperations));
+
+        if (Operations.Count == 0)
+        {
+            SelectedOperation = null;
+        }
+        else if (SelectedOperation is null || !Operations.Contains(SelectedOperation))
+        {
+            SelectedOperation = Operations[0];
+        }
+
+        RetryFailedCommand.NotifyCanExecuteChanged();
+        ClearCompletedCommand.NotifyCanExecuteChanged();
     }
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -974,6 +1109,13 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
 
         _attachedItems.Clear();
+
+        foreach (var operation in _attachedOperations.ToList())
+        {
+            operation.PropertyChanged -= OnOperationPropertyChanged;
+        }
+
+        _attachedOperations.Clear();
     }
 }
 
@@ -1016,7 +1158,22 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
 
     public string PackageDisplay => Item.DisplayName;
 
+    public string StatusDisplay => Status switch
+    {
+        MaintenanceOperationStatus.Pending => "Queued",
+        MaintenanceOperationStatus.Running => "Running",
+        MaintenanceOperationStatus.Succeeded => "Completed",
+        MaintenanceOperationStatus.Failed => "Failed",
+        _ => Status.ToString()
+    };
+
     public bool IsPendingOrRunning => Status is MaintenanceOperationStatus.Pending or MaintenanceOperationStatus.Running;
+
+    public bool IsActive => IsPendingOrRunning;
+
+    public bool HasErrors => !Errors.IsDefaultOrEmpty && Errors.Length > 0;
+
+    public IReadOnlyList<string> DisplayLines => HasErrors ? Errors : Output;
 
     [ObservableProperty]
     private MaintenanceOperationStatus _status;
@@ -1033,6 +1190,12 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
     [ObservableProperty]
     private DateTimeOffset? _completedAt;
 
+    [ObservableProperty]
+    private ImmutableArray<string> _output = ImmutableArray<string>.Empty;
+
+    [ObservableProperty]
+    private ImmutableArray<string> _errors = ImmutableArray<string>.Empty;
+
     public void MarkQueued(string message)
     {
         Status = MaintenanceOperationStatus.Pending;
@@ -1040,6 +1203,7 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
         EnqueuedAt = DateTimeOffset.UtcNow;
         StartedAt = null;
         CompletedAt = null;
+        UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray<string>.Empty);
     }
 
     public void MarkStarted(string message)
@@ -1056,9 +1220,28 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
         CompletedAt = DateTimeOffset.UtcNow;
     }
 
+    public void UpdateTranscript(ImmutableArray<string> output, ImmutableArray<string> errors)
+    {
+        Output = output.IsDefault ? ImmutableArray<string>.Empty : output;
+        Errors = errors.IsDefault ? ImmutableArray<string>.Empty : errors;
+    }
+
     partial void OnStatusChanged(MaintenanceOperationStatus oldValue, MaintenanceOperationStatus newValue)
     {
         OnPropertyChanged(nameof(IsPendingOrRunning));
+        OnPropertyChanged(nameof(IsActive));
+        OnPropertyChanged(nameof(StatusDisplay));
+    }
+
+    partial void OnOutputChanged(ImmutableArray<string> oldValue, ImmutableArray<string> newValue)
+    {
+        OnPropertyChanged(nameof(DisplayLines));
+    }
+
+    partial void OnErrorsChanged(ImmutableArray<string> oldValue, ImmutableArray<string> newValue)
+    {
+        OnPropertyChanged(nameof(DisplayLines));
+        OnPropertyChanged(nameof(HasErrors));
     }
 }
 

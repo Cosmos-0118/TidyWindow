@@ -1,14 +1,57 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 using Forms = System.Windows.Forms;
+using System.Windows.Media;
+using WpfListView = System.Windows.Controls.ListView;
 
 namespace TidyWindow.App.Views;
 
 public partial class DeepScanPage : Page
 {
     private readonly DeepScanViewModel _viewModel;
+    private WpfListView? _findingsListView;
+    private ScrollViewer? _findingsScrollViewer;
+    private GridViewColumn? _itemColumn;
+    private GridViewColumn? _typeColumn;
+    private GridViewColumn? _categoryColumn;
+    private GridViewColumn? _sizeColumn;
+    private GridViewColumn? _modifiedColumn;
+    private GridViewColumn? _pathColumn;
+    private GridViewColumn? _actionsColumn;
+    private bool _disposed;
+
+    private const double ItemPreferredWidth = 320d;
+    private const double ItemCompactWidth = 260d;
+    private const double ItemMinimumWidth = 210d;
+
+    private const double TypePreferredWidth = 100d;
+    private const double TypeCompactWidth = 84d;
+    private const double TypeMinimumWidth = 70d;
+
+    private const double CategoryPreferredWidth = 140d;
+    private const double CategoryCompactWidth = 120d;
+    private const double CategoryMinimumWidth = 100d;
+
+    private const double SizePreferredWidth = 140d;
+    private const double SizeCompactWidth = 120d;
+    private const double SizeMinimumWidth = 100d;
+
+    private const double ModifiedPreferredWidth = 180d;
+    private const double ModifiedCompactWidth = 150d;
+    private const double ModifiedMinimumWidth = 130d;
+
+    private const double PathPreferredWidth = 260d;
+    private const double PathCompactWidth = 220d;
+    private const double PathMinimumWidth = 180d;
+
+    private const double ActionsPreferredWidth = 140d;
+    private const double ActionsCompactWidth = 120d;
+    private const double ActionsMinimumWidth = 110d;
+
+    private const double LayoutPadding = 56d;
 
     public DeepScanPage(DeepScanViewModel viewModel)
     {
@@ -16,6 +59,7 @@ public partial class DeepScanPage : Page
         _viewModel = viewModel;
         DataContext = _viewModel;
         Loaded += Page_OnLoaded;
+        Unloaded += OnPageUnloaded;
     }
 
     private async void Page_OnLoaded(object sender, RoutedEventArgs e)
@@ -44,6 +88,184 @@ public partial class DeepScanPage : Page
         if (dialog.ShowDialog() == Forms.DialogResult.OK)
         {
             _viewModel.TargetPath = dialog.SelectedPath;
+        }
+    }
+
+    private void OnPageUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_findingsListView is not null)
+        {
+            _findingsListView.Loaded -= FindingsListView_Loaded;
+            _findingsListView.SizeChanged -= FindingsListView_SizeChanged;
+        }
+
+        Unloaded -= OnPageUnloaded;
+        _disposed = true;
+    }
+
+    private void FindingsListView_Loaded(object sender, RoutedEventArgs e)
+    {
+        _findingsListView ??= sender as WpfListView;
+        if (_findingsListView is null)
+        {
+            return;
+        }
+
+        _findingsScrollViewer ??= FindDescendant<ScrollViewer>(_findingsListView);
+        CacheColumns();
+        UpdateColumnWidths();
+    }
+
+    private void FindingsListView_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+        {
+            UpdateColumnWidths();
+        }
+    }
+
+    private void CacheColumns()
+    {
+        if (_findingsListView?.View is not GridView gridView)
+        {
+            return;
+        }
+
+        if (gridView.Columns.Count >= 7)
+        {
+            _itemColumn = gridView.Columns[0];
+            _typeColumn = gridView.Columns[1];
+            _categoryColumn = gridView.Columns[2];
+            _sizeColumn = gridView.Columns[3];
+            _modifiedColumn = gridView.Columns[4];
+            _pathColumn = gridView.Columns[5];
+            _actionsColumn = gridView.Columns[6];
+        }
+    }
+
+    private void UpdateColumnWidths()
+    {
+        if (_findingsListView is null || _itemColumn is null)
+        {
+            return;
+        }
+
+        var availableWidth = _findingsListView.ActualWidth;
+        if (double.IsNaN(availableWidth) || availableWidth <= 0)
+        {
+            return;
+        }
+
+        var workingWidth = Math.Max(0d, availableWidth - LayoutPadding);
+
+        if (_findingsScrollViewer?.ComputedVerticalScrollBarVisibility == Visibility.Visible)
+        {
+            workingWidth = Math.Max(0d, workingWidth - SystemParameters.VerticalScrollBarWidth);
+        }
+
+        var itemWidth = ItemPreferredWidth;
+        var typeWidth = TypePreferredWidth;
+        var categoryWidth = CategoryPreferredWidth;
+        var sizeWidth = SizePreferredWidth;
+        var modifiedWidth = ModifiedPreferredWidth;
+        var pathWidth = PathPreferredWidth;
+        var actionsWidth = ActionsPreferredWidth;
+
+        var preferredTotal = itemWidth + typeWidth + categoryWidth + sizeWidth + modifiedWidth + pathWidth + actionsWidth;
+
+        if (workingWidth > preferredTotal)
+        {
+            itemWidth += workingWidth - preferredTotal;
+        }
+        else
+        {
+            var overflow = preferredTotal - workingWidth;
+
+            itemWidth = ReduceWidth(itemWidth, ItemCompactWidth, ref overflow);
+            pathWidth = ReduceWidth(pathWidth, PathCompactWidth, ref overflow);
+            modifiedWidth = ReduceWidth(modifiedWidth, ModifiedCompactWidth, ref overflow);
+            categoryWidth = ReduceWidth(categoryWidth, CategoryCompactWidth, ref overflow);
+            sizeWidth = ReduceWidth(sizeWidth, SizeCompactWidth, ref overflow);
+            actionsWidth = ReduceWidth(actionsWidth, ActionsCompactWidth, ref overflow);
+            typeWidth = ReduceWidth(typeWidth, TypeCompactWidth, ref overflow);
+
+            if (overflow > 0)
+            {
+                itemWidth = ReduceWidth(itemWidth, ItemMinimumWidth, ref overflow);
+                pathWidth = ReduceWidth(pathWidth, PathMinimumWidth, ref overflow);
+                modifiedWidth = ReduceWidth(modifiedWidth, ModifiedMinimumWidth, ref overflow);
+                categoryWidth = ReduceWidth(categoryWidth, CategoryMinimumWidth, ref overflow);
+                sizeWidth = ReduceWidth(sizeWidth, SizeMinimumWidth, ref overflow);
+                actionsWidth = ReduceWidth(actionsWidth, ActionsMinimumWidth, ref overflow);
+                typeWidth = ReduceWidth(typeWidth, TypeMinimumWidth, ref overflow);
+            }
+        }
+
+        _itemColumn.Width = itemWidth;
+        _typeColumn?.SetWidth(typeWidth);
+        _categoryColumn?.SetWidth(categoryWidth);
+        _sizeColumn?.SetWidth(sizeWidth);
+        _modifiedColumn?.SetWidth(modifiedWidth);
+        _pathColumn?.SetWidth(pathWidth);
+        _actionsColumn?.SetWidth(actionsWidth);
+    }
+
+    private static double ReduceWidth(double current, double minimum, ref double overflow)
+    {
+        if (overflow <= 0d)
+        {
+            return current;
+        }
+
+        var reducible = current - minimum;
+        if (reducible <= 0d)
+        {
+            return current;
+        }
+
+        var reduction = Math.Min(reducible, overflow);
+        overflow -= reduction;
+        return current - reduction;
+    }
+
+    private static T? FindDescendant<T>(DependencyObject? root) where T : DependencyObject
+    {
+        if (root is null)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var child = VisualTreeHelper.GetChild(root, i);
+            if (child is T match)
+            {
+                return match;
+            }
+
+            var descendant = FindDescendant<T>(child);
+            if (descendant is not null)
+            {
+                return descendant;
+            }
+        }
+
+        return null;
+    }
+}
+
+internal static class GridViewColumnExtensions
+{
+    public static void SetWidth(this GridViewColumn column, double width)
+    {
+        if (Math.Abs(column.Width - width) > 0.1)
+        {
+            column.Width = width;
         }
     }
 }

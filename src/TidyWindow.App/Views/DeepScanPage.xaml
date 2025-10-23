@@ -59,6 +59,62 @@
                 </Trigger>
             </ControlTemplate.Triggers>
         </ControlTemplate>
+
+    <Style x:Key="PaginationButtonStyle"
+           TargetType="Button">
+        <Setter Property="Foreground"
+            Value="#E2E8F0"/>
+        <Setter Property="Background"
+            Value="#1E293B"/>
+        <Setter Property="BorderBrush"
+            Value="#334155"/>
+        <Setter Property="BorderThickness"
+            Value="1"/>
+        <Setter Property="Padding"
+            Value="12,4"/>
+        <Setter Property="Cursor"
+            Value="Hand"/>
+        <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="Button">
+            <Border x:Name="Root"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="6"
+                Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="Center"
+                          VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#0F172A"/>
+                <Setter TargetName="Root"
+                    Property="BorderBrush"
+                    Value="#1E293B"/>
+                <Setter Property="Foreground"
+                    Value="#475569"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#243048"/>
+                </Trigger>
+                <Trigger Property="IsPressed"
+                     Value="True">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#1A2436"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value>
+        </Setter>
+    </Style>
     </Page.Resources>
     <ScrollViewer Margin="32"
                   VerticalScrollBarVisibility="Auto"
@@ -498,32 +554,32 @@
             </StackPanel>
             <StackPanel Orientation="Horizontal"
                     DockPanel.Dock="Right">
-                <Button Content="⟨ Prev"
-                    Command="{Binding PreviousPageCommand}"
-                    IsEnabled="{Binding CanGoToPreviousPage}"
-                    Padding="12,4"
-                    Margin="0,0,8,0"
-                    Background="#1E293B"
-                    Foreground="#E2E8F0"
-                    BorderBrush="#334155"
-                    Cursor="Hand"/>
-                <Button Content="Next ⟩"
-                    Command="{Binding NextPageCommand}"
-                    IsEnabled="{Binding CanGoToNextPage}"
-                    Padding="12,4"
-                    Background="#1E293B"
-                    Foreground="#E2E8F0"
-                    BorderBrush="#334155"
-                    Cursor="Hand"/>
+        <Button Content="⟨ Prev"
+            Command="{Binding PreviousPageCommand}"
+            IsEnabled="{Binding CanGoToPreviousPage}"
+            Margin="0,0,8,0"
+            Style="{StaticResource PaginationButtonStyle}"/>
+        <Button Content="Next ⟩"
+            Command="{Binding NextPageCommand}"
+            IsEnabled="{Binding CanGoToNextPage}"
+            Style="{StaticResource PaginationButtonStyle}"/>
             </StackPanel>
             </DockPanel>
 
-            <ListView Grid.Row="1"
-                  ItemsSource="{Binding VisibleFindings}"
-                  Background="Transparent"
-                  BorderThickness="0"
-                  Foreground="#F8FAFC"
-                  ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListView x:Name="FindingsListView"
+            Grid.Row="1"
+            ItemsSource="{Binding VisibleFindings}"
+            Background="Transparent"
+            BorderThickness="0"
+            Foreground="#F8FAFC"
+            ScrollViewer.VerticalScrollBarVisibility="Auto"
+            ScrollViewer.HorizontalScrollBarVisibility="Auto"
+            ScrollViewer.CanContentScroll="True"
+            VirtualizingPanel.IsVirtualizing="True"
+            VirtualizingPanel.VirtualizationMode="Recycling"
+            VirtualizingStackPanel.ScrollUnit="Pixel"
+            Loaded="FindingsListView_Loaded"
+            SizeChanged="FindingsListView_SizeChanged">
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="HorizontalContentAlignment"
@@ -557,7 +613,8 @@
                         </Style>
                     </ListView.ItemContainerStyle>
                     <ListView.View>
-                        <GridView AllowsColumnReorder="False">
+                        <GridView x:Name="FindingsGridView"
+                                  AllowsColumnReorder="False">
                             <GridView.ColumnHeaderContainerStyle>
                                 <Style TargetType="GridViewColumnHeader">
                                     <Setter Property="Foreground"
@@ -574,7 +631,8 @@
                                             Value="Transparent"/>
                                 </Style>
                             </GridView.ColumnHeaderContainerStyle>
-                            <GridViewColumn Width="320">
+                            <GridViewColumn x:Name="ItemColumn"
+                                            Width="320">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Item"/>
                                 </GridViewColumn.Header>
@@ -594,19 +652,22 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Width="100"
+                            <GridViewColumn x:Name="TypeColumn"
+                                            Width="100"
                                             DisplayMemberBinding="{Binding KindDisplay}">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Type"/>
                                 </GridViewColumn.Header>
                             </GridViewColumn>
-                            <GridViewColumn Width="140"
+                            <GridViewColumn x:Name="CategoryColumn"
+                                            Width="140"
                                             DisplayMemberBinding="{Binding Category}">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Category"/>
                                 </GridViewColumn.Header>
                             </GridViewColumn>
-                            <GridViewColumn Width="140">
+                            <GridViewColumn x:Name="SizeColumn"
+                                            Width="140">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Size"/>
                                 </GridViewColumn.Header>
@@ -618,7 +679,8 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Width="180">
+                            <GridViewColumn x:Name="ModifiedColumn"
+                                            Width="180">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Last modified"/>
                                 </GridViewColumn.Header>
@@ -630,7 +692,8 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Width="260">
+                            <GridViewColumn x:Name="PathColumn"
+                                            Width="260">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Path"/>
                                 </GridViewColumn.Header>
@@ -643,7 +706,8 @@
                                     </DataTemplate>
                                 </GridViewColumn.CellTemplate>
                             </GridViewColumn>
-                            <GridViewColumn Width="140">
+                            <GridViewColumn x:Name="ActionsColumn"
+                                            Width="140">
                                 <GridViewColumn.Header>
                                     <TextBlock Text="Actions"/>
                                 </GridViewColumn.Header>
