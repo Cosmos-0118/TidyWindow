@@ -243,10 +243,11 @@ try {
 
     $restorePoints = @()
     if ($shouldList -or $keepCount -gt 0 -or $purgeThreshold) {
-        $restorePoints = Get-TidyRestorePoints
+        $restorePoints = @(Get-TidyRestorePoints)
     }
 
-    if ($keepCount -gt 0 -and $restorePoints.Count -gt $keepCount) {
+    $restorePointCount = @($restorePoints).Count
+    if ($keepCount -gt 0 -and $restorePointCount -gt $keepCount) {
         $toRemove = $restorePoints | Select-Object -Skip $keepCount
         foreach ($point in $toRemove) {
             Write-TidyOutput -Message ("Removing restore point #{0} from {1:g}" -f $point.SequenceNumber, $point.CreationTime)
@@ -258,7 +259,8 @@ try {
             }
         }
 
-        $restorePoints = Get-TidyRestorePoints
+        $restorePoints = @(Get-TidyRestorePoints)
+        $restorePointCount = @($restorePoints).Count
     }
 
     if ($purgeThreshold) {
@@ -273,16 +275,18 @@ try {
             }
         }
 
-        $restorePoints = Get-TidyRestorePoints
+        $restorePoints = @(Get-TidyRestorePoints)
+        $restorePointCount = @($restorePoints).Count
     }
 
     if ($shouldCreate) {
-        if (-not $restorePoints) {
-            $restorePoints = Get-TidyRestorePoints
+        if (@($restorePoints).Count -eq 0) {
+            $restorePoints = @(Get-TidyRestorePoints)
         }
 
         $frequencyMinutes = Get-TidyRestoreCreationFrequencyMinutes
-        $latestPoint = if ($restorePoints.Count -gt 0) { $restorePoints[0] } else { $null }
+        $restorePointCount = @($restorePoints).Count
+        $latestPoint = if ($restorePointCount -gt 0) { $restorePoints[0] } else { $null }
         $timeSinceLast = if ($latestPoint) { (New-TimeSpan -Start $latestPoint.CreationTime -End (Get-Date)).TotalMinutes } else { [double]::PositiveInfinity }
 
         if ($frequencyMinutes -gt 0 -and $timeSinceLast -lt $frequencyMinutes) {
@@ -293,8 +297,8 @@ try {
             )
         }
         else {
-        $name = if ([string]::IsNullOrWhiteSpace($RestorePointName)) { "TidyWindow snapshot {0}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm') } else { $RestorePointName }
-        Write-TidyOutput -Message ("Creating restore point '{0}' ({1})." -f $name, $RestorePointType)
+            $name = if ([string]::IsNullOrWhiteSpace($RestorePointName)) { "TidyWindow snapshot {0}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm') } else { $RestorePointName }
+            Write-TidyOutput -Message ("Creating restore point '{0}' ({1})." -f $name, $RestorePointType)
             $creationSucceeded = $false
 
             try {
@@ -315,13 +319,15 @@ try {
             }
 
             if ($creationSucceeded) {
-                $restorePoints = Get-TidyRestorePoints
+                $restorePoints = @(Get-TidyRestorePoints)
+                $restorePointCount = @($restorePoints).Count
             }
         }
     }
 
     if ($shouldList) {
-        if ($restorePoints.Count -eq 0) {
+        $restorePointCount = @($restorePoints).Count
+        if ($restorePointCount -eq 0) {
             Write-TidyOutput -Message 'No restore points are currently registered.'
         }
         else {
