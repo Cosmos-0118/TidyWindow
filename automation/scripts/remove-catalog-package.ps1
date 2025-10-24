@@ -209,9 +209,9 @@ function Invoke-Removal {
     $errors = [System.Collections.Generic.List[string]]::new()
 
     $invokeAndCollect = {
-        param([string[]] $Args)
+        param([string[]] $ArgumentList)
 
-        $result = & $exe @Args 2>&1
+        $result = & $exe @ArgumentList 2>&1
         $code = $LASTEXITCODE
 
         foreach ($entry in @($result)) {
