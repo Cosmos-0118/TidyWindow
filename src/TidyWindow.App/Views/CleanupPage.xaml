@@ -83,10 +83,12 @@
             </Style.Triggers>
         </Style>
     </Page.Resources>
-    <ScrollViewer Margin="32"
+    <ScrollViewer x:Name="RootScrollViewer"
+                  Margin="32"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False">
+                  CanContentScroll="False"
+                  PanningMode="VerticalOnly">
         <Grid MinWidth="720">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -94,489 +96,357 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-    <StackPanel Orientation="Horizontal">
-            <Border Width="48"
-                    Height="48"
-                    CornerRadius="12"
-                    Background="#1E293B"
-                    Margin="0,0,12,0">
-                <TextBlock Text="🧹"
-                           FontSize="24"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"/>
-            </Border>
-            <StackPanel>
-                <TextBlock Text="System clean-up"
-                           FontSize="26"
-                           FontWeight="Bold"
-                           Foreground="#F8FAFC"/>
-                <TextBlock Text="Preview large files and clutter before removing them"
-                           FontSize="14"
-                           Foreground="#94A3B8"/>
-            </StackPanel>
-        </StackPanel>
-
-        <Border Grid.Row="1"
-                Margin="0,24,0,20"
-                Padding="16"
-                Background="#111827"
-                CornerRadius="12">
-            <StackPanel>
-                <TextBlock Text="Preview options"
-                           FontSize="14"
-                           Foreground="#CBD5F5"/>
-                <TextBlock Text="Adjust scope before running a dry-run scan"
-                           FontSize="12"
-                           Foreground="#64748B"
-                           Margin="0,2,0,12"/>
-
-                <WrapPanel>
-                    <StackPanel Margin="0,0,16,12"
-                                MinWidth="180">
-                        <TextBlock Text="Scope"
-                                   Foreground="#94A3B8"/>
-                        <CheckBox Margin="0,6,0,0"
-                                  Content="Include Downloads"
-                                  FontSize="13"
-                                  Foreground="#F8FAFC"
-                                  IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
-                    </StackPanel>
-                    <StackPanel Margin="0,0,16,12"
-                                MinWidth="160">
-                        <TextBlock Text="Top items"
-                                   Foreground="#94A3B8"/>
-                        <TextBox Margin="0,6,0,0"
-                                 Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                 FontSize="13"
-                                 Foreground="#F8FAFC"
-                                 Width="80"
-                                 Background="#1F2937"
-                                 BorderBrush="#374151"
-                                 BorderThickness="1"
-                                 HorizontalContentAlignment="Center"/>
-                    </StackPanel>
-                </WrapPanel>
-
-                <WrapPanel>
-                    <StackPanel Margin="0,0,16,12"
-                                MinWidth="220">
-                        <TextBlock Text="Item kind"
-                                   Foreground="#94A3B8"/>
-                        <ComboBox Margin="0,6,0,0"
-                                  ItemsSource="{Binding ItemKindOptions}"
-                                  SelectedValuePath="Kind"
-                                  SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
-                                  DisplayMemberPath="Label"
-                                  Background="Transparent"
-                                  Foreground="#E2E8F0"
-                                  BorderThickness="0"
-                                  Padding="0">
-                            <ComboBox.Template>
-                                <ControlTemplate TargetType="ComboBox">
-                                    <Grid>
-                                        <ToggleButton x:Name="ToggleButton"
-                                                      Template="{StaticResource ComboToggleButtonTemplate}"
-                                                      Grid.ColumnSpan="2"
-                                                      Focusable="False"
-                                                      IsHitTestVisible="True"
-                                                      ClickMode="Press"
-                                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                        <ContentPresenter x:Name="ContentSite"
-                                                          Margin="14,4,36,4"
-                                                          VerticalAlignment="Center"
-                                                          HorizontalAlignment="Left"
-                                                          RecognizesAccessKey="True"
-                                                          Content="{TemplateBinding SelectionBoxItem}"/>
-                                        <Popup x:Name="Popup"
-                                               Placement="Bottom"
-                                               AllowsTransparency="True"
-                                               Focusable="False"
-                                               IsOpen="{TemplateBinding IsDropDownOpen}"
-                                               PopupAnimation="Slide">
-                                            <Border x:Name="PopupBorder"
-                                                    Background="#0F172A"
-                                                    BorderBrush="#1E293B"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6"
-                                                    Padding="4">
-                                                <ScrollViewer Margin="0"
-                                                              SnapsToDevicePixels="True">
-                                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                </ScrollViewer>
-                                            </Border>
-                                        </Popup>
-                                    </Grid>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="HasItems"
-                                                 Value="False">
-                                            <Setter TargetName="PopupBorder"
-                                                    Property="MinHeight"
-                                                    Value="24"/>
-                                        </Trigger>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter Property="Foreground"
-                                                    Value="#64748B"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ComboBox.Template>
-                            <ComboBox.ItemContainerStyle>
-                                <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                            </ComboBox.ItemContainerStyle>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,16,12"
-                                MinWidth="240">
-                        <TextBlock Text="Extension mode"
-                                   Foreground="#94A3B8"/>
-                        <ComboBox Margin="0,6,0,0"
-                                  ItemsSource="{Binding ExtensionFilterOptions}"
-                                  SelectedValuePath="Mode"
-                                  SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
-                                  Background="Transparent"
-                                  Foreground="#E2E8F0"
-                                  BorderThickness="0"
-                                  Padding="0"
-                                  ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
-                            <ComboBox.Template>
-                                <ControlTemplate TargetType="ComboBox">
-                                    <Grid>
-                                        <ToggleButton x:Name="ToggleButton"
-                                                      Template="{StaticResource ComboToggleButtonTemplate}"
-                                                      Grid.ColumnSpan="2"
-                                                      Focusable="False"
-                                                      IsHitTestVisible="True"
-                                                      ClickMode="Press"
-                                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                        <ContentPresenter x:Name="ContentSite"
-                                                          Margin="14,4,36,4"
-                                                          VerticalAlignment="Center"
-                                                          HorizontalAlignment="Left"
-                                                          RecognizesAccessKey="True"
-                                                          Content="{TemplateBinding SelectionBoxItem}"/>
-                                        <Popup x:Name="Popup"
-                                               Placement="Bottom"
-                                               AllowsTransparency="True"
-                                               Focusable="False"
-                                               IsOpen="{TemplateBinding IsDropDownOpen}"
-                                               PopupAnimation="Slide">
-                                            <Border x:Name="PopupBorder"
-                                                    Background="#0F172A"
-                                                    BorderBrush="#1E293B"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6"
-                                                    Padding="4">
-                                                <ScrollViewer Margin="0"
-                                                              SnapsToDevicePixels="True">
-                                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                </ScrollViewer>
-                                            </Border>
-                                        </Popup>
-                                    </Grid>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="HasItems"
-                                                 Value="False">
-                                            <Setter TargetName="PopupBorder"
-                                                    Property="MinHeight"
-                                                    Value="24"/>
-                                        </Trigger>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter Property="Foreground"
-                                                    Value="#64748B"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ComboBox.Template>
-                            <ComboBox.ItemContainerStyle>
-                                <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                            </ComboBox.ItemContainerStyle>
-                            <ComboBox.ItemTemplate>
-                                <DataTemplate>
-                                    <StackPanel>
-                                        <TextBlock Text="{Binding Label}"
-                                                   Foreground="#E2E8F0"/>
-                                        <TextBlock Text="{Binding Description}"
-                                                   Foreground="#64748B"
-                                                   FontSize="11"/>
-                                    </StackPanel>
-                                </DataTemplate>
-                            </ComboBox.ItemTemplate>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,16,12"
-                                MinWidth="220">
-                        <TextBlock Text="Profile"
-                                   Foreground="#94A3B8"/>
-                        <ComboBox Margin="0,6,0,0"
-                                  ItemsSource="{Binding ExtensionProfiles}"
-                                  SelectedItem="{Binding SelectedExtensionProfile, Mode=TwoWay}"
-                                  DisplayMemberPath="Name"
-                                  Background="Transparent"
-                                  Foreground="#E2E8F0"
-                                  BorderThickness="0"
-                                  Padding="0"
-                                  IsEnabled="{Binding IsExtensionSelectorEnabled}">
-                            <ComboBox.Template>
-                                <ControlTemplate TargetType="ComboBox">
-                                    <Grid>
-                                        <ToggleButton x:Name="ToggleButton"
-                                                      Template="{StaticResource ComboToggleButtonTemplate}"
-                                                      Grid.ColumnSpan="2"
-                                                      Focusable="False"
-                                                      IsHitTestVisible="True"
-                                                      ClickMode="Press"
-                                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                        <ContentPresenter x:Name="ContentSite"
-                                                          Margin="14,4,36,4"
-                                                          VerticalAlignment="Center"
-                                                          HorizontalAlignment="Left"
-                                                          RecognizesAccessKey="True"
-                                                          Content="{TemplateBinding SelectionBoxItem}"/>
-                                        <Popup x:Name="Popup"
-                                               Placement="Bottom"
-                                               AllowsTransparency="True"
-                                               Focusable="False"
-                                               IsOpen="{TemplateBinding IsDropDownOpen}"
-                                               PopupAnimation="Slide">
-                                            <Border x:Name="PopupBorder"
-                                                    Background="#0F172A"
-                                                    BorderBrush="#1E293B"
-                                                    BorderThickness="1"
-                                                    CornerRadius="6"
-                                                    Padding="4">
-                                                <ScrollViewer Margin="0"
-                                                              SnapsToDevicePixels="True">
-                                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                </ScrollViewer>
-                                            </Border>
-                                        </Popup>
-                                    </Grid>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="HasItems"
-                                                 Value="False">
-                                            <Setter TargetName="PopupBorder"
-                                                    Property="MinHeight"
-                                                    Value="24"/>
-                                        </Trigger>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter Property="Foreground"
-                                                    Value="#64748B"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </ComboBox.Template>
-                            <ComboBox.ItemContainerStyle>
-                                <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                            </ComboBox.ItemContainerStyle>
-                        </ComboBox>
-                    </StackPanel>
-
-                    <StackPanel Margin="0,0,0,12"
-                                MinWidth="260">
-                        <TextBlock Text="Custom list"
-                                   Foreground="#94A3B8"/>
-                        <TextBox Margin="0,6,0,0"
-                                 Text="{Binding CustomExtensionInput, UpdateSourceTrigger=PropertyChanged}"
-                                 Background="#0F172A"
-                                 Foreground="#E2E8F0"
-                                 BorderBrush="#1E293B"
-                                 BorderThickness="1"
-                                 Padding="6"
-                                 IsEnabled="{Binding IsExtensionSelectorEnabled}"
-                                 ToolTip="Separate extensions with commas, spaces, or semicolons."/>
-                    </StackPanel>
-                </WrapPanel>
-
-                <TextBlock Text="{Binding ExtensionStatusText}"
-                           FontSize="12"
-                           Foreground="#64748B"
-                           Margin="0,0,0,12"/>
-
+            <StackPanel Orientation="Horizontal">
+                <Border Width="48"
+                        Height="48"
+                        CornerRadius="12"
+                        Background="#1E293B"
+                        Margin="0,0,12,0">
+                    <TextBlock Text="🧹"
+                               FontSize="24"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Border>
                 <StackPanel>
-                    <StackPanel Orientation="Vertical"
-                                Margin="0,0,0,12"
-                                Visibility="{Binding IsDeleting, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Text="Deleting items..."
-                                   FontSize="12"
-                                   Foreground="#FACC15"
-                                   FontWeight="SemiBold"/>
-                        <TextBlock Text="{Binding DeletionStatusMessage}"
-                                   FontSize="11"
-                                   Foreground="#94A3B8"
-                                   TextTrimming="CharacterEllipsis"
-                                   Margin="0,2,0,6"/>
-                        <ProgressBar Height="6"
-                                     Minimum="0"
-                                     Maximum="{Binding DeletionProgressTotal}"
-                                     Value="{Binding DeletionProgressCurrent}"
-                                     Background="#1E293B"
-                                     Foreground="#FACC15"/>
-                    </StackPanel>
+                    <TextBlock Text="System clean-up"
+                               FontSize="26"
+                               FontWeight="Bold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="Preview large files and clutter before removing them"
+                               FontSize="14"
+                               Foreground="#94A3B8"/>
+                </StackPanel>
+            </StackPanel>
 
-                    <WrapPanel Margin="0,0,0,12">
-                        <TextBlock Text="Selected"
-                                   FontSize="12"
-                                   Foreground="#94A3B8"
-                                   Margin="0,0,8,8"/>
-                        <TextBlock Text="{Binding SelectedItemCount, StringFormat={}{0:N0} files}"
-                                   FontSize="12"
-                                   Foreground="#E2E8F0"
-                                   Margin="0,0,16,8"/>
-                        <TextBlock Text="{Binding SelectedItemSizeMegabytes, StringFormat={}{0:F2} MB}"
-                                   FontSize="12"
-                                   Foreground="#E2E8F0"
-                                   Margin="0,0,0,8"/>
+            <Border Grid.Row="1"
+                    Margin="0,24,0,20"
+                    Padding="16"
+                    Background="#111827"
+                    CornerRadius="12">
+                <StackPanel>
+                    <TextBlock Text="Preview options"
+                               FontSize="14"
+                               Foreground="#CBD5F5"/>
+                    <TextBlock Text="Adjust scope before running a dry-run scan"
+                               FontSize="12"
+                               Foreground="#64748B"
+                               Margin="0,2,0,12"/>
+
+                    <WrapPanel>
+                        <StackPanel Margin="0,0,16,12"
+                                    MinWidth="180">
+                            <TextBlock Text="Scope"
+                                       Foreground="#94A3B8"/>
+                            <CheckBox Margin="0,6,0,0"
+                                      Content="Include Downloads"
+                                      FontSize="13"
+                                      Foreground="#F8FAFC"
+                                      IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,12"
+                                    MinWidth="160">
+                            <TextBlock Text="Top items"
+                                       Foreground="#94A3B8"/>
+                            <TextBox Margin="0,6,0,0"
+                                     Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                     FontSize="13"
+                                     Foreground="#F8FAFC"
+                                     Width="80"
+                                     Background="#1F2937"
+                                     BorderBrush="#374151"
+                                     BorderThickness="1"
+                                     HorizontalContentAlignment="Center"/>
+                        </StackPanel>
                     </WrapPanel>
 
-                    <WrapPanel Margin="0,0,0,12">
-                        <Button Content="Clear selection"
-                                Command="{Binding ClearCurrentSelectionCommand}"
-                                Padding="14,8"
-                                Cursor="Hand"
-                                BorderThickness="0"
-                                Background="#1E293B"
-                                Foreground="#E2E8F0"
-                                Margin="0,0,8,8">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="ClearBorder"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="8"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter TargetName="ClearBorder"
-                                                    Property="Opacity"
-                                                    Value="0.5"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="ClearBorder"
-                                                    Property="Background"
-                                                    Value="#24324C"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <Button Content="Select all"
-                                Command="{Binding SelectAllCurrentCommand}"
-                                Padding="14,8"
-                                Cursor="Hand"
-                                BorderThickness="0"
-                                Background="#1E293B"
-                                Foreground="#E2E8F0"
-                                Margin="0,0,8,8">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="SelectBorder"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="8"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter TargetName="SelectBorder"
-                                                    Property="Opacity"
-                                                    Value="0.5"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="SelectBorder"
-                                                    Property="Background"
-                                                    Value="#24324C"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <Button Content="Select all pages"
-                                Command="{Binding SelectAllPagesCommand}"
-                                Padding="14,8"
-                                Cursor="Hand"
-                                BorderThickness="0"
-                                Background="#1E293B"
-                                Foreground="#E2E8F0"
-                                Margin="0,0,8,8"
-                                ToolTip="Select every filtered item across all pages.">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="SelectAllPagesBorder"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="8"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter TargetName="SelectAllPagesBorder"
-                                                    Property="Opacity"
-                                                    Value="0.5"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="SelectAllPagesBorder"
-                                                    Property="Background"
-                                                    Value="#24324C"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <StackPanel Orientation="Horizontal"
-                                    Margin="0,0,8,8"
-                                    VerticalAlignment="Center">
-                            <TextBlock Text="Pages"
-                                       Foreground="#94A3B8"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="48"
+                    <WrapPanel>
+                        <StackPanel Margin="0,0,16,12"
+                                    MinWidth="220">
+                            <TextBlock Text="Item kind"
+                                       Foreground="#94A3B8"/>
+                            <ComboBox Margin="0,6,0,0"
+                                      ItemsSource="{Binding ItemKindOptions}"
+                                      SelectedValuePath="Kind"
+                                      SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
+                                      DisplayMemberPath="Label"
+                                      Background="Transparent"
+                                      Foreground="#E2E8F0"
+                                      BorderThickness="0"
+                                      Padding="0">
+                                <ComboBox.Template>
+                                    <ControlTemplate TargetType="ComboBox">
+                                        <Grid>
+                                            <ToggleButton x:Name="ToggleButton"
+                                                          Template="{StaticResource ComboToggleButtonTemplate}"
+                                                          Grid.ColumnSpan="2"
+                                                          Focusable="False"
+                                                          IsHitTestVisible="True"
+                                                          ClickMode="Press"
+                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                            <ContentPresenter x:Name="ContentSite"
+                                                              Margin="14,4,36,4"
+                                                              VerticalAlignment="Center"
+                                                              HorizontalAlignment="Left"
+                                                              RecognizesAccessKey="True"
+                                                              Content="{TemplateBinding SelectionBoxItem}"/>
+                                            <Popup x:Name="Popup"
+                                                   Placement="Bottom"
+                                                   AllowsTransparency="True"
+                                                   Focusable="False"
+                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                   PopupAnimation="Slide">
+                                                <Border x:Name="PopupBorder"
+                                                        Background="#0F172A"
+                                                        BorderBrush="#1E293B"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="4">
+                                                    <ScrollViewer Margin="0"
+                                                                  SnapsToDevicePixels="True">
+                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="HasItems"
+                                                     Value="False">
+                                                <Setter TargetName="PopupBorder"
+                                                        Property="MinHeight"
+                                                        Value="24"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter Property="Foreground"
+                                                        Value="#64748B"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ComboBox.Template>
+                                <ComboBox.ItemContainerStyle>
+                                    <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,16,12"
+                                    MinWidth="240">
+                            <TextBlock Text="Extension mode"
+                                       Foreground="#94A3B8"/>
+                            <ComboBox Margin="0,6,0,0"
+                                      ItemsSource="{Binding ExtensionFilterOptions}"
+                                      SelectedValuePath="Mode"
+                                      SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
+                                      Background="Transparent"
+                                      Foreground="#E2E8F0"
+                                      BorderThickness="0"
+                                      Padding="0"
+                                      ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
+                                <ComboBox.Template>
+                                    <ControlTemplate TargetType="ComboBox">
+                                        <Grid>
+                                            <ToggleButton x:Name="ToggleButton"
+                                                          Template="{StaticResource ComboToggleButtonTemplate}"
+                                                          Grid.ColumnSpan="2"
+                                                          Focusable="False"
+                                                          IsHitTestVisible="True"
+                                                          ClickMode="Press"
+                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                            <ContentPresenter x:Name="ContentSite"
+                                                              Margin="14,4,36,4"
+                                                              VerticalAlignment="Center"
+                                                              HorizontalAlignment="Left"
+                                                              RecognizesAccessKey="True"
+                                                              Content="{TemplateBinding SelectionBoxItem}"/>
+                                            <Popup x:Name="Popup"
+                                                   Placement="Bottom"
+                                                   AllowsTransparency="True"
+                                                   Focusable="False"
+                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                   PopupAnimation="Slide">
+                                                <Border x:Name="PopupBorder"
+                                                        Background="#0F172A"
+                                                        BorderBrush="#1E293B"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="4">
+                                                    <ScrollViewer Margin="0"
+                                                                  SnapsToDevicePixels="True">
+                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="HasItems"
+                                                     Value="False">
+                                                <Setter TargetName="PopupBorder"
+                                                        Property="MinHeight"
+                                                        Value="24"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter Property="Foreground"
+                                                        Value="#64748B"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ComboBox.Template>
+                                <ComboBox.ItemContainerStyle>
+                                    <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
+                                </ComboBox.ItemContainerStyle>
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Label}"
+                                                       Foreground="#E2E8F0"/>
+                                            <TextBlock Text="{Binding Description}"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,16,12"
+                                    MinWidth="220">
+                            <TextBlock Text="Profile"
+                                       Foreground="#94A3B8"/>
+                            <ComboBox Margin="0,6,0,0"
+                                      ItemsSource="{Binding ExtensionProfiles}"
+                                      SelectedItem="{Binding SelectedExtensionProfile, Mode=TwoWay}"
+                                      DisplayMemberPath="Name"
+                                      Background="Transparent"
+                                      Foreground="#E2E8F0"
+                                      BorderThickness="0"
+                                      Padding="0"
+                                      IsEnabled="{Binding IsExtensionSelectorEnabled}">
+                                <ComboBox.Template>
+                                    <ControlTemplate TargetType="ComboBox">
+                                        <Grid>
+                                            <ToggleButton x:Name="ToggleButton"
+                                                          Template="{StaticResource ComboToggleButtonTemplate}"
+                                                          Grid.ColumnSpan="2"
+                                                          Focusable="False"
+                                                          IsHitTestVisible="True"
+                                                          ClickMode="Press"
+                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                            <ContentPresenter x:Name="ContentSite"
+                                                              Margin="14,4,36,4"
+                                                              VerticalAlignment="Center"
+                                                              HorizontalAlignment="Left"
+                                                              RecognizesAccessKey="True"
+                                                              Content="{TemplateBinding SelectionBoxItem}"/>
+                                            <Popup x:Name="Popup"
+                                                   Placement="Bottom"
+                                                   AllowsTransparency="True"
+                                                   Focusable="False"
+                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                   PopupAnimation="Slide">
+                                                <Border x:Name="PopupBorder"
+                                                        Background="#0F172A"
+                                                        BorderBrush="#1E293B"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6"
+                                                        Padding="4">
+                                                    <ScrollViewer Margin="0"
+                                                                  SnapsToDevicePixels="True">
+                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                    </ScrollViewer>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="HasItems"
+                                                     Value="False">
+                                                <Setter TargetName="PopupBorder"
+                                                        Property="MinHeight"
+                                                        Value="24"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter Property="Foreground"
+                                                        Value="#64748B"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ComboBox.Template>
+                                <ComboBox.ItemContainerStyle>
+                                    <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
+                                </ComboBox.ItemContainerStyle>
+                            </ComboBox>
+                        </StackPanel>
+
+                        <StackPanel Margin="0,0,0,12"
+                                    MinWidth="260">
+                            <TextBlock Text="Custom list"
+                                       Foreground="#94A3B8"/>
+                            <TextBox Margin="0,6,0,0"
+                                     Text="{Binding CustomExtensionInput, UpdateSourceTrigger=PropertyChanged}"
                                      Background="#0F172A"
                                      Foreground="#E2E8F0"
                                      BorderBrush="#1E293B"
                                      BorderThickness="1"
-                                     Padding="6,4"
-                                     HorizontalContentAlignment="Center"
-                                     Margin="0,0,6,0"/>
-                            <TextBlock Text="–"
+                                     Padding="6"
+                                     IsEnabled="{Binding IsExtensionSelectorEnabled}"
+                                     ToolTip="Separate extensions with commas, spaces, or semicolons."/>
+                        </StackPanel>
+                    </WrapPanel>
+
+                    <TextBlock Text="{Binding ExtensionStatusText}"
+                               FontSize="12"
+                               Foreground="#64748B"
+                               Margin="0,0,0,12"/>
+
+                    <StackPanel>
+                        <StackPanel Orientation="Vertical"
+                                    Margin="0,0,0,12"
+                                    Visibility="{Binding IsDeleting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="Deleting items..."
+                                       FontSize="12"
+                                       Foreground="#FACC15"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding DeletionStatusMessage}"
+                                       FontSize="11"
                                        Foreground="#94A3B8"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,6,0"/>
-                            <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Width="48"
-                                     Background="#0F172A"
-                                     Foreground="#E2E8F0"
-                                     BorderBrush="#1E293B"
-                                     BorderThickness="1"
-                                     Padding="6,4"
-                                     HorizontalContentAlignment="Center"
-                                     Margin="0,0,6,0"/>
-                            <Button Content="Select range"
-                                    Command="{Binding SelectPageRangeCommand}"
-                                    Padding="12,6"
+                                       TextTrimming="CharacterEllipsis"
+                                       Margin="0,2,0,6"/>
+                            <ProgressBar Height="6"
+                                         Minimum="0"
+                                         Maximum="{Binding DeletionProgressTotal}"
+                                         Value="{Binding DeletionProgressCurrent}"
+                                         Background="#1E293B"
+                                         Foreground="#FACC15"/>
+                        </StackPanel>
+
+                        <WrapPanel Margin="0,0,0,12">
+                            <TextBlock Text="Selected"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"
+                                       Margin="0,0,8,8"/>
+                            <TextBlock Text="{Binding SelectedItemCount, StringFormat={}{0:N0} files}"
+                                       FontSize="12"
+                                       Foreground="#E2E8F0"
+                                       Margin="0,0,16,8"/>
+                            <TextBlock Text="{Binding SelectedItemSizeMegabytes, StringFormat={}{0:F2} MB}"
+                                       FontSize="12"
+                                       Foreground="#E2E8F0"
+                                       Margin="0,0,0,8"/>
+                        </WrapPanel>
+
+                        <WrapPanel Margin="0,0,0,12">
+                            <Button Content="Clear selection"
+                                    Command="{Binding ClearCurrentSelectionCommand}"
+                                    Padding="14,8"
                                     Cursor="Hand"
                                     BorderThickness="0"
                                     Background="#1E293B"
                                     Foreground="#E2E8F0"
-                                    ToolTip="Select every filtered item within the inclusive page range.">
+                                    Margin="0,0,8,8">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
-                                        <Border x:Name="SelectRangeBorder"
+                                        <Border x:Name="ClearBorder"
                                                 Background="{TemplateBinding Background}"
                                                 CornerRadius="8"
                                                 Padding="{TemplateBinding Padding}">
@@ -586,13 +456,13 @@
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsEnabled"
                                                      Value="False">
-                                                <Setter TargetName="SelectRangeBorder"
+                                                <Setter TargetName="ClearBorder"
                                                         Property="Opacity"
                                                         Value="0.5"/>
                                             </Trigger>
                                             <Trigger Property="IsMouseOver"
                                                      Value="True">
-                                                <Setter TargetName="SelectRangeBorder"
+                                                <Setter TargetName="ClearBorder"
                                                         Property="Background"
                                                         Value="#24324C"/>
                                             </Trigger>
@@ -600,524 +470,662 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                        </StackPanel>
-                        <Button Content="Delete selected"
-                                Command="{Binding DeleteSelectedCommand}"
-                                Background="#EF4444"
-                                Foreground="#F8FAFC"
-                                FontWeight="Semibold"
-                                Padding="16,8"
-                                Cursor="Hand"
-                                BorderThickness="0"
-                                Margin="0,0,8,8"
-                                ToolTip="Permanently removes the selected items without using the Recycle Bin.">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="ActionBorder"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="8"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter TargetName="ActionBorder"
-                                                    Property="Opacity"
-                                                    Value="0.6"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="ActionBorder"
-                                                    Property="Background"
-                                                    Value="#DC2626"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
-                        <Button Content="Run preview"
-                                Background="#22C55E"
-                                Foreground="#06111D"
-                                FontWeight="Semibold"
-                                Padding="16,8"
-                                Cursor="Hand"
-                                BorderThickness="0"
-                                Command="{Binding RunPreviewCommand}"
-                                Margin="0,0,8,8">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="RunBorder"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="8"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter TargetName="RunBorder"
-                                                    Property="Opacity"
-                                                    Value="0.6"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="RunBorder"
-                                                    Property="Background"
-                                                    Value="#16A34A"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                            <Button.IsEnabled>
-                                <Binding Path="IsBusy"
-                                         Converter="{StaticResource InverseBooleanConverter}"/>
-                            </Button.IsEnabled>
-                        </Button>
-                    </WrapPanel>
-                </StackPanel>
-            </StackPanel>
-        </Border>
-
-        <Border Grid.Row="2"
-                Background="#111827"
-                CornerRadius="12"
-                Padding="0">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <DockPanel Grid.Row="0"
-                           Margin="20,16,20,12">
-                    <StackPanel DockPanel.Dock="Left">
-                        <TextBlock Text="Preview results"
-                                   FontSize="14"
-                                   Foreground="#CBD5F5"/>
-                        <TextBlock Text="{Binding SummaryText}"
-                                   FontSize="12"
-                                   Foreground="#64748B"/>
+                            <Button Content="Select all"
+                                    Command="{Binding SelectAllCurrentCommand}"
+                                    Padding="14,8"
+                                    Cursor="Hand"
+                                    BorderThickness="0"
+                                    Background="#1E293B"
+                                    Foreground="#E2E8F0"
+                                    Margin="0,0,8,8">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="SelectBorder"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="8"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter TargetName="SelectBorder"
+                                                        Property="Opacity"
+                                                        Value="0.5"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter TargetName="SelectBorder"
+                                                        Property="Background"
+                                                        Value="#24324C"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Button Content="Select all pages"
+                                    Command="{Binding SelectAllPagesCommand}"
+                                    Padding="14,8"
+                                    Cursor="Hand"
+                                    BorderThickness="0"
+                                    Background="#1E293B"
+                                    Foreground="#E2E8F0"
+                                    Margin="0,0,8,8"
+                                    ToolTip="Select every filtered item across all pages.">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="SelectAllPagesBorder"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="8"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter TargetName="SelectAllPagesBorder"
+                                                        Property="Opacity"
+                                                        Value="0.5"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter TargetName="SelectAllPagesBorder"
+                                                        Property="Background"
+                                                        Value="#24324C"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,8,8"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="Pages"
+                                           Foreground="#94A3B8"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"/>
+                                <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="48"
+                                         Background="#0F172A"
+                                         Foreground="#E2E8F0"
+                                         BorderBrush="#1E293B"
+                                         BorderThickness="1"
+                                         Padding="6,4"
+                                         HorizontalContentAlignment="Center"
+                                         Margin="0,0,6,0"/>
+                                <TextBlock Text="–"
+                                           Foreground="#94A3B8"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,6,0"/>
+                                <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="48"
+                                         Background="#0F172A"
+                                         Foreground="#E2E8F0"
+                                         BorderBrush="#1E293B"
+                                         BorderThickness="1"
+                                         Padding="6,4"
+                                         HorizontalContentAlignment="Center"
+                                         Margin="0,0,6,0"/>
+                                <Button Content="Select range"
+                                        Command="{Binding SelectPageRangeCommand}"
+                                        Padding="12,6"
+                                        Cursor="Hand"
+                                        BorderThickness="0"
+                                        Background="#1E293B"
+                                        Foreground="#E2E8F0"
+                                        ToolTip="Select every filtered item within the inclusive page range.">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="SelectRangeBorder"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="8"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsEnabled"
+                                                         Value="False">
+                                                    <Setter TargetName="SelectRangeBorder"
+                                                            Property="Opacity"
+                                                            Value="0.5"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver"
+                                                         Value="True">
+                                                    <Setter TargetName="SelectRangeBorder"
+                                                            Property="Background"
+                                                            Value="#24324C"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                </Button>
+                            </StackPanel>
+                            <Button Content="Delete selected"
+                                    Command="{Binding DeleteSelectedCommand}"
+                                    Background="#EF4444"
+                                    Foreground="#F8FAFC"
+                                    FontWeight="Semibold"
+                                    Padding="16,8"
+                                    Cursor="Hand"
+                                    BorderThickness="0"
+                                    Margin="0,0,8,8"
+                                    ToolTip="Permanently removes the selected items without using the Recycle Bin.">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="ActionBorder"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="8"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter TargetName="ActionBorder"
+                                                        Property="Opacity"
+                                                        Value="0.6"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter TargetName="ActionBorder"
+                                                        Property="Background"
+                                                        Value="#DC2626"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                            <Button Content="Run preview"
+                                    Background="#22C55E"
+                                    Foreground="#06111D"
+                                    FontWeight="Semibold"
+                                    Padding="16,8"
+                                    Cursor="Hand"
+                                    BorderThickness="0"
+                                    Command="{Binding RunPreviewCommand}"
+                                    Margin="0,0,8,8">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border x:Name="RunBorder"
+                                                Background="{TemplateBinding Background}"
+                                                CornerRadius="8"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsEnabled"
+                                                     Value="False">
+                                                <Setter TargetName="RunBorder"
+                                                        Property="Opacity"
+                                                        Value="0.6"/>
+                                            </Trigger>
+                                            <Trigger Property="IsMouseOver"
+                                                     Value="True">
+                                                <Setter TargetName="RunBorder"
+                                                        Property="Background"
+                                                        Value="#16A34A"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Button.Template>
+                                <Button.IsEnabled>
+                                    <Binding Path="IsBusy"
+                                             Converter="{StaticResource InverseBooleanConverter}"/>
+                                </Button.IsEnabled>
+                            </Button>
+                        </WrapPanel>
                     </StackPanel>
-                    <ProgressBar DockPanel.Dock="Right"
-                                 Width="120"
-                                 Height="6"
-                                 Margin="12,0,0,0"
-                                 IsIndeterminate="True"
-                                 Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                </DockPanel>
-
-                <Grid Grid.Row="1"
-                      Margin="16">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*"/>
-                        <ColumnDefinition Width="3*"/>
-                    </Grid.ColumnDefinitions>
-
-                    <Border Grid.Column="0"
-                            Margin="0,0,12,0"
-                            Background="#0F172A"
-                            CornerRadius="10">
-                        <ListView ItemsSource="{Binding Targets}"
-                                  SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  Foreground="#F8FAFC"
-                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  ScrollViewer.CanContentScroll="True"
-                                  ScrollViewer.IsDeferredScrollingEnabled="True"
-                                  VirtualizingPanel.IsVirtualizing="True"
-                                  VirtualizingPanel.VirtualizationMode="Recycling"
-                                  VirtualizingPanel.CacheLength="1"
-                                  VirtualizingPanel.CacheLengthUnit="Page">
-                            <ListView.ItemContainerStyle>
-                                <Style TargetType="ListViewItem">
-                                    <Setter Property="HorizontalContentAlignment"
-                                            Value="Stretch"/>
-                                    <Setter Property="Padding"
-                                            Value="6"/>
-                                    <Setter Property="Background"
-                                            Value="#111C33"/>
-                                    <Setter Property="Foreground"
-                                            Value="#F8FAFC"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="ListViewItem">
-                                                <Border x:Name="Outer"
-                                                        Background="{TemplateBinding Background}"
-                                                        CornerRadius="8"
-                                                        Padding="{TemplateBinding Padding}">
-                                                    <GridViewRowPresenter Margin="0"
-                                                                          Content="{TemplateBinding Content}"
-                                                                          Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsSelected"
-                                                             Value="True">
-                                                        <Setter TargetName="Outer"
-                                                                Property="Background"
-                                                                Value="#1F2937"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsMouseOver"
-                                                             Value="True">
-                                                        <Setter TargetName="Outer"
-                                                                Property="Background"
-                                                                Value="#27364A"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsEnabled"
-                                                             Value="False">
-                                                        <Setter TargetName="Outer"
-                                                                Property="Opacity"
-                                                                Value="0.6"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </ListView.ItemContainerStyle>
-                            <ListView.View>
-                                <GridView AllowsColumnReorder="False">
-                                    <GridView.ColumnHeaderContainerStyle>
-                                        <Style TargetType="GridViewColumnHeader">
-                                            <Setter Property="Foreground"
-                                                    Value="#94A3B8"/>
-                                            <Setter Property="FontSize"
-                                                    Value="12"/>
-                                            <Setter Property="FontWeight"
-                                                    Value="SemiBold"/>
-                                            <Setter Property="HorizontalContentAlignment"
-                                                    Value="Left"/>
-                                            <Setter Property="Padding"
-                                                    Value="6,4"/>
-                                            <Setter Property="Background"
-                                                    Value="Transparent"/>
-                                        </Style>
-                                    </GridView.ColumnHeaderContainerStyle>
-                                    <GridViewColumn Width="260">
-                                        <GridViewColumn.Header>
-                                            <TextBlock Text="Category"/>
-                                        </GridViewColumn.Header>
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Border Background="#1E293B"
-                                                            CornerRadius="6"
-                                                            Padding="8,3"
-                                                            Margin="0,0,12,0"
-                                                            VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Classification}"
-                                                                   Foreground="#38BDF8"
-                                                                   FontSize="11"
-                                                                   FontWeight="SemiBold"
-                                                                   TextTrimming="CharacterEllipsis"/>
-                                                    </Border>
-                                                    <TextBlock Text="{Binding Category}"
-                                                               FontSize="13"
-                                                               FontWeight="SemiBold"
-                                                               TextTrimming="CharacterEllipsis"
-                                                               ToolTip="{Binding Category}"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                    <GridViewColumn Width="90"
-                                                    DisplayMemberBinding="{Binding RemainingItemCount}">
-                                        <GridViewColumn.Header>
-                                            <TextBlock Text="Items"/>
-                                        </GridViewColumn.Header>
-                                    </GridViewColumn>
-                                    <GridViewColumn Width="140">
-                                        <GridViewColumn.Header>
-                                            <TextBlock Text="Size"/>
-                                        </GridViewColumn.Header>
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding RemainingSizeMegabytes, StringFormat={}{0:F2} MB}"
-                                                           FontSize="12"
-                                                           Foreground="#CBD5F5"
-                                                           TextAlignment="Right"
-                                                           HorizontalAlignment="Stretch"/>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                    <GridViewColumn Width="320">
-                                        <GridViewColumn.Header>
-                                            <TextBlock Text="Path"/>
-                                        </GridViewColumn.Header>
-                                        <GridViewColumn.CellTemplate>
-                                            <DataTemplate>
-                                                <TextBlock Text="{Binding Path}"
-                                                           FontSize="12"
-                                                           Foreground="#94A3B8"
-                                                           TextTrimming="CharacterEllipsis"
-                                                           ToolTip="{Binding Path}"/>
-                                            </DataTemplate>
-                                        </GridViewColumn.CellTemplate>
-                                    </GridViewColumn>
-                                </GridView>
-                            </ListView.View>
-                            <ListView.IsEnabled>
-                                <Binding Path="IsBusy"
-                                         Converter="{StaticResource InverseBooleanConverter}"/>
-                            </ListView.IsEnabled>
-                        </ListView>
-                    </Border>
-
-                    <Border Grid.Column="1"
-                            Background="#0F172A"
-                            CornerRadius="10">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-
-                <StackPanel Orientation="Horizontal"
-                    Margin="16,12,16,8"
-                    VerticalAlignment="Center">
-                <TextBlock Text="Preview items"
-                       FontSize="14"
-                       Foreground="#CBD5F5"/>
-                <TextBlock Text="{Binding FilteredItems.Count, StringFormat={}{0} items visible}"
-                       FontSize="12"
-                       Foreground="#64748B"
-                       Margin="8,0,0,0"/>
-                <TextBlock Text="{Binding SelectedTarget.RemainingItemCount, StringFormat={}{0} total, TargetNullValue=0 total}"
-                       FontSize="12"
-                       Foreground="#64748B"
-                       Margin="8,0,0,0"/>
-                <Button Content="⟨ Prev"
-                    Command="{Binding PreviousPageCommand}"
-                    Margin="16,0,0,0"
-                    Padding="8,2"
-                    FontSize="12"
-                    IsEnabled="{Binding CanGoToPreviousPage}"/>
-                <TextBlock Text="{Binding PageDisplay}"
-                       FontSize="12"
-                       Foreground="#CBD5F5"
-                       Margin="8,0,8,0"
-                       VerticalAlignment="Center"/>
-                <Button Content="Next ⟩"
-                    Command="{Binding NextPageCommand}"
-                    Padding="8,2"
-                    FontSize="12"
-                    IsEnabled="{Binding CanGoToNextPage}"/>
                 </StackPanel>
+            </Border>
 
-                            <Grid Grid.Row="1"
-                                  Margin="8,0,8,12">
-                                <ListView ItemsSource="{Binding FilteredItems}"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          Foreground="#F8FAFC"
-                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                          ScrollViewer.CanContentScroll="True"
-                                          ScrollViewer.IsDeferredScrollingEnabled="True"
-                                          VirtualizingPanel.IsVirtualizing="True"
-                                          VirtualizingPanel.VirtualizationMode="Recycling"
-                                          VirtualizingPanel.CacheLength="2"
-                                          VirtualizingPanel.CacheLengthUnit="Page">
-                                    <ListView.ItemContainerStyle>
-                                        <Style TargetType="ListViewItem">
-                                            <Setter Property="HorizontalContentAlignment"
-                                                    Value="Stretch"/>
-                                            <Setter Property="Padding"
-                                                    Value="6"/>
-                                            <Setter Property="Background"
-                                                    Value="#111C33"/>
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="ListViewItem">
-                                                        <Border x:Name="Inner"
-                                                                Background="{TemplateBinding Background}"
-                                                                CornerRadius="8"
-                                                                Padding="{TemplateBinding Padding}">
-                                                            <GridViewRowPresenter Margin="0"
-                                                                                  Content="{TemplateBinding Content}"
-                                                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsMouseOver"
-                                                                     Value="True">
-                                                                <Setter TargetName="Inner"
-                                                                        Property="Background"
-                                                                        Value="#1B2942"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                    </ListView.ItemContainerStyle>
-                                    <ListView.View>
-                                        <GridView AllowsColumnReorder="False">
-                                            <GridView.ColumnHeaderContainerStyle>
-                                                <Style TargetType="GridViewColumnHeader">
-                                                    <Setter Property="Foreground"
-                                                            Value="#94A3B8"/>
-                                                    <Setter Property="FontSize"
-                                                            Value="12"/>
-                                                    <Setter Property="FontWeight"
-                                                            Value="SemiBold"/>
-                                                    <Setter Property="HorizontalContentAlignment"
-                                                            Value="Left"/>
-                                                    <Setter Property="Padding"
-                                                            Value="6,4"/>
-                                                    <Setter Property="Background"
-                                                            Value="Transparent"/>
-                                                </Style>
-                                            </GridView.ColumnHeaderContainerStyle>
-                                            <GridViewColumn Width="380">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Item"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <StackPanel>
-                                                            <StackPanel.ContextMenu>
-                                                                <ContextMenu>
-                                                                    <MenuItem Header="Copy full path"
-                                                                              Command="{Binding PlacementTarget.DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                </ContextMenu>
-                                                            </StackPanel.ContextMenu>
-                                                            <StackPanel Orientation="Horizontal">
-                                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                          Margin="0,0,12,0"/>
-                                                                <TextBlock Text="{Binding Name}"
-                                                                           FontSize="13"
-                                                                           FontWeight="SemiBold"
-                                                                           TextTrimming="CharacterEllipsis"/>
-                                                            </StackPanel>
-                                                            <TextBlock Text="{Binding FullName}"
+            <Border Grid.Row="2"
+                    Background="#111827"
+                    CornerRadius="12"
+                    Padding="0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0"
+                               Margin="20,16,20,12">
+                        <StackPanel DockPanel.Dock="Left">
+                            <TextBlock Text="Preview results"
+                                       FontSize="14"
+                                       Foreground="#CBD5F5"/>
+                            <TextBlock Text="{Binding SummaryText}"
+                                       FontSize="12"
+                                       Foreground="#64748B"/>
+                        </StackPanel>
+                        <ProgressBar DockPanel.Dock="Right"
+                                     Width="120"
+                                     Height="6"
+                                     Margin="12,0,0,0"
+                                     IsIndeterminate="True"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    </DockPanel>
+
+                    <Grid Grid.Row="1"
+                          Margin="16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="3*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Border x:Name="CategoryListHost"
+                                Grid.Column="0"
+                                Margin="0,0,12,0"
+                                Background="#0F172A"
+                                CornerRadius="10">
+                            <ListView x:Name="CategoryListView"
+                                      ItemsSource="{Binding Targets}"
+                                      SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Foreground="#F8FAFC"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                      ScrollViewer.CanContentScroll="True"
+                                      ScrollViewer.IsDeferredScrollingEnabled="True"
+                                      VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling"
+                                      VirtualizingPanel.CacheLength="1"
+                                      VirtualizingPanel.CacheLengthUnit="Page">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="HorizontalContentAlignment"
+                                                Value="Stretch"/>
+                                        <Setter Property="Padding"
+                                                Value="6"/>
+                                        <Setter Property="Background"
+                                                Value="#111C33"/>
+                                        <Setter Property="Foreground"
+                                                Value="#F8FAFC"/>
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="ListViewItem">
+                                                    <Border x:Name="Outer"
+                                                            Background="{TemplateBinding Background}"
+                                                            CornerRadius="8"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <GridViewRowPresenter Margin="0"
+                                                                              Content="{TemplateBinding Content}"
+                                                                              Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsSelected"
+                                                                 Value="True">
+                                                            <Setter TargetName="Outer"
+                                                                    Property="Background"
+                                                                    Value="#1F2937"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver"
+                                                                 Value="True">
+                                                            <Setter TargetName="Outer"
+                                                                    Property="Background"
+                                                                    Value="#27364A"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled"
+                                                                 Value="False">
+                                                            <Setter TargetName="Outer"
+                                                                    Property="Opacity"
+                                                                    Value="0.6"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                                <ListView.View>
+                                    <GridView AllowsColumnReorder="False">
+                                        <GridView.ColumnHeaderContainerStyle>
+                                            <Style TargetType="GridViewColumnHeader">
+                                                <Setter Property="Foreground"
+                                                        Value="#94A3B8"/>
+                                                <Setter Property="FontSize"
+                                                        Value="12"/>
+                                                <Setter Property="FontWeight"
+                                                        Value="SemiBold"/>
+                                                <Setter Property="HorizontalContentAlignment"
+                                                        Value="Left"/>
+                                                <Setter Property="Padding"
+                                                        Value="6,4"/>
+                                                <Setter Property="Background"
+                                                        Value="Transparent"/>
+                                            </Style>
+                                        </GridView.ColumnHeaderContainerStyle>
+                                        <GridViewColumn Width="260">
+                                            <GridViewColumn.Header>
+                                                <TextBlock Text="Category"/>
+                                            </GridViewColumn.Header>
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Border Background="#1E293B"
+                                                                CornerRadius="6"
+                                                                Padding="8,3"
+                                                                Margin="0,0,12,0"
+                                                                VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Classification}"
+                                                                       Foreground="#38BDF8"
                                                                        FontSize="11"
-                                                                       Foreground="#94A3B8"
-                                                                       Margin="24,2,0,0"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       ToolTip="{Binding FullName}"/>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn Width="120">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Size"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding SizeMegabytes, StringFormat={}{0:F2} MB}"
-                                                                   FontSize="12"
-                                                                   Foreground="#CBD5F5"
-                                                                   TextAlignment="Right"
-                                                                   HorizontalAlignment="Stretch"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn Width="180">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Last modified"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding LastModifiedLocal, StringFormat={}{0:g}}"
-                                                                   FontSize="12"
-                                                                   Foreground="#94A3B8"
-                                                                   TextAlignment="Right"
-                                                                   HorizontalAlignment="Stretch"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                        </GridView>
-                                    </ListView.View>
-                                    <ListView.IsEnabled>
-                                        <Binding Path="IsBusy"
-                                                 Converter="{StaticResource InverseBooleanConverter}"/>
-                                    </ListView.IsEnabled>
-                                </ListView>
+                                                                       FontWeight="SemiBold"
+                                                                       TextTrimming="CharacterEllipsis"/>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Category}"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip="{Binding Category}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="90"
+                                                        DisplayMemberBinding="{Binding RemainingItemCount}">
+                                            <GridViewColumn.Header>
+                                                <TextBlock Text="Items"/>
+                                            </GridViewColumn.Header>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="140">
+                                            <GridViewColumn.Header>
+                                                <TextBlock Text="Size"/>
+                                            </GridViewColumn.Header>
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding RemainingSizeMegabytes, StringFormat={}{0:F2} MB}"
+                                                               FontSize="12"
+                                                               Foreground="#CBD5F5"
+                                                               TextAlignment="Right"
+                                                               HorizontalAlignment="Stretch"/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                        <GridViewColumn Width="320">
+                                            <GridViewColumn.Header>
+                                                <TextBlock Text="Path"/>
+                                            </GridViewColumn.Header>
+                                            <GridViewColumn.CellTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Path}"
+                                                               FontSize="12"
+                                                               Foreground="#94A3B8"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Path}"/>
+                                                </DataTemplate>
+                                            </GridViewColumn.CellTemplate>
+                                        </GridViewColumn>
+                                    </GridView>
+                                </ListView.View>
+                                <ListView.IsEnabled>
+                                    <Binding Path="IsBusy"
+                                             Converter="{StaticResource InverseBooleanConverter}"/>
+                                </ListView.IsEnabled>
+                            </ListView>
+                        </Border>
 
-                                <TextBlock Text="Select a category to review its items."
-                                           Foreground="#64748B"
-                                           FontSize="13"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Panel.ZIndex="1">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility"
-                                                    Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedTarget}"
-                                                             Value="{x:Null}">
-                                                    <Setter Property="Visibility"
-                                                            Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock Text="No remaining files in this category."
-                                           Foreground="#64748B"
-                                           FontSize="13"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Panel.ZIndex="1">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility"
-                                                    Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding SelectedTarget}"
-                                                             Value="{x:Null}">
-                                                    <Setter Property="Visibility"
-                                                            Value="Collapsed"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding SelectedTarget.RemainingItemCount}"
-                                                             Value="0">
-                                                    <Setter Property="Visibility"
-                                                            Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <TextBlock Text="No items match the current filters."
-                                           Foreground="#64748B"
-                                           FontSize="13"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"
-                                           Panel.ZIndex="1">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility"
-                                                    Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding FilteredItems.Count}"
-                                                             Value="0">
-                                                    <Setter Property="Visibility"
-                                                            Value="Visible"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding SelectedTarget}"
-                                                             Value="{x:Null}">
-                                                    <Setter Property="Visibility"
-                                                            Value="Collapsed"/>
-                                                </DataTrigger>
-                                                <DataTrigger Binding="{Binding SelectedTarget.RemainingItemCount}"
-                                                             Value="0">
-                                                    <Setter Property="Visibility"
-                                                            Value="Collapsed"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                        <Border x:Name="ItemListHost"
+                                Grid.Column="1"
+                                Background="#0F172A"
+                                CornerRadius="10">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="16,12,16,8"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Preview items"
+                                               FontSize="14"
+                                               Foreground="#CBD5F5"/>
+                                    <TextBlock Text="{Binding FilteredItems.Count, StringFormat={}{0} items visible}"
+                                               FontSize="12"
+                                               Foreground="#64748B"
+                                               Margin="8,0,0,0"/>
+                                    <TextBlock Text="{Binding SelectedTarget.RemainingItemCount, StringFormat={}{0} total, TargetNullValue=0 total}"
+                                               FontSize="12"
+                                               Foreground="#64748B"
+                                               Margin="8,0,0,0"/>
+                                    <Button Content="⟨ Prev"
+                                            Command="{Binding PreviousPageCommand}"
+                                            Margin="16,0,0,0"
+                                            Padding="8,2"
+                                            FontSize="12"
+                                            IsEnabled="{Binding CanGoToPreviousPage}"/>
+                                    <TextBlock Text="{Binding PageDisplay}"
+                                               FontSize="12"
+                                               Foreground="#CBD5F5"
+                                               Margin="8,0,8,0"
+                                               VerticalAlignment="Center"/>
+                                    <Button Content="Next ⟩"
+                                            Command="{Binding NextPageCommand}"
+                                            Padding="8,2"
+                                            FontSize="12"
+                                            IsEnabled="{Binding CanGoToNextPage}"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1"
+                                      Margin="8,0,8,12">
+                                    <ListView x:Name="ItemListView"
+                                              ItemsSource="{Binding FilteredItems}"
+                                              Background="Transparent"
+                                              BorderThickness="0"
+                                              Foreground="#F8FAFC"
+                                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                              ScrollViewer.CanContentScroll="True"
+                                              ScrollViewer.IsDeferredScrollingEnabled="True"
+                                              VirtualizingPanel.IsVirtualizing="True"
+                                              VirtualizingPanel.VirtualizationMode="Recycling"
+                                              VirtualizingPanel.CacheLength="2"
+                                              VirtualizingPanel.CacheLengthUnit="Page">
+                                        <ListView.ItemContainerStyle>
+                                            <Style TargetType="ListViewItem">
+                                                <Setter Property="HorizontalContentAlignment"
+                                                        Value="Stretch"/>
+                                                <Setter Property="Padding"
+                                                        Value="6"/>
+                                                <Setter Property="Background"
+                                                        Value="#111C33"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="ListViewItem">
+                                                            <Border x:Name="Inner"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    CornerRadius="8"
+                                                                    Padding="{TemplateBinding Padding}">
+                                                                <GridViewRowPresenter Margin="0"
+                                                                                      Content="{TemplateBinding Content}"
+                                                                                      Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="Inner"
+                                                                            Property="Background"
+                                                                            Value="#1B2942"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                            </Style>
+                                        </ListView.ItemContainerStyle>
+                                        <ListView.View>
+                                            <GridView AllowsColumnReorder="False">
+                                                <GridView.ColumnHeaderContainerStyle>
+                                                    <Style TargetType="GridViewColumnHeader">
+                                                        <Setter Property="Foreground"
+                                                                Value="#94A3B8"/>
+                                                        <Setter Property="FontSize"
+                                                                Value="12"/>
+                                                        <Setter Property="FontWeight"
+                                                                Value="SemiBold"/>
+                                                        <Setter Property="HorizontalContentAlignment"
+                                                                Value="Left"/>
+                                                        <Setter Property="Padding"
+                                                                Value="6,4"/>
+                                                        <Setter Property="Background"
+                                                                Value="Transparent"/>
+                                                    </Style>
+                                                </GridView.ColumnHeaderContainerStyle>
+                                                <GridViewColumn Width="380">
+                                                    <GridViewColumn.Header>
+                                                        <TextBlock Text="Item"/>
+                                                    </GridViewColumn.Header>
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel>
+                                                                <StackPanel.ContextMenu>
+                                                                    <ContextMenu>
+                                                                        <MenuItem Header="Copy full path"
+                                                                                  Command="{Binding PlacementTarget.DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                    </ContextMenu>
+                                                                </StackPanel.ContextMenu>
+                                                                <StackPanel Orientation="Horizontal">
+                                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                              Margin="0,0,12,0"/>
+                                                                    <TextBlock Text="{Binding Name}"
+                                                                               FontSize="13"
+                                                                               FontWeight="SemiBold"
+                                                                               TextTrimming="CharacterEllipsis"/>
+                                                                </StackPanel>
+                                                                <TextBlock Text="{Binding FullName}"
+                                                                           FontSize="11"
+                                                                           Foreground="#94A3B8"
+                                                                           Margin="24,2,0,0"
+                                                                           TextTrimming="CharacterEllipsis"
+                                                                           ToolTip="{Binding FullName}"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                                <GridViewColumn Width="120">
+                                                    <GridViewColumn.Header>
+                                                        <TextBlock Text="Size"/>
+                                                    </GridViewColumn.Header>
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding SizeMegabytes, StringFormat={}{0:F2} MB}"
+                                                                       FontSize="12"
+                                                                       Foreground="#CBD5F5"
+                                                                       TextAlignment="Right"
+                                                                       HorizontalAlignment="Stretch"/>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                                <GridViewColumn Width="180">
+                                                    <GridViewColumn.Header>
+                                                        <TextBlock Text="Last modified"/>
+                                                    </GridViewColumn.Header>
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding LastModifiedLocal, StringFormat={}{0:g}}"
+                                                                       FontSize="12"
+                                                                       Foreground="#94A3B8"
+                                                                       TextAlignment="Right"
+                                                                       HorizontalAlignment="Stretch"/>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                            </GridView>
+                                        </ListView.View>
+                                        <ListView.IsEnabled>
+                                            <Binding Path="IsBusy"
+                                                     Converter="{StaticResource InverseBooleanConverter}"/>
+                                        </ListView.IsEnabled>
+                                    </ListView>
+
+                                    <TextBlock Text="Select a category to review its items."
+                                               Foreground="#64748B"
+                                               FontSize="13"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Panel.ZIndex="1">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility"
+                                                        Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedTarget}"
+                                                                 Value="{x:Null}">
+                                                        <Setter Property="Visibility"
+                                                                Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="No remaining files in this category."
+                                               Foreground="#64748B"
+                                               FontSize="13"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Panel.ZIndex="1">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility"
+                                                        Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedTarget}"
+                                                                 Value="{x:Null}">
+                                                        <Setter Property="Visibility"
+                                                                Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedTarget.RemainingItemCount}"
+                                                                 Value="0">
+                                                        <Setter Property="Visibility"
+                                                                Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="No items match the current filters."
+                                               Foreground="#64748B"
+                                               FontSize="13"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Panel.ZIndex="1">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility"
+                                                        Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding FilteredItems.Count}"
+                                                                 Value="0">
+                                                        <Setter Property="Visibility"
+                                                                Value="Visible"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedTarget}"
+                                                                 Value="{x:Null}">
+                                                        <Setter Property="Visibility"
+                                                                Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SelectedTarget.RemainingItemCount}"
+                                                                 Value="0">
+                                                        <Setter Property="Visibility"
+                                                                Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
                             </Grid>
-                        </Grid>
-                    </Border>
+                        </Border>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Border>
-    </Grid>
+            </Border>
+        </Grid>
     </ScrollViewer>
 </Page>

@@ -60,66 +60,68 @@
             </ControlTemplate.Triggers>
         </ControlTemplate>
 
-    <Style x:Key="PaginationButtonStyle"
-           TargetType="Button">
-        <Setter Property="Foreground"
-            Value="#E2E8F0"/>
-        <Setter Property="Background"
-            Value="#1E293B"/>
-        <Setter Property="BorderBrush"
-            Value="#334155"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Setter Property="Padding"
-            Value="12,4"/>
-        <Setter Property="Cursor"
-            Value="Hand"/>
-        <Setter Property="Template">
-        <Setter.Value>
-            <ControlTemplate TargetType="Button">
-            <Border x:Name="Root"
-                Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="6"
-                Padding="{TemplateBinding Padding}">
-                <ContentPresenter HorizontalAlignment="Center"
-                          VerticalAlignment="Center"/>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsEnabled"
-                     Value="False">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#0F172A"/>
-                <Setter TargetName="Root"
-                    Property="BorderBrush"
+        <Style x:Key="PaginationButtonStyle"
+               TargetType="Button">
+            <Setter Property="Foreground"
+                    Value="#E2E8F0"/>
+            <Setter Property="Background"
                     Value="#1E293B"/>
-                <Setter Property="Foreground"
-                    Value="#475569"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#243048"/>
-                </Trigger>
-                <Trigger Property="IsPressed"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#1A2436"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-            </ControlTemplate>
-        </Setter.Value>
-        </Setter>
-    </Style>
+            <Setter Property="BorderBrush"
+                    Value="#334155"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="12,4"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#0F172A"/>
+                                <Setter TargetName="Root"
+                                        Property="BorderBrush"
+                                        Value="#1E293B"/>
+                                <Setter Property="Foreground"
+                                        Value="#475569"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#243048"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#1A2436"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Page.Resources>
-    <ScrollViewer Margin="32"
+    <ScrollViewer x:Name="RootScrollViewer"
+                  Margin="32"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False">
+                  CanContentScroll="False"
+                  PanningMode="VerticalOnly">
         <Grid MinWidth="720">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -149,618 +151,618 @@
                 </StackPanel>
             </StackPanel>
 
-        <Border Grid.Row="1"
-                Margin="0,24,0,20"
-                Padding="16"
-                Background="#111827"
-                CornerRadius="12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="2*"/>
-                </Grid.ColumnDefinitions>
+            <Border Grid.Row="1"
+                    Margin="0,24,0,20"
+                    Padding="16"
+                    Background="#111827"
+                    CornerRadius="12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*"/>
+                        <ColumnDefinition Width="2*"/>
+                    </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0">
-                    <TextBlock Text="{Binding Summary}"
-                               FontSize="14"
-                               Foreground="#CBD5F5"/>
-                    <TextBlock Text="{Binding LastScannedDisplay}"
-                               FontSize="12"
-                               Foreground="#64748B"
-                               Margin="0,4,0,0"/>
-                </StackPanel>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="{Binding Summary}"
+                                   FontSize="14"
+                                   Foreground="#CBD5F5"/>
+                        <TextBlock Text="{Binding LastScannedDisplay}"
+                                   FontSize="12"
+                                   Foreground="#64748B"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
 
-                <StackPanel Grid.Column="1"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
-                    <ProgressBar Width="120"
-                                 Height="6"
-                                 Margin="0,0,12,0"
-                                 IsIndeterminate="True"
-                                 Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <Button Content="Run scan"
-                            Command="{Binding RefreshCommand}"
-                            Padding="16,8"
-                            Background="#22C55E"
-                            Foreground="#06111D"
-                            BorderThickness="0"
-                            Cursor="Hand">
-                        <Button.Template>
-                            <ControlTemplate TargetType="Button">
-                                <Border x:Name="ScanBorder"
-                                        Background="{TemplateBinding Background}"
-                                        CornerRadius="8"
-                                        Padding="{TemplateBinding Padding}">
-                                    <ContentPresenter HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"/>
-                                </Border>
-                                <ControlTemplate.Triggers>
-                                    <Trigger Property="IsEnabled"
-                                             Value="False">
-                                        <Setter TargetName="ScanBorder"
-                                                Property="Opacity"
-                                                Value="0.6"/>
-                                    </Trigger>
-                                    <Trigger Property="IsMouseOver"
-                                             Value="True">
-                                        <Setter TargetName="ScanBorder"
-                                                Property="Background"
-                                                Value="#16A34A"/>
-                                    </Trigger>
-                                </ControlTemplate.Triggers>
-                            </ControlTemplate>
-                        </Button.Template>
-                        <Button.IsEnabled>
-                            <Binding Path="IsBusy"
-                                     Converter="{StaticResource InverseBooleanConverter}"/>
-                        </Button.IsEnabled>
-                    </Button>
-                </StackPanel>
-            </Grid>
-        </Border>
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center">
+                        <ProgressBar Width="120"
+                                     Height="6"
+                                     Margin="0,0,12,0"
+                                     IsIndeterminate="True"
+                                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <Button Content="Run scan"
+                                Command="{Binding RefreshCommand}"
+                                Padding="16,8"
+                                Background="#22C55E"
+                                Foreground="#06111D"
+                                BorderThickness="0"
+                                Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="ScanBorder"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="8"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled"
+                                                 Value="False">
+                                            <Setter TargetName="ScanBorder"
+                                                    Property="Opacity"
+                                                    Value="0.6"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter TargetName="ScanBorder"
+                                                    Property="Background"
+                                                    Value="#16A34A"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Button.IsEnabled>
+                                <Binding Path="IsBusy"
+                                         Converter="{StaticResource InverseBooleanConverter}"/>
+                            </Button.IsEnabled>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-        <Border Grid.Row="2"
-                Background="#111827"
-                CornerRadius="12"
-                Padding="24">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
+            <Border Grid.Row="2"
+                    Background="#111827"
+                    CornerRadius="12"
+                    Padding="24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                <StackPanel Orientation="Vertical"
-                            Margin="0,0,0,16">
-                    <WrapPanel>
-                        <StackPanel MinWidth="280"
-                                    Width="420"
-                                    Margin="0,0,16,12">
-                            <TextBlock Text="Target path"
-                                       Foreground="#94A3B8"/>
-                            <Grid Margin="0,4,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0"
-                                         Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged}"
+                    <StackPanel Orientation="Vertical"
+                                Margin="0,0,0,16">
+                        <WrapPanel>
+                            <StackPanel MinWidth="280"
+                                        Width="420"
+                                        Margin="0,0,16,12">
+                                <TextBlock Text="Target path"
+                                           Foreground="#94A3B8"/>
+                                <Grid Margin="0,4,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="#0F172A"
+                                             Foreground="#E2E8F0"
+                                             BorderBrush="#1E293B"
+                                             Padding="6"
+                                             MinWidth="220"/>
+                                    <Button Grid.Column="1"
+                                            Content="Browse"
+                                            Click="BrowseButton_OnClick"
+                                            Margin="8,0,0,0"
+                                            Padding="14,6"
+                                            Background="#1E293B"
+                                            Foreground="#E2E8F0"
+                                            BorderBrush="#334155"
+                                            Cursor="Hand"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel MinWidth="220"
+                                        Width="280"
+                                        Margin="0,0,0,12">
+                                <TextBlock Text="Quick locations"
+                                           Foreground="#94A3B8"/>
+                                <ComboBox Margin="0,4,0,0"
+                                          ItemsSource="{Binding PresetLocations}"
+                                          SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                                          Background="Transparent"
+                                          Foreground="#E2E8F0"
+                                          BorderThickness="0"
+                                          Padding="0">
+                                    <ComboBox.Template>
+                                        <ControlTemplate TargetType="ComboBox">
+                                            <Grid>
+                                                <ToggleButton x:Name="ToggleButton"
+                                                              Template="{StaticResource ComboToggleButtonTemplate}"
+                                                              Grid.ColumnSpan="2"
+                                                              Focusable="False"
+                                                              IsHitTestVisible="True"
+                                                              ClickMode="Press"
+                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                                <ContentPresenter x:Name="ContentSite"
+                                                                  Margin="14,4,36,4"
+                                                                  VerticalAlignment="Center"
+                                                                  HorizontalAlignment="Left"
+                                                                  RecognizesAccessKey="True"
+                                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
+                                                <Popup x:Name="PART_Popup"
+                                                       Placement="Bottom"
+                                                       AllowsTransparency="True"
+                                                       Focusable="False"
+                                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                       PopupAnimation="Slide">
+                                                    <Border x:Name="PopupBorder"
+                                                            Background="#0F172A"
+                                                            BorderBrush="#1E293B"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="4">
+                                                        <ScrollViewer Margin="0"
+                                                                      SnapsToDevicePixels="True">
+                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="HasItems"
+                                                         Value="False">
+                                                    <Setter TargetName="PopupBorder"
+                                                            Property="MinHeight"
+                                                            Value="24"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled"
+                                                         Value="False">
+                                                    <Setter Property="Foreground"
+                                                            Value="#64748B"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ComboBox.Template>
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="Foreground"
+                                                    Value="#E2E8F0"/>
+                                            <Setter Property="Background"
+                                                    Value="Transparent"/>
+                                            <Setter Property="Padding"
+                                                    Value="8,4"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver"
+                                                         Value="True">
+                                                    <Setter Property="Background"
+                                                            Value="#1B2942"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected"
+                                                         Value="True">
+                                                    <Setter Property="Background"
+                                                            Value="#1E3A8A"/>
+                                                    <Setter Property="Foreground"
+                                                            Value="#F8FAFC"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Label}"
+                                                           Foreground="#E2E8F0"/>
+                                                <TextBlock Text="{Binding Description}"
+                                                           Foreground="#64748B"
+                                                           FontSize="11"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Margin="0,6,0,0"
+                                           Text="{Binding SelectedPreset.Description, TargetNullValue=Select a preset to jump there}"
+                                           Foreground="#64748B"
+                                           TextWrapping="Wrap"
+                                           ToolTip="{Binding SelectedPreset.Description}"/>
+                            </StackPanel>
+                        </WrapPanel>
+
+                        <WrapPanel>
+                            <StackPanel Width="180"
+                                        MinWidth="150"
+                                        Margin="0,0,16,12">
+                                <TextBlock Text="Min size (MB)"
+                                           Foreground="#94A3B8"/>
+                                <TextBox Margin="0,4,0,0"
+                                         Text="{Binding MinimumSizeMb, UpdateSourceTrigger=PropertyChanged}"
                                          Background="#0F172A"
                                          Foreground="#E2E8F0"
                                          BorderBrush="#1E293B"
-                                         Padding="6"
-                                         MinWidth="220"/>
-                                <Button Grid.Column="1"
-                                        Content="Browse"
-                                        Click="BrowseButton_OnClick"
-                                        Margin="8,0,0,0"
-                                        Padding="14,6"
-                                        Background="#1E293B"
-                                        Foreground="#E2E8F0"
-                                        BorderBrush="#334155"
-                                        Cursor="Hand"/>
-                            </Grid>
-                        </StackPanel>
+                                         Padding="6"/>
+                            </StackPanel>
 
-                        <StackPanel MinWidth="220"
-                                    Width="280"
-                                    Margin="0,0,0,12">
-                            <TextBlock Text="Quick locations"
-                                       Foreground="#94A3B8"/>
-                            <ComboBox Margin="0,4,0,0"
-                                      ItemsSource="{Binding PresetLocations}"
-                                      SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
-                                      Background="Transparent"
-                                      Foreground="#E2E8F0"
-                                      BorderThickness="0"
-                                      Padding="0">
-                                <ComboBox.Template>
-                                    <ControlTemplate TargetType="ComboBox">
-                                        <Grid>
-                                            <ToggleButton x:Name="ToggleButton"
-                                                          Template="{StaticResource ComboToggleButtonTemplate}"
-                                                          Grid.ColumnSpan="2"
-                                                          Focusable="False"
-                                                          IsHitTestVisible="True"
-                                                          ClickMode="Press"
-                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                            <ContentPresenter x:Name="ContentSite"
-                                                              Margin="14,4,36,4"
-                                                              VerticalAlignment="Center"
-                                                              HorizontalAlignment="Left"
-                                                              RecognizesAccessKey="True"
-                                                              Content="{TemplateBinding SelectionBoxItem}"
-                                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"/>
-                                            <Popup x:Name="PART_Popup"
-                                                   Placement="Bottom"
-                                                   AllowsTransparency="True"
-                                                   Focusable="False"
-                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                   PopupAnimation="Slide">
-                                                <Border x:Name="PopupBorder"
-                                                        Background="#0F172A"
-                                                        BorderBrush="#1E293B"
-                                                        BorderThickness="1"
-                                                        CornerRadius="6"
-                                                        Padding="4">
-                                                    <ScrollViewer Margin="0"
-                                                                  SnapsToDevicePixels="True">
-                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Popup>
-                                        </Grid>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="HasItems"
-                                                     Value="False">
-                                                <Setter TargetName="PopupBorder"
-                                                        Property="MinHeight"
-                                                        Value="24"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled"
-                                                     Value="False">
-                                                <Setter Property="Foreground"
-                                                        Value="#64748B"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ComboBox.Template>
-                                <ComboBox.ItemContainerStyle>
-                                    <Style TargetType="ComboBoxItem">
-                                        <Setter Property="Foreground"
-                                                Value="#E2E8F0"/>
-                                        <Setter Property="Background"
-                                                Value="Transparent"/>
-                                        <Setter Property="Padding"
-                                                Value="8,4"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver"
-                                                     Value="True">
-                                                <Setter Property="Background"
-                                                        Value="#1B2942"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected"
-                                                     Value="True">
-                                                <Setter Property="Background"
-                                                        Value="#1E3A8A"/>
-                                                <Setter Property="Foreground"
-                                                        Value="#F8FAFC"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ComboBox.ItemContainerStyle>
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Label}"
-                                                       Foreground="#E2E8F0"/>
-                                            <TextBlock Text="{Binding Description}"
-                                                       Foreground="#64748B"
-                                                       FontSize="11"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <TextBlock Margin="0,6,0,0"
-                                       Text="{Binding SelectedPreset.Description, TargetNullValue=Select a preset to jump there}"
-                                       Foreground="#64748B"
-                                       TextWrapping="Wrap"
-                                       ToolTip="{Binding SelectedPreset.Description}"/>
-                        </StackPanel>
-                    </WrapPanel>
+                            <StackPanel Width="180"
+                                        MinWidth="150"
+                                        Margin="0,0,16,12">
+                                <TextBlock Text="Top results"
+                                           Foreground="#94A3B8"/>
+                                <TextBox Margin="0,4,0,0"
+                                         Text="{Binding MaxItems, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#0F172A"
+                                         Foreground="#E2E8F0"
+                                         BorderBrush="#1E293B"
+                                         Padding="6"/>
+                            </StackPanel>
 
-                    <WrapPanel>
-                        <StackPanel Width="180"
-                                    MinWidth="150"
-                                    Margin="0,0,16,12">
-                            <TextBlock Text="Min size (MB)"
-                                       Foreground="#94A3B8"/>
-                            <TextBox Margin="0,4,0,0"
-                                     Text="{Binding MinimumSizeMb, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="#0F172A"
-                                     Foreground="#E2E8F0"
-                                     BorderBrush="#1E293B"
-                                     Padding="6"/>
-                        </StackPanel>
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="Options"
+                                           Foreground="#94A3B8"/>
+                                <CheckBox Margin="0,6,0,0"
+                                          Content="Include hidden"
+                                          IsChecked="{Binding IncludeHidden}"
+                                          Foreground="#E2E8F0"/>
+                                <CheckBox Margin="0,4,0,0"
+                                          Content="Include folders"
+                                          IsChecked="{Binding IncludeDirectories}"
+                                          Foreground="#E2E8F0"/>
+                            </StackPanel>
+                        </WrapPanel>
 
-                        <StackPanel Width="180"
-                                    MinWidth="150"
-                                    Margin="0,0,16,12">
-                            <TextBlock Text="Top results"
-                                       Foreground="#94A3B8"/>
-                            <TextBox Margin="0,4,0,0"
-                                     Text="{Binding MaxItems, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="#0F172A"
-                                     Foreground="#E2E8F0"
-                                     BorderBrush="#1E293B"
-                                     Padding="6"/>
-                        </StackPanel>
+                        <WrapPanel>
+                            <StackPanel MinWidth="220"
+                                        Width="280"
+                                        Margin="0,0,16,12">
+                                <TextBlock Text="Name filter"
+                                           Foreground="#94A3B8"/>
+                                <TextBox Margin="0,4,0,0"
+                                         Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#0F172A"
+                                         Foreground="#E2E8F0"
+                                         BorderBrush="#1E293B"
+                                         Padding="6"/>
+                            </StackPanel>
 
-                        <StackPanel Margin="0,0,0,12">
-                            <TextBlock Text="Options"
-                                       Foreground="#94A3B8"/>
-                            <CheckBox Margin="0,6,0,0"
-                                      Content="Include hidden"
-                                      IsChecked="{Binding IncludeHidden}"
-                                      Foreground="#E2E8F0"/>
-                            <CheckBox Margin="0,4,0,0"
-                                      Content="Include folders"
-                                      IsChecked="{Binding IncludeDirectories}"
-                                      Foreground="#E2E8F0"/>
-                        </StackPanel>
-                    </WrapPanel>
+                            <StackPanel MinWidth="200"
+                                        Width="240"
+                                        Margin="0,0,16,12">
+                                <TextBlock Text="Match mode"
+                                           Foreground="#94A3B8"/>
+                                <ComboBox Margin="0,4,0,0"
+                                          ItemsSource="{Binding NameMatchModes}"
+                                          SelectedItem="{Binding SelectedMatchMode}"
+                                          Background="Transparent"
+                                          Foreground="#E2E8F0"
+                                          BorderThickness="0"
+                                          Padding="0">
+                                    <ComboBox.Template>
+                                        <ControlTemplate TargetType="ComboBox">
+                                            <Grid>
+                                                <ToggleButton x:Name="ToggleButton"
+                                                              Template="{StaticResource ComboToggleButtonTemplate}"
+                                                              Grid.ColumnSpan="2"
+                                                              Focusable="False"
+                                                              IsHitTestVisible="True"
+                                                              ClickMode="Press"
+                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                                <ContentPresenter x:Name="ContentSite"
+                                                                  Margin="14,4,36,4"
+                                                                  VerticalAlignment="Center"
+                                                                  HorizontalAlignment="Left"
+                                                                  RecognizesAccessKey="True"
+                                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                                  ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
+                                                <Popup x:Name="PART_Popup"
+                                                       Placement="Bottom"
+                                                       AllowsTransparency="True"
+                                                       Focusable="False"
+                                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                       PopupAnimation="Slide">
+                                                    <Border x:Name="PopupBorder"
+                                                            Background="#0F172A"
+                                                            BorderBrush="#1E293B"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="4">
+                                                        <ScrollViewer Margin="0"
+                                                                      SnapsToDevicePixels="True">
+                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="HasItems"
+                                                         Value="False">
+                                                    <Setter TargetName="PopupBorder"
+                                                            Property="MinHeight"
+                                                            Value="24"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled"
+                                                         Value="False">
+                                                    <Setter Property="Foreground"
+                                                            Value="#64748B"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ComboBox.Template>
+                                    <ComboBox.ItemContainerStyle>
+                                        <Style TargetType="ComboBoxItem">
+                                            <Setter Property="Foreground"
+                                                    Value="#E2E8F0"/>
+                                            <Setter Property="Background"
+                                                    Value="Transparent"/>
+                                            <Setter Property="Padding"
+                                                    Value="8,4"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver"
+                                                         Value="True">
+                                                    <Setter Property="Background"
+                                                            Value="#1B2942"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected"
+                                                         Value="True">
+                                                    <Setter Property="Background"
+                                                            Value="#1E3A8A"/>
+                                                    <Setter Property="Foreground"
+                                                            Value="#F8FAFC"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                            </StackPanel>
 
-                    <WrapPanel>
-                        <StackPanel MinWidth="220"
-                                    Width="280"
-                                    Margin="0,0,16,12">
-                            <TextBlock Text="Name filter"
-                                       Foreground="#94A3B8"/>
-                            <TextBox Margin="0,4,0,0"
-                                     Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="#0F172A"
-                                     Foreground="#E2E8F0"
-                                     BorderBrush="#1E293B"
-                                     Padding="6"/>
-                        </StackPanel>
+                            <StackPanel Margin="0,0,0,12">
+                                <TextBlock Text="Case matching"
+                                           Foreground="#94A3B8"/>
+                                <CheckBox Margin="0,6,0,0"
+                                          Content="Case sensitive"
+                                          IsChecked="{Binding IsCaseSensitiveMatch}"
+                                          Foreground="#E2E8F0"/>
+                            </StackPanel>
+                        </WrapPanel>
+                    </StackPanel>
 
-                        <StackPanel MinWidth="200"
-                                    Width="240"
-                                    Margin="0,0,16,12">
-                            <TextBlock Text="Match mode"
-                                       Foreground="#94A3B8"/>
-                            <ComboBox Margin="0,4,0,0"
-                                      ItemsSource="{Binding NameMatchModes}"
-                                      SelectedItem="{Binding SelectedMatchMode}"
-                                      Background="Transparent"
-                                      Foreground="#E2E8F0"
-                                      BorderThickness="0"
-                                      Padding="0">
-                                <ComboBox.Template>
-                                    <ControlTemplate TargetType="ComboBox">
-                                        <Grid>
-                                            <ToggleButton x:Name="ToggleButton"
-                                                          Template="{StaticResource ComboToggleButtonTemplate}"
-                                                          Grid.ColumnSpan="2"
-                                                          Focusable="False"
-                                                          IsHitTestVisible="True"
-                                                          ClickMode="Press"
-                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                            <ContentPresenter x:Name="ContentSite"
-                                                              Margin="14,4,36,4"
-                                                              VerticalAlignment="Center"
-                                                              HorizontalAlignment="Left"
-                                                              RecognizesAccessKey="True"
-                                                              Content="{TemplateBinding SelectionBoxItem}"
-                                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                                              ContentTemplateSelector="{TemplateBinding ItemTemplateSelector}"/>
-                                            <Popup x:Name="PART_Popup"
-                                                   Placement="Bottom"
-                                                   AllowsTransparency="True"
-                                                   Focusable="False"
-                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                   PopupAnimation="Slide">
-                                                <Border x:Name="PopupBorder"
-                                                        Background="#0F172A"
-                                                        BorderBrush="#1E293B"
-                                                        BorderThickness="1"
-                                                        CornerRadius="6"
-                                                        Padding="4">
-                                                    <ScrollViewer Margin="0"
-                                                                  SnapsToDevicePixels="True">
-                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Popup>
-                                        </Grid>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="HasItems"
-                                                     Value="False">
-                                                <Setter TargetName="PopupBorder"
-                                                        Property="MinHeight"
-                                                        Value="24"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled"
-                                                     Value="False">
-                                                <Setter Property="Foreground"
-                                                        Value="#64748B"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ComboBox.Template>
-                                <ComboBox.ItemContainerStyle>
-                                    <Style TargetType="ComboBoxItem">
-                                        <Setter Property="Foreground"
-                                                Value="#E2E8F0"/>
-                                        <Setter Property="Background"
-                                                Value="Transparent"/>
-                                        <Setter Property="Padding"
-                                                Value="8,4"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver"
-                                                     Value="True">
-                                                <Setter Property="Background"
-                                                        Value="#1B2942"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected"
-                                                     Value="True">
-                                                <Setter Property="Background"
-                                                        Value="#1E3A8A"/>
-                                                <Setter Property="Foreground"
-                                                        Value="#F8FAFC"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ComboBox.ItemContainerStyle>
-                            </ComboBox>
-                        </StackPanel>
+                    <Grid Grid.Row="1">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-                        <StackPanel Margin="0,0,0,12">
-                            <TextBlock Text="Case matching"
-                                       Foreground="#94A3B8"/>
-                            <CheckBox Margin="0,6,0,0"
-                                      Content="Case sensitive"
-                                      IsChecked="{Binding IsCaseSensitiveMatch}"
-                                      Foreground="#E2E8F0"/>
-                        </StackPanel>
-                    </WrapPanel>
-                </StackPanel>
+                        <DockPanel Grid.Row="0"
+                                   Margin="0,0,0,12">
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        DockPanel.Dock="Left">
+                                <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
+                                           FontSize="12"
+                                           Foreground="#CBD5F5"/>
+                                <TextBlock Text="•"
+                                           Margin="8,0"
+                                           FontSize="12"
+                                           Foreground="#64748B"/>
+                                <TextBlock Text="{Binding PageDisplay}"
+                                           FontSize="12"
+                                           Foreground="#64748B"/>
+                                <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
+                                           FontSize="12"
+                                           Foreground="#64748B"
+                                           Margin="8,0,0,0"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal"
+                                        DockPanel.Dock="Right">
+                                <Button Content="⟨ Prev"
+                                        Command="{Binding PreviousPageCommand}"
+                                        IsEnabled="{Binding CanGoToPreviousPage}"
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource PaginationButtonStyle}"/>
+                                <Button Content="Next ⟩"
+                                        Command="{Binding NextPageCommand}"
+                                        IsEnabled="{Binding CanGoToNextPage}"
+                                        Style="{StaticResource PaginationButtonStyle}"/>
+                            </StackPanel>
+                        </DockPanel>
 
-        <Grid Grid.Row="1">
-            <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-
-            <DockPanel Grid.Row="0"
-                   Margin="0,0,0,12">
-            <StackPanel Orientation="Horizontal"
-                    VerticalAlignment="Center"
-                    DockPanel.Dock="Left">
-                <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
-                       FontSize="12"
-                       Foreground="#CBD5F5"/>
-                <TextBlock Text="•"
-                       Margin="8,0"
-                       FontSize="12"
-                       Foreground="#64748B"/>
-                <TextBlock Text="{Binding PageDisplay}"
-                       FontSize="12"
-                       Foreground="#64748B"/>
-                <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
-                       FontSize="12"
-                       Foreground="#64748B"
-                       Margin="8,0,0,0"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal"
-                    DockPanel.Dock="Right">
-        <Button Content="⟨ Prev"
-            Command="{Binding PreviousPageCommand}"
-            IsEnabled="{Binding CanGoToPreviousPage}"
-            Margin="0,0,8,0"
-            Style="{StaticResource PaginationButtonStyle}"/>
-        <Button Content="Next ⟩"
-            Command="{Binding NextPageCommand}"
-            IsEnabled="{Binding CanGoToNextPage}"
-            Style="{StaticResource PaginationButtonStyle}"/>
-            </StackPanel>
-            </DockPanel>
-
-        <ListView x:Name="FindingsListView"
-            Grid.Row="1"
-            ItemsSource="{Binding VisibleFindings}"
-            Background="Transparent"
-            BorderThickness="0"
-            Foreground="#F8FAFC"
-            ScrollViewer.VerticalScrollBarVisibility="Auto"
-            ScrollViewer.HorizontalScrollBarVisibility="Auto"
-            ScrollViewer.CanContentScroll="True"
-            VirtualizingPanel.IsVirtualizing="True"
-            VirtualizingPanel.VirtualizationMode="Recycling"
-            VirtualizingStackPanel.ScrollUnit="Pixel"
-            Loaded="FindingsListView_Loaded"
-            SizeChanged="FindingsListView_SizeChanged">
-                    <ListView.ItemContainerStyle>
-                        <Style TargetType="ListViewItem">
-                            <Setter Property="HorizontalContentAlignment"
-                                    Value="Stretch"/>
-                            <Setter Property="Padding"
-                                    Value="8"/>
-                            <Setter Property="Background"
-                                    Value="#111C33"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListViewItem">
-                                        <Border x:Name="Row"
-                                                Background="{TemplateBinding Background}"
-                                                CornerRadius="8"
-                                                Padding="{TemplateBinding Padding}">
-                                            <GridViewRowPresenter Margin="0"
-                                                                  Content="{TemplateBinding Content}"
-                                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver"
-                                                     Value="True">
-                                                <Setter TargetName="Row"
-                                                        Property="Background"
-                                                        Value="#1B2942"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListView.ItemContainerStyle>
-                    <ListView.View>
-                        <GridView x:Name="FindingsGridView"
-                                  AllowsColumnReorder="False">
-                            <GridView.ColumnHeaderContainerStyle>
-                                <Style TargetType="GridViewColumnHeader">
-                                    <Setter Property="Foreground"
-                                            Value="#94A3B8"/>
-                                    <Setter Property="FontSize"
-                                            Value="12"/>
-                                    <Setter Property="FontWeight"
-                                            Value="SemiBold"/>
+                        <ListView x:Name="FindingsListView"
+                                  Grid.Row="1"
+                                  ItemsSource="{Binding VisibleFindings}"
+                                  Background="Transparent"
+                                  BorderThickness="0"
+                                  Foreground="#F8FAFC"
+                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                  ScrollViewer.CanContentScroll="True"
+                                  VirtualizingPanel.IsVirtualizing="True"
+                                  VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingStackPanel.ScrollUnit="Pixel"
+                                  Loaded="FindingsListView_Loaded"
+                                  SizeChanged="FindingsListView_SizeChanged">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
                                     <Setter Property="HorizontalContentAlignment"
-                                            Value="Left"/>
+                                            Value="Stretch"/>
                                     <Setter Property="Padding"
-                                            Value="6,4"/>
+                                            Value="8"/>
                                     <Setter Property="Background"
-                                            Value="Transparent"/>
+                                            Value="#111C33"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListViewItem">
+                                                <Border x:Name="Row"
+                                                        Background="{TemplateBinding Background}"
+                                                        CornerRadius="8"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <GridViewRowPresenter Margin="0"
+                                                                          Content="{TemplateBinding Content}"
+                                                                          Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver"
+                                                             Value="True">
+                                                        <Setter TargetName="Row"
+                                                                Property="Background"
+                                                                Value="#1B2942"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
                                 </Style>
-                            </GridView.ColumnHeaderContainerStyle>
-                            <GridViewColumn x:Name="ItemColumn"
-                                            Width="320">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Item"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontWeight="SemiBold"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       ToolTip="{Binding Name}"/>
-                                            <TextBlock Text="{Binding Directory}"
-                                                       Foreground="#94A3B8"
-                                                       FontSize="11"
-                                                       TextTrimming="CharacterEllipsis"
-                                                       ToolTip="{Binding Path}"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                            <GridViewColumn x:Name="TypeColumn"
-                                            Width="100"
-                                            DisplayMemberBinding="{Binding KindDisplay}">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Type"/>
-                                </GridViewColumn.Header>
-                            </GridViewColumn>
-                            <GridViewColumn x:Name="CategoryColumn"
-                                            Width="140"
-                                            DisplayMemberBinding="{Binding Category}">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Category"/>
-                                </GridViewColumn.Header>
-                            </GridViewColumn>
-                            <GridViewColumn x:Name="SizeColumn"
-                                            Width="140">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Size"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding SizeDisplay}"
-                                                   TextAlignment="Right"
-                                                   HorizontalAlignment="Stretch"/>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                            <GridViewColumn x:Name="ModifiedColumn"
-                                            Width="180">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Last modified"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding ModifiedDisplay}"
-                                                   TextAlignment="Right"
-                                                   HorizontalAlignment="Stretch"/>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                            <GridViewColumn x:Name="PathColumn"
-                                            Width="260">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Path"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Path}"
-                                                   Foreground="#94A3B8"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding Path}"/>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                            <GridViewColumn x:Name="ActionsColumn"
-                                            Width="140">
-                                <GridViewColumn.Header>
-                                    <TextBlock Text="Actions"/>
-                                </GridViewColumn.Header>
-                                <GridViewColumn.CellTemplate>
-                                    <DataTemplate>
-                                        <Button Content="Open location"
-                                                Command="{Binding DataContext.OpenContainingFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                CommandParameter="{Binding}"
-                                                Padding="8,4"
-                                                Background="#1E293B"
-                                                Foreground="#38BDF8"
-                                                BorderBrush="#0F172A"
-                                                Cursor="Hand"/>
-                                    </DataTemplate>
-                                </GridViewColumn.CellTemplate>
-                            </GridViewColumn>
-                        </GridView>
-                    </ListView.View>
+                            </ListView.ItemContainerStyle>
+                            <ListView.View>
+                                <GridView x:Name="FindingsGridView"
+                                          AllowsColumnReorder="False">
+                                    <GridView.ColumnHeaderContainerStyle>
+                                        <Style TargetType="GridViewColumnHeader">
+                                            <Setter Property="Foreground"
+                                                    Value="#94A3B8"/>
+                                            <Setter Property="FontSize"
+                                                    Value="12"/>
+                                            <Setter Property="FontWeight"
+                                                    Value="SemiBold"/>
+                                            <Setter Property="HorizontalContentAlignment"
+                                                    Value="Left"/>
+                                            <Setter Property="Padding"
+                                                    Value="6,4"/>
+                                            <Setter Property="Background"
+                                                    Value="Transparent"/>
+                                        </Style>
+                                    </GridView.ColumnHeaderContainerStyle>
+                                    <GridViewColumn x:Name="ItemColumn"
+                                                    Width="320">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="Item"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Name}"/>
+                                                    <TextBlock Text="{Binding Directory}"
+                                                               Foreground="#94A3B8"
+                                                               FontSize="11"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               ToolTip="{Binding Path}"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn x:Name="TypeColumn"
+                                                    Width="100"
+                                                    DisplayMemberBinding="{Binding KindDisplay}">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="Type"/>
+                                        </GridViewColumn.Header>
+                                    </GridViewColumn>
+                                    <GridViewColumn x:Name="CategoryColumn"
+                                                    Width="140"
+                                                    DisplayMemberBinding="{Binding Category}">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="Category"/>
+                                        </GridViewColumn.Header>
+                                    </GridViewColumn>
+                                    <GridViewColumn x:Name="SizeColumn"
+                                                    Width="140">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="Size"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding SizeDisplay}"
+                                                           TextAlignment="Right"
+                                                           HorizontalAlignment="Stretch"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn x:Name="ModifiedColumn"
+                                                    Width="180">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="Last modified"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding ModifiedDisplay}"
+                                                           TextAlignment="Right"
+                                                           HorizontalAlignment="Stretch"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn x:Name="PathColumn"
+                                                    Width="260">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="Path"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Path}"
+                                                           Foreground="#94A3B8"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           ToolTip="{Binding Path}"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                    <GridViewColumn x:Name="ActionsColumn"
+                                                    Width="140">
+                                        <GridViewColumn.Header>
+                                            <TextBlock Text="Actions"/>
+                                        </GridViewColumn.Header>
+                                        <GridViewColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <Button Content="Open location"
+                                                        Command="{Binding DataContext.OpenContainingFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                        CommandParameter="{Binding}"
+                                                        Padding="8,4"
+                                                        Background="#1E293B"
+                                                        Foreground="#38BDF8"
+                                                        BorderBrush="#0F172A"
+                                                        Cursor="Hand"/>
+                                            </DataTemplate>
+                                        </GridViewColumn.CellTemplate>
+                                    </GridViewColumn>
+                                </GridView>
+                            </ListView.View>
 
-                        <ListView.IsEnabled>
-                            <Binding Path="IsBusy"
-                                     Converter="{StaticResource InverseBooleanConverter}"/>
-                        </ListView.IsEnabled>
-                    </ListView>
+                            <ListView.IsEnabled>
+                                <Binding Path="IsBusy"
+                                         Converter="{StaticResource InverseBooleanConverter}"/>
+                            </ListView.IsEnabled>
+                        </ListView>
 
-                    <TextBlock Grid.Row="1"
-                               Text="No findings yet. Adjust the filters and run a scan."
-                               Foreground="#64748B"
-                               FontSize="13"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility"
-                                        Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasResults}"
-                                                 Value="False">
-                                        <Setter Property="Visibility"
-                                                Value="Visible"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IsBusy}"
-                                                 Value="True">
-                                        <Setter Property="Visibility"
-                                                Value="Collapsed"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
+                        <TextBlock Grid.Row="1"
+                                   Text="No findings yet. Adjust the filters and run a scan."
+                                   Foreground="#64748B"
+                                   FontSize="13"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasResults}"
+                                                     Value="False">
+                                            <Setter Property="Visibility"
+                                                    Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding IsBusy}"
+                                                     Value="True">
+                                            <Setter Property="Visibility"
+                                                    Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
                 </Grid>
-            </Grid>
-        </Border>
-    </Grid>
+            </Border>
+        </Grid>
     </ScrollViewer>
 </Page>

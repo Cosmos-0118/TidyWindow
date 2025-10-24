@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using TidyWindow.App.ViewModels;
 using System.Windows.Media;
 using WpfListView = System.Windows.Controls.ListView;
@@ -18,6 +19,7 @@ public partial class LogsPage : Page
     private GridViewColumn? _messageColumn;
     private GridViewColumn? _actionsColumn;
     private bool _isDisposed;
+    private bool _scrollHandlersAttached;
 
     private const double TimestampPreferredWidth = 120d;
     private const double TimestampCompactWidth = 100d;
@@ -46,7 +48,14 @@ public partial class LogsPage : Page
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
+        Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        EnsureScrollHandlers();
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -57,6 +66,8 @@ public partial class LogsPage : Page
         }
 
         Unloaded -= OnUnloaded;
+        Loaded -= OnLoaded;
+        DetachScrollHandlers();
         if (_logsListView is not null)
         {
             _logsListView.Loaded -= LogsListView_Loaded;
@@ -77,6 +88,7 @@ public partial class LogsPage : Page
         _logsScrollViewer ??= FindDescendant<ScrollViewer>(_logsListView);
         CacheColumns();
         UpdateColumnWidths();
+        EnsureScrollHandlers();
     }
 
     private void LogsListView_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -161,6 +173,113 @@ public partial class LogsPage : Page
         AssignWidth(_sourceColumn, sourceWidth);
         AssignWidth(_messageColumn, messageWidth);
         AssignWidth(_actionsColumn, actionsWidth);
+    }
+
+    private void EnsureScrollHandlers()
+    {
+        if (_scrollHandlersAttached)
+        {
+            return;
+        }
+
+        AttachScrollHandler(_logsListView ?? LogsListView);
+        _scrollHandlersAttached = true;
+    }
+
+    private static void AttachScrollHandler(ItemsControl? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+        control.PreviewMouseWheel += OnNestedPreviewMouseWheel;
+    }
+
+    private void DetachScrollHandlers()
+    {
+        if (!_scrollHandlersAttached)
+        {
+            return;
+        }
+
+        DetachScrollHandler(_logsListView ?? LogsListView);
+        _scrollHandlersAttached = false;
+    }
+
+    private static void DetachScrollHandler(ItemsControl? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+    }
+
+    private void BubbleScroll(MouseWheelEventArgs e, DependencyObject source)
+    {
+        if (RootScrollViewer is null || RootScrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var nestedScrollViewer = FindDescendant<ScrollViewer>(source);
+        if (nestedScrollViewer is null)
+        {
+            return;
+        }
+
+        var canScrollUp = e.Delta > 0 && nestedScrollViewer.VerticalOffset > 0;
+        var canScrollDown = e.Delta < 0 && nestedScrollViewer.VerticalOffset < nestedScrollViewer.ScrollableHeight;
+
+        if (canScrollUp || canScrollDown)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var targetOffset = RootScrollViewer.VerticalOffset - e.Delta;
+        if (targetOffset < 0)
+        {
+            targetOffset = 0;
+        }
+        else if (targetOffset > RootScrollViewer.ScrollableHeight)
+        {
+            targetOffset = RootScrollViewer.ScrollableHeight;
+        }
+
+        RootScrollViewer.ScrollToVerticalOffset(targetOffset);
+    }
+
+    private static void OnNestedPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not DependencyObject dependencyObject)
+        {
+            return;
+        }
+
+        if (FindParentPage(dependencyObject) is LogsPage page)
+        {
+            page.BubbleScroll(e, dependencyObject);
+        }
+    }
+
+    private static LogsPage? FindParentPage(DependencyObject node)
+    {
+        while (node is not null)
+        {
+            if (node is LogsPage page)
+            {
+                return page;
+            }
+
+            node = VisualTreeHelper.GetParent(node) ?? (node as FrameworkElement)?.Parent;
+        }
+
+        return null;
     }
 
     private static double ReduceWidth(double current, double minimum, ref double overflow)

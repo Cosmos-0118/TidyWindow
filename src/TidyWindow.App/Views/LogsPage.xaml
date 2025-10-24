@@ -84,81 +84,83 @@
             </Style.Triggers>
         </Style>
 
-    <Style x:Key="LogsCardBorderStyle"
-           TargetType="Border">
-        <Setter Property="Background"
-            Value="#0F172A"/>
-        <Setter Property="BorderBrush"
-            Value="#1E293B"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Setter Property="CornerRadius"
-            Value="12"/>
-        <Setter Property="Padding"
-            Value="20"/>
-    </Style>
-
-    <Style x:Key="LogsSecondaryButtonStyle"
-           TargetType="Button">
-        <Setter Property="Background"
-            Value="#1E293B"/>
-        <Setter Property="Foreground"
-            Value="#E2E8F0"/>
-        <Setter Property="BorderBrush"
-            Value="#334155"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Setter Property="Padding"
-            Value="12,6"/>
-        <Setter Property="Cursor"
-            Value="Hand"/>
-        <Setter Property="Template">
-        <Setter.Value>
-            <ControlTemplate TargetType="Button">
-            <Border x:Name="Root"
-                Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="6"
-                Padding="{TemplateBinding Padding}">
-                <ContentPresenter HorizontalAlignment="Center"
-                          VerticalAlignment="Center"/>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsEnabled"
-                     Value="False">
-                <Setter TargetName="Root"
-                    Property="Background"
+        <Style x:Key="LogsCardBorderStyle"
+               TargetType="Border">
+            <Setter Property="Background"
                     Value="#0F172A"/>
-                <Setter TargetName="Root"
-                    Property="BorderBrush"
+            <Setter Property="BorderBrush"
                     Value="#1E293B"/>
-                <Setter Property="Foreground"
-                    Value="#475569"/>
-                </Trigger>
-                <Trigger Property="IsMouseOver"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#243048"/>
-                </Trigger>
-                <Trigger Property="IsPressed"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#1A2436"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-            </ControlTemplate>
-        </Setter.Value>
-        </Setter>
-    </Style>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="20"/>
+        </Style>
+
+        <Style x:Key="LogsSecondaryButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="#1E293B"/>
+            <Setter Property="Foreground"
+                    Value="#E2E8F0"/>
+            <Setter Property="BorderBrush"
+                    Value="#334155"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="Padding"
+                    Value="12,6"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#0F172A"/>
+                                <Setter TargetName="Root"
+                                        Property="BorderBrush"
+                                        Value="#1E293B"/>
+                                <Setter Property="Foreground"
+                                        Value="#475569"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#243048"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#1A2436"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Page.Resources>
 
-    <ScrollViewer Margin="32"
+    <ScrollViewer x:Name="RootScrollViewer"
+                  Margin="32"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False">
+                  CanContentScroll="False"
+                  PanningMode="VerticalOnly">
         <Grid MinWidth="720">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -374,10 +376,10 @@
                                            Foreground="#64748B"/>
                             </StackPanel>
 
-                <StackPanel Grid.Row="1"
-                    Orientation="Horizontal"
-                    Margin="0,12,0,0">
-                <TextBlock Text="{Binding Items.Count, ElementName=LogsListView, StringFormat={}{0} entries}" 
+                            <StackPanel Grid.Row="1"
+                                        Orientation="Horizontal"
+                                        Margin="0,12,0,0">
+                                <TextBlock Text="{Binding Items.Count, ElementName=LogsListView, StringFormat={}{0} entries}"
                                            Foreground="#94A3B8"
                                            FontSize="12"/>
                                 <TextBlock Text="•"
@@ -702,12 +704,12 @@
                                                         </ItemsControl.ItemTemplate>
                                                     </ItemsControl>
 
-                            <Button Content="Copy entry"
-                                Margin="0,16,0,0"
-                                HorizontalAlignment="Left"
-                                Command="{Binding DataContext.CopyEntryCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                CommandParameter="{Binding}"
-                                Style="{StaticResource LogsSecondaryButtonStyle}"/>
+                                                    <Button Content="Copy entry"
+                                                            Margin="0,16,0,0"
+                                                            HorizontalAlignment="Left"
+                                                            Command="{Binding DataContext.CopyEntryCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                            CommandParameter="{Binding}"
+                                                            Style="{StaticResource LogsSecondaryButtonStyle}"/>
                                                 </StackPanel>
                                             </DataTemplate>
                                         </ContentControl.ContentTemplate>

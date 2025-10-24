@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 using Forms = System.Windows.Forms;
@@ -22,6 +23,7 @@ public partial class DeepScanPage : Page
     private GridViewColumn? _pathColumn;
     private GridViewColumn? _actionsColumn;
     private bool _disposed;
+    private bool _scrollHandlersAttached;
 
     private const double ItemPreferredWidth = 320d;
     private const double ItemCompactWidth = 260d;
@@ -66,6 +68,7 @@ public partial class DeepScanPage : Page
     private async void Page_OnLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= Page_OnLoaded;
+        EnsureScrollHandlers();
 
         if (_viewModel.RefreshCommand is IAsyncRelayCommand asyncCommand)
         {
@@ -105,6 +108,8 @@ public partial class DeepScanPage : Page
             _findingsListView.SizeChanged -= FindingsListView_SizeChanged;
         }
 
+        DetachScrollHandlers();
+
         Unloaded -= OnPageUnloaded;
         _disposed = true;
     }
@@ -127,6 +132,7 @@ public partial class DeepScanPage : Page
 
         Unloaded += OnPageUnloaded;
         _disposed = false;
+        EnsureScrollHandlers();
         UpdateColumnWidths();
     }
 
@@ -141,6 +147,7 @@ public partial class DeepScanPage : Page
         _findingsScrollViewer ??= FindDescendant<ScrollViewer>(_findingsListView);
         CacheColumns();
         UpdateColumnWidths();
+        EnsureScrollHandlers();
     }
 
     private void FindingsListView_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -235,6 +242,113 @@ public partial class DeepScanPage : Page
         _modifiedColumn?.SetWidth(modifiedWidth);
         _pathColumn?.SetWidth(pathWidth);
         _actionsColumn?.SetWidth(actionsWidth);
+    }
+
+    private void EnsureScrollHandlers()
+    {
+        if (_scrollHandlersAttached)
+        {
+            return;
+        }
+
+        AttachScrollHandler(_findingsListView ?? FindingsListView);
+        _scrollHandlersAttached = true;
+    }
+
+    private static void AttachScrollHandler(ItemsControl? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+        control.PreviewMouseWheel += OnNestedPreviewMouseWheel;
+    }
+
+    private void DetachScrollHandlers()
+    {
+        if (!_scrollHandlersAttached)
+        {
+            return;
+        }
+
+        DetachScrollHandler(_findingsListView ?? FindingsListView);
+        _scrollHandlersAttached = false;
+    }
+
+    private static void DetachScrollHandler(ItemsControl? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+    }
+
+    private void BubbleScroll(MouseWheelEventArgs e, DependencyObject source)
+    {
+        if (RootScrollViewer is null || RootScrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var nestedScrollViewer = FindDescendant<ScrollViewer>(source);
+        if (nestedScrollViewer is null)
+        {
+            return;
+        }
+
+        var canScrollUp = e.Delta > 0 && nestedScrollViewer.VerticalOffset > 0;
+        var canScrollDown = e.Delta < 0 && nestedScrollViewer.VerticalOffset < nestedScrollViewer.ScrollableHeight;
+
+        if (canScrollUp || canScrollDown)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var targetOffset = RootScrollViewer.VerticalOffset - e.Delta;
+        if (targetOffset < 0)
+        {
+            targetOffset = 0;
+        }
+        else if (targetOffset > RootScrollViewer.ScrollableHeight)
+        {
+            targetOffset = RootScrollViewer.ScrollableHeight;
+        }
+
+        RootScrollViewer.ScrollToVerticalOffset(targetOffset);
+    }
+
+    private static void OnNestedPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not DependencyObject dependencyObject)
+        {
+            return;
+        }
+
+        if (FindParentPage(dependencyObject) is DeepScanPage page)
+        {
+            page.BubbleScroll(e, dependencyObject);
+        }
+    }
+
+    private static DeepScanPage? FindParentPage(DependencyObject node)
+    {
+        while (node is not null)
+        {
+            if (node is DeepScanPage page)
+            {
+                return page;
+            }
+
+            node = VisualTreeHelper.GetParent(node) ?? (node as FrameworkElement)?.Parent;
+        }
+
+        return null;
     }
 
     private static double ReduceWidth(double current, double minimum, ref double overflow)

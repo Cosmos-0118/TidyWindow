@@ -47,18 +47,33 @@ jobs:
                   if (-not (Test-Path $publishDir)) {
                     throw "Publish directory not found: $publishDir"
                   }
-                  $requiredPaths = @(
-                    "automation/essentials/disk-checkup-and-fix.ps1",
-                    "automation/scripts/deep-scan.ps1",
-                    "automation/modules/TidyWindow.Automation.psm1",
-                    "data/catalog/bundles.yml",
-                    "data/catalog/packages/core.yml"
+
+                  $repoRoot = (Get-Location).Path
+                  $assetRoots = @(
+                    @{ Source = Join-Path $repoRoot "automation"; Target = Join-Path $publishDir "automation"; Label = "automation" },
+                    @{ Source = Join-Path $repoRoot "data"; Target = Join-Path $publishDir "data"; Label = "data" }
                   )
-                  foreach ($relative in $requiredPaths) {
-                    $fullPath = Join-Path $publishDir $relative
-                    if (-not (Test-Path $fullPath)) {
-                      throw "Missing packaged asset: $relative"
+
+                  $missing = [System.Collections.Generic.List[string]]::new()
+
+                  foreach ($spec in $assetRoots) {
+                    if (-not (Test-Path $spec.Source)) {
+                      throw "Source asset root missing: $($spec.Label)"
                     }
+
+                    Get-ChildItem -Path $spec.Source -File -Recurse | ForEach-Object {
+                      $relative = [System.IO.Path]::GetRelativePath($spec.Source, $_.FullName)
+                      $targetPath = Join-Path $spec.Target $relative
+                      if (-not (Test-Path $targetPath)) {
+                        $normalized = ($relative -replace '\\', '/')
+                        $missing.Add("$($spec.Label)/$normalized") | Out-Null
+                      }
+                    }
+                  }
+
+                  if ($missing.Count -gt 0) {
+                    $details = $missing | ForEach-Object { " - $_" }
+                    throw "Missing packaged assets:`n$($details -join [Environment]::NewLine)"
                   }
 
             - name: Prepare portable bundle

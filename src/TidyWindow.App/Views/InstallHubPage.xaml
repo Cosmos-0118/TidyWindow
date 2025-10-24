@@ -119,10 +119,12 @@
         </Style>
     </Page.Resources>
 
-    <ScrollViewer Margin="32"
+    <ScrollViewer x:Name="RootScrollViewer"
+                  Margin="32"
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False">
+                  CanContentScroll="False"
+                  PanningMode="VerticalOnly">
         <Grid MinWidth="720">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -199,7 +201,8 @@
                                         Style="{StaticResource InstallAccentButtonStyle}"/>
                             </Grid>
 
-                            <ListBox ItemsSource="{Binding Bundles}"
+                            <ListBox x:Name="BundlesList"
+                                     ItemsSource="{Binding Bundles}"
                                      SelectedItem="{Binding SelectedBundle, Mode=TwoWay}"
                                      BorderThickness="0"
                                      Background="#0F172A"
@@ -302,7 +305,8 @@
                                         Style="{StaticResource InstallSecondaryButtonStyle}"/>
                             </WrapPanel>
 
-                            <ListView Grid.Row="1"
+                            <ListView x:Name="PackagesList"
+                                      Grid.Row="1"
                                       ItemsSource="{Binding Packages}"
                                       Background="Transparent"
                                       BorderThickness="0"
@@ -535,7 +539,8 @@
                             </WrapPanel>
                         </Grid>
 
-                        <ListView Grid.Row="1"
+                        <ListView x:Name="OperationsList"
+                                  Grid.Row="1"
                                   ItemsSource="{Binding Operations}"
                                   Background="Transparent"
                                   BorderThickness="0"

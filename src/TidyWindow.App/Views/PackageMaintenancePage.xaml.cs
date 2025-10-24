@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 using System.Windows.Media;
@@ -49,22 +50,44 @@ public partial class PackageMaintenancePage : Page
 
     private const double LayoutPadding = 56d;
 
+    private const double WideLayoutBreakpoint = 1280d;
+    private const double CompactLayoutBreakpoint = 1120d;
+    private const double StackedLayoutBreakpoint = 960d;
+
+    private bool _isStackedLayout;
+    private Thickness _secondaryColumnDefaultMargin;
+    private readonly Thickness _secondaryColumnStackedMargin = new Thickness(0, 24, 0, 0);
+    private Thickness _scrollViewerDefaultMargin;
+    private readonly Thickness _scrollViewerCompactMargin = new Thickness(24);
+    private readonly Thickness _scrollViewerStackedMargin = new Thickness(16, 24, 16, 24);
+    private double _primaryColumnDefaultMinWidth;
+    private double _secondaryColumnDefaultMinWidth;
+
     public PackageMaintenancePage(PackageMaintenanceViewModel viewModel)
     {
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;
 
+        _secondaryColumnDefaultMargin = SecondaryColumnHost.Margin;
+        _scrollViewerDefaultMargin = ContentScrollViewer.Margin;
+        _primaryColumnDefaultMinWidth = PrimaryColumnDefinition.MinWidth;
+        _secondaryColumnDefaultMinWidth = SecondaryColumnDefinition.MinWidth;
+
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
         Unloaded += OnPageUnloaded;
         Loaded += OnPageLoaded;
         IsVisibleChanged += OnIsVisibleChanged;
+        ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
+        ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
     }
 
     private async void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnPageLoaded;
+        EnsureScrollHandlers();
+        UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
         if (_viewModel.HasLoadedInitialData)
             return;
         if (_viewModel.RefreshCommand is IAsyncRelayCommand asyncCommand)
@@ -112,11 +135,13 @@ public partial class PackageMaintenancePage : Page
 
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
         _viewModel.ConfirmElevation = null;
+        DetachScrollHandlers();
         if (_packagesListView is not null)
         {
             _packagesListView.Loaded -= PackagesListView_Loaded;
             _packagesListView.SizeChanged -= PackagesListView_SizeChanged;
         }
+        ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
         // Do not dispose the viewmodel to preserve state between navigations
         Unloaded -= OnPageUnloaded;
         _disposed = true;
@@ -139,9 +164,12 @@ public partial class PackageMaintenancePage : Page
             _packagesListView.Loaded += PackagesListView_Loaded;
             _packagesListView.SizeChanged += PackagesListView_SizeChanged;
         }
+        ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
 
         Unloaded += OnPageUnloaded;
         _disposed = false;
+        EnsureScrollHandlers();
+        UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
     }
 
     private void PackagesListView_Loaded(object sender, RoutedEventArgs e)
@@ -155,6 +183,7 @@ public partial class PackageMaintenancePage : Page
         _packagesScrollViewer ??= FindDescendant<ScrollViewer>(_packagesListView);
         CacheColumns();
         UpdateColumnWidths();
+        EnsureScrollHandlers();
     }
 
     private void PackagesListView_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -162,6 +191,14 @@ public partial class PackageMaintenancePage : Page
         if (e.WidthChanged)
         {
             UpdateColumnWidths();
+        }
+    }
+
+    private void ContentScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+        {
+            UpdateResponsiveLayout(e.NewSize.Width);
         }
     }
 
@@ -252,6 +289,170 @@ public partial class PackageMaintenancePage : Page
         {
             _actionsColumn.Width = actionsWidth;
         }
+    }
+
+    private void UpdateResponsiveLayout(double viewportWidth)
+    {
+        if (double.IsNaN(viewportWidth) || viewportWidth <= 0d)
+        {
+            return;
+        }
+
+        // Shift between wide, compact, and stacked layouts so the page stays usable on smaller screens.
+        var stackLayout = viewportWidth < StackedLayoutBreakpoint;
+        var compactColumns = viewportWidth < WideLayoutBreakpoint;
+        var tightMargins = viewportWidth < CompactLayoutBreakpoint;
+
+        if (stackLayout)
+        {
+            if (!_isStackedLayout)
+            {
+                Grid.SetRow(SecondaryColumnHost, 1);
+                Grid.SetColumn(SecondaryColumnHost, 0);
+                SecondaryColumnHost.Margin = _secondaryColumnStackedMargin;
+                PrimaryColumnDefinition.MinWidth = 0d;
+                SecondaryColumnDefinition.MinWidth = 0d;
+                _isStackedLayout = true;
+            }
+
+            SecondaryColumnDefinition.Width = new GridLength(0d, GridUnitType.Pixel);
+            PrimaryColumnDefinition.Width = new GridLength(1d, GridUnitType.Star);
+        }
+        else
+        {
+            if (_isStackedLayout)
+            {
+                Grid.SetRow(SecondaryColumnHost, 0);
+                Grid.SetColumn(SecondaryColumnHost, 1);
+                SecondaryColumnHost.Margin = _secondaryColumnDefaultMargin;
+                PrimaryColumnDefinition.MinWidth = _primaryColumnDefaultMinWidth;
+                SecondaryColumnDefinition.MinWidth = _secondaryColumnDefaultMinWidth;
+                _isStackedLayout = false;
+            }
+
+            var targetPrimary = compactColumns
+                ? new GridLength(1d, GridUnitType.Star)
+                : new GridLength(3d, GridUnitType.Star);
+            var targetSecondary = compactColumns
+                ? new GridLength(1d, GridUnitType.Star)
+                : new GridLength(2d, GridUnitType.Star);
+
+            if (!PrimaryColumnDefinition.Width.Equals(targetPrimary))
+            {
+                PrimaryColumnDefinition.Width = targetPrimary;
+            }
+
+            if (!SecondaryColumnDefinition.Width.Equals(targetSecondary))
+            {
+                SecondaryColumnDefinition.Width = targetSecondary;
+            }
+
+        }
+
+        ContentScrollViewer.Margin = stackLayout
+            ? _scrollViewerStackedMargin
+            : tightMargins || compactColumns
+                ? _scrollViewerCompactMargin
+                : _scrollViewerDefaultMargin;
+
+        UpdateColumnWidths();
+    }
+
+    private void EnsureScrollHandlers()
+    {
+        AttachScrollHandler(_packagesListView ?? PackagesListView);
+        AttachScrollHandler(OperationsListView);
+    }
+
+    private static void AttachScrollHandler(ItemsControl? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+        control.PreviewMouseWheel += OnNestedPreviewMouseWheel;
+    }
+
+    private void DetachScrollHandlers()
+    {
+        DetachScrollHandler(_packagesListView ?? PackagesListView);
+        DetachScrollHandler(OperationsListView);
+    }
+
+    private static void DetachScrollHandler(ItemsControl? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+    }
+
+    private void BubbleScroll(MouseWheelEventArgs e, DependencyObject source)
+    {
+        if (ContentScrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var nestedScrollViewer = FindDescendant<ScrollViewer>(source);
+        if (nestedScrollViewer is null)
+        {
+            return;
+        }
+
+        var canScrollUp = e.Delta > 0 && nestedScrollViewer.VerticalOffset > 0;
+        var canScrollDown = e.Delta < 0 && nestedScrollViewer.VerticalOffset < nestedScrollViewer.ScrollableHeight;
+
+        if (canScrollUp || canScrollDown)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var targetOffset = ContentScrollViewer.VerticalOffset - e.Delta;
+        if (targetOffset < 0)
+        {
+            targetOffset = 0;
+        }
+        else if (targetOffset > ContentScrollViewer.ScrollableHeight)
+        {
+            targetOffset = ContentScrollViewer.ScrollableHeight;
+        }
+
+        ContentScrollViewer.ScrollToVerticalOffset(targetOffset);
+    }
+
+    private static void OnNestedPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not DependencyObject dependencyObject)
+        {
+            return;
+        }
+
+        if (FindParentPage(dependencyObject) is PackageMaintenancePage page)
+        {
+            page.BubbleScroll(e, dependencyObject);
+        }
+    }
+
+    private static PackageMaintenancePage? FindParentPage(DependencyObject node)
+    {
+        while (node is not null)
+        {
+            if (node is PackageMaintenancePage page)
+            {
+                return page;
+            }
+
+            node = VisualTreeHelper.GetParent(node) ?? (node as FrameworkElement)?.Parent;
+        }
+
+        return null;
     }
 
     private void CacheColumns()
