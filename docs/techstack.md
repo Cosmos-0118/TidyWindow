@@ -10,15 +10,14 @@ TidyWindow keeps Windows machines tidy by combining a desktop app with curated m
 
     -   `TidyWindow.App` uses Windows Presentation Foundation running on .NET 8.
     -   CommunityToolkit.Mvvm helps us express the MVVM pattern without manual boilerplate.
-    -   The desktop app binds UI controls to view models, so state changes flow cleanly and we keep logic testable.
+    -   The desktop app binds UI controls to view models, so state changes flow cleanly and we keep logic testable. 
 
 -   **Core Services (.NET class library)**
 
     -   `TidyWindow.Core` holds the business logic that decides when and how to call maintenance routines, read catalog metadata, and report progress back to the UI.
     -   Targeting .NET 8 gives us modern language features, long-term support, and high performance on Windows.
 
--   **Automation Assets (PowerShell)**
-
+-   **Automation Assets (PowerShell)*
     -   The `automation/` folder contains PowerShell modules and scripts that actually perform maintenance operations: disk checks, network resets, RAM purges, app repairs, and more.
     -   Scripts rely on Windows-native utilities, so PowerShell is the natural choice for privileged system work.
     -   The `TidyWindow.Automation` module provides helper functions and logging so that every script has a consistent experience.
