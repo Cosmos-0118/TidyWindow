@@ -188,7 +188,7 @@ public partial class CleanupPage : Page
         }
     }
 
-    private static CleanupPage? FindParentPage(DependencyObject node)
+    private static CleanupPage? FindParentPage(DependencyObject? node)
     {
         while (node is not null)
         {

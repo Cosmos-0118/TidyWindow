@@ -440,7 +440,7 @@ public partial class PackageMaintenancePage : Page
         }
     }
 
-    private static PackageMaintenancePage? FindParentPage(DependencyObject node)
+    private static PackageMaintenancePage? FindParentPage(DependencyObject? node)
     {
         while (node is not null)
         {

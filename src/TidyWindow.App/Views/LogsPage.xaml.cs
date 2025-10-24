@@ -267,7 +267,7 @@ public partial class LogsPage : Page
         }
     }
 
-    private static LogsPage? FindParentPage(DependencyObject node)
+    private static LogsPage? FindParentPage(DependencyObject? node)
     {
         while (node is not null)
         {

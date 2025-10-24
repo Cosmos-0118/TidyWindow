@@ -336,7 +336,7 @@ public partial class DeepScanPage : Page
         }
     }
 
-    private static DeepScanPage? FindParentPage(DependencyObject node)
+    private static DeepScanPage? FindParentPage(DependencyObject? node)
     {
         while (node is not null)
         {
