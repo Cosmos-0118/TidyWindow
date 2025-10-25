@@ -79,6 +79,7 @@ public sealed class PowerShellInvoker
 
         var output = new ConcurrentBag<string>();
         var errors = new ConcurrentBag<string>();
+        var cancellationRequested = false;
 
         using PSDataCollection<PSObject> outputCollection = new();
         outputCollection.DataAdded += (_, args) =>
@@ -107,17 +108,36 @@ public sealed class PowerShellInvoker
         };
 
         var asyncResult = ps.BeginInvoke<PSObject, PSObject>(input: null, outputCollection);
-        using CancellationTokenRegistration registration = cancellationToken.Register(() => ps.Stop());
+        using CancellationTokenRegistration registration = cancellationToken.Register(() =>
+        {
+            cancellationRequested = true;
+            try
+            {
+                ps.Stop();
+            }
+            catch
+            {
+                // Ignore Stop failures when the pipeline has already completed.
+            }
+        });
 
         var encounteredRuntimeError = false;
+        var pipelineStoppedForCancellation = false;
 
         try
         {
             await Task.Factory.FromAsync(asyncResult, ps.EndInvoke).ConfigureAwait(false);
         }
-        catch (PipelineStoppedException) when (cancellationToken.IsCancellationRequested)
+        catch (PipelineStoppedException)
         {
-            errors.Add("Invocation cancelled by request.");
+            if (cancellationRequested || cancellationToken.IsCancellationRequested)
+            {
+                pipelineStoppedForCancellation = true;
+            }
+            else
+            {
+                throw;
+            }
         }
         catch (RuntimeException ex)
         {
@@ -138,11 +158,20 @@ public sealed class PowerShellInvoker
             {
                 return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
             }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
             catch (Exception ex2)
             {
                 errors.Add(ex2.ToString());
                 return new PowerShellInvocationResult(new ReadOnlyCollection<string>(output.ToList()), new ReadOnlyCollection<string>(errors.ToList()), 1);
             }
+        }
+
+        if (pipelineStoppedForCancellation || cancellationRequested || cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(cancellationToken);
         }
 
         return new PowerShellInvocationResult(
@@ -343,6 +372,21 @@ public sealed class PowerShellInvoker
         using var proc = new System.Diagnostics.Process { StartInfo = startInfo };
         proc.Start();
 
+        using var registration = cancellationToken.Register(() =>
+        {
+            try
+            {
+                if (!proc.HasExited)
+                {
+                    proc.Kill(entireProcessTree: true);
+                }
+            }
+            catch
+            {
+                // Suppress kill failures; process may have already exited.
+            }
+        });
+
         var outTask = Task.Run(async () =>
         {
             string? line;
@@ -350,7 +394,7 @@ public sealed class PowerShellInvoker
             {
                 output.Add(line);
             }
-        }, cancellationToken);
+        });
 
         var errTask = Task.Run(async () =>
         {
@@ -359,10 +403,22 @@ public sealed class PowerShellInvoker
             {
                 errors.Add(line);
             }
-        }, cancellationToken);
+        });
 
-        await Task.WhenAll(outTask, errTask).ConfigureAwait(false);
-        proc.WaitForExit();
+        try
+        {
+            await Task.WhenAll(outTask, errTask).ConfigureAwait(false);
+            await proc.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException(cancellationToken);
+        }
 
         var exit = proc.ExitCode;
         return new PowerShellInvocationResult(new ReadOnlyCollection<string>(output), new ReadOnlyCollection<string>(errors), exit);
