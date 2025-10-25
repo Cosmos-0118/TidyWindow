@@ -470,7 +470,7 @@
                                                 </Style>
                                             </GridView.ColumnHeaderContainerStyle>
                                             <GridViewColumn x:Name="TimestampColumn"
-                                                            Width="120"
+                                                            Width="180"
                                                             DisplayMemberBinding="{Binding TimestampDisplay}">
                                                 <GridViewColumn.Header>
                                                     <TextBlock Text="Time"/>

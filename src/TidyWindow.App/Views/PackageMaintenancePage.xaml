@@ -196,6 +196,59 @@
             </Setter>
         </Style>
 
+    <Style x:Key="DangerButtonStyle"
+           TargetType="Button">
+        <Setter Property="Background"
+            Value="#DC2626"/>
+        <Setter Property="Foreground"
+            Value="#F8FAFC"/>
+        <Setter Property="BorderBrush"
+            Value="#B91C1C"/>
+        <Setter Property="BorderThickness"
+            Value="0"/>
+        <Setter Property="Padding"
+            Value="14,6"/>
+        <Setter Property="Cursor"
+            Value="Hand"/>
+        <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="Button">
+            <Border x:Name="Root"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="8"
+                Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="Center"
+                          VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#B91C1C"/>
+                </Trigger>
+                <Trigger Property="IsPressed"
+                     Value="True">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#991B1B"/>
+                </Trigger>
+                <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#7F1D1D"/>
+                <Setter Property="Foreground"
+                    Value="#FCA5A5"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value>
+        </Setter>
+    </Style>
+
         <Style x:Key="CardBorderStyle"
                TargetType="Border">
             <Setter Property="Background"
@@ -495,16 +548,23 @@
                                Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <StackPanel Orientation="Horizontal"
-                            Margin="0,18,0,0">
-                    <Button Content="Queue update"
+                <WrapPanel Margin="0,18,0,0">
+                    <Button Content="Q"
                             Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                            Margin="0,0,8,0"
-                            MinWidth="120">
+                            Margin="0,0,8,8"
+                            Width="42"
+                            Height="36"
+                            Padding="0"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            AutomationProperties.Name="Queue update">
+                        <Button.ToolTip>Queue update</Button.ToolTip>
                         <Button.Style>
                             <Style TargetType="Button"
                                    BasedOn="{StaticResource AccentButtonStyle}">
+                                <Setter Property="FontWeight"
+                                        Value="Bold"/>
                                 <Setter Property="IsEnabled"
                                         Value="True"/>
                                 <Style.Triggers>
@@ -522,13 +582,22 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="Remove"
+                    <Button Content="R"
                             Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                            MinWidth="120">
+                            Margin="0,0,8,8"
+                            Width="42"
+                            Height="36"
+                            Padding="0"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            AutomationProperties.Name="Remove">
+                        <Button.ToolTip>Remove</Button.ToolTip>
                         <Button.Style>
                             <Style TargetType="Button"
                                    BasedOn="{StaticResource SecondaryButtonStyle}">
+                                <Setter Property="FontWeight"
+                                        Value="Bold"/>
                                 <Setter Property="IsEnabled"
                                         Value="True"/>
                                 <Style.Triggers>
@@ -546,20 +615,56 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                </StackPanel>
+            <Button Content="F"
+                            Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                            CommandParameter="{Binding}"
+                Margin="0,0,0,8"
+                Width="42"
+                Height="36"
+                Padding="0"
+                HorizontalContentAlignment="Center"
+                VerticalContentAlignment="Center"
+                AutomationProperties.Name="Force cleanup">
+            <Button.ToolTip>Force cleanup</Button.ToolTip>
+                        <Button.Style>
+                            <Style TargetType="Button"
+                                   BasedOn="{StaticResource DangerButtonStyle}">
+                <Setter Property="FontWeight"
+                    Value="Bold"/>
+                                <Setter Property="IsEnabled"
+                                        Value="True"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding CanForceRemove}"
+                                                 Value="False">
+                                        <Setter Property="IsEnabled"
+                                                Value="False"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                 Value="True">
+                                        <Setter Property="IsEnabled"
+                                                Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </WrapPanel>
             </StackPanel>
         </DataTemplate>
     </Page.Resources>
 
     <ScrollViewer x:Name="ContentScrollViewer"
-                  Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Auto"
-                  CanContentScroll="False"
-                  PanningMode="VerticalOnly"
-                  SizeChanged="ContentScrollViewer_SizeChanged">
-        <Grid x:Name="PageContentGrid"
-              MinWidth="0">
+            Margin="32"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollBarVisibility="Disabled"
+            HorizontalContentAlignment="Stretch"
+            CanContentScroll="False"
+            PanningMode="VerticalOnly"
+            SizeChanged="ContentScrollViewer_SizeChanged">
+      <Grid x:Name="PageContentGrid"
+          MinWidth="0"
+          MaxWidth="1360"
+          HorizontalAlignment="Center">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -662,6 +767,7 @@
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <StackPanel Orientation="Vertical"
@@ -758,6 +864,35 @@
                                         Command="{Binding QueueSelectedUpdatesCommand}"
                                         Style="{StaticResource AccentButtonStyle}"/>
                             </WrapPanel>
+
+                            <StackPanel Grid.Row="2"
+                                        Orientation="Horizontal"
+                                        Margin="0,4,0,0"
+                                        HorizontalAlignment="Left">
+                                <Border Background="#1E293B"
+                                        CornerRadius="4"
+                                        Padding="6,2"
+                                        Margin="0,0,8,0">
+                                    <TextBlock Text="Q → Queue update"
+                                               Foreground="#94A3B8"
+                                               FontSize="11"/>
+                                </Border>
+                                <Border Background="#1E293B"
+                                        CornerRadius="4"
+                                        Padding="6,2"
+                                        Margin="0,0,8,0">
+                                    <TextBlock Text="R → Remove"
+                                               Foreground="#94A3B8"
+                                               FontSize="11"/>
+                                </Border>
+                                <Border Background="#1E293B"
+                                        CornerRadius="4"
+                                        Padding="6,2">
+                                    <TextBlock Text="F → Force cleanup"
+                                               Foreground="#94A3B8"
+                                               FontSize="11"/>
+                                </Border>
+                            </StackPanel>
                         </Grid>
                     </Border>
 
@@ -828,7 +963,7 @@
                                           BorderThickness="0"
                                           Foreground="#F8FAFC"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           ScrollViewer.CanContentScroll="True"
                                           VirtualizingPanel.IsVirtualizing="True"
                                           VirtualizingPanel.VirtualizationMode="Recycling"
@@ -1043,29 +1178,36 @@
                                                 </GridViewColumn.CellTemplate>
                                             </GridViewColumn>
                                             <GridViewColumn x:Name="ActionsColumn"
-                                                            Width="160">
+                                                            Width="132">
                                                 <GridViewColumn.Header>
                                                     <TextBlock Text="Actions"/>
                                                 </GridViewColumn.Header>
                                                 <GridViewColumn.CellTemplate>
                                                     <DataTemplate>
-                                                        <Grid HorizontalAlignment="Stretch"
-                                                              Margin="0,0,0,4">
+                            <Grid HorizontalAlignment="Center"
+                                  Margin="0,0,0,4">
                                                             <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <Button Grid.Column="0"
-                                                                    Content="Queue update"
+                                <Button Grid.Column="0"
+                                    Content="Q"
                                                                     Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                     CommandParameter="{Binding}"
-                                                                    HorizontalAlignment="Stretch"
-                                                                    HorizontalContentAlignment="Center"
-                                                                    Margin="0,0,6,4"
-                                                                    MinWidth="0">
+                                    Width="36"
+                                    Height="32"
+                                    Margin="0,0,6,4"
+                                    Padding="0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    AutomationProperties.Name="Queue update">
+                                <Button.ToolTip>Queue update</Button.ToolTip>
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource AccentButtonStyle}">
+                                    <Setter Property="FontWeight"
+                                        Value="Bold"/>
                                                                         <Setter Property="IsEnabled"
                                                                                 Value="True"/>
                                                                         <Style.Triggers>
@@ -1083,21 +1225,61 @@
                                                                     </Style>
                                                                 </Button.Style>
                                                             </Button>
-                                                            <Button Grid.Column="1"
-                                                                    Content="Remove"
+                                <Button Grid.Column="1"
+                                    Content="R"
                                                                     Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                     CommandParameter="{Binding}"
-                                                                    HorizontalAlignment="Stretch"
-                                                                    HorizontalContentAlignment="Center"
-                                                                    Margin="0,0,0,4"
-                                                                    MinWidth="0">
+                                    Width="36"
+                                    Height="32"
+                                    Margin="0,0,6,4"
+                                    Padding="0"
+                                    HorizontalContentAlignment="Center"
+                                    VerticalContentAlignment="Center"
+                                    AutomationProperties.Name="Remove">
+                                <Button.ToolTip>Remove</Button.ToolTip>
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource SecondaryButtonStyle}">
+                                    <Setter Property="FontWeight"
+                                        Value="Bold"/>
                                                                         <Setter Property="IsEnabled"
                                                                                 Value="True"/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding CanRemove}"
+                                                                                         Value="False">
+                                                                                <Setter Property="IsEnabled"
+                                                                                        Value="False"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding IsBusy}"
+                                                                                         Value="True">
+                                                                                <Setter Property="IsEnabled"
+                                                                                        Value="False"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                            </Button>
+                                                            <Button Grid.Column="2"
+                                                                    Content="F"
+                                                                    Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Width="36"
+                                                                    Height="32"
+                                                                    Margin="0,0,0,4"
+                                                                    Padding="0"
+                                                                    HorizontalContentAlignment="Center"
+                                                                    VerticalContentAlignment="Center"
+                                                                    AutomationProperties.Name="Force cleanup">
+                                                                <Button.ToolTip>Force cleanup</Button.ToolTip>
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button"
+                                                                           BasedOn="{StaticResource DangerButtonStyle}">
+                                                                        <Setter Property="FontWeight"
+                                                                                Value="Bold"/>
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="True"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding CanForceRemove}"
                                                                                          Value="False">
                                                                                 <Setter Property="IsEnabled"
                                                                                         Value="False"/>

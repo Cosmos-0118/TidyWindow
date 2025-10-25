@@ -88,9 +88,20 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var snapshot = _queue.Enqueue(task.Definition, parameters: null);
-            _activityLog.LogInformation("Essentials", $"Queued '{task.Definition.Name}'.");
-            _mainViewModel.SetStatusMessage($"Queued {task.Definition.Name}.");
+            var parameters = task.BuildParameters();
+            var snapshot = _queue.Enqueue(task.Definition, parameters);
+
+            var optionSummary = task.GetOptionSummary();
+            if (!string.IsNullOrWhiteSpace(optionSummary))
+            {
+                _activityLog.LogInformation("Essentials", $"Queued '{task.Definition.Name}' ({optionSummary}).");
+                _mainViewModel.SetStatusMessage($"Queued {task.Definition.Name} ({optionSummary}).");
+            }
+            else
+            {
+                _activityLog.LogInformation("Essentials", $"Queued '{task.Definition.Name}'.");
+                _mainViewModel.SetStatusMessage($"Queued {task.Definition.Name}.");
+            }
             UpdateTaskState(snapshot);
         }
         catch (Exception ex)
@@ -407,6 +418,46 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 
     public ImmutableArray<string> Highlights => Definition.Highlights;
 
+    public string? DurationHint => Definition.DurationHint;
+
+    public string? DetailedDescription => Definition.DetailedDescription;
+
+    public string? DocumentationLink => Definition.DocumentationLink;
+
+    public bool IsDefenderTask => string.Equals(Definition.Id, "defender-repair", StringComparison.OrdinalIgnoreCase);
+
+    public bool IsSpoolerTask => string.Equals(Definition.Id, "print-spooler-recovery", StringComparison.OrdinalIgnoreCase);
+
+    [ObservableProperty]
+    private bool _useFullScan;
+
+    [ObservableProperty]
+    private bool _skipSignatureUpdate;
+
+    [ObservableProperty]
+    private bool _skipThreatScan;
+
+    [ObservableProperty]
+    private bool _skipServiceHeal;
+
+    [ObservableProperty]
+    private bool _skipRealtimeHeal;
+
+    [ObservableProperty]
+    private bool _includeServiceReset = true;
+
+    [ObservableProperty]
+    private bool _includeQueuePurge = true;
+
+    [ObservableProperty]
+    private bool _includeDriverCleanup = true;
+
+    [ObservableProperty]
+    private bool _includeDllRegistration = true;
+
+    [ObservableProperty]
+    private bool _includeIsolationPolicyReset = true;
+
     [ObservableProperty]
     private bool _isActive;
 
@@ -416,6 +467,9 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     [ObservableProperty]
     private string? _lastStatus;
 
+    [ObservableProperty]
+    private bool _isDetailsVisible;
+
     public void UpdateQueueState(int activeCount, string? status)
     {
         IsActive = activeCount > 0;
@@ -424,6 +478,169 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
         if (!string.IsNullOrWhiteSpace(status))
         {
             LastStatus = status.Trim();
+        }
+    }
+
+    public IReadOnlyDictionary<string, object?>? BuildParameters()
+    {
+        if (IsDefenderTask)
+        {
+            var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+            if (SkipThreatScan)
+            {
+                parameters["SkipThreatScan"] = true;
+            }
+            else if (UseFullScan)
+            {
+                parameters["FullScan"] = true;
+            }
+
+            if (SkipSignatureUpdate)
+            {
+                parameters["SkipSignatureUpdate"] = true;
+            }
+
+            if (SkipServiceHeal)
+            {
+                parameters["SkipServiceHeal"] = true;
+            }
+
+            if (SkipRealtimeHeal)
+            {
+                parameters["SkipRealtimeHeal"] = true;
+            }
+
+            return parameters.Count > 0 ? parameters : null;
+        }
+
+        if (IsSpoolerTask)
+        {
+            var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+            if (!IncludeServiceReset)
+            {
+                parameters["SkipServiceReset"] = true;
+            }
+
+            if (!IncludeQueuePurge)
+            {
+                parameters["SkipSpoolPurge"] = true;
+            }
+
+            if (!IncludeDriverCleanup)
+            {
+                parameters["SkipDriverRefresh"] = true;
+            }
+
+            if (!IncludeDllRegistration)
+            {
+                parameters["SkipDllRegistration"] = true;
+            }
+
+            if (!IncludeIsolationPolicyReset)
+            {
+                parameters["SkipPrintIsolationPolicy"] = true;
+            }
+
+            return parameters.Count > 0 ? parameters : null;
+        }
+
+        return null;
+    }
+
+    public string? GetOptionSummary()
+    {
+        if (IsDefenderTask)
+        {
+            var parts = new List<string>();
+
+            if (SkipThreatScan)
+            {
+                parts.Add("Scan skipped");
+            }
+            else if (UseFullScan)
+            {
+                parts.Add("Full scan");
+            }
+
+            if (SkipSignatureUpdate)
+            {
+                parts.Add("Skip signature update");
+            }
+
+            if (SkipServiceHeal)
+            {
+                parts.Add("Skip service repair");
+            }
+
+            if (SkipRealtimeHeal)
+            {
+                parts.Add("Skip real-time heal");
+            }
+
+            return parts.Count > 0 ? string.Join(", ", parts) : null;
+        }
+
+        if (IsSpoolerTask)
+        {
+            var parts = new List<string>();
+
+            if (!IncludeServiceReset)
+            {
+                parts.Add("Skip service restart");
+            }
+
+            if (!IncludeQueuePurge)
+            {
+                parts.Add("Skip queue purge");
+            }
+
+            if (!IncludeDriverCleanup)
+            {
+                parts.Add("Skip driver cleanup");
+            }
+
+            if (!IncludeDllRegistration)
+            {
+                parts.Add("Skip DLL re-registration");
+            }
+
+            if (!IncludeIsolationPolicyReset)
+            {
+                parts.Add("Skip isolation reset");
+            }
+
+            return parts.Count > 0 ? string.Join(", ", parts) : null;
+        }
+
+        return null;
+    }
+
+    [RelayCommand]
+    private void ToggleDetails()
+    {
+        if (string.IsNullOrWhiteSpace(DetailedDescription))
+        {
+            return;
+        }
+
+        IsDetailsVisible = !IsDetailsVisible;
+    }
+
+    partial void OnSkipThreatScanChanged(bool oldValue, bool newValue)
+    {
+        if (newValue && UseFullScan)
+        {
+            UseFullScan = false;
+        }
+    }
+
+    partial void OnUseFullScanChanged(bool oldValue, bool newValue)
+    {
+        if (newValue && SkipThreatScan)
+        {
+            SkipThreatScan = false;
         }
     }
 }
@@ -480,7 +697,7 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
         };
 
         Message = snapshot.LastMessage;
-        CompletedAt = snapshot.CompletedAt;
+        CompletedAt = snapshot.CompletedAt?.ToLocalTime();
         IsActive = snapshot.IsActive;
         HasErrors = !snapshot.Errors.IsDefaultOrEmpty && snapshot.Errors.Length > 0;
         Output = snapshot.Output;

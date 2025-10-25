@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -77,8 +76,8 @@ public sealed class PowerShellInvoker
             }
         }
 
-        var output = new ConcurrentBag<string>();
-        var errors = new ConcurrentBag<string>();
+        var output = new List<string>();
+        var errors = new List<string>();
         var cancellationRequested = false;
 
         using PSDataCollection<PSObject> outputCollection = new();
@@ -86,7 +85,11 @@ public sealed class PowerShellInvoker
         {
             if (args.Index >= 0 && args.Index < outputCollection.Count)
             {
-                output.Add(outputCollection[args.Index].ToString() ?? string.Empty);
+                var value = outputCollection[args.Index].ToString() ?? string.Empty;
+                lock (output)
+                {
+                    output.Add(value);
+                }
             }
         };
 
@@ -102,7 +105,10 @@ public sealed class PowerShellInvoker
             {
                 if (!string.IsNullOrWhiteSpace(line))
                 {
-                    errors.Add(line);
+                    lock (errors)
+                    {
+                        errors.Add(line);
+                    }
                 }
             }
         };
@@ -146,13 +152,28 @@ public sealed class PowerShellInvoker
                 return await RunScriptUsingExternalPwshAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
             }
 
-            errors.Add(ex.ToString());
+            lock (errors)
+            {
+                errors.Add(ex.ToString());
+            }
             encounteredRuntimeError = true;
         }
 
         // If the runspace failed due to missing built-in modules (common when hosting on Core without $PSHOME),
         // fall back to launching an external PowerShell process which has the full environment.
-        if (errors.Any(IsMissingBuiltInModuleMessage))
+        List<string> outputSnapshot;
+        List<string> errorSnapshot;
+        lock (output)
+        {
+            outputSnapshot = output.ToList();
+        }
+
+        lock (errors)
+        {
+            errorSnapshot = errors.ToList();
+        }
+
+        if (errorSnapshot.Any(IsMissingBuiltInModuleMessage))
         {
             try
             {
@@ -164,8 +185,8 @@ public sealed class PowerShellInvoker
             }
             catch (Exception ex2)
             {
-                errors.Add(ex2.ToString());
-                return new PowerShellInvocationResult(new ReadOnlyCollection<string>(output.ToList()), new ReadOnlyCollection<string>(errors.ToList()), 1);
+                errorSnapshot.Add(ex2.ToString());
+                return new PowerShellInvocationResult(new ReadOnlyCollection<string>(outputSnapshot), new ReadOnlyCollection<string>(errorSnapshot), 1);
             }
         }
 
@@ -175,8 +196,8 @@ public sealed class PowerShellInvoker
         }
 
         return new PowerShellInvocationResult(
-            new ReadOnlyCollection<string>(output.ToList()),
-            new ReadOnlyCollection<string>(errors.ToList()),
+            new ReadOnlyCollection<string>(outputSnapshot),
+            new ReadOnlyCollection<string>(errorSnapshot),
             ps.HadErrors || encounteredRuntimeError ? 1 : 0);
     }
 

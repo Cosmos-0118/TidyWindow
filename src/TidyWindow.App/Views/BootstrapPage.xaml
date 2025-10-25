@@ -478,6 +478,47 @@
                     <Border Style="{StaticResource BootstrapCardStyle}"
                             Margin="0,0,0,24">
                         <StackPanel>
+                            <TextBlock Text="PowerShell runtime"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="#E2E8F0"/>
+                            <TextBlock Text="TidyWindow automations depend on PowerShell 7 or newer. Install it system-wide before running bootstrap tasks."
+                                       Margin="0,8,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="#94A3B8"
+                                       FontSize="12"/>
+                            <Border Margin="0,16,0,0"
+                                    Background="#0B1626"
+                                    CornerRadius="8"
+                                    BorderBrush="#1E293B"
+                                    BorderThickness="1"
+                                    Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Install with winget"
+                                               FontSize="12"
+                                               Foreground="#38BDF8"
+                                               FontWeight="SemiBold"/>
+                                    <TextBox Margin="0,6,0,0"
+                                             Text="winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements"
+                                             IsReadOnly="True"
+                                             BorderThickness="0"
+                                             Background="#0B1626"
+                                             Foreground="#F8FAFC"
+                                             FontFamily="Consolas"
+                                             FontSize="12"
+                                             TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                            <TextBlock Text="Already on PowerShell 7+? You’re good to go—detection runs will use that runtime automatically."
+                                       Margin="0,16,0,0"
+                                       TextWrapping="Wrap"
+                                       Foreground="#CBD5F5"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Style="{StaticResource BootstrapCardStyle}"
+                            Margin="0,0,0,24">
+                        <StackPanel>
                             <TextBlock Text="Quick guidance"
                                        FontSize="16"
                                        FontWeight="SemiBold"

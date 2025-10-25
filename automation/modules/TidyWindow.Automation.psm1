@@ -79,7 +79,7 @@ function Write-TidyLog {
     )
 
     process {
-        $timestamp = (Get-Date).ToString('u')
+    $timestamp = [DateTimeOffset]::Now.ToString('yyyy-MM-dd HH:mm:ss zzz', [System.Globalization.CultureInfo]::InvariantCulture)
         $parts = foreach ($segment in $Message) { Convert-TidyLogMessage -InputObject $segment }
         $text = ($parts -join ' ').Trim()
         if ([string]::IsNullOrWhiteSpace($text)) {

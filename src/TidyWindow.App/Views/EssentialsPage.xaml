@@ -131,14 +131,17 @@
     </Page.Resources>
 
     <ScrollViewer x:Name="ContentScrollViewer"
-                  Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Auto"
-                  CanContentScroll="False"
-                  PanningMode="VerticalOnly"
-                  SizeChanged="ContentScrollViewer_SizeChanged">
-        <Grid x:Name="PageContentGrid"
-              MinWidth="0">
+            Margin="32"
+            VerticalScrollBarVisibility="Auto"
+            HorizontalScrollBarVisibility="Disabled"
+            HorizontalContentAlignment="Stretch"
+            CanContentScroll="False"
+            PanningMode="VerticalOnly"
+            SizeChanged="ContentScrollViewer_SizeChanged">
+      <Grid x:Name="PageContentGrid"
+          MinWidth="0"
+          MaxWidth="1360"
+          HorizontalAlignment="Center">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -197,6 +200,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
+
                             <Border Width="36"
                                     Height="36"
                                     CornerRadius="10"
@@ -208,6 +212,7 @@
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                             </Border>
+
                             <StackPanel Grid.Column="1"
                                         Margin="12,0,0,0">
                                 <TextBlock Text="Curated repair flows"
@@ -218,6 +223,7 @@
                                            FontSize="12"
                                            TextWrapping="Wrap"/>
                             </StackPanel>
+
                             <Border Grid.Column="2"
                                     Background="#143149"
                                     BorderBrush="#1E3F63"
@@ -264,8 +270,7 @@
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                      VirtualizingPanel.IsVirtualizing="True"
                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                     VirtualizingStackPanel.ScrollUnit="Pixel"
-                                     Grid.IsSharedSizeScope="True">
+                                     VirtualizingStackPanel.ScrollUnit="Pixel">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
                                         <Setter Property="Padding"
@@ -306,13 +311,27 @@
                                 </ListBox.ItemContainerStyle>
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
-                                        <Grid Margin="0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"
-                                                                  SharedSizeGroup="TaskContent"/>
-                                                <ColumnDefinition Width="Auto"
-                                                                  SharedSizeGroup="TaskActions"/>
-                                            </Grid.ColumnDefinitions>
+                                        <DockPanel LastChildFill="True"
+                                                   Margin="0">
+                                            <StackPanel x:Name="TaskActionsPanel"
+                                                        DockPanel.Dock="Right"
+                                                        Margin="12,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Orientation="Vertical"
+                                                        MinWidth="112">
+                                                <Button Content="Run"
+                                                        Command="{Binding DataContext.QueueTaskCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        CommandParameter="{Binding}"
+                                                        MinWidth="96"
+                                                        HorizontalAlignment="Stretch"
+                                                        Style="{StaticResource EssentialsAccentButtonStyle}"/>
+                                                <TextBlock Text="Queued"
+                                                           Margin="0,8,0,0"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="11"
+                                                           TextAlignment="Center"
+                                                           Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </StackPanel>
                                             <StackPanel Margin="0,0,12,0">
                                                 <StackPanel Orientation="Horizontal"
                                                             VerticalAlignment="Center">
@@ -343,6 +362,120 @@
                                                            Foreground="#94A3B8"
                                                            FontSize="12"
                                                            TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding DurationHint}"
+                                                           Margin="0,0,0,8"
+                                                           FontSize="11"
+                                                           Foreground="#FBBF24">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility"
+                                                                    Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DurationHint}"
+                                                                             Value="{x:Null}">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DurationHint}"
+                                                                             Value="">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <Button Command="{Binding ToggleDetailsCommand}"
+                                                        Margin="0,0,0,8"
+                                                        HorizontalAlignment="Left">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button"
+                                                               BasedOn="{StaticResource EssentialsSecondaryButtonStyle}">
+                                                            <Setter Property="Content"
+                                                                    Value="Details"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding DetailedDescription}"
+                                                                             Value="{x:Null}">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DetailedDescription}"
+                                                                             Value="">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsDetailsVisible}"
+                                                                             Value="True">
+                                                                    <Setter Property="Content"
+                                                                            Value="Hide details"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                                <Border Margin="0,0,0,8"
+                                                        Padding="12"
+                                                        Background="#132540"
+                                                        BorderBrush="#1D3A5C"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Visibility"
+                                                                    Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsDetailsVisible}"
+                                                                             Value="True">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Visible"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DetailedDescription}"
+                                                                             Value="{x:Null}">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding DetailedDescription}"
+                                                                             Value="">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding DetailedDescription}"
+                                                                   FontSize="12"
+                                                                   Foreground="#E2E8F0"
+                                                                   TextWrapping="Wrap"/>
+                                                        <TextBlock Margin="0,8,0,0"
+                                                                   FontSize="11"
+                                                                   Foreground="#60A5FA">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DocumentationLink}"
+                                                                                     Value="{x:Null}">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding DocumentationLink}"
+                                                                                     Value="">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                            <Hyperlink NavigateUri="{Binding DocumentationLink}"
+                                                                       RequestNavigate="DocumentationLink_RequestNavigate"
+                                                                       Foreground="#60A5FA">
+                                                                <Run Text="View detailed guide"/>
+                                                            </Hyperlink>
+                                                        </TextBlock>
+                                                    </StackPanel>
+                                                </Border>
                                                 <ItemsControl ItemsSource="{Binding Highlights}">
                                                     <ItemsControl.Template>
                                                         <ControlTemplate TargetType="ItemsControl">
@@ -376,6 +509,64 @@
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
                                                 </ItemsControl>
+                                                <StackPanel Margin="0,10,0,0"
+                                                            Visibility="{Binding IsDefenderTask, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Scan options"
+                                                               FontSize="12"
+                                                               Foreground="#94A3B8"
+                                                               Margin="0,0,0,6"/>
+                                                    <WrapPanel>
+                                                        <CheckBox Content="Run full scan"
+                                                                  IsChecked="{Binding UseFullScan}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Skip signature update"
+                                                                  IsChecked="{Binding SkipSignatureUpdate}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Skip real-time heal"
+                                                                  IsChecked="{Binding SkipRealtimeHeal}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Skip service repair"
+                                                                  IsChecked="{Binding SkipServiceHeal}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Skip threat scan"
+                                                                  IsChecked="{Binding SkipThreatScan}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                                <StackPanel Margin="0,10,0,0"
+                                                            Visibility="{Binding IsSpoolerTask, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Repair scope"
+                                                               FontSize="12"
+                                                               Foreground="#94A3B8"
+                                                               Margin="0,0,0,6"/>
+                                                    <WrapPanel>
+                                                        <CheckBox Content="Stop &amp; restart services"
+                                                                  IsChecked="{Binding IncludeServiceReset}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Clear spool queue"
+                                                                  IsChecked="{Binding IncludeQueuePurge}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Remove stale drivers"
+                                                                  IsChecked="{Binding IncludeDriverCleanup}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Re-register DLLs"
+                                                                  IsChecked="{Binding IncludeDllRegistration}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                        <CheckBox Content="Reset isolation policies"
+                                                                  IsChecked="{Binding IncludeIsolationPolicyReset}"
+                                                                  Foreground="#E2E8F0"
+                                                                  Margin="0,0,12,6"/>
+                                                    </WrapPanel>
+                                                </StackPanel>
                                                 <TextBlock Text="{Binding LastStatus}"
                                                            Margin="0,8,0,0"
                                                            FontSize="12"
@@ -405,24 +596,7 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                             </StackPanel>
-                                            <StackPanel Grid.Column="1"
-                                                        VerticalAlignment="Center"
-                                                        Orientation="Vertical"
-                                                        MinWidth="96">
-                                                <Button Content="Run"
-                                                        Command="{Binding DataContext.QueueTaskCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                        CommandParameter="{Binding}"
-                                                        MinWidth="96"
-                                                        HorizontalAlignment="Stretch"
-                                                        Style="{StaticResource EssentialsAccentButtonStyle}"/>
-                                                <TextBlock Text="Queued"
-                                                           Margin="0,8,0,0"
-                                                           Foreground="#94A3B8"
-                                                           FontSize="11"
-                                                           TextAlignment="Center"
-                                                           Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                            </StackPanel>
-                                        </Grid>
+                                        </DockPanel>
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>

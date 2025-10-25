@@ -1,8 +1,11 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Navigation;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using VerticalAlignment = System.Windows.VerticalAlignment;
 using WpfOrientation = System.Windows.Controls.Orientation;
@@ -340,5 +343,43 @@ public partial class EssentialsPage : Page
         }
 
         return null;
+    }
+
+    private void DocumentationLink_RequestNavigate(object sender, RequestNavigateEventArgs e)
+    {
+        e.Handled = true;
+
+        var target = e.Uri?.ToString();
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            return;
+        }
+
+        try
+        {
+            var resolved = target;
+            if (!Uri.IsWellFormedUriString(target, UriKind.Absolute))
+            {
+                var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
+                var relativePath = target.Replace('/', Path.DirectorySeparatorChar);
+                var candidate = Path.GetFullPath(Path.Combine(baseDirectory, relativePath));
+
+                if (File.Exists(candidate))
+                {
+                    resolved = candidate;
+                }
+            }
+
+            var startInfo = new ProcessStartInfo(resolved)
+            {
+                UseShellExecute = true
+            };
+
+            Process.Start(startInfo);
+        }
+        catch
+        {
+            // Swallow navigation errors; UI already exposed the entry.
+        }
     }
 }

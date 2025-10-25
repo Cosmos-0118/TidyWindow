@@ -313,6 +313,30 @@ packages:
       summary: Control software for Focusrite audio interfaces.
       homepage: "https://focusrite.com"
       tags: [productivity, audio]
+    - id: eartrumpet
+      name: EarTrumpet
+      manager: winget
+      command: "winget install --id File-New-Project.EarTrumpet -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Modern volume mixer that gives per-app audio control in the system tray.
+      homepage: "https://eartrumpet.app"
+      tags: [productivity, audio]
+    - id: translucenttb
+      name: TranslucentTB
+      manager: winget
+      command: "winget install --id TranslucentTB.TranslucentTB -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Customize the Windows taskbar with transparency, colors, and blur effects.
+      homepage: "https://github.com/TranslucentTB/TranslucentTB"
+      tags: [productivity, customization]
+    - id: lively-wallpaper
+      name: Lively Wallpaper
+      manager: winget
+      command: "winget install --id Rocksdanister.LivelyWallpaper -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: false
+      summary: Animated wallpaper engine for bringing interactive backgrounds to the desktop.
+      homepage: "https://rocksdanister.github.io/lively"
+      tags: [productivity, customization]
     - id: trello
       name: Trello
       manager: winget
@@ -1073,4 +1097,3 @@ packages:
       summary: Open-source web browser project.
       homepage: "https://www.chromium.org"
       tags: [office, browser]
-

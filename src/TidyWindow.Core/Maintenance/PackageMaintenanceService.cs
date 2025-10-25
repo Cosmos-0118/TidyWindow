@@ -61,7 +61,17 @@ public sealed class PackageMaintenanceService
     /// <summary>
     /// Runs the catalog-aware removal script for the specified package.
     /// </summary>
-    public async Task<PackageMaintenanceResult> RemoveAsync(PackageMaintenanceRequest request, CancellationToken cancellationToken = default)
+    public Task<PackageMaintenanceResult> RemoveAsync(PackageMaintenanceRequest request, CancellationToken cancellationToken = default)
+    {
+        return RemoveInternalAsync(request, forceCleanup: false, cancellationToken);
+    }
+
+    public Task<PackageMaintenanceResult> ForceRemoveAsync(PackageMaintenanceRequest request, CancellationToken cancellationToken = default)
+    {
+        return RemoveInternalAsync(request, forceCleanup: true, cancellationToken);
+    }
+
+    private async Task<PackageMaintenanceResult> RemoveInternalAsync(PackageMaintenanceRequest request, bool forceCleanup, CancellationToken cancellationToken)
     {
         if (request is null)
         {
@@ -71,7 +81,7 @@ public sealed class PackageMaintenanceService
         ValidateRequest(request);
 
         var scriptPath = ResolveScriptPath(RemoveScriptRelativePath, RemoveScriptOverrideEnvironmentVariable);
-        var parameters = BuildParameters(request);
+        var parameters = BuildParameters(request, forceCleanup);
 
         var result = await _powerShellInvoker.InvokeScriptAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
         if (!result.IsSuccess)
@@ -96,7 +106,7 @@ public sealed class PackageMaintenanceService
         }
     }
 
-    private static Dictionary<string, object?> BuildParameters(PackageMaintenanceRequest request)
+    private static Dictionary<string, object?> BuildParameters(PackageMaintenanceRequest request, bool forceCleanup = false)
     {
         var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
@@ -117,6 +127,11 @@ public sealed class PackageMaintenanceService
         if (!string.IsNullOrWhiteSpace(request.RequestedVersion))
         {
             parameters["TargetVersion"] = request.RequestedVersion.Trim();
+        }
+
+        if (forceCleanup)
+        {
+            parameters["ForceCleanup"] = true;
         }
 
         return parameters;

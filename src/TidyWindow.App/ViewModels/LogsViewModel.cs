@@ -168,7 +168,7 @@ public sealed class ActivityLogItemViewModel
 
     public bool HasDetails => Details.Count > 0;
 
-    public string TimestampDisplay => Timestamp.ToLocalTime().ToString("HH:mm:ss");
+    public string TimestampDisplay => Timestamp.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
 
     public string LevelDisplay => Level switch
     {
@@ -202,7 +202,7 @@ public sealed class ActivityLogItemViewModel
     public string BuildClipboardText()
     {
         var builder = new StringBuilder();
-        builder.AppendLine($"{Timestamp.ToLocalTime():u} [{Level}] {Source}");
+        builder.AppendLine($"{Timestamp.ToLocalTime():yyyy-MM-dd HH:mm:ss zzz} [{Level}] {Source}");
         builder.AppendLine(Message);
 
         foreach (var line in Details)

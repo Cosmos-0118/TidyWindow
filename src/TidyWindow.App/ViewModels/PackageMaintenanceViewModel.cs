@@ -228,6 +228,17 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         EnqueueMaintenanceOperation(item, MaintenanceOperationKind.Remove);
     }
 
+    [RelayCommand]
+    private void ForceRemove(PackageMaintenanceItemViewModel? item)
+    {
+        if (item is null || !item.CanRemove)
+        {
+            return;
+        }
+
+        EnqueueMaintenanceOperation(item, MaintenanceOperationKind.ForceRemove);
+    }
+
     [RelayCommand(CanExecute = nameof(CanRetryFailed))]
     private void RetryFailed()
     {
@@ -297,7 +308,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             return false;
         }
 
-        if (kind == MaintenanceOperationKind.Remove && !item.CanRemove)
+        if (kind is MaintenanceOperationKind.Remove or MaintenanceOperationKind.ForceRemove && !item.CanRemove)
         {
             return false;
         }
@@ -417,9 +428,12 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                 request.RequiresAdministrator,
                 request.TargetVersion);
 
-            var result = request.Kind == MaintenanceOperationKind.Update
-                ? await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false)
-                : await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false);
+            PackageMaintenanceResult result = request.Kind switch
+            {
+                MaintenanceOperationKind.Update => await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false),
+                MaintenanceOperationKind.ForceRemove => await _maintenanceService.ForceRemoveAsync(payload).ConfigureAwait(false),
+                _ => await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false)
+            };
 
             var message = string.IsNullOrWhiteSpace(result.Summary)
                 ? BuildDefaultCompletionMessage(request.Kind, result.Success)
@@ -603,7 +617,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         var lines = new List<string>
         {
-            $"Generated at: {snapshot.GeneratedAt:u}"
+            $"Generated at: {snapshot.GeneratedAt.ToLocalTime():yyyy-MM-dd HH:mm:ss zzz}"
         };
 
         var managerGroups = snapshot.Packages
@@ -979,6 +993,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         {
             MaintenanceOperationKind.Update => "Update",
             MaintenanceOperationKind.Remove => "Removal",
+            MaintenanceOperationKind.ForceRemove => "Force removal",
             _ => "Operation"
         };
     }
@@ -990,6 +1005,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             MaintenanceOperationKind.Update when !string.IsNullOrWhiteSpace(targetVersion) => $"Update queued ({targetVersion.Trim()})",
             MaintenanceOperationKind.Update => "Update queued",
             MaintenanceOperationKind.Remove => "Removal queued",
+            MaintenanceOperationKind.ForceRemove => "Force removal queued",
             _ => "Operation queued"
         };
     }
@@ -1001,6 +1017,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             MaintenanceOperationKind.Update when !string.IsNullOrWhiteSpace(targetVersion) => $"Updating ({targetVersion.Trim()})...",
             MaintenanceOperationKind.Update => "Updating...",
             MaintenanceOperationKind.Remove => "Removing...",
+            MaintenanceOperationKind.ForceRemove => "Force removing...",
             _ => "Processing..."
         };
     }
@@ -1122,7 +1139,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 public enum MaintenanceOperationKind
 {
     Update,
-    Remove
+    Remove,
+    ForceRemove
 }
 
 public enum MaintenanceOperationStatus
@@ -1153,6 +1171,7 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
     {
         MaintenanceOperationKind.Update => "Update",
         MaintenanceOperationKind.Remove => "Removal",
+        MaintenanceOperationKind.ForceRemove => "Force removal",
         _ => "Operation"
     };
 
@@ -1305,6 +1324,8 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
                              && (!string.IsNullOrWhiteSpace(InstallPackageId) || !string.IsNullOrWhiteSpace(PackageIdentifier));
 
     public bool CanRemove => !string.IsNullOrWhiteSpace(Manager) && !string.IsNullOrWhiteSpace(PackageIdentifier);
+
+    public bool CanForceRemove => CanRemove;
 
     public string VersionDisplay => HasUpdate && !string.IsNullOrWhiteSpace(AvailableVersion)
         ? $"{InstalledVersion} → {AvailableVersion}"

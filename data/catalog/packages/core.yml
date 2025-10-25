@@ -220,13 +220,11 @@ packages:
       homepage: "https://adoptium.net"
       tags: [java, runtime]
     - id: openjdk25-preview
-      name: Temurin JDK 25 EA (Scoop)
-      manager: scoop
-      command: "scoop install temurin25-ea-jdk"
-      requiresAdmin: false
-      buckets:
-          - java
-      summary: Early-access Temurin JDK 25 build through Scoop preview manifests.
+      name: Temurin JDK 25 EA
+      manager: winget
+      command: "winget install --id EclipseAdoptium.Temurin.25.JDK.EA -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
+      summary: Early-access Temurin JDK 25 build delivered via winget.
       homepage: "https://adoptium.net"
       tags: [java, runtime, preview]
     - id: 7zip
@@ -493,4 +491,3 @@ packages:
       summary: Secrets management and data protection platform.
       homepage: "https://www.vaultproject.io"
       tags: [cli, secrets]
-

@@ -10,7 +10,7 @@ properly build and add it to the essentials page.
 
 👉 Verdict: Very valuable, relatively safe — perfect for system maintenance suites.
 
-2️⃣ Storage Declutter & Temp Cleanup Orchestrator
+2️⃣ A Very Powerful Storage Declutter & Temp Cleanup Orchestrator
 
 💡 Usefulness: 8/10 — Cleans gigabytes of junk, good for performance + space recovery.
 ⚙️ Difficulty: 6/10 — Needs careful command sequencing: Dism.exe /Online /Cleanup-Image /StartComponentCleanup, proper Temp folder handling, and correct path exclusions (to avoid nuking active cache).

@@ -21,9 +21,9 @@ public partial class LogsPage : Page
     private bool _isDisposed;
     private bool _scrollHandlersAttached;
 
-    private const double TimestampPreferredWidth = 120d;
-    private const double TimestampCompactWidth = 100d;
-    private const double TimestampMinimumWidth = 90d;
+    private const double TimestampPreferredWidth = 180d;
+    private const double TimestampCompactWidth = 160d;
+    private const double TimestampMinimumWidth = 140d;
 
     private const double LevelPreferredWidth = 110d;
     private const double LevelCompactWidth = 96d;
