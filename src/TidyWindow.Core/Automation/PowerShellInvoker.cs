@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
@@ -286,6 +287,35 @@ public sealed class PowerShellInvoker
                     {
                         args.Add($"-{key}");
                     }
+                }
+                else if (value is IEnumerable enumerable && value is not string)
+                {
+                    // Expand enumerable arguments (for example string[] Buckets) into discrete CLI tokens.
+                    var buffered = new List<string>();
+
+                    foreach (var item in enumerable)
+                    {
+                        if (item is null)
+                        {
+                            continue;
+                        }
+
+                        var text = item.ToString();
+                        if (string.IsNullOrWhiteSpace(text))
+                        {
+                            continue;
+                        }
+
+                        buffered.Add(text.Replace("\"", "\\\""));
+                    }
+
+                    if (buffered.Count == 0)
+                    {
+                        continue;
+                    }
+
+                    args.Add($"-{key}");
+                    args.AddRange(buffered);
                 }
                 else
                 {

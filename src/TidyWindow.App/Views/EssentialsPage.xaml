@@ -430,9 +430,9 @@
                     </Border>
                 </StackPanel>
 
-                <StackPanel x:Name="SecondaryColumnHost"
-                            Grid.Row="0"
-                            Grid.Column="1">
+        <StackPanel x:Name="SecondaryColumnHost"
+                Grid.Row="0"
+                Grid.Column="1">
                     <Border Style="{StaticResource EssentialsCardStyle}"
                             Margin="0,0,0,20">
                         <Grid>
@@ -441,14 +441,23 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <Grid Grid.Row="0"
-                                  Margin="0,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
+                <Grid x:Name="OperationsHeaderGrid"
+                  Grid.Row="0"
+                  Margin="0,0,0,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition x:Name="OperationsHeaderPrimaryColumn"
+                              Width="*"/>
+                    <ColumnDefinition x:Name="OperationsHeaderSecondaryColumn"
+                              Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-                                <StackPanel Grid.Column="0">
+                <StackPanel x:Name="OperationsHeaderSummaryPanel"
+                        Grid.Row="0"
+                        Grid.Column="0">
                                     <TextBlock Text="Queue timeline"
                                                FontSize="16"
                                                FontWeight="SemiBold"
@@ -458,19 +467,27 @@
                                                Foreground="#64748B"/>
                                 </StackPanel>
 
-                                <StackPanel Grid.Column="1"
-                                            Orientation="Horizontal"
-                                            HorizontalAlignment="Right"
-                                            VerticalAlignment="Center">
-                                    <Button Content="Retry failed"
-                                            Command="{Binding RetryFailedCommand}"
-                                            Margin="0,0,8,0"
-                                            Style="{StaticResource EssentialsSecondaryButtonStyle}"/>
-                                    <Button Content="Clear completed"
-                                            Command="{Binding ClearCompletedCommand}"
-                                            Style="{StaticResource EssentialsSecondaryButtonStyle}"/>
+                <StackPanel x:Name="OperationsHeaderActionHost"
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Orientation="Vertical"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center">
+                    <StackPanel x:Name="OperationsHeaderActionPanel"
+                        Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                    <Button x:Name="RetryFailedButton"
+                        Content="Retry failed"
+                        Command="{Binding RetryFailedCommand}"
+                        Margin="0,0,8,0"
+                        Style="{StaticResource EssentialsSecondaryButtonStyle}"/>
+                    <Button x:Name="ClearCompletedButton"
+                        Content="Clear completed"
+                        Command="{Binding ClearCompletedCommand}"
+                        Style="{StaticResource EssentialsSecondaryButtonStyle}"/>
+                    </StackPanel>
                                 </StackPanel>
-                            </Grid>
+                </Grid>
 
                             <ListView x:Name="OperationsListView"
                                       Grid.Row="1"

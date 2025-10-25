@@ -565,13 +565,23 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <Grid Grid.Row="0">
+            <Grid x:Name="HeaderGrid"
+                  Grid.Row="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition x:Name="HeaderPrimaryColumn"
+                                      Width="*"/>
+                    <ColumnDefinition x:Name="HeaderSecondaryColumn"
+                                      Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Orientation="Horizontal">
+                <StackPanel x:Name="HeaderSummaryPanel"
+                            Grid.Row="0"
+                            Grid.Column="0"
+                            Orientation="Horizontal">
                     <Border Width="48"
                             Height="48"
                             CornerRadius="12"
@@ -594,12 +604,15 @@
                     </StackPanel>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1"
-                            Orientation="Vertical"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right">
+        <StackPanel x:Name="HeaderActionHost"
+                Grid.Row="0"
+                Grid.Column="1"
+                Orientation="Vertical"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center">
+            <StackPanel x:Name="HeaderActionPanel"
+                Orientation="Horizontal"
+                HorizontalAlignment="Right">
                         <ProgressBar Width="120"
                                      Height="6"
                                      IsIndeterminate="True"
@@ -614,7 +627,8 @@
                             </Button.IsEnabled>
                         </Button>
                     </StackPanel>
-                    <TextBlock Text="{Binding LastRefreshedDisplay}"
+                    <TextBlock x:Name="HeaderLastRefreshedText"
+                               Text="{Binding LastRefreshedDisplay}"
                                Foreground="#64748B"
                                FontSize="12"
                                Margin="0,6,0,0"

@@ -126,6 +126,149 @@ function Test-TidyAdmin {
 
 
 
+function Format-TidyBytes {
+    param([Nullable[int64]] $Value)
+
+    if ($null -eq $Value -or $Value -lt 0) {
+        return 'n/a'
+    }
+
+    $gib = [Math]::Round($Value / 1GB, 2)
+    $mib = [Math]::Round($Value / 1MB, 0)
+
+    return "{0} GiB ({1} MB)" -f $gib, $mib
+}
+
+function Format-TidyBytesDelta {
+    param([Nullable[int64]] $Value)
+
+    if ($null -eq $Value -or $Value -eq 0) {
+        return '0'
+    }
+
+    $sign = if ($Value -ge 0) { '+' } else { '-' }
+    $magnitude = [Math]::Abs($Value)
+    $gib = [Math]::Round($magnitude / 1GB, 2)
+    $mib = [Math]::Round($magnitude / 1MB, 0)
+
+    return "{0}{1} GiB ({0}{2} MB)" -f $sign, $gib, $mib
+}
+
+function Get-TidyMemorySnapshot {
+    $snapshot = [pscustomobject]@{
+        Timestamp              = Get-Date
+        TotalPhysicalBytes     = $null
+        AvailableBytes         = $null
+        StandbyBytes           = $null
+        ModifiedBytes          = $null
+        CacheBytes             = $null
+        CommittedBytes         = $null
+        CommitLimitBytes       = $null
+        CompressionStoreBytes  = $null
+    }
+
+    try {
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+        $snapshot.TotalPhysicalBytes = [int64]$os.TotalVisibleMemorySize * 1KB
+        $snapshot.AvailableBytes = [int64]$os.FreePhysicalMemory * 1KB
+    }
+    catch {
+        # Leave defaults when WMI is unavailable.
+    }
+
+    try {
+        $perf = Get-CimInstance -Namespace 'root/cimv2' -ClassName 'Win32_PerfFormattedData_PerfOS_Memory' -ErrorAction Stop
+        $standby = 0
+        if ($perf.PSObject.Properties['StandbyCacheNormalPriorityBytes']) { $standby += [int64]$perf.StandbyCacheNormalPriorityBytes }
+        if ($perf.PSObject.Properties['StandbyCacheReserveBytes']) { $standby += [int64]$perf.StandbyCacheReserveBytes }
+        if ($perf.PSObject.Properties['StandbyCacheCoreBytes']) { $standby += [int64]$perf.StandbyCacheCoreBytes }
+        $snapshot.StandbyBytes = $standby
+
+        if ($perf.PSObject.Properties['ModifiedPageListBytes']) {
+            $snapshot.ModifiedBytes = [int64]$perf.ModifiedPageListBytes
+        }
+
+        if ($perf.PSObject.Properties['CacheBytes']) {
+            $snapshot.CacheBytes = [int64]$perf.CacheBytes
+        }
+
+        if ($perf.PSObject.Properties['CommitLimit']) {
+            $snapshot.CommitLimitBytes = [int64]$perf.CommitLimit
+        }
+
+        if ($perf.PSObject.Properties['CommittedBytes']) {
+            $snapshot.CommittedBytes = [int64]$perf.CommittedBytes
+        }
+
+        if ($perf.PSObject.Properties['PoolPagedBytes'] -and $perf.PSObject.Properties['PoolNonpagedBytes']) {
+            $snapshot.CompressionStoreBytes = [int64]($perf.PoolPagedBytes + $perf.PoolNonpagedBytes)
+        }
+    }
+    catch {
+        # Some Windows SKUs lack the performance counters we rely on.
+    }
+
+    return $snapshot
+}
+
+function Write-TidyMemorySnapshot {
+    param(
+        [pscustomobject] $Snapshot,
+        [string] $Label
+    )
+
+    if ($null -eq $Snapshot) {
+        Write-TidyOutput -Message ("{0}: memory telemetry unavailable." -f $Label)
+        return
+    }
+
+    Write-TidyOutput -Message ("{0} (captured {1:u})" -f $Label, $Snapshot.Timestamp)
+    Write-TidyOutput -Message ("  ↳ Available physical: {0}" -f (Format-TidyBytes $Snapshot.AvailableBytes))
+
+    if ($Snapshot.StandbyBytes -ne $null) {
+        Write-TidyOutput -Message ("  ↳ Standby cache: {0}" -f (Format-TidyBytes $Snapshot.StandbyBytes))
+    }
+
+    if ($Snapshot.ModifiedBytes -ne $null) {
+        Write-TidyOutput -Message ("  ↳ Modified pages: {0}" -f (Format-TidyBytes $Snapshot.ModifiedBytes))
+    }
+
+    if ($Snapshot.CacheBytes -ne $null) {
+        Write-TidyOutput -Message ("  ↳ File cache: {0}" -f (Format-TidyBytes $Snapshot.CacheBytes))
+    }
+
+    if ($Snapshot.CommittedBytes -ne $null -and $Snapshot.CommitLimitBytes -ne $null) {
+        Write-TidyOutput -Message ("  ↳ Commit: {0} of {1}" -f (Format-TidyBytes $Snapshot.CommittedBytes), (Format-TidyBytes $Snapshot.CommitLimitBytes))
+    }
+}
+
+function Write-TidyMemoryDelta {
+    param(
+        [pscustomobject] $Before,
+        [pscustomobject] $After,
+        [string] $Label
+    )
+
+    if ($null -eq $Before -or $null -eq $After) {
+        return
+    }
+
+    $availableDelta = if ($Before.AvailableBytes -ne $null -and $After.AvailableBytes -ne $null) { $After.AvailableBytes - $Before.AvailableBytes } else { $null }
+    $standbyDelta = if ($Before.StandbyBytes -ne $null -and $After.StandbyBytes -ne $null) { $After.StandbyBytes - $Before.StandbyBytes } else { $null }
+
+    Write-TidyOutput -Message ("{0} delta:" -f $Label)
+
+    if ($availableDelta -ne $null) {
+        Write-TidyOutput -Message ("  ↳ Available physical change: {0}" -f (Format-TidyBytesDelta $availableDelta))
+    }
+
+    if ($standbyDelta -ne $null) {
+        Write-TidyOutput -Message ("  ↳ Standby cache change: {0}" -f (Format-TidyBytesDelta $standbyDelta))
+    }
+}
+
+
+
 $script:MemoryPurgeHelperReady = $false
 $script:WorkingSetHelperReady = $false
 
@@ -372,17 +515,56 @@ function Invoke-WorkingSetTrim {
         [void]$skipNames.Add($name)
     }
 
-    $trimmed = [System.Collections.Generic.List[string]]::new()
+    $trimmed = [System.Collections.Generic.List[pscustomobject]]::new()
     $failures = 0
+    $minWorkingSetBytes = 75MB
+    $totalTrimmedBytes = 0
 
     foreach ($process in Get-Process -ErrorAction SilentlyContinue) {
         if ($process.Id -eq $PID) { continue }
         if ($skipNames.Contains($process.ProcessName)) { continue }
 
+        if ($process.SessionId -eq 0) { continue }
+
+        if ($process.MainWindowHandle -ne 0 -and $process.Responding) { continue }
+
+        if ($process.WorkingSet64 -lt $minWorkingSetBytes) { continue }
+
+        $beforeBytes = $process.WorkingSet64
+
         try {
             $handle = $process.Handle
             if ([WorkingSetNative]::EmptyWorkingSet($handle)) {
-                [void]$trimmed.Add(("{0} (PID {1})" -f $process.ProcessName, $process.Id))
+                Start-Sleep -Milliseconds 50
+                $afterBytes = $null
+                try {
+                    $afterBytes = (Get-Process -Id $process.Id -ErrorAction Stop).WorkingSet64
+                }
+                catch {
+                    # Process exited before we could sample again.
+                }
+
+                $deltaBytes = $null
+                if ($afterBytes -ne $null) {
+                    $deltaBytes = $beforeBytes - $afterBytes
+                    if ($deltaBytes -lt 0) {
+                        $deltaBytes = 0
+                    }
+                }
+
+                if ($deltaBytes -ne $null) {
+                    $totalTrimmedBytes += $deltaBytes
+                }
+
+                $record = [pscustomobject]@{
+                    Name       = $process.ProcessName
+                    Id         = $process.Id
+                    Before     = $beforeBytes
+                    After      = $afterBytes
+                    Delta      = $deltaBytes
+                }
+
+                $trimmed.Add($record)
             }
         }
         catch {
@@ -391,9 +573,21 @@ function Invoke-WorkingSetTrim {
     }
 
     if ($trimmed.Count -gt 0) {
+        $effective = $trimmed | Where-Object { $_.Delta -ne $null -and $_.Delta -gt 0 }
+        $effectiveCount = ($effective | Measure-Object).Count
+
         Write-TidyOutput -Message ("Trimmed working sets for {0} processes." -f $trimmed.Count)
-        foreach ($entry in $trimmed) {
-            Write-TidyOutput -Message ("  ↳ {0}" -f $entry)
+
+        if ($effectiveCount -gt 0) {
+            Write-TidyOutput -Message ("  ↳ Estimated memory reclaimed: {0}" -f (Format-TidyBytes $totalTrimmedBytes))
+
+            $topEntries = $effective | Sort-Object -Property Delta -Descending | Select-Object -First 10
+            foreach ($entry in $topEntries) {
+                Write-TidyOutput -Message ("    · {0} (PID {1}): {2} -> {3} (Δ {4})" -f $entry.Name, $entry.Id, (Format-TidyBytes $entry.Before), (Format-TidyBytes $entry.After), (Format-TidyBytes $entry.Delta))
+            }
+        }
+        else {
+            Write-TidyOutput -Message '  ↳ Working set reductions were below measurable thresholds.'
         }
     }
     else {
@@ -446,8 +640,18 @@ try {
 
     Write-TidyLog -Level Information -Message 'Starting RAM purge sequence.'
 
+    $baselineSnapshot = Get-TidyMemorySnapshot
+    Write-TidyOutput -Message 'Baseline memory telemetry:'
+    Write-TidyMemorySnapshot -Snapshot $baselineSnapshot -Label 'Before purge'
+    $currentSnapshot = $baselineSnapshot
+
     if (-not $SkipStandbyClear.IsPresent) {
+        $beforeStandby = $currentSnapshot
         Invoke-StandbyMemoryClear
+        Start-Sleep -Seconds 2
+        $currentSnapshot = Get-TidyMemorySnapshot
+        Write-TidyMemoryDelta -Before $beforeStandby -After $currentSnapshot -Label 'Standby purge'
+        Write-TidyMemorySnapshot -Snapshot $currentSnapshot -Label 'Post-standby purge'
     }
     else {
         Write-TidyOutput -Message 'Skipping standby memory clear per operator request.'
@@ -455,20 +659,34 @@ try {
 
     if (-not $SkipWorkingSetTrim.IsPresent) {
         Write-TidyOutput -Message 'Trimming working sets for background processes.'
+        $beforeTrim = $currentSnapshot
         Invoke-WorkingSetTrim
+        Start-Sleep -Seconds 1
+        $currentSnapshot = Get-TidyMemorySnapshot
+        Write-TidyMemoryDelta -Before $beforeTrim -After $currentSnapshot -Label 'Working set trim'
+        Write-TidyMemorySnapshot -Snapshot $currentSnapshot -Label 'Post-working-set trim'
     }
     else {
         Write-TidyOutput -Message 'Skipping working set trim per operator request.'
     }
 
     if (-not $SkipSysMainToggle.IsPresent) {
+        $beforeSysMain = $currentSnapshot
         Invoke-SysMainToggle -Disable $true
         Start-Sleep -Seconds 5
         Invoke-SysMainToggle -Disable $false
+        Start-Sleep -Seconds 2
+        $currentSnapshot = Get-TidyMemorySnapshot
+        Write-TidyMemoryDelta -Before $beforeSysMain -After $currentSnapshot -Label 'SysMain toggle'
+        Write-TidyMemorySnapshot -Snapshot $currentSnapshot -Label 'Post-SysMain toggle'
     }
     else {
         Write-TidyOutput -Message 'Skipping SysMain service toggle per operator request.'
     }
+
+    Write-TidyOutput -Message 'Final memory telemetry:'
+    Write-TidyMemorySnapshot -Snapshot $currentSnapshot -Label 'After purge'
+    Write-TidyMemoryDelta -Before $baselineSnapshot -After $currentSnapshot -Label 'Overall purge'
 
     Write-TidyOutput -Message 'RAM purge sequence completed.'
 }

@@ -3,6 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using VerticalAlignment = System.Windows.VerticalAlignment;
+using WpfOrientation = System.Windows.Controls.Orientation;
 using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App.Views;
@@ -25,6 +28,16 @@ public partial class EssentialsPage : Page
     private readonly Thickness _scrollViewerStackedMargin = new(16, 24, 16, 24);
     private double _primaryColumnDefaultMinWidth;
     private double _secondaryColumnDefaultMinWidth;
+    private bool _isOperationsHeaderStacked;
+    private GridLength _operationsHeaderSecondaryDefaultWidth;
+    private readonly Thickness _operationsHeaderActionStackedMargin = new(0, 16, 0, 0);
+    private Thickness _operationsHeaderActionDefaultMargin;
+    private HorizontalAlignment _operationsHeaderActionDefaultHorizontalAlignment;
+    private VerticalAlignment _operationsHeaderActionDefaultVerticalAlignment;
+    private HorizontalAlignment _operationsHeaderActionPanelDefaultAlignment;
+    private WpfOrientation _operationsHeaderActionPanelDefaultOrientation;
+    private Thickness _retryFailedButtonDefaultMargin;
+    private Thickness _clearCompletedButtonDefaultMargin;
 
     public EssentialsPage(EssentialsViewModel viewModel)
     {
@@ -36,6 +49,14 @@ public partial class EssentialsPage : Page
         _scrollViewerDefaultMargin = ContentScrollViewer.Margin;
         _primaryColumnDefaultMinWidth = PrimaryColumnDefinition.MinWidth;
         _secondaryColumnDefaultMinWidth = SecondaryColumnDefinition.MinWidth;
+        _operationsHeaderSecondaryDefaultWidth = OperationsHeaderSecondaryColumn.Width;
+        _operationsHeaderActionDefaultMargin = OperationsHeaderActionHost.Margin;
+        _operationsHeaderActionDefaultHorizontalAlignment = OperationsHeaderActionHost.HorizontalAlignment;
+        _operationsHeaderActionDefaultVerticalAlignment = OperationsHeaderActionHost.VerticalAlignment;
+        _operationsHeaderActionPanelDefaultAlignment = OperationsHeaderActionPanel.HorizontalAlignment;
+        _operationsHeaderActionPanelDefaultOrientation = OperationsHeaderActionPanel.Orientation;
+        _retryFailedButtonDefaultMargin = RetryFailedButton.Margin;
+        _clearCompletedButtonDefaultMargin = ClearCompletedButton.Margin;
 
         Loaded += OnPageLoaded;
         Unloaded += OnPageUnloaded;
@@ -97,6 +118,8 @@ public partial class EssentialsPage : Page
         var compactColumns = viewportWidth < WideLayoutBreakpoint;
         var tightMargins = viewportWidth < CompactLayoutBreakpoint;
 
+        UpdateOperationsHeaderLayout(stackLayout, compactColumns);
+
         if (stackLayout)
         {
             if (!_isStackedLayout)
@@ -147,6 +170,49 @@ public partial class EssentialsPage : Page
             : tightMargins || compactColumns
                 ? _scrollViewerCompactMargin
                 : _scrollViewerDefaultMargin;
+    }
+
+    private void UpdateOperationsHeaderLayout(bool stackLayout, bool compactColumns)
+    {
+        var shouldStack = stackLayout || compactColumns;
+
+        if (shouldStack)
+        {
+            if (_isOperationsHeaderStacked)
+            {
+                return;
+            }
+
+            Grid.SetRow(OperationsHeaderActionHost, 1);
+            Grid.SetColumn(OperationsHeaderActionHost, 0);
+            OperationsHeaderActionHost.Margin = _operationsHeaderActionStackedMargin;
+            OperationsHeaderActionHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+            OperationsHeaderActionHost.VerticalAlignment = VerticalAlignment.Top;
+            OperationsHeaderActionPanel.HorizontalAlignment = HorizontalAlignment.Left;
+            OperationsHeaderActionPanel.Orientation = WpfOrientation.Vertical;
+            RetryFailedButton.Margin = new Thickness(0, 0, 0, 8);
+            ClearCompletedButton.Margin = new Thickness(0);
+            OperationsHeaderSecondaryColumn.Width = new GridLength(0d, GridUnitType.Pixel);
+            _isOperationsHeaderStacked = true;
+            return;
+        }
+
+        if (!_isOperationsHeaderStacked)
+        {
+            return;
+        }
+
+        Grid.SetRow(OperationsHeaderActionHost, 0);
+        Grid.SetColumn(OperationsHeaderActionHost, 1);
+        OperationsHeaderActionHost.Margin = _operationsHeaderActionDefaultMargin;
+        OperationsHeaderActionHost.HorizontalAlignment = _operationsHeaderActionDefaultHorizontalAlignment;
+        OperationsHeaderActionHost.VerticalAlignment = _operationsHeaderActionDefaultVerticalAlignment;
+        OperationsHeaderActionPanel.HorizontalAlignment = _operationsHeaderActionPanelDefaultAlignment;
+        OperationsHeaderActionPanel.Orientation = _operationsHeaderActionPanelDefaultOrientation;
+        RetryFailedButton.Margin = _retryFailedButtonDefaultMargin;
+        ClearCompletedButton.Margin = _clearCompletedButtonDefaultMargin;
+        OperationsHeaderSecondaryColumn.Width = _operationsHeaderSecondaryDefaultWidth;
+        _isOperationsHeaderStacked = false;
     }
 
     private void EnsureScrollHandlers()

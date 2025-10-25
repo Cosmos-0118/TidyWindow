@@ -5,6 +5,8 @@ using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 using System.Windows.Media;
+using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using VerticalAlignment = System.Windows.VerticalAlignment;
 using MessageBox = System.Windows.MessageBox;
 using WpfApplication = System.Windows.Application;
 using WpfListView = System.Windows.Controls.ListView;
@@ -62,6 +64,14 @@ public partial class PackageMaintenancePage : Page
     private readonly Thickness _scrollViewerStackedMargin = new Thickness(16, 24, 16, 24);
     private double _primaryColumnDefaultMinWidth;
     private double _secondaryColumnDefaultMinWidth;
+    private bool _isHeaderStacked;
+    private GridLength _headerSecondaryDefaultWidth;
+    private readonly Thickness _headerActionStackedMargin = new Thickness(0, 16, 0, 0);
+    private Thickness _headerActionDefaultMargin;
+    private HorizontalAlignment _headerActionDefaultAlignment;
+    private VerticalAlignment _headerActionDefaultVerticalAlignment;
+    private HorizontalAlignment _headerActionPanelDefaultAlignment;
+    private HorizontalAlignment _headerLastRefreshedDefaultAlignment;
 
     public PackageMaintenancePage(PackageMaintenanceViewModel viewModel)
     {
@@ -73,6 +83,12 @@ public partial class PackageMaintenancePage : Page
         _scrollViewerDefaultMargin = ContentScrollViewer.Margin;
         _primaryColumnDefaultMinWidth = PrimaryColumnDefinition.MinWidth;
         _secondaryColumnDefaultMinWidth = SecondaryColumnDefinition.MinWidth;
+        _headerSecondaryDefaultWidth = HeaderSecondaryColumn.Width;
+        _headerActionDefaultMargin = HeaderActionHost.Margin;
+        _headerActionDefaultAlignment = HeaderActionHost.HorizontalAlignment;
+        _headerActionDefaultVerticalAlignment = HeaderActionHost.VerticalAlignment;
+        _headerActionPanelDefaultAlignment = HeaderActionPanel.HorizontalAlignment;
+        _headerLastRefreshedDefaultAlignment = HeaderLastRefreshedText.HorizontalAlignment;
 
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
@@ -303,6 +319,8 @@ public partial class PackageMaintenancePage : Page
         var compactColumns = viewportWidth < WideLayoutBreakpoint;
         var tightMargins = viewportWidth < CompactLayoutBreakpoint;
 
+        UpdateHeaderLayout(stackLayout, compactColumns);
+
         if (stackLayout)
         {
             if (!_isStackedLayout)
@@ -356,6 +374,45 @@ public partial class PackageMaintenancePage : Page
                 : _scrollViewerDefaultMargin;
 
         UpdateColumnWidths();
+    }
+
+    private void UpdateHeaderLayout(bool stackLayout, bool compactColumns)
+    {
+        var shouldStack = stackLayout || compactColumns;
+
+        if (shouldStack)
+        {
+            if (_isHeaderStacked)
+            {
+                return;
+            }
+
+            Grid.SetRow(HeaderActionHost, 1);
+            Grid.SetColumn(HeaderActionHost, 0);
+            HeaderActionHost.Margin = _headerActionStackedMargin;
+            HeaderActionHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+            HeaderActionHost.VerticalAlignment = VerticalAlignment.Top;
+            HeaderActionPanel.HorizontalAlignment = HorizontalAlignment.Left;
+            HeaderLastRefreshedText.HorizontalAlignment = HorizontalAlignment.Left;
+            HeaderSecondaryColumn.Width = new GridLength(0d, GridUnitType.Pixel);
+            _isHeaderStacked = true;
+            return;
+        }
+
+        if (!_isHeaderStacked)
+        {
+            return;
+        }
+
+        Grid.SetRow(HeaderActionHost, 0);
+        Grid.SetColumn(HeaderActionHost, 1);
+        HeaderActionHost.Margin = _headerActionDefaultMargin;
+        HeaderActionHost.HorizontalAlignment = _headerActionDefaultAlignment;
+        HeaderActionHost.VerticalAlignment = _headerActionDefaultVerticalAlignment;
+        HeaderActionPanel.HorizontalAlignment = _headerActionPanelDefaultAlignment;
+        HeaderLastRefreshedText.HorizontalAlignment = _headerLastRefreshedDefaultAlignment;
+        HeaderSecondaryColumn.Width = _headerSecondaryDefaultWidth;
+        _isHeaderStacked = false;
     }
 
     private void EnsureScrollHandlers()

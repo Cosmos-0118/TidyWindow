@@ -203,6 +203,97 @@ function Get-TidyPowerShellExecutable {
     throw 'Unable to locate a PowerShell executable to request elevation.'
 }
 
+function Get-TidyScoopBucketNames {
+    try {
+        $result = & scoop bucket list 2>&1
+        $names = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+        foreach ($line in @($result)) {
+            $candidate = [string]$line
+            if ([string]::IsNullOrWhiteSpace($candidate)) {
+                continue
+            }
+
+            $trimmed = $candidate.Trim()
+            if ([string]::IsNullOrWhiteSpace($trimmed)) {
+                continue
+            }
+
+            if ($trimmed.EndsWith(':')) {
+                continue
+            }
+
+            $bucketName = $trimmed.Split([char[]]@(' ', '	'))[0]
+            if (-not [string]::IsNullOrWhiteSpace($bucketName)) {
+                [void]$names.Add($bucketName)
+            }
+        }
+
+        return $names
+    }
+    catch {
+        return $null
+    }
+}
+
+function Test-TidyScoopBucketExists {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Bucket,
+        [System.Collections.Generic.HashSet[string]] $ExistingSet
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Bucket)) {
+        return $false
+    }
+
+    $normalized = $Bucket.Trim()
+    if ($ExistingSet -and $ExistingSet.Contains($normalized)) {
+        return $true
+    }
+
+    $probeRoots = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:SCOOP)) {
+        $probeRoots.Add((Join-Path -Path $env:SCOOP -ChildPath 'buckets'))
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        $defaultRoot = Join-Path -Path $env:USERPROFILE -ChildPath 'scoop\buckets'
+        if (-not [string]::IsNullOrWhiteSpace($defaultRoot)) {
+            $probeRoots.Add($defaultRoot)
+        }
+    }
+
+    $visited = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($root in $probeRoots) {
+        if ([string]::IsNullOrWhiteSpace($root)) {
+            continue
+        }
+
+        if (-not $visited.Add($root)) {
+            continue
+        }
+
+        try {
+            $candidate = Join-Path -Path $root -ChildPath $normalized
+        }
+        catch {
+            continue
+        }
+
+        if (Test-Path -LiteralPath $candidate) {
+            if ($ExistingSet) {
+                [void]$ExistingSet.Add($normalized)
+            }
+
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Ensure-TidyScoopBuckets {
     param(
         [Parameter(Mandatory = $true)]
@@ -231,43 +322,82 @@ function Ensure-TidyScoopBuckets {
         return
     }
 
-    $existingSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
-
-    try {
-        $listResult = & scoop bucket list 2>&1
-        foreach ($line in @($listResult)) {
-            if ([string]::IsNullOrWhiteSpace([string]$line)) {
-                continue
-            }
-
-            $trimmed = ([string]$line).Trim()
-            if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
-                [void]$existingSet.Add($trimmed)
-            }
-        }
-    }
-    catch {
-        # ignore list failures and attempt to add buckets directly
+    $existingSet = Get-TidyScoopBucketNames
+    if ($null -eq $existingSet) {
+        $existingSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
     }
 
     foreach ($bucket in $uniqueBuckets) {
-        if ($existingSet.Contains($bucket)) {
+        if (Test-TidyScoopBucketExists -Bucket $bucket -ExistingSet $existingSet) {
+            Write-TidyOutput -Message "Scoop bucket '$bucket' already present. Skipping add."
             continue
         }
 
         Write-TidyLog -Level Information -Message "Adding Scoop bucket '$bucket'."
         $addOutput = & scoop bucket add $bucket 2>&1
-        $exitCode = $LASTEXITCODE
+        $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { [int]$LASTEXITCODE } else { 0 }
 
+        $capturedLines = @()
         foreach ($entry in @($addOutput)) {
-            if ([string]::IsNullOrWhiteSpace([string]$entry)) {
+            if ($null -eq $entry) {
                 continue
             }
 
-            Write-TidyOutput -Message ([string]$entry)
+            $messageText = Convert-TidyLogMessage -InputObject $entry
+            if ([string]::IsNullOrWhiteSpace($messageText)) {
+                continue
+            }
+
+            $capturedLines += $messageText
+            Write-TidyOutput -Message $messageText
+        }
+
+        $detectedExisting = $false
+        if ($capturedLines.Count -gt 0) {
+            foreach ($line in $capturedLines) {
+                if ([string]::IsNullOrWhiteSpace($line)) {
+                    continue
+                }
+
+                if ($line -match '(?i)\bbucket\b.*\balready exists\b') {
+                    $detectedExisting = $true
+                    break
+                }
+            }
+        }
+
+        if ($exitCode -ne 0 -and -not $detectedExisting) {
+            $joinedOutput = $capturedLines -join [Environment]::NewLine
+            if (-not [string]::IsNullOrWhiteSpace($joinedOutput) -and $joinedOutput.IndexOf('already exists', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $detectedExisting = $true
+            }
+        }
+
+        if ($detectedExisting) {
+            Write-TidyOutput -Message "Scoop bucket '$bucket' already present. Skipping add."
+            $exitCode = 0
         }
 
         if ($exitCode -ne 0) {
+            $refreshedBuckets = Get-TidyScoopBucketNames
+            if ($refreshedBuckets -and $refreshedBuckets.Contains($bucket)) {
+                Write-TidyOutput -Message "Scoop bucket '$bucket' detected after add attempt. Treating as success."
+                $exitCode = 0
+                $existingSet = $refreshedBuckets
+            }
+        }
+
+        if ($exitCode -ne 0 -and (Test-TidyScoopBucketExists -Bucket $bucket -ExistingSet $existingSet)) {
+            Write-TidyOutput -Message "Scoop bucket '$bucket' found on disk. Skipping add."
+            $exitCode = 0
+        }
+
+        if ($exitCode -ne 0) {
+            $joinedOutput = $capturedLines -join [Environment]::NewLine
+            if (-not [string]::IsNullOrWhiteSpace($joinedOutput)) {
+                throw "Failed to add Scoop bucket '$bucket'. Output:`n$joinedOutput"
+            }
+
             throw "Failed to add Scoop bucket '$bucket'."
         }
 
