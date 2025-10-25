@@ -35,6 +35,13 @@ $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:RepairedPackages = [System.Collections.Generic.List[string]]::new()
+$script:SkippedPackages = [System.Collections.Generic.List[string]]::new()
+$script:FailedPackages = [System.Collections.Generic.List[string]]::new()
+$script:RestartedServices = [System.Collections.Generic.List[string]]::new()
+$script:WsResetAttempted = $false
+$script:WsResetSucceeded = $false
+$script:LicensingCacheCleared = $false
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -130,8 +137,30 @@ function Invoke-TidyWsReset {
         return
     }
 
+    $script:WsResetAttempted = $true
     Write-TidyOutput -Message 'Resetting Microsoft Store cache (wsreset.exe).'
-    Invoke-TidyCommand -Command { param($path) Start-Process -FilePath $path -Wait -WindowStyle Hidden } -Arguments @($wsreset.Path) -Description 'Running wsreset.exe.' | Out-Null
+    try {
+        $exitCode = Invoke-TidyCommand -Command {
+            param($path)
+
+            $process = Start-Process -FilePath $path -PassThru -WindowStyle Hidden
+            $process.WaitForExit()
+            return $process.ExitCode
+        } -Arguments @($wsreset.Path) -Description 'Running wsreset.exe.'
+
+        if ($exitCode -eq 0) {
+            $script:WsResetSucceeded = $true
+            Write-TidyOutput -Message 'Microsoft Store cache reset completed successfully.'
+        }
+        else {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("wsreset.exe exited with code {0}. Review Store cache permissions." -f $exitCode)
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("wsreset.exe failed: {0}" -f $_.Exception.Message)
+    }
 }
 
 function Invoke-StoreReRegistration {
@@ -161,38 +190,56 @@ function Invoke-AppxReRegistration {
     $packages = Get-AppxPackage @lookupParams
     if (-not $packages) {
         Write-TidyOutput -Message ("Package '{0}' was not found. Skipping." -f $PackageName)
+        if (-not $script:SkippedPackages.Contains($PackageName)) {
+            $script:SkippedPackages.Add($PackageName)
+        }
         return
     }
 
     foreach ($package in @($packages)) {
         if ([string]::IsNullOrWhiteSpace($package.InstallLocation)) {
             Write-TidyOutput -Message ("Package '{0}' has no install location. Skipping re-registration." -f $package.PackageFullName)
+            if (-not $script:SkippedPackages.Contains($package.PackageFullName)) {
+                $script:SkippedPackages.Add($package.PackageFullName)
+            }
             continue
         }
 
         $manifest = Join-Path -Path $package.InstallLocation -ChildPath 'AppXManifest.xml'
         if (-not (Test-Path -LiteralPath $manifest)) {
             Write-TidyOutput -Message ("Manifest not found for package '{0}'." -f $package.PackageFullName)
+            if (-not $script:SkippedPackages.Contains($package.PackageFullName)) {
+                $script:SkippedPackages.Add($package.PackageFullName)
+            }
             continue
         }
 
         Write-TidyOutput -Message ("Re-registering {0}" -f $package.PackageFullName)
-        Invoke-TidyCommand -Command {
-            param($path, $packageName)
 
-            try {
-                Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $path -ErrorAction Stop
+        try {
+            Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $manifest -ErrorAction Stop
+            Write-TidyOutput -Message ("Re-registration succeeded for {0}." -f $package.PackageFullName)
+            if (-not $script:RepairedPackages.Contains($package.PackageFullName)) {
+                $script:RepairedPackages.Add($package.PackageFullName)
             }
-            catch {
-                $exception = $_.Exception
-                if (Test-TidyAppxRegistrationBenignFailure -Exception $exception) {
-                    Write-TidyOutput -Message ("{0} already registered at equal or higher version. Skipping re-registration." -f $packageName)
-                    return
+        }
+        catch {
+            $exception = $_.Exception
+            if (Test-TidyAppxRegistrationBenignFailure -Exception $exception) {
+                Write-TidyOutput -Message ("{0} already present at an equal or newer version." -f $package.PackageFullName)
+                if (-not $script:SkippedPackages.Contains($package.PackageFullName)) {
+                    $script:SkippedPackages.Add($package.PackageFullName)
                 }
-
-                throw
+                continue
             }
-        } -Arguments @($manifest, $package.PackageFullName) -Description ("Add-AppxPackage {0}" -f $package.PackageFullName) | Out-Null
+
+            $script:OperationSucceeded = $false
+            $message = $exception.Message
+            Write-TidyError -Message ("Failed to re-register {0}: {1}" -f $package.PackageFullName, $message)
+            if (-not $script:FailedPackages.Contains($package.PackageFullName)) {
+                $script:FailedPackages.Add($package.PackageFullName)
+            }
+        }
     }
 }
 
@@ -253,6 +300,7 @@ function Invoke-LicensingRepair {
 
     Write-TidyOutput -Message 'Restarting Store licensing services.'
     $services = @('ClipSVC', 'AppXSvc', 'LicenseManager', 'WinStoreSvc')
+    $stoppedServices = [System.Collections.Generic.List[string]]::new()
     foreach ($service in $services) {
         $svc = Get-Service -Name $service -ErrorAction SilentlyContinue
         if ($null -eq $svc) {
@@ -261,10 +309,9 @@ function Invoke-LicensingRepair {
 
         if ($svc.Status -eq 'Running') {
             Invoke-TidyCommand -Command { param($name) Stop-Service -Name $name -Force -ErrorAction SilentlyContinue } -Arguments @($service) -Description ("Stop service {0}" -f $service) | Out-Null
+            Start-Sleep -Seconds 2
+            [void]$stoppedServices.Add($service)
         }
-
-        Start-Sleep -Seconds 2
-        Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction SilentlyContinue } -Arguments @($service) -Description ("Start service {0}" -f $service) | Out-Null
     }
 
     Write-TidyOutput -Message 'Resetting Store licensing cache.'
@@ -273,9 +320,66 @@ function Invoke-LicensingRepair {
         try {
             Remove-Item -LiteralPath $licensePath -Recurse -Force -ErrorAction Stop
             Write-TidyOutput -Message ("Removed ClipSVC token cache at {0}." -f $licensePath)
+            $script:LicensingCacheCleared = $true
         }
         catch {
             Write-TidyError -Message ("Failed to clear licensing cache: {0}" -f $_.Exception.Message)
+            $script:OperationSucceeded = $false
+        }
+    }
+
+    foreach ($service in $stoppedServices) {
+        try {
+            Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($service) -Description ("Start service {0}" -f $service) | Out-Null
+            if (-not $script:RestartedServices.Contains($service)) {
+                $script:RestartedServices.Add($service)
+            }
+        }
+        catch {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $service, $_.Exception.Message)
+        }
+    }
+}
+
+function Write-TidyRepairSummary {
+    Write-TidyOutput -Message '--- Repair summary ---'
+
+    if ($script:WsResetAttempted) {
+        $status = if ($script:WsResetSucceeded) { 'Success' } else { 'Failed' }
+        Write-TidyOutput -Message ("Store cache reset: {0}" -f $status)
+    }
+
+    if ($script:RepairedPackages.Count -gt 0) {
+        Write-TidyOutput -Message ("Re-registered packages ({0}):" -f $script:RepairedPackages.Count)
+        foreach ($entry in $script:RepairedPackages | Sort-Object) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $entry)
+        }
+    }
+
+    if ($script:SkippedPackages.Count -gt 0) {
+        Write-TidyOutput -Message ("Skipped packages ({0}):" -f $script:SkippedPackages.Count)
+        foreach ($entry in $script:SkippedPackages | Sort-Object -Unique) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $entry)
+        }
+    }
+
+    if ($script:FailedPackages.Count -gt 0) {
+        Write-TidyOutput -Message ("Failed packages ({0}):" -f $script:FailedPackages.Count)
+        foreach ($entry in $script:FailedPackages | Sort-Object -Unique) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $entry)
+        }
+    }
+
+    if ($ConfigureLicensingServices.IsPresent) {
+        $cacheStatus = if ($script:LicensingCacheCleared) { 'Cleared' } else { 'Not modified' }
+        Write-TidyOutput -Message ("Licensing cache: {0}" -f $cacheStatus)
+
+        if ($script:RestartedServices.Count -gt 0) {
+            Write-TidyOutput -Message ("Services restarted ({0}):" -f $script:RestartedServices.Count)
+            foreach ($service in $script:RestartedServices | Sort-Object -Unique) {
+                Write-TidyOutput -Message ("  ↳ {0}" -f $service)
+            }
         }
     }
 }
@@ -307,6 +411,24 @@ if (-not $PackageNames -and $ReRegisterPackages.IsPresent) {
     )
 }
 
+if ($PackageNames) {
+    $unique = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $ordered = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($entry in $PackageNames) {
+        if ([string]::IsNullOrWhiteSpace($entry)) {
+            continue
+        }
+
+        $trimmed = $entry.Trim()
+        if ($unique.Add($trimmed)) {
+            [void]$ordered.Add($trimmed)
+        }
+    }
+
+    $PackageNames = $ordered.ToArray()
+}
+
 try {
     if (-not (Test-TidyAdmin)) {
         throw 'App repair helper requires an elevated PowerShell session. Restart as administrator.'
@@ -336,6 +458,8 @@ try {
 
     Invoke-AppxFrameworkRefresh
     Invoke-LicensingRepair
+
+    Write-TidyRepairSummary
 
     Write-TidyOutput -Message 'App repair routine completed.'
 }

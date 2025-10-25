@@ -36,6 +36,21 @@ $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
 $script:AdministratorsGroupName = $null
+$script:RestorePointCreated = $false
+$operationSwitches = @('ResetServices', 'ResetComponents', 'ReRegisterLibraries', 'RunDismRestoreHealth', 'RunSfc', 'TriggerScan', 'ResetPolicies', 'ResetNetwork')
+$anySwitchProvided = $false
+foreach ($name in $operationSwitches) {
+    if ($PSBoundParameters.ContainsKey($name)) {
+        $anySwitchProvided = $true
+        break
+    }
+}
+
+if (-not $anySwitchProvided) {
+    foreach ($name in $operationSwitches) {
+        Set-Variable -Name $name -Value ([System.Management.Automation.SwitchParameter]$true) -Scope Script
+    }
+}
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -174,6 +189,112 @@ function Get-AdministratorsGroupName {
     return $script:AdministratorsGroupName
 }
 
+function Get-TidyWindowsVersionInfo {
+    try {
+        $os = Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop
+        return [pscustomobject]@{
+            Caption     = $os.Caption
+            Version     = $os.Version
+            BuildNumber = $os.BuildNumber
+        }
+    }
+    catch {
+        $fallback = [System.Environment]::OSVersion
+        return [pscustomobject]@{
+            Caption     = $null
+            Version     = $fallback.Version.ToString()
+            BuildNumber = $fallback.Version.Build
+        }
+    }
+}
+
+function Test-TidyPendingReboot {
+    $checkPaths = @(
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending',
+        'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired'
+    )
+
+    foreach ($path in $checkPaths) {
+        if (Test-Path -LiteralPath $path) {
+            return $true
+        }
+    }
+
+    $sessionManagerKey = 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager'
+    try {
+        $pending = (Get-ItemProperty -Path $sessionManagerKey -Name 'PendingFileRenameOperations' -ErrorAction Stop).PendingFileRenameOperations
+        if ($pending) {
+            return $true
+        }
+    }
+    catch {
+        # no action, property not present
+    }
+
+    return $false
+}
+
+function New-TidySystemRestorePoint {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Description
+    )
+
+    $checkpointCmd = Get-Command -Name 'Checkpoint-Computer' -ErrorAction SilentlyContinue
+    if (-not $checkpointCmd) {
+        Write-TidyLog -Level Warning -Message 'Checkpoint-Computer unavailable; skipping system restore point.'
+        return $false
+    }
+
+    try {
+        Checkpoint-Computer -Description $Description -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop
+        Write-TidyOutput -Message 'Created a System Restore checkpoint.'
+        return $true
+    }
+    catch {
+        $message = $_.Exception.Message
+        Write-TidyLog -Level Warning -Message ('System Restore point skipped: {0}' -f $message)
+        Write-TidyOutput -Message ('Restore point not created: {0}' -f $message)
+        return $false
+    }
+}
+
+function Ensure-WindowsUpdateServiceDefaults {
+    Write-TidyOutput -Message 'Validating Windows Update service startup configuration.'
+    $serviceTargets = @(
+        @{ Name = 'wuauserv'; StartupType = 'Manual' },
+        @{ Name = 'bits'; StartupType = 'Automatic' },
+        @{ Name = 'cryptsvc'; StartupType = 'Automatic' },
+        @{ Name = 'appidsvc'; StartupType = 'Manual' },
+        @{ Name = 'msiserver'; StartupType = 'Manual' }
+    )
+
+    foreach ($target in $serviceTargets) {
+        try {
+            $service = Get-Service -Name $target.Name -ErrorAction Stop
+        }
+        catch {
+            Write-TidyLog -Level Warning -Message ('Service {0} missing; skipping default reset.' -f $target.Name)
+            continue
+        }
+
+        if ($service.StartType -eq 'Disabled') {
+            try {
+                Set-Service -Name $target.Name -StartupType $target.StartupType -ErrorAction Stop
+                Write-TidyOutput -Message ('Service {0} startup mode reset to {1}.' -f $target.Name, $target.StartupType)
+            }
+            catch {
+                Write-TidyLog -Level Warning -Message ('Failed to update startup mode for {0}: {1}' -f $target.Name, $_.Exception.Message)
+            }
+        }
+    }
+}
+
+function Invoke-DismComponentCleanup {
+    Write-TidyOutput -Message 'Running DISM component cleanup to remove superseded payloads.'
+    Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /StartComponentCleanup } -Description 'DISM StartComponentCleanup' | Out-Null
+}
+
 function Invoke-RobustRename {
     param(
         [Parameter(Mandatory = $true)]
@@ -306,6 +427,25 @@ function Reset-WindowsUpdateComponents {
             }
         }
     }
+
+    try {
+        $bitsTransfers = Get-BitsTransfer -AllUsers -ErrorAction Stop
+        foreach ($transfer in @($bitsTransfers)) {
+            $jobLabel = if (-not [string]::IsNullOrWhiteSpace($transfer.DisplayName)) { $transfer.DisplayName } else { $transfer.JobId }
+            try {
+                Remove-BitsTransfer -BitsJob $transfer -ErrorAction Stop
+                Write-TidyOutput -Message ("Cancelled stale BITS job {0}." -f $jobLabel)
+            }
+            catch {
+                Write-TidyError -Message ("Failed to cancel BITS job {0}: {1}" -f $jobLabel, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        if ($_.Exception -and -not ($_.Exception.Message -like '*cannot find a BITS job*')) {
+            Write-TidyLog -Level Warning -Message ('BITS cleanup notice: {0}' -f $_.Exception.Message)
+        }
+    }
 }
 
 function ReRegister-WindowsUpdateLibraries {
@@ -392,10 +532,19 @@ function Trigger-WindowsUpdateScan {
     Invoke-TidyCommand -Command { wuauclt.exe /reportnow } -Description 'wuauclt /reportnow' | Out-Null
 }
 
-if (-not ($ResetServices -or $ResetComponents -or $ReRegisterLibraries -or $RunDismRestoreHealth -or $RunSfc -or $TriggerScan -or $ResetPolicies -or $ResetNetwork)) {
-    $ResetServices = $true
-    $ResetComponents = $true
-    $TriggerScan = $true
+$hasActiveOperation = $false
+foreach ($name in $operationSwitches) {
+    $switchValue = Get-Variable -Name $name -Scope Script -ValueOnly
+    if ($switchValue.IsPresent) {
+        $hasActiveOperation = $true
+        break
+    }
+}
+
+if (-not $hasActiveOperation) {
+    foreach ($name in $operationSwitches) {
+        Set-Variable -Name $name -Value ([System.Management.Automation.SwitchParameter]$true) -Scope Script
+    }
 }
 
 try {
@@ -405,12 +554,38 @@ try {
 
     Write-TidyLog -Level Information -Message 'Starting Windows Update repair sequence.'
 
+    $versionInfo = Get-TidyWindowsVersionInfo
+    $caption = if ($null -ne $versionInfo.Caption) { $versionInfo.Caption.Trim() } else { $null }
+    if (-not [string]::IsNullOrWhiteSpace($caption)) {
+        $summary = '{0} (Version {1}, Build {2})' -f $caption, $versionInfo.Version, $versionInfo.BuildNumber
+    }
+    else {
+        $summary = 'Version {0}, Build {1}' -f $versionInfo.Version, $versionInfo.BuildNumber
+    }
+    Write-TidyOutput -Message ('Detected operating system: {0}.' -f $summary)
+
+    $pendingBefore = Test-TidyPendingReboot
+    if ($pendingBefore) {
+        Write-TidyLog -Level Warning -Message 'Pending reboot detected before repairs.'
+        Write-TidyOutput -Message 'Pending reboot detected. Restart after this routine if issues persist.'
+    }
+
+    Ensure-WindowsUpdateServiceDefaults
+
+    if (-not $script:RestorePointCreated) {
+        $script:RestorePointCreated = New-TidySystemRestorePoint -Description 'TidyWindow Windows Update repair safety checkpoint'
+    }
+
     if ($ResetServices.IsPresent -or $ResetComponents.IsPresent -or $ReRegisterLibraries.IsPresent) {
         Stop-WindowsUpdateServices
     }
 
     if ($ResetComponents.IsPresent) {
         Reset-WindowsUpdateComponents
+    }
+
+    if ($ResetComponents.IsPresent -or $RunDismRestoreHealth.IsPresent) {
+        Invoke-DismComponentCleanup
     }
 
     ReRegister-WindowsUpdateLibraries
@@ -424,6 +599,16 @@ try {
     Invoke-DismRestoreHealth
     Invoke-SystemFileChecker
     Trigger-WindowsUpdateScan
+
+    $pendingAfter = Test-TidyPendingReboot
+    if ($pendingAfter) {
+        $note = if ($pendingBefore) { 'Pending reboot still detected after repairs.' } else { 'Pending reboot required to finalize repairs.' }
+        Write-TidyLog -Level Warning -Message $note
+        Write-TidyOutput -Message ($note + ' Restart the system to complete the process.')
+    }
+    else {
+        Write-TidyOutput -Message 'No pending reboot state detected after repair routine.'
+    }
 
     Write-TidyOutput -Message 'Windows Update repair routine completed.'
     Write-TidyOutput -Message 'If updates still fail, review WindowsUpdate.log and the Activity log for detailed errors.'

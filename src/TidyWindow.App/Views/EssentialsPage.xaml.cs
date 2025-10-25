@@ -224,18 +224,19 @@ public partial class EssentialsPage : Page
 
         AttachScrollHandler(TasksListBox);
         AttachScrollHandler(OperationsListView);
+        AttachScrollHandler(LiveTerminalScrollViewer);
         _scrollHandlersAttached = true;
     }
 
-    private static void AttachScrollHandler(ItemsControl? control)
+    private static void AttachScrollHandler(UIElement? element)
     {
-        if (control is null)
+        if (element is null)
         {
             return;
         }
 
-        control.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
-        control.PreviewMouseWheel += OnNestedPreviewMouseWheel;
+        element.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+        element.PreviewMouseWheel += OnNestedPreviewMouseWheel;
     }
 
     private void DetachScrollHandlers()
@@ -247,6 +248,7 @@ public partial class EssentialsPage : Page
 
         TasksListBox.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         OperationsListView.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+        LiveTerminalScrollViewer.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         _scrollHandlersAttached = false;
     }
 

@@ -35,9 +35,28 @@ $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
 $script:CollectedRecords = [System.Collections.Generic.List[pscustomobject]]::new()
+$script:RecordKeys = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:StateCounts = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:CategoryCounts = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:SignatureCounts = [System.Collections.Generic.Dictionary[string, int]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:Observations = [System.Collections.Generic.List[string]]::new()
+$script:ExecutionStart = Get-Date
+$script:SummaryEmitted = $false
+$script:BootEventsCollected = 0
+$script:ExportSucceeded = $false
+$script:ExportFormat = $null
+$script:DisabledEntriesSkipped = 0
+$script:NonRunningAutoServices = [System.Collections.Generic.List[string]]::new()
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+}
+
+$TopClamp = 50
+$originalTop = $Top
+if ($Top -lt 1 -or $Top -gt $TopClamp) {
+    Register-TidyObservation ("Requested Top value {0} adjusted to range 1-{1}." -f $Top, $TopClamp)
+    $Top = [Math]::Max(1, [Math]::Min($Top, $TopClamp))
 }
 
 function Write-TidyOutput {
@@ -83,6 +102,91 @@ function Save-TidyResult {
 
     $json = $payload | ConvertTo-Json -Depth 5
     Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+}
+
+function Increment-TidyCounter {
+    param(
+        [Parameter(Mandatory = $true)]
+        [System.Collections.Generic.Dictionary[string, int]] $Map,
+        [Parameter(Mandatory = $true)]
+        [string] $Key
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Key)) {
+        $Key = 'Unknown'
+    }
+
+    if ($Map.ContainsKey($Key)) {
+        $Map[$Key]++
+    }
+    else {
+        $Map[$Key] = 1
+    }
+}
+
+function Register-TidyObservation {
+    param([string] $Message)
+
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        return
+    }
+
+    if (-not $script:Observations.Contains($Message)) {
+        $script:Observations.Add($Message)
+    }
+}
+
+function Write-TidyStartupSummary {
+    if ($script:SummaryEmitted) {
+        return
+    }
+
+    $script:SummaryEmitted = $true
+
+    $elapsed = (Get-Date) - $script:ExecutionStart
+    Write-TidyOutput -Message '--- Startup insight summary ---'
+    Write-TidyOutput -Message ("Total startup entries: {0}" -f $script:CollectedRecords.Count)
+    Write-TidyOutput -Message ("Elapsed time: {0:g}" -f $elapsed)
+
+    if ($script:CategoryCounts.Count -gt 0) {
+        Write-TidyOutput -Message 'Entries by category:'
+        foreach ($pair in $script:CategoryCounts.GetEnumerator() | Sort-Object -Property Key) {
+            Write-TidyOutput -Message ("  ↳ {0}: {1}" -f $pair.Key, $pair.Value)
+        }
+    }
+
+    if ($script:StateCounts.Count -gt 0) {
+        Write-TidyOutput -Message 'Entries by state:'
+        foreach ($pair in $script:StateCounts.GetEnumerator() | Sort-Object -Property Key) {
+            Write-TidyOutput -Message ("  ↳ {0}: {1}" -f $pair.Key, $pair.Value)
+        }
+    }
+
+    if ($script:DisabledEntriesSkipped -gt 0) {
+        Write-TidyOutput -Message ("Disabled entries skipped (use -IncludeDisabled to review): {0}" -f $script:DisabledEntriesSkipped)
+    }
+
+    if ($script:SignatureCounts.Count -gt 0) {
+        Write-TidyOutput -Message 'File signature health:'
+        foreach ($pair in $script:SignatureCounts.GetEnumerator() | Sort-Object -Property Key) {
+            Write-TidyOutput -Message ("  ↳ {0}: {1}" -f $pair.Key, $pair.Value)
+        }
+    }
+
+    if ($script:BootEventsCollected -gt 0) {
+        Write-TidyOutput -Message ("Boot timeline events captured: {0}" -f $script:BootEventsCollected)
+    }
+
+    if ($script:ExportSucceeded) {
+        Write-TidyOutput -Message ("Exported manifest format: {0}" -f $script:ExportFormat)
+    }
+
+    if ($script:Observations.Count -gt 0) {
+        Write-TidyOutput -Message 'Observations:'
+        foreach ($note in $script:Observations) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $note)
+        }
+    }
 }
 
 function Invoke-TidyCommand {
@@ -245,7 +349,16 @@ function Add-StartupRecord {
     }
 
     $enriched = Enrich-StartupRecord -Record $record
+    $fingerprint = '{0}|{1}|{2}|{3}' -f ($Category ?? 'Unknown'), ($Source ?? 'Unknown'), ($Name ?? 'Unknown'), ($UserContext ?? 'Unknown')
+    if (-not $script:RecordKeys.Add($fingerprint)) {
+        Register-TidyObservation ("Skipped duplicate startup entry: {0} ({1})" -f $Name, $Source)
+        return
+    }
+
     $script:CollectedRecords.Add($enriched) | Out-Null
+    Increment-TidyCounter -Map $script:CategoryCounts -Key $Category
+    Increment-TidyCounter -Map $script:StateCounts -Key $enriched.State
+    Increment-TidyCounter -Map $script:SignatureCounts -Key ($enriched.SignatureStatus ?? 'Unknown')
 }
 
 function Collect-RegistryStartupEntries {
@@ -269,6 +382,7 @@ function Collect-RegistryStartupEntries {
 
                 $state = if ($approval.ContainsKey($valueName)) { $approval[$valueName] } else { 'Unknown' }
                 if (-not $IncludeDisabled.IsPresent -and $state -match 'Disabled') {
+                    $script:DisabledEntriesSkipped++
                     continue
                 }
 
@@ -288,9 +402,13 @@ function Collect-WmiStartupEntries {
             $state = if ($IncludeDisabled.IsPresent) { 'Unknown' } else { 'Enabled' }
             Add-StartupRecord -Name $entry.Name -Command $entry.Command -Source $entry.Location -Category 'WMI' -UserContext $entry.User -State $state
         }
+        if (-not $entries) {
+            Register-TidyObservation 'Win32_StartupCommand returned no entries.'
+        }
     }
     catch {
         Write-TidyError -Message ("Failed to query Win32_StartupCommand. {0}" -f $_.Exception.Message)
+        Register-TidyObservation 'Win32_StartupCommand query failed; ensure WMI service is healthy.'
     }
 }
 
@@ -309,6 +427,7 @@ function Collect-ScheduledTaskEntries {
             $triggerKinds = $task.Triggers | ForEach-Object { $_.TriggerType }
             $state = if ($task.State -eq 'Disabled') { 'Disabled' } else { 'Enabled' }
             if (-not $IncludeDisabled.IsPresent -and $state -eq 'Disabled') {
+                $script:DisabledEntriesSkipped++
                 continue
             }
 
@@ -339,9 +458,14 @@ function Collect-ScheduledTaskEntries {
 
             Add-StartupRecord -Name $task.TaskName -Command $command -Source ("ScheduledTask:{0}" -f ($task.TaskPath.Trim('\'))) -Category 'ScheduledTask' -UserContext $userContext -State $state
         }
+
+        if (-not $tasks) {
+            Register-TidyObservation 'No startup-scheduled tasks detected.'
+        }
     }
     catch {
         Write-TidyError -Message ("Failed to enumerate scheduled tasks. {0}" -f $_.Exception.Message)
+        Register-TidyObservation 'Scheduled task enumeration failed; Task Scheduler service may be unavailable.'
     }
 }
 
@@ -353,13 +477,33 @@ function Collect-ServiceEntries {
     try {
         $services = Get-CimInstance -ClassName Win32_Service -Filter "StartMode='Auto'" -ErrorAction Stop | Where-Object { $_.DelayedAutoStart -ne $true }
         foreach ($service in @($services)) {
-            $state = if ($service.State -eq 'Running') { 'Enabled' } else { 'Unknown' }
+            $state = switch ($service.State) {
+                'Running' { 'Enabled'; break }
+                'Stopped' { 'Stopped'; break }
+                'Stop Pending' { 'Stopping'; break }
+                'Paused' { 'Paused'; break }
+                'Start Pending' { 'Starting'; break }
+                default { 'Unknown' }
+            }
+            if ($state -ne 'Enabled') {
+                $script:NonRunningAutoServices.Add($service.Name) | Out-Null
+            }
             $command = if ($service.PathName) { $service.PathName } else { $service.Name }
             Add-StartupRecord -Name $service.Name -Command $command -Source 'ServiceControlManager' -Category 'Service' -UserContext $service.StartName -State $state
+        }
+
+        if (-not $services) {
+            Register-TidyObservation 'No automatic services (non-delayed) were detected.'
+        }
+        elseif ($script:NonRunningAutoServices.Count -gt 0) {
+            $preview = ($script:NonRunningAutoServices | Select-Object -First 5) -join ', '
+            $more = if ($script:NonRunningAutoServices.Count -gt 5) { ' and others' } else { '' }
+            Register-TidyObservation ("Detected {0} auto-start services not running: {1}{2}" -f $script:NonRunningAutoServices.Count, $preview, $more)
         }
     }
     catch {
         Write-TidyError -Message ("Failed to gather auto-start services. {0}" -f $_.Exception.Message)
+        Register-TidyObservation 'Service enumeration failed; WMI or SCM access may be restricted.'
     }
 }
 
@@ -398,10 +542,16 @@ function Output-BootTimeline {
             $duration = $evt.Properties[1].Value
             $mainPath = $evt.Properties[6].Value
             Write-TidyOutput -Message ("Boot at {0:g} — {1} ms total — MainPath: {2} ms" -f $evt.TimeCreated, $duration, $mainPath)
+            $script:BootEventsCollected++
+
+            if ([int]$duration -gt 100000) {
+                Register-TidyObservation ("Boot on {0:g} exceeded 100 seconds (total {1} ms)." -f $evt.TimeCreated, $duration)
+            }
         }
     }
     catch {
         Write-TidyError -Message ("Failed to read boot timeline events. {0}" -f $_.Exception.Message)
+        Register-TidyObservation 'Boot timeline unavailable; diagnostics-performance log could not be queried.'
     }
 }
 

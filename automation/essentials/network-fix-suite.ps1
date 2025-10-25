@@ -33,6 +33,23 @@ $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:ActionsPerformed = [System.Collections.Generic.List[string]]::new()
+$script:ActionsFailed = [System.Collections.Generic.List[string]]::new()
+$script:ActionsSkipped = [System.Collections.Generic.List[string]]::new()
+$script:ActionsPerformedSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:ActionsFailedSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:ActionsSkippedSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+$script:PingExitCode = $null
+$script:TracerouteExitCode = $null
+$script:PathpingExitCode = $null
+$script:LatencySamplesEffective = [Math]::Max(1, $LatencySamples)
+$script:DiagnosticsSummary = [System.Collections.Generic.List[string]]::new()
+$script:AdapterSnapshotCaptured = $false
+$script:TestConnectionSucceeded = $false
+$script:TargetResolvedAddresses = [System.Collections.Generic.List[string]]::new()
+$script:TargetHostLabel = $TargetHost
+$script:ExecutionStart = Get-Date
+$script:SummaryEmitted = $false
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -132,6 +149,244 @@ function Test-TidyIpAddress {
     return [System.Net.IPAddress]::TryParse($Value, [ref]$parsed)
 }
 
+function Register-TidyAction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Success', 'Failed', 'Skipped')]
+        [string] $Status,
+        [string] $Details
+    )
+
+    switch ($Status) {
+        'Success' {
+            if ($script:ActionsPerformedSet.Add($Name)) {
+                $script:ActionsPerformed.Add($Name)
+            }
+        }
+        'Failed' {
+            if ($script:ActionsFailedSet.Add($Name)) {
+                $script:ActionsFailed.Add(($Details) ? "${Name}: $Details" : $Name)
+            }
+        }
+        'Skipped' {
+            if ($script:ActionsSkippedSet.Add($Name)) {
+                $script:ActionsSkipped.Add(($Details) ? "${Name}: $Details" : $Name)
+            }
+        }
+    }
+}
+
+function Resolve-TidyCommandResult {
+    param(
+        [Parameter(Mandatory = $false)]
+        [object] $InputObject
+    )
+
+    $result = [pscustomobject]@{
+        ExitCode      = $null
+        Message       = $null
+        Indeterminate = $false
+    }
+
+    if ($null -eq $InputObject) {
+        return $result
+    }
+
+    if ($InputObject -is [System.Collections.IEnumerable] -and -not ($InputObject -is [string])) {
+        $items = @($InputObject)
+        if ($items.Count -eq 0) {
+            return $result
+        }
+
+        return Resolve-TidyCommandResult -InputObject $items[$items.Count - 1]
+    }
+
+    if ($InputObject -is [int] -or $InputObject -is [long]) {
+        $result.ExitCode = [int]$InputObject
+        return $result
+    }
+
+    if ($InputObject -is [double] -or $InputObject -is [decimal]) {
+        $result.ExitCode = [int][Math]::Round([double]$InputObject)
+        return $result
+    }
+
+    $text = Convert-TidyLogMessage -InputObject $InputObject
+    if ([string]::IsNullOrWhiteSpace($text)) {
+        $result.ExitCode = 0
+        return $result
+    }
+
+    $trimmed = $text.Trim()
+    $lower = $trimmed.ToLowerInvariant()
+
+    $failureTokens = @('error', 'fail', 'failed', 'denied', 'cannot', 'not recognized', 'not recognised', 'not found', 'unrecognized', 'unrecognised', 'refused')
+    foreach ($token in $failureTokens) {
+        if ($lower.Contains($token)) {
+            $result.ExitCode = 1
+            $result.Message = $trimmed
+            return $result
+        }
+    }
+
+    $numericMatch = [System.Text.RegularExpressions.Regex]::Match($trimmed, '(-?\d+)\s*$')
+    if ($numericMatch.Success) {
+        $parsed = 0
+        if ([int]::TryParse($numericMatch.Groups[1].Value, [ref]$parsed)) {
+            $result.ExitCode = $parsed
+            if ($trimmed.Length -gt $numericMatch.Groups[1].Index) {
+                $result.Message = $trimmed
+            }
+            return $result
+        }
+    }
+
+    $successTokens = @('ok', 'success', 'successful', 'sucessfully', 'completed', 'complete', 'windows ip configuration', 'purge and preload')
+    foreach ($token in $successTokens) {
+        if ($lower.Contains($token)) {
+            $result.ExitCode = 0
+            $result.Message = $trimmed
+            return $result
+        }
+    }
+
+    $result.ExitCode = 0
+    $result.Message = $trimmed
+    $result.Indeterminate = $true
+    return $result
+}
+
+function Invoke-TidyNetworkAction {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Action,
+        [Parameter(Mandatory = $true)]
+        [scriptblock] $Command,
+        [object[]] $Arguments = @(),
+        [string] $Description = 'Running network command.',
+        [switch] $RequireSuccess
+    )
+
+    try {
+        $rawResult = Invoke-TidyCommand -Command $Command -Arguments $Arguments -Description $Description
+    }
+    catch {
+        $message = $_.Exception.Message
+        Register-TidyAction -Name $Action -Status Failed -Details $message
+
+        if ($RequireSuccess) {
+            throw
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($message)) {
+            Write-TidyError -Message ("{0} failed: {1}" -f $Action, $message)
+        }
+
+        return $null
+    }
+
+    $resolved = Resolve-TidyCommandResult -InputObject $rawResult
+    $exitCode = if ($null -eq $resolved.ExitCode) { 0 } else { [int]$resolved.ExitCode }
+    $detailMessage = $resolved.Message
+
+    if ($exitCode -ne 0) {
+        $detailText = if ([string]::IsNullOrWhiteSpace($detailMessage)) { "Exit code $exitCode" } else { $detailMessage }
+        Register-TidyAction -Name $Action -Status Failed -Details $detailText
+
+        if ($RequireSuccess) {
+            $errorText = if ([string]::IsNullOrWhiteSpace($detailMessage)) { "exit code $exitCode" } else { $detailMessage }
+            throw "$Description failed: $errorText"
+        }
+    }
+    else {
+        Register-TidyAction -Name $Action -Status Success
+
+        if ($resolved.Indeterminate -and -not [string]::IsNullOrWhiteSpace($detailMessage)) {
+            $script:DiagnosticsSummary.Add("${Action}: $detailMessage")
+        }
+    }
+
+    return $exitCode
+}
+
+function Write-TidyNetworkSummary {
+    if ($script:SummaryEmitted) {
+        return
+    }
+
+    $script:SummaryEmitted = $true
+    $elapsed = (Get-Date) - $script:ExecutionStart
+    Write-TidyOutput -Message '--- Network remediation summary ---'
+    Write-TidyOutput -Message ("Target host: {0}" -f $script:TargetHostLabel)
+    Write-TidyOutput -Message ("Diagnostics duration: {0:g}" -f $elapsed)
+
+    if ($script:TargetResolvedAddresses.Count -gt 0) {
+        Write-TidyOutput -Message ("Resolved addresses ({0}):" -f $script:TargetResolvedAddresses.Count)
+        foreach ($addr in $script:TargetResolvedAddresses | Sort-Object -Unique) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $addr)
+        }
+    }
+
+    if ($script:ActionsPerformed.Count -gt 0) {
+        Write-TidyOutput -Message ("Completed actions ({0}):" -f $script:ActionsPerformed.Count)
+        foreach ($action in $script:ActionsPerformed) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $action)
+        }
+    }
+
+    if ($script:ActionsSkipped.Count -gt 0) {
+        Write-TidyOutput -Message ("Skipped actions ({0}):" -f $script:ActionsSkipped.Count)
+        foreach ($action in $script:ActionsSkipped) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $action)
+        }
+    }
+
+    if ($script:ActionsFailed.Count -gt 0) {
+        Write-TidyOutput -Message ("Failures ({0}):" -f $script:ActionsFailed.Count)
+        foreach ($action in $script:ActionsFailed) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $action)
+        }
+    }
+
+    $adapterStatus = if ($script:AdapterSnapshotCaptured) { 'Captured' } else { 'Unavailable' }
+    Write-TidyOutput -Message ("Adapter statistics: {0}" -f $adapterStatus)
+
+    $connectStatus = if ($script:TestConnectionSucceeded) { 'TCP probe succeeded' } else { 'No TCP response' }
+    Write-TidyOutput -Message ("Connectivity probe: {0}" -f $connectStatus)
+
+    $pingLabel = if ($null -eq $script:PingExitCode) { 'Not attempted' } elseif ($script:PingExitCode -eq 0) { 'Success' } else { "Exit code $($script:PingExitCode)" }
+    Write-TidyOutput -Message ("Ping status: {0} ({1} samples)" -f $pingLabel, $script:LatencySamplesEffective)
+
+    $traceLabel = if ($SkipTraceroute.IsPresent) { 'Skipped via switch' } elseif ($null -eq $script:TracerouteExitCode) { 'Not attempted' } elseif ($script:TracerouteExitCode -eq 0) { 'Success' } else { "Exit code $($script:TracerouteExitCode)" }
+    Write-TidyOutput -Message ("Traceroute status: {0}" -f $traceLabel)
+
+    $pathPingLabel = if ($SkipPathPing.IsPresent) { 'Skipped via switch' } elseif ($null -eq $script:PathpingExitCode) { 'Not attempted' } elseif ($script:PathpingExitCode -eq 0) { 'Success' } else { "Exit code $($script:PathpingExitCode)" }
+    Write-TidyOutput -Message ("PathPing status: {0}" -f $pathPingLabel)
+
+    if ($script:DiagnosticsSummary.Count -gt 0) {
+        Write-TidyOutput -Message 'Diagnostic notes:'
+        foreach ($item in $script:DiagnosticsSummary) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $item)
+        }
+    }
+}
+
+$TargetHost = if ($null -ne $TargetHost) { $TargetHost.Trim() } else { $null }
+if ([string]::IsNullOrWhiteSpace($TargetHost)) {
+    throw 'TargetHost cannot be empty.'
+}
+
+$maxSamples = 100
+if ($LatencySamples -lt 1 -or $LatencySamples -gt $maxSamples) {
+    $script:DiagnosticsSummary.Add(("LatencySamples adjusted from {0} to within 1-{1}." -f $LatencySamples, $maxSamples))
+}
+
+$LatencySamples = [Math]::Max(1, [Math]::Min($LatencySamples, $maxSamples))
+$script:LatencySamplesEffective = $LatencySamples
+$script:TargetHostLabel = $TargetHost
+
 try {
     if (-not (Test-TidyAdmin)) {
         throw 'Network fix suite requires an elevated PowerShell session. Restart as administrator.'
@@ -144,68 +399,165 @@ try {
         $dnsName = $null
     }
 
-    if (-not $DiagnosticsOnly.IsPresent) {
+    if ($DiagnosticsOnly.IsPresent) {
+        Write-TidyOutput -Message 'Diagnostics-only mode: remediation steps skipped.'
+        $script:DiagnosticsSummary.Add('Diagnostics-only mode enabled; remediation commands were not executed.')
+        foreach ($action in @(
+                'ARP cache reset',
+                'NetBIOS cache reload',
+                'NetBIOS re-registration',
+                'IPv4 neighbor cache reset',
+                'TCP heuristics reset',
+                'TCP auto-tuning normalization',
+                'DNS registration')) {
+            Register-TidyAction -Name $action -Status Skipped -Details 'DiagnosticsOnly flag set.'
+        }
+    }
+    else {
         Write-TidyOutput -Message 'Clearing ARP cache.'
-        Invoke-TidyCommand -Command { arp -d * } -Description 'Clearing ARP table.' -RequireSuccess | Out-Null
+        [void](Invoke-TidyNetworkAction -Action 'ARP cache reset' -Command { arp -d * } -Description 'Clearing ARP table.' -RequireSuccess)
 
         Write-TidyOutput -Message 'Reloading NetBIOS name cache.'
-        Invoke-TidyCommand -Command { nbtstat -R } -Description 'nbtstat -R' -RequireSuccess | Out-Null
+        [void](Invoke-TidyNetworkAction -Action 'NetBIOS cache reload' -Command { nbtstat -R } -Description 'nbtstat -R' -RequireSuccess)
 
         Write-TidyOutput -Message 'Re-registering NetBIOS names.'
-        Invoke-TidyCommand -Command { nbtstat -RR } -Description 'nbtstat -RR' -RequireSuccess | Out-Null
+        [void](Invoke-TidyNetworkAction -Action 'NetBIOS re-registration' -Command { nbtstat -RR } -Description 'nbtstat -RR' -RequireSuccess)
 
         Write-TidyOutput -Message 'Resetting IPv4 neighbor cache.'
-        Invoke-TidyCommand -Command { netsh interface ip delete arpcache } -Description 'netsh interface ip delete arpcache' -RequireSuccess | Out-Null
+        [void](Invoke-TidyNetworkAction -Action 'IPv4 neighbor cache reset' -Command { netsh interface ip delete arpcache } -Description 'netsh interface ip delete arpcache' -RequireSuccess)
 
         Write-TidyOutput -Message 'Resetting TCP global heuristics to defaults.'
-        Invoke-TidyCommand -Command { netsh interface tcp set heuristics disabled } -Description 'Disable TCP heuristics.' | Out-Null
-        Invoke-TidyCommand -Command { netsh interface tcp set global autotuninglevel=normal } -Description 'Restore TCP auto-tuning.' | Out-Null
+        [void](Invoke-TidyNetworkAction -Action 'TCP heuristics reset' -Command { netsh interface tcp set heuristics disabled } -Description 'Disable TCP heuristics.')
+        [void](Invoke-TidyNetworkAction -Action 'TCP auto-tuning normalization' -Command { netsh interface tcp set global autotuninglevel=normal } -Description 'Restore TCP auto-tuning.')
 
         if (-not $SkipDnsRegistration.IsPresent) {
             Write-TidyOutput -Message 'Registering DNS records with DHCP server.'
-            Invoke-TidyCommand -Command { ipconfig /registerdns } -Description 'ipconfig /registerdns' | Out-Null
+            $dnsExit = Invoke-TidyNetworkAction -Action 'DNS registration' -Command { ipconfig /registerdns } -Description 'ipconfig /registerdns'
+            if ($dnsExit -ne 0) {
+                $script:DiagnosticsSummary.Add('DNS registration encountered errors; review ipconfig output.')
+            }
         }
         else {
             Write-TidyOutput -Message 'Skipping DNS registration per operator request.'
+            Register-TidyAction -Name 'DNS registration' -Status Skipped -Details 'SkipDnsRegistration flag set.'
         }
     }
 
     Write-TidyOutput -Message 'Capturing adapter link statistics.'
-    Invoke-TidyCommand -Command { Get-NetAdapterStatistics -IncludeHidden } -Description 'Adapter statistics snapshot.' | Out-Null
+    $adapterExit = Invoke-TidyNetworkAction -Action 'Adapter statistics snapshot' -Command { Get-NetAdapterStatistics -IncludeHidden } -Description 'Adapter statistics snapshot.'
+    if ($null -eq $adapterExit -or $adapterExit -eq 0) {
+        $script:AdapterSnapshotCaptured = $true
+    }
+    else {
+        $script:DiagnosticsSummary.Add('Unable to capture adapter statistics.')
+    }
 
     if ($dnsName) {
         Write-TidyOutput -Message ("Resolving DNS for {0}" -f $dnsName)
-        Invoke-TidyCommand -Command { param($name) Resolve-DnsName -Name $name -Type A,AAAA -ErrorAction SilentlyContinue } -Arguments @($dnsName) -Description 'Resolve DNS records.' | Out-Null
+        try {
+            $records = Resolve-DnsName -Name $dnsName -Type A,AAAA -ErrorAction Stop
+            if ($records) {
+                foreach ($record in $records) {
+                    if ($record.IPAddress) {
+                        $script:TargetResolvedAddresses.Add($record.IPAddress)
+                    }
+
+                    $recordText = $record | Format-List | Out-String
+                    foreach ($line in ($recordText -split '\r?\n')) {
+                        if (-not [string]::IsNullOrWhiteSpace($line)) {
+                            Write-TidyOutput -Message $line
+                        }
+                    }
+                }
+            }
+            else {
+                Write-TidyOutput -Message 'No A/AAAA records returned.'
+                $script:DiagnosticsSummary.Add("DNS query returned no host records for $dnsName.")
+            }
+
+            Register-TidyAction -Name 'DNS resolution' -Status Success
+        }
+        catch {
+            $message = $_.Exception.Message
+            Write-TidyError -Message ("DNS resolution failed: {0}" -f $message)
+            Register-TidyAction -Name 'DNS resolution' -Status Failed -Details $message
+            $script:DiagnosticsSummary.Add("DNS resolution failed: $message")
+        }
+    }
+    else {
+        Register-TidyAction -Name 'DNS resolution' -Status Skipped -Details 'Target specified as IP address.'
     }
 
     Write-TidyOutput -Message ("Testing connection to {0}." -f $TargetHost)
-    Invoke-TidyCommand -Command { param($computerName) Test-NetConnection -ComputerName $computerName -InformationLevel Detailed } -Arguments @($TargetHost) -Description 'Test-NetConnection probe.' | Out-Null
+    try {
+        $testResult = Test-NetConnection -ComputerName $TargetHost -InformationLevel Detailed -ErrorAction Stop
+        $formatted = ($testResult | Format-List | Out-String)
+        foreach ($line in ($formatted -split '\r?\n')) {
+            if (-not [string]::IsNullOrWhiteSpace($line)) {
+                Write-TidyOutput -Message $line
+            }
+        }
+
+        if ($testResult.TcpTestSucceeded) {
+            $script:TestConnectionSucceeded = $true
+        }
+        else {
+            $script:DiagnosticsSummary.Add('TCP connectivity test did not succeed.')
+        }
+
+        Register-TidyAction -Name 'Connectivity test' -Status Success
+    }
+    catch {
+        $message = $_.Exception.Message
+        Write-TidyError -Message ("Test-NetConnection failed: {0}" -f $message)
+        Register-TidyAction -Name 'Connectivity test' -Status Failed -Details $message
+        $script:DiagnosticsSummary.Add("Connectivity test failed: $message")
+    }
 
     Write-TidyOutput -Message ("Running latency sample ({0} pings)." -f $LatencySamples)
-    $pingExitCode = Invoke-TidyCommand -Command { param($computerName, $count) ping.exe -n $count $computerName } -Arguments @($TargetHost, [Math]::Max(1, $LatencySamples)) -Description 'ping sweep.'
-    if ($pingExitCode -ne 0) {
-        Write-TidyLog -Level Warning -Message ("Ping sweep to {0} returned exit code {1}. Continuing diagnostics." -f $TargetHost, $pingExitCode)
-        Write-TidyOutput -Message ("Ping sweep could not reach {0} (exit code {1}). Continuing diagnostics for additional insight." -f $TargetHost, $pingExitCode)
+    $script:PingExitCode = Invoke-TidyNetworkAction -Action 'Latency sweep (ping)' -Command { param($computerName, $count) ping.exe -n $count $computerName } -Arguments @($TargetHost, $LatencySamples) -Description 'ping sweep.'
+    if ($null -eq $script:PingExitCode) {
+        $script:PingExitCode = -1
+    }
+    if ($script:PingExitCode -ne 0 -and $null -ne $script:PingExitCode) {
+        Write-TidyLog -Level Warning -Message ("Ping sweep to {0} returned exit code {1}." -f $TargetHost, $script:PingExitCode)
+        $script:DiagnosticsSummary.Add("Ping sweep to $TargetHost failed (exit code $($script:PingExitCode)).")
     }
 
     if (-not $SkipTraceroute.IsPresent) {
         Write-TidyOutput -Message 'Tracing network route.'
-        Invoke-TidyCommand -Command { param($computerName) tracert.exe $computerName } -Arguments @($TargetHost) -Description 'tracert execution.' | Out-Null
+        $script:TracerouteExitCode = Invoke-TidyNetworkAction -Action 'Traceroute' -Command { param($computerName) tracert.exe $computerName } -Arguments @($TargetHost) -Description 'tracert execution.'
+        if ($null -eq $script:TracerouteExitCode) {
+            $script:TracerouteExitCode = -1
+        }
+        if ($script:TracerouteExitCode -ne 0 -and $null -ne $script:TracerouteExitCode) {
+            $script:DiagnosticsSummary.Add('Traceroute reported errors; inspect hop details above.')
+        }
     }
     else {
         Write-TidyOutput -Message 'Skipping traceroute per operator request.'
+        Register-TidyAction -Name 'Traceroute' -Status Skipped -Details 'SkipTraceroute flag set.'
     }
 
     if (-not $SkipPathPing.IsPresent) {
         Write-TidyOutput -Message 'Running pathping for loss analysis (this can take several minutes).'
-        Invoke-TidyCommand -Command { param($computerName) pathping.exe $computerName } -Arguments @($TargetHost) -Description 'pathping execution.' | Out-Null
+        $script:PathpingExitCode = Invoke-TidyNetworkAction -Action 'PathPing' -Command { param($computerName) pathping.exe $computerName } -Arguments @($TargetHost) -Description 'pathping execution.'
+        if ($null -eq $script:PathpingExitCode) {
+            $script:PathpingExitCode = -1
+        }
+        if ($script:PathpingExitCode -ne 0 -and $null -ne $script:PathpingExitCode) {
+            $script:DiagnosticsSummary.Add('PathPing reported transmission loss or errors.')
+        }
     }
     else {
         Write-TidyOutput -Message 'Skipping pathping per operator request.'
+        Register-TidyAction -Name 'PathPing' -Status Skipped -Details 'SkipPathPing flag set.'
     }
 
     Write-TidyOutput -Message 'Dumping refreshed ARP table.'
-    Invoke-TidyCommand -Command { arp -a } -Description 'arp -a snapshot.' | Out-Null
+    [void](Invoke-TidyNetworkAction -Action 'ARP table snapshot' -Command { arp -a } -Description 'arp -a snapshot.')
+
+    Write-TidyNetworkSummary
 
     Write-TidyOutput -Message 'Advanced network routine completed.'
 }
@@ -223,6 +575,10 @@ catch {
     }
 }
 finally {
+    if (-not $script:SummaryEmitted) {
+        Write-TidyNetworkSummary
+    }
+
     Save-TidyResult
     Write-TidyLog -Level Information -Message 'Network fix suite finished.'
 }

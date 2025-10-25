@@ -664,7 +664,8 @@
                                     BorderBrush="#13233A"
                                     BorderThickness="1">
                                 <Grid>
-                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                    <ScrollViewer x:Name="LiveTerminalScrollViewer"
+                                                  VerticalScrollBarVisibility="Auto"
                                                   HorizontalScrollBarVisibility="Auto">
                                         <ScrollViewer.Style>
                                             <Style TargetType="ScrollViewer">
