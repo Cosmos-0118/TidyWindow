@@ -125,7 +125,8 @@
                   HorizontalScrollBarVisibility="Disabled"
                   CanContentScroll="False"
                   PanningMode="VerticalOnly">
-        <Grid MinWidth="720">
+        <Grid x:Name="PageGrid"
+              MinWidth="720">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -153,14 +154,23 @@
                 </StackPanel>
             </StackPanel>
 
-            <Grid Grid.Row="1"
+            <Grid x:Name="LayoutGrid"
+                  Grid.Row="1"
                   Margin="0,28,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="2*"/>
-                </Grid.ColumnDefinitions>
-
-                <Grid Grid.Column="0"
+                    <ColumnDefinition Width="2*"
+                                      MinWidth="320"/>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*"/>
+                        <ColumnDefinition Width="2*"/>
+                    </Grid.ColumnDefinitions>
+                    Grid.Column="0"
+                      Grid.RowSpan="2"
                       Margin="0,0,24,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -225,10 +235,37 @@
                                                     <Border x:Name="Container"
                                                             Background="#141E30"
                                                             CornerRadius="8"
-                                                            Padding="12">
+                                                            Padding="12"
+                                                            Opacity="0"
+                                                            RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform>
+                                                            <TranslateTransform Y="12"/>
+                                                        </Border.RenderTransform>
                                                         <ContentPresenter/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
+                                                        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="Container"
+                                                                                     Storyboard.TargetProperty="Opacity"
+                                                                                     To="1"
+                                                                                     Duration="0:0:0.28">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <CubicEase EasingMode="EaseOut"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                    <DoubleAnimation Storyboard.TargetName="Container"
+                                                                                     Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                                                     To="0"
+                                                                                     Duration="0:0:0.32">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <CubicEase EasingMode="EaseOut"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </EventTrigger>
                                                         <Trigger Property="IsSelected"
                                                                  Value="True">
                                                             <Setter TargetName="Container"
@@ -313,7 +350,6 @@
                                       Foreground="#F8FAFC"
                                       HorizontalAlignment="Stretch"
                                       VerticalAlignment="Stretch"
-                                      MaxHeight="520"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                       ScrollViewer.CanContentScroll="True"
@@ -338,12 +374,39 @@
                                                     <Border x:Name="Container"
                                                             CornerRadius="8"
                                                             Background="{TemplateBinding Background}"
-                                                            Padding="{TemplateBinding Padding}">
+                                                            Padding="{TemplateBinding Padding}"
+                                                            Opacity="0"
+                                                            RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform>
+                                                            <TranslateTransform Y="12"/>
+                                                        </Border.RenderTransform>
                                                         <GridViewRowPresenter Margin="0"
                                                                               Content="{TemplateBinding Content}"
                                                                               Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
                                                     </Border>
                                                     <ControlTemplate.Triggers>
+                                                        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                            <BeginStoryboard>
+                                                                <Storyboard>
+                                                                    <DoubleAnimation Storyboard.TargetName="Container"
+                                                                                     Storyboard.TargetProperty="Opacity"
+                                                                                     To="1"
+                                                                                     Duration="0:0:0.26">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <CubicEase EasingMode="EaseOut"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                    <DoubleAnimation Storyboard.TargetName="Container"
+                                                                                     Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                                                     To="0"
+                                                                                     Duration="0:0:0.32">
+                                                                        <DoubleAnimation.EasingFunction>
+                                                                            <CubicEase EasingMode="EaseOut"/>
+                                                                        </DoubleAnimation.EasingFunction>
+                                                                    </DoubleAnimation>
+                                                                </Storyboard>
+                                                            </BeginStoryboard>
+                                                        </EventTrigger>
                                                         <Trigger Property="IsSelected"
                                                                  Value="True">
                                                             <Setter TargetName="Container"
@@ -491,135 +554,165 @@
                             </TextBlock>
                         </Grid>
                     </Border>
-                </Grid>
+            </Grid>
 
-                <Border Grid.Column="1"
-                        Background="#111827"
-                        CornerRadius="12"
-                        Padding="20"
-                        MinWidth="320"
-                        Width="Auto"
-                        HorizontalAlignment="Stretch"
-                        Margin="16,0,0,0"
-                        BorderBrush="#1E293B"
-                        BorderThickness="1">
-                    <Grid>
+            <Border x:Name="QueueCard"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Grid.RowSpan="2"
+                    Background="#111827"
+                    CornerRadius="12"
+                    Padding="20"
+                    MinWidth="320"
+                    Width="Auto"
+                    HorizontalAlignment="Stretch"
+                    Margin="16,0,0,0"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0"
+                          Margin="0,0,0,16">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-
-                        <Grid Grid.Row="0"
-                              Margin="0,0,0,16">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <StackPanel Grid.Row="0">
-                                <TextBlock Text="Install queue"
-                                           Foreground="#E2E8F0"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock Text="Review pending installs and retry when needed"
-                                           Foreground="#64748B"
-                                           TextWrapping="Wrap"
-                                           FontSize="12"/>
-                            </StackPanel>
-                            <WrapPanel Grid.Row="1"
-                                       Margin="0,8,0,0"
-                                       HorizontalAlignment="Left">
-                                <Button Content="Retry failed"
-                                        Command="{Binding RetryFailedCommand}"
-                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                                <Button Content="Clear completed"
-                                        Command="{Binding ClearCompletedCommand}"
-                                        Margin="8,0,0,0"
-                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                            </WrapPanel>
-                        </Grid>
-
-                        <ListView x:Name="OperationsList"
-                                  Grid.Row="1"
-                                  ItemsSource="{Binding Operations}"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  Foreground="#F8FAFC"
-                                  ScrollViewer.VerticalScrollBarVisibility="Visible"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  ScrollViewer.CanContentScroll="True"
-                                  VirtualizingPanel.IsVirtualizing="True"
-                                  VirtualizingPanel.VirtualizationMode="Recycling"
-                                  VirtualizingStackPanel.ScrollUnit="Pixel">
-                            <ListView.ItemContainerStyle>
-                                <Style TargetType="ListViewItem">
-                                    <Setter Property="HorizontalContentAlignment"
-                                            Value="Stretch"/>
-                                    <Setter Property="Padding"
-                                            Value="0"/>
-                                    <Setter Property="Background"
-                                            Value="Transparent"/>
-                                </Style>
-                            </ListView.ItemContainerStyle>
-                            <ListView.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Padding="12"
-                                            Margin="0,4"
-                                            CornerRadius="8"
-                                            Background="#141E30">
-                                        <StackPanel>
-                                            <WrapPanel VerticalAlignment="Center"
-                                                       Margin="0,0,0,4">
-                                                <TextBlock Text="{Binding PackageName}"
-                                                           FontWeight="SemiBold"
-                                                           TextWrapping="Wrap"/>
-                                                <TextBlock Text="{Binding StatusLabel}"
-                                                           Foreground="#38BDF8"
-                                                           Margin="12,0,0,0"/>
-                                                <TextBlock Text="{Binding Attempts}"
-                                                           Foreground="#94A3B8"
-                                                           Margin="12,0,0,0"/>
-                                            </WrapPanel>
-                                            <TextBlock Text="{Binding Message}"
-                                                       Foreground="#94A3B8"
-                                                       TextWrapping="WrapWithOverflow"/>
-                                            <StackPanel Orientation="Horizontal"
-                                                        Margin="0,12,0,0"
-                                                        HorizontalAlignment="Right">
-                                                <Button Content="Cancel"
-                                                        Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource InstallSecondaryButtonStyle}"
-                                                        IsEnabled="{Binding IsActive}"/>
-                                            </StackPanel>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
-
-                        <TextBlock Grid.Row="2"
-                                   Text="No installs queued yet. Queue a bundle or single package to get started."
-                                   HorizontalAlignment="Center"
-                                   Foreground="#64748B"
-                                   Margin="0,16,0,0">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility"
-                                            Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding Operations.Count}"
-                                                     Value="0">
-                                            <Setter Property="Visibility"
-                                                    Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                        <StackPanel Grid.Row="0">
+                            <TextBlock Text="Install queue"
+                                       Foreground="#E2E8F0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"/>
+                            <TextBlock Text="Review pending installs and retry when needed"
+                                       Foreground="#64748B"
+                                       TextWrapping="Wrap"
+                                       FontSize="12"/>
+                        </StackPanel>
+                        <WrapPanel Grid.Row="1"
+                                   Margin="0,8,0,0"
+                                   HorizontalAlignment="Left">
+                            <Button Content="Retry failed"
+                                    Command="{Binding RetryFailedCommand}"
+                                    Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                            <Button Content="Clear completed"
+                                    Command="{Binding ClearCompletedCommand}"
+                                    Margin="8,0,0,0"
+                                    Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                        </WrapPanel>
                     </Grid>
-                </Border>
-            </Grid>
+
+                    <ListView x:Name="OperationsList"
+                              Grid.Row="1"
+                              ItemsSource="{Binding Operations}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Foreground="#F8FAFC"
+                              ScrollViewer.VerticalScrollBarVisibility="Visible"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.CanContentScroll="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingStackPanel.ScrollUnit="Pixel">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="HorizontalContentAlignment"
+                                        Value="Stretch"/>
+                                <Setter Property="Padding"
+                                        Value="0"/>
+                                <Setter Property="Background"
+                                        Value="Transparent"/>
+                            </Style>
+                        </ListView.ItemContainerStyle>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="12"
+                                        Margin="0,4"
+                                        CornerRadius="8"
+                                        Background="#141E30"
+                                        Opacity="0"
+                                        RenderTransformOrigin="0.5,0.5">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform Y="10"/>
+                                    </Border.RenderTransform>
+                                    <StackPanel>
+                                        <WrapPanel VerticalAlignment="Center"
+                                                   Margin="0,0,0,4">
+                                            <TextBlock Text="{Binding PackageName}"
+                                                       FontWeight="SemiBold"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="{Binding StatusLabel}"
+                                                       Foreground="#38BDF8"
+                                                       Margin="12,0,0,0"/>
+                                            <TextBlock Text="{Binding Attempts}"
+                                                       Foreground="#94A3B8"
+                                                       Margin="12,0,0,0"/>
+                                        </WrapPanel>
+                                        <TextBlock Text="{Binding Message}"
+                                                   Foreground="#94A3B8"
+                                                   TextWrapping="WrapWithOverflow"/>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,12,0,0"
+                                                    HorizontalAlignment="Right">
+                                            <Button Content="Cancel"
+                                                    Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource InstallSecondaryButtonStyle}"
+                                                    IsEnabled="{Binding IsActive}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                    <Border.Triggers>
+                                        <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard>
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     To="1"
+                                                                     Duration="0:0:0.24">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut"/>
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                                     To="0"
+                                                                     Duration="0:0:0.28">
+                                                        <DoubleAnimation.EasingFunction>
+                                                            <CubicEase EasingMode="EaseOut"/>
+                                                        </DoubleAnimation.EasingFunction>
+                                                    </DoubleAnimation>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Border.Triggers>
+                                </Border>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <TextBlock Grid.Row="2"
+                               Text="No installs queued yet. Queue a bundle or single package to get started."
+                               HorizontalAlignment="Center"
+                               Foreground="#64748B"
+                               Margin="0,16,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Operations.Count}"
+                                                 Value="0">
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </Border>
+        </Grid>
         </Grid>
     </ScrollViewer>
 </Page>
