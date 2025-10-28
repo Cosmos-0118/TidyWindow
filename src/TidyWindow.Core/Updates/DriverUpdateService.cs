@@ -247,7 +247,7 @@ public sealed class DriverUpdateService
             return Array.Empty<InstalledDriverInfo>();
         }
 
-        var items = new List<InstalledDriverInfo>();
+        var items = new Dictionary<string, InstalledDriverInfo>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var entry in entries)
         {
@@ -261,7 +261,7 @@ public sealed class DriverUpdateService
             var installDate = ResolveTimestamp(entry.InstallDate);
             var status = ResolveDriverStatus(entry.Status, entry.ProblemCode, entry.Signed);
 
-            items.Add(new InstalledDriverInfo(
+            var info = new InstalledDriverInfo(
                 Normalize(entry.DeviceName) ?? "Unknown device",
                 Normalize(entry.Manufacturer),
                 Normalize(entry.Provider),
@@ -275,13 +275,253 @@ public sealed class DriverUpdateService
                 Normalize(entry.InfName),
                 Normalize(entry.DeviceId),
                 entry.ProblemCode,
-                status));
+                status);
+
+            var key = BuildInstalledDriverKey(entry, info);
+
+            if (items.TryGetValue(key, out var existing))
+            {
+                items[key] = MergeInstalledDriverInfo(existing, info);
+            }
+            else
+            {
+                items[key] = info;
+            }
         }
 
-        return items
+        return items.Values
             .OrderBy(static item => item.DeviceName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(static item => item.DriverVersion, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+    }
+
+    private static string BuildInstalledDriverKey(InstalledDriverJson entry, InstalledDriverInfo info)
+    {
+        var normalizedDeviceId = NormalizeDeviceIdentity(entry.DeviceId);
+        if (normalizedDeviceId is not null)
+        {
+            return normalizedDeviceId;
+        }
+
+        // Use stable identifying fields for deduplication. Dates are excluded because
+        // install/driver timestamps may vary across records for the same logical driver
+        // and cause spurious duplicates. Prefer device name + provider + manufacturer +
+        // driver version + inf name + normalized hardware ids.
+
+        var deviceName = Normalize(entry.DeviceName) ?? Normalize(info.DeviceName) ?? "*";
+        var provider = Normalize(entry.Provider) ?? info.Provider ?? "*";
+        var manufacturer = Normalize(entry.Manufacturer) ?? info.Manufacturer ?? "*";
+        var driverVersion = Normalize(entry.DriverVersion) ?? info.DriverVersion ?? "*";
+        var infName = Normalize(entry.InfName) ?? info.InfName ?? "*";
+
+        var canonicalHardware = NormalizeHardwareIdentifiers(entry.HardwareIds, info.HardwareIds);
+        var hardwarePart = canonicalHardware.Length == 0
+            ? "*"
+            : string.Join("|", canonicalHardware.OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+
+        var fallbackKey = string.Join("||", new[] { deviceName, provider, manufacturer, driverVersion, infName, hardwarePart }
+            .Select(static part => string.IsNullOrWhiteSpace(part) ? "*" : part.Trim())
+            .Select(static part => part.ToUpperInvariant()));
+
+        return fallbackKey;
+    }
+
+    private static string? NormalizeDeviceIdentity(string? deviceId)
+    {
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            return null;
+        }
+
+        var trimmed = deviceId.Trim();
+
+        var segments = trimmed.Split('\\', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (segments.Length == 0)
+        {
+            return null;
+        }
+
+        var bus = segments[0].ToUpperInvariant();
+
+        if (segments.Length == 1)
+        {
+            return bus;
+        }
+
+        var identifier = CanonicalizeIdentitySegment(segments[1]);
+        if (identifier.Length == 0)
+        {
+            return bus;
+        }
+
+        return string.Concat(bus, "\\", identifier);
+    }
+
+    private static string[] NormalizeHardwareIdentifiers(IEnumerable<string?>? rawHardwareIds, IReadOnlyList<string> fallback)
+    {
+        var normalized = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (rawHardwareIds is not null)
+        {
+            foreach (var entry in rawHardwareIds)
+            {
+                var canonical = NormalizeDeviceIdentity(entry);
+                if (!string.IsNullOrWhiteSpace(canonical))
+                {
+                    normalized.Add(canonical!);
+                }
+            }
+        }
+
+        if (normalized.Count == 0 && fallback.Count > 0)
+        {
+            foreach (var entry in fallback)
+            {
+                var canonical = NormalizeDeviceIdentity(entry);
+                if (!string.IsNullOrWhiteSpace(canonical))
+                {
+                    normalized.Add(canonical!);
+                }
+            }
+        }
+
+        return normalized.Count == 0 ? Array.Empty<string>() : normalized.ToArray();
+    }
+
+    private static string CanonicalizeIdentitySegment(string segment)
+    {
+        if (string.IsNullOrWhiteSpace(segment))
+        {
+            return string.Empty;
+        }
+
+        var tokens = segment
+            .Split('&', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(static token => token.ToUpperInvariant())
+            .Where(static token => token.Length > 0)
+            .Where(static token => !ShouldSkipIdentityToken(token))
+            .ToList();
+
+        if (tokens.Count == 0)
+        {
+            return segment.ToUpperInvariant();
+        }
+
+        return string.Join('&', tokens);
+    }
+
+    private static bool ShouldSkipIdentityToken(string token)
+    {
+        if (token.StartsWith("REV_", StringComparison.Ordinal) ||
+            token.StartsWith("SUBSYS_", StringComparison.Ordinal) ||
+            token.StartsWith("SUBVID_", StringComparison.Ordinal) ||
+            token.StartsWith("SUBDEV_", StringComparison.Ordinal) ||
+            token.StartsWith("CC_", StringComparison.Ordinal) ||
+            token.StartsWith("MI_", StringComparison.Ordinal) ||
+            token.StartsWith("FUNC_", StringComparison.Ordinal) ||
+            token.StartsWith("FN_", StringComparison.Ordinal) ||
+            token.StartsWith("UID_", StringComparison.Ordinal) ||
+            token.StartsWith("INSTANCEID_", StringComparison.Ordinal) ||
+            token.StartsWith("RID_", StringComparison.Ordinal) ||
+            token.StartsWith("SERIAL", StringComparison.Ordinal) ||
+            token.StartsWith("COL", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        // Skip Windows-generated container identifiers that look like GUIDs or opaque hashes.
+        if (token.Length >= 32 && token.All(static c => char.IsDigit(c) || (c >= 'A' && c <= 'F')))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static InstalledDriverInfo MergeInstalledDriverInfo(InstalledDriverInfo existing, InstalledDriverInfo incoming)
+    {
+        var deviceName = ReplacePlaceholder(existing.DeviceName, incoming.DeviceName, "Unknown device");
+        var manufacturer = PreferString(existing.Manufacturer, incoming.Manufacturer);
+        var provider = PreferString(existing.Provider, incoming.Provider);
+        var driverVersion = PreferString(existing.DriverVersion, incoming.DriverVersion);
+        var driverDate = existing.DriverDate ?? incoming.DriverDate;
+        var installDate = existing.InstallDate ?? incoming.InstallDate;
+        var classGuid = PreferString(existing.ClassGuid, incoming.ClassGuid);
+        var description = PreferString(existing.Description, incoming.Description);
+        var hardwareIds = MergeHardwareIds(existing.HardwareIds, incoming.HardwareIds);
+        var isSigned = existing.IsSigned ?? incoming.IsSigned;
+        var infName = PreferString(existing.InfName, incoming.InfName);
+        var deviceId = PreferString(existing.DeviceId, incoming.DeviceId);
+        var problemCode = existing.ProblemCode ?? incoming.ProblemCode;
+        var status = PreferStatus(existing.Status, incoming.Status);
+
+        return existing with
+        {
+            DeviceName = deviceName,
+            Manufacturer = manufacturer,
+            Provider = provider,
+            DriverVersion = driverVersion,
+            DriverDate = driverDate,
+            InstallDate = installDate,
+            ClassGuid = classGuid,
+            Description = description,
+            HardwareIds = hardwareIds,
+            IsSigned = isSigned,
+            InfName = infName,
+            DeviceId = deviceId,
+            ProblemCode = problemCode,
+            Status = status
+        };
+    }
+
+    private static IReadOnlyList<string> MergeHardwareIds(IReadOnlyList<string> existing, IReadOnlyList<string> incoming)
+    {
+        if (existing.Count == 0)
+        {
+            return incoming;
+        }
+
+        if (incoming.Count == 0)
+        {
+            return existing;
+        }
+
+        return existing
+            .Concat(incoming)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string PreferStatus(string existing, string incoming)
+    {
+        if (string.IsNullOrWhiteSpace(existing) || string.Equals(existing, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return incoming;
+        }
+
+        if (string.IsNullOrWhiteSpace(incoming) || string.Equals(incoming, "Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            return existing;
+        }
+
+        return existing;
+    }
+
+    private static string? PreferString(string? existing, string? candidate)
+    {
+        return string.IsNullOrWhiteSpace(existing) ? candidate : existing;
+    }
+
+    private static string ReplacePlaceholder(string existing, string replacement, string placeholder)
+    {
+        if (!string.Equals(existing, placeholder, StringComparison.OrdinalIgnoreCase))
+        {
+            return existing;
+        }
+
+        return string.Equals(replacement, placeholder, StringComparison.OrdinalIgnoreCase)
+            ? existing
+            : replacement;
     }
 
     private static string ResolveDriverStatus(string? rawStatus, int? problemCode, bool? isSigned)
