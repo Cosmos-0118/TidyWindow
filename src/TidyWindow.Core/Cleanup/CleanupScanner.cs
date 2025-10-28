@@ -100,6 +100,9 @@ internal sealed class CleanupScanner
         var topFiles = new TopN<CleanupPreviewItem>(previewCount);
 
         var nowUtc = DateTime.UtcNow;
+        List<CleanupFileContext>? fileCandidates = previewCount > 0 && itemKind != CleanupItemKind.Folders
+            ? new List<CleanupFileContext>()
+            : null;
 
         try
         {
@@ -112,7 +115,7 @@ internal sealed class CleanupScanner
 
                 var wasRecentlyModified = IsRecentlyModified(file.LastModifiedUtc, nowUtc);
 
-                if (previewCount > 0 && itemKind != CleanupItemKind.Folders)
+                if (fileCandidates is not null)
                 {
                     var context = new CleanupFileContext(
                         file.Name,
@@ -122,24 +125,16 @@ internal sealed class CleanupScanner
                         file.LastModifiedUtc,
                         file.IsHidden,
                         file.IsSystem,
-                        wasRecentlyModified);
-                    var evaluation = CleanupIntelligence.EvaluateFile(definition, context, nowUtc);
-                    if (evaluation.ShouldInclude)
+                        wasRecentlyModified,
+                        file.LastAccessUtc,
+                        file.CreationUtc);
+
+                    if (CleanupIntelligence.ShouldCheckActiveLock(definition, context))
                     {
-                        var previewItem = new CleanupPreviewItem(
-                            file.Name,
-                            file.FullPath,
-                            file.SizeBytes,
-                            file.LastModifiedUtc,
-                            isDirectory: false,
-                            file.Extension,
-                            file.IsHidden,
-                            file.IsSystem,
-                            wasRecentlyModified,
-                            evaluation.Confidence,
-                            evaluation.Signals);
-                        topFiles.TryAdd(previewItem, evaluation.Weight);
+                        context = context.WithLockState(HasActiveLock(file.FullPath));
                     }
+
+                    fileCandidates.Add(context);
                 }
 
                 if (itemKind != CleanupItemKind.Files && directoryStats.Count > 0)
@@ -158,6 +153,56 @@ internal sealed class CleanupScanner
         {
             warnings.Add(ex.Message);
             return BuildErrorReport(definition, resolvedPath, ex.Message, warnings);
+        }
+
+        var lockedSkipCount = 0;
+        if (fileCandidates is not null && fileCandidates.Count > 0)
+        {
+            IReadOnlySet<string>? protectedCrashPaths = null;
+            if (ShouldApplyCrashRetention(definition))
+            {
+                var candidateSet = CleanupCrashRetentionPolicy.GetPathsToProtect(fileCandidates);
+                if (candidateSet.Count > 0)
+                {
+                    protectedCrashPaths = candidateSet;
+                }
+            }
+
+            foreach (var context in fileCandidates)
+            {
+                if (context.IsLocked)
+                {
+                    lockedSkipCount++;
+                    continue;
+                }
+
+                if (protectedCrashPaths is not null && !string.IsNullOrWhiteSpace(context.FullPath) && protectedCrashPaths.Contains(context.FullPath))
+                {
+                    continue;
+                }
+
+                var evaluation = CleanupIntelligence.EvaluateFile(definition, context, nowUtc);
+                if (!evaluation.ShouldInclude)
+                {
+                    continue;
+                }
+
+                var previewItem = new CleanupPreviewItem(
+                    context.Name,
+                    context.FullPath,
+                    context.SizeBytes,
+                    context.LastModifiedUtc,
+                    isDirectory: false,
+                    context.Extension,
+                    context.IsHidden,
+                    context.IsSystem,
+                    context.WasRecentlyModified,
+                    evaluation.Confidence,
+                    evaluation.Signals,
+                    context.LastAccessUtc,
+                    context.CreationUtc);
+                topFiles.TryAdd(previewItem, evaluation.Weight);
+            }
         }
 
         var directoriesCount = directoryStats.Count;
@@ -191,6 +236,11 @@ internal sealed class CleanupScanner
         }
 
         var combinedPreview = CombinePreviews(topFiles, topDirectories, previewCount);
+
+        if (lockedSkipCount > 0)
+        {
+            warnings.Add($"Skipped {lockedSkipCount:N0} files because they are still in use.");
+        }
 
         var itemCount = itemKind switch
         {
@@ -236,6 +286,13 @@ internal sealed class CleanupScanner
             .ToList();
     }
 
+    private static bool ShouldApplyCrashRetention(CleanupTargetDefinition definition)
+    {
+        var classification = definition.Classification ?? string.Empty;
+        var normalized = classification.Trim().ToLowerInvariant();
+        return normalized is "orphaned" or "logs";
+    }
+
     private static Dictionary<string, DirectoryAccumulator> InitializeDirectoryStats(string rootPath, EnumerationOptions options)
     {
         var stats = new Dictionary<string, DirectoryAccumulator>(StringComparer.OrdinalIgnoreCase);
@@ -279,6 +336,8 @@ internal sealed class CleanupScanner
                     DirectoryPath = directoryPath,
                     SizeBytes = entry.Length,
                     LastModifiedUtc = entry.LastWriteTimeUtc.UtcDateTime,
+                    LastAccessUtc = entry.LastAccessTimeUtc.UtcDateTime,
+                    CreationUtc = entry.CreationTimeUtc.UtcDateTime,
                     Extension = extension,
                     IsHidden = entry.Attributes.HasFlag(FileAttributes.Hidden),
                     IsSystem = entry.Attributes.HasFlag(FileAttributes.System)
@@ -305,6 +364,33 @@ internal sealed class CleanupScanner
         catch
         {
             return Array.Empty<string>();
+        }
+    }
+
+    private static bool HasActiveLock(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.None);
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
@@ -561,6 +647,10 @@ internal sealed class CleanupScanner
         public long SizeBytes { get; set; }
 
         public DateTime LastModifiedUtc { get; set; }
+
+        public DateTime LastAccessUtc { get; set; }
+
+        public DateTime CreationUtc { get; set; }
 
         public string? Extension { get; set; }
 

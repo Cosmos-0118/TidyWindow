@@ -90,7 +90,9 @@ public sealed class CleanupPreviewItem
         bool isSystem = false,
         bool wasModifiedRecently = false,
         double confidence = 0d,
-        IReadOnlyList<string>? signals = null)
+        IReadOnlyList<string>? signals = null,
+        DateTime? lastAccessUtc = null,
+        DateTime? creationUtc = null)
     {
         Name = string.IsNullOrWhiteSpace(name) ? "(unknown)" : name;
         FullName = fullName ?? string.Empty;
@@ -102,6 +104,8 @@ public sealed class CleanupPreviewItem
         IsSystem = isSystem;
         WasModifiedRecently = wasModifiedRecently;
         Confidence = double.IsNaN(confidence) ? 0d : Math.Clamp(confidence, 0d, 1d);
+        LastAccessUtc = lastAccessUtc ?? DateTime.MinValue;
+        CreationUtc = creationUtc ?? DateTime.MinValue;
         Signals = signals is null
             ? Array.Empty<string>()
             : signals.Where(static signal => !string.IsNullOrWhiteSpace(signal))
@@ -117,6 +121,10 @@ public sealed class CleanupPreviewItem
     public long SizeBytes { get; }
 
     public DateTime LastModifiedUtc { get; }
+
+    public DateTime LastAccessUtc { get; }
+
+    public DateTime CreationUtc { get; }
 
     public bool IsDirectory { get; }
 

@@ -198,6 +198,20 @@ public sealed partial class CleanupPreviewItemViewModel : ObservableObject
 
     public DateTime LastModifiedLocal => Model.LastModifiedUtc.ToLocalTime();
 
+    public DateTime LastAccessLocal => Model.LastAccessUtc == DateTime.MinValue ? DateTime.MinValue : Model.LastAccessUtc.ToLocalTime();
+
+    public DateTime CreationLocal => Model.CreationUtc == DateTime.MinValue ? DateTime.MinValue : Model.CreationUtc.ToLocalTime();
+
+    public bool HasLastAccess => Model.LastAccessUtc != DateTime.MinValue;
+
+    public bool HasCreation => Model.CreationUtc != DateTime.MinValue;
+
+    public string LastModifiedDisplay => FormatTimestamp(Model.LastModifiedUtc);
+
+    public string LastAccessDisplay => FormatTimestamp(Model.LastAccessUtc);
+
+    public string CreationDisplay => FormatTimestamp(Model.CreationUtc);
+
     public long SizeBytes => Model.SizeBytes;
 
     public double SizeMegabytes => Model.SizeMegabytes;
@@ -223,9 +237,9 @@ public sealed partial class CleanupPreviewItemViewModel : ObservableObject
     public string ConfidenceDescription => Confidence switch
     {
         >= 0.85 => "Very high confidence",
-        >= 0.6 => "High confidence",
-        >= 0.35 => "Moderate confidence",
-        > 0 => "Low confidence",
+        >= 0.65 => "High confidence",
+        >= 0.45 => "Moderate confidence",
+        >= 0.25 => "Low confidence",
         _ => "Minimal signals"
     };
 
@@ -248,5 +262,15 @@ public sealed partial class CleanupPreviewItemViewModel : ObservableObject
         {
             // Clipboard access can be unavailable in some sessions; ignore failures.
         }
+    }
+
+    private static string FormatTimestamp(DateTime utc)
+    {
+        if (utc == DateTime.MinValue || utc == DateTime.MaxValue)
+        {
+            return "--";
+        }
+
+        return utc.ToLocalTime().ToString("g");
     }
 }

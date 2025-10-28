@@ -1029,7 +1029,35 @@
                                                     </GridViewColumn.Header>
                                                     <GridViewColumn.CellTemplate>
                                                         <DataTemplate>
-                                                            <TextBlock Text="{Binding LastModifiedLocal, StringFormat={}{0:g}}"
+                                                            <TextBlock Text="{Binding LastModifiedDisplay}"
+                                                                       FontSize="12"
+                                                                       Foreground="#94A3B8"
+                                                                       TextAlignment="Right"
+                                                                       HorizontalAlignment="Stretch"/>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                                <GridViewColumn Width="180">
+                                                    <GridViewColumn.Header>
+                                                        <TextBlock Text="Last accessed"/>
+                                                    </GridViewColumn.Header>
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding LastAccessDisplay}"
+                                                                       FontSize="12"
+                                                                       Foreground="#94A3B8"
+                                                                       TextAlignment="Right"
+                                                                       HorizontalAlignment="Stretch"/>
+                                                        </DataTemplate>
+                                                    </GridViewColumn.CellTemplate>
+                                                </GridViewColumn>
+                                                <GridViewColumn Width="180">
+                                                    <GridViewColumn.Header>
+                                                        <TextBlock Text="Created"/>
+                                                    </GridViewColumn.Header>
+                                                    <GridViewColumn.CellTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding CreationDisplay}"
                                                                        FontSize="12"
                                                                        Foreground="#94A3B8"
                                                                        TextAlignment="Right"

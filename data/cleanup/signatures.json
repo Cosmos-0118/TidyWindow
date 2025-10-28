@@ -1,0 +1,64 @@
+{
+  "temporaryExtensions": [
+    ".tmp",
+    ".temp",
+    ".bak",
+    ".old",
+    ".chk",
+    "._mp",
+    ".partial",
+    ".part",
+    ".cache",
+    ".copy",
+    ".swo",
+    ".swp",
+    ".tmpx",
+    ".~",
+    ".tmp1",
+    ".tmp2",
+    ".tmp3",
+    ".tmp4",
+    ".sbstore"
+  ],
+  "crashDumpExtensions": [
+    ".dmp",
+    ".mdmp",
+    ".hdmp",
+    ".wer"
+  ],
+  "partialDownloadExtensions": [
+    ".crdownload",
+    ".download",
+    ".opdownload",
+    ".ucas",
+    ".aria2",
+    ".part",
+    ".partial"
+  ],
+  "logExtensions": [
+    ".log",
+    ".etl",
+    ".evtx",
+    ".wrn"
+  ],
+  "exactCrashFileNames": [
+    "memory.dmp",
+    "setupact.log",
+    "setuperr.log",
+    "windowsupdate.log"
+  ],
+  "crashFilePrefixes": [
+    "setup",
+    "crash",
+    "wer"
+  ],
+  "crashPathHints": [
+    "\\\\AppData\\\\Local\\\\CrashDumps",
+    "\\\\AppData\\\\Local\\\\Microsoft\\\\Windows\\\\WER",
+    "\\\\ProgramData\\\\Microsoft\\\\Windows\\\\WER",
+    "\\\\Windows\\\\Minidump",
+    "\\\\Windows\\\\Logs\\\\WindowsUpdate",
+    "\\\\ProgramData\\\\Package Cache"
+  ],
+  "crashDumpNewestRetentionCount": 2
+}

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 
 namespace TidyWindow.Core.Cleanup;
@@ -34,7 +35,10 @@ internal readonly struct CleanupFileContext
         DateTime lastModifiedUtc,
         bool isHidden,
         bool isSystem,
-        bool wasRecentlyModified)
+        bool wasRecentlyModified,
+        DateTime lastAccessUtc = default,
+        DateTime creationUtc = default,
+        bool isLocked = false)
     {
         Name = string.IsNullOrWhiteSpace(name) ? string.Empty : name.Trim();
         FullPath = fullPath ?? string.Empty;
@@ -44,6 +48,9 @@ internal readonly struct CleanupFileContext
         IsHidden = isHidden;
         IsSystem = isSystem;
         WasRecentlyModified = wasRecentlyModified;
+        LastAccessUtc = lastAccessUtc == default ? DateTime.MinValue : DateTime.SpecifyKind(lastAccessUtc, DateTimeKind.Utc);
+        CreationUtc = creationUtc == default ? DateTime.MinValue : DateTime.SpecifyKind(creationUtc, DateTimeKind.Utc);
+        IsLocked = isLocked;
     }
 
     public string Name { get; }
@@ -56,11 +63,38 @@ internal readonly struct CleanupFileContext
 
     public DateTime LastModifiedUtc { get; }
 
+    public DateTime LastAccessUtc { get; }
+
+    public DateTime CreationUtc { get; }
+
     public bool IsHidden { get; }
 
     public bool IsSystem { get; }
 
     public bool WasRecentlyModified { get; }
+
+    public bool IsLocked { get; }
+
+    public CleanupFileContext WithLockState(bool isLocked)
+    {
+        if (isLocked == IsLocked)
+        {
+            return this;
+        }
+
+        return new CleanupFileContext(
+            Name,
+            FullPath,
+            Extension,
+            SizeBytes,
+            LastModifiedUtc,
+            IsHidden,
+            IsSystem,
+            WasRecentlyModified,
+            LastAccessUtc,
+            CreationUtc,
+            isLocked);
+    }
 }
 
 internal readonly struct CleanupDirectorySnapshot
@@ -128,53 +162,7 @@ internal readonly struct CleanupDirectorySnapshot
 
 internal static class CleanupIntelligence
 {
-
-    private static readonly HashSet<string> TemporaryExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".tmp",
-        ".temp",
-        ".bak",
-        ".old",
-        ".chk",
-        "._mp",
-        ".partial",
-        ".part",
-        ".cache",
-        ".copy",
-        ".swo",
-        ".swp",
-        ".tmpx",
-        ".~",
-        ".tmp1",
-        ".tmp2",
-        ".tmp3",
-        ".tmp4"
-    };
-
-    private static readonly HashSet<string> CrashDumpExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".dmp",
-        ".mdmp",
-        ".hdmp"
-    };
-
-    private static readonly HashSet<string> PartialDownloadExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".crdownload",
-        ".download",
-        ".opdownload",
-        ".ucas",
-        ".aria2",
-        ".part",
-        ".partial"
-    };
-
-    private static readonly HashSet<string> LogExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".log",
-        ".etl",
-        ".evtx"
-    };
+    private const double MaxScore = 1.5d;
 
     private static readonly HashSet<string> NoiseFileNames = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -185,6 +173,8 @@ internal static class CleanupIntelligence
         "fntcache.dat"
     };
 
+    private static CleanupSignatureCatalog.SignatureSnapshot Signatures => CleanupSignatureCatalog.Snapshot;
+
     public static bool IsTempExtension(string? extension)
     {
         if (string.IsNullOrWhiteSpace(extension))
@@ -192,11 +182,18 @@ internal static class CleanupIntelligence
             return false;
         }
 
-        return TemporaryExtensions.Contains(NormalizeExtension(extension));
+        var normalized = NormalizeExtension(extension);
+        return Signatures.TemporaryExtensions.Contains(normalized);
     }
 
     public static CleanupCandidateScore EvaluateFile(CleanupTargetDefinition definition, in CleanupFileContext context, DateTime referenceUtc)
     {
+        if (context.IsLocked)
+        {
+            return new CleanupCandidateScore(false, 0d, 0, new[] { "Active handle detected" });
+        }
+
+        var signatures = Signatures;
         var signals = new List<string>(6);
         var score = 0d;
         var classification = definition.Classification ?? string.Empty;
@@ -232,22 +229,22 @@ internal static class CleanupIntelligence
         }
 
         var extension = NormalizeExtension(context.Extension);
-        if (TemporaryExtensions.Contains(extension))
+        if (signatures.TemporaryExtensions.Contains(extension))
         {
             score += 0.35;
             signals.Add($"Temporary extension ({extension})");
         }
-        else if (CrashDumpExtensions.Contains(extension))
+        else if (signatures.CrashDumpExtensions.Contains(extension))
         {
             score += 0.4;
             signals.Add("Crash dump artifact");
         }
-        else if (PartialDownloadExtensions.Contains(extension))
+        else if (signatures.PartialDownloadExtensions.Contains(extension))
         {
             score += 0.3;
             signals.Add("Incomplete download");
         }
-        else if (LogExtensions.Contains(extension))
+        else if (signatures.LogExtensions.Contains(extension))
         {
             score += 0.25;
             signals.Add("Log file");
@@ -267,6 +264,61 @@ internal static class CleanupIntelligence
             {
                 score += 0.2;
                 signals.Add("Known redundant shell artifact");
+            }
+
+            if (signatures.ExactCrashFileNames.Contains(normalizedName))
+            {
+                score += 0.45;
+                signals.Add("Recognized crash artifact");
+            }
+            else
+            {
+                foreach (var prefix in signatures.CrashFilePrefixes)
+                {
+                    if (normalizedName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                    {
+                        score += 0.2;
+                        signals.Add($"Crash signature prefix ({prefix}*)");
+                        break;
+                    }
+                }
+            }
+
+            if (normalizedName == "memory.dmp")
+            {
+                score += 0.4;
+                signals.Add("Full memory dump");
+            }
+
+            if (normalizedName.EndsWith(".wer", StringComparison.OrdinalIgnoreCase))
+            {
+                score += 0.25;
+                signals.Add("Windows Error Reporting package");
+            }
+
+            if (normalizedName.StartsWith("setup", StringComparison.OrdinalIgnoreCase) && extension.Equals(".log", StringComparison.OrdinalIgnoreCase))
+            {
+                score += 0.2;
+                signals.Add("Installer setup log");
+            }
+        }
+
+        var normalizedFullPath = NormalizePath(context.FullPath);
+        if (!string.IsNullOrWhiteSpace(normalizedFullPath))
+        {
+            foreach (var hint in signatures.CrashPathHints)
+            {
+                if (string.IsNullOrWhiteSpace(hint))
+                {
+                    continue;
+                }
+
+                if (normalizedFullPath.IndexOf(hint, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    score += 0.2;
+                    signals.Add($"Crash path hint ({hint})");
+                    break;
+                }
             }
         }
 
@@ -325,6 +377,7 @@ internal static class CleanupIntelligence
         if (context.WasRecentlyModified)
         {
             score -= 0.2;
+            signals.Add("Recently written");
         }
 
         if (normalizedClass == "logs" && ageDays >= 14)
@@ -333,24 +386,70 @@ internal static class CleanupIntelligence
             signals.Add("Stale log file");
         }
 
-        score = Math.Clamp(score, 0d, 1.5d);
-        var confidence = Math.Clamp(score, 0d, 1d);
+        if (context.LastAccessUtc != DateTime.MinValue)
+        {
+            var accessAge = DaysBetween(context.LastAccessUtc, referenceUtc);
+            if (!double.IsPositiveInfinity(accessAge))
+            {
+                if (accessAge <= 1)
+                {
+                    score -= 0.2;
+                    signals.Add("Accessed within the last day");
+                }
+                else if (accessAge <= 7)
+                {
+                    score -= 0.1;
+                    signals.Add("Accessed within the last week");
+                }
+                else if (accessAge >= 180)
+                {
+                    score += 0.25;
+                    signals.Add("No access in 180+ days");
+                }
+                else if (accessAge >= 60)
+                {
+                    score += 0.15;
+                    signals.Add("No access in 60+ days");
+                }
+            }
+        }
+
+        if (context.CreationUtc != DateTime.MinValue)
+        {
+            var creationAge = DaysBetween(context.CreationUtc, referenceUtc);
+            if (!double.IsPositiveInfinity(creationAge))
+            {
+                if (creationAge <= 3)
+                {
+                    score -= 0.15;
+                    signals.Add("Recently created");
+                }
+                else if (creationAge >= 365)
+                {
+                    score += 0.1;
+                    signals.Add("Created over a year ago");
+                }
+            }
+        }
+
+        score = Math.Clamp(score, 0d, MaxScore);
+        var confidence = ConvertScoreToConfidence(score);
 
         var include = true;
         if (normalizedClass == "orphaned")
         {
-            include = confidence >= 0.25 || signals.Count > 0 || TemporaryExtensions.Contains(extension) || PartialDownloadExtensions.Contains(extension);
+            include = confidence >= 0.35 || signals.Count > 0 || signatures.TemporaryExtensions.Contains(extension) || signatures.PartialDownloadExtensions.Contains(extension) || signatures.CrashDumpExtensions.Contains(extension);
         }
         else if (normalizedClass == "logs")
         {
-            include = sizeBytes > 4096 || confidence >= 0.2;
+            include = sizeBytes > 4096 || confidence >= 0.25;
         }
 
         if (!include && sizeBytes >= 50_331_648)
         {
             include = true;
             signals.Add("Included because of large footprint");
-            confidence = Math.Max(confidence, 0.3);
+            confidence = Math.Max(confidence, 0.35);
         }
 
         var weight = ComputeWeight(sizeBytes, confidence, isDirectoryCandidate: false);
@@ -475,8 +574,8 @@ internal static class CleanupIntelligence
             score += 0.2;
         }
 
-        score = Math.Clamp(score, 0d, 1.5d);
-        var confidence = Math.Clamp(score, 0d, 1d);
+        score = Math.Clamp(score, 0d, MaxScore);
+        var confidence = ConvertScoreToConfidence(score);
 
         var include = snapshot.FileCount > 0 || snapshot.SizeBytes > 0 || snapshot.IsEmpty;
         if (normalizedClass == "orphaned")
@@ -490,6 +589,163 @@ internal static class CleanupIntelligence
             : signals.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
         return new CleanupCandidateScore(include, confidence, weight, finalSignals);
+    }
+
+    public static bool ShouldCheckActiveLock(CleanupTargetDefinition definition, in CleanupFileContext context)
+    {
+        if (context.IsLocked)
+        {
+            return false;
+        }
+
+        var normalizedClass = NormalizeClassification(definition.Classification);
+
+        if (IsCrashArtifact(context))
+        {
+            return true;
+        }
+
+        if (context.SizeBytes >= 32L * 1024 * 1024)
+        {
+            return true;
+        }
+
+        if (normalizedClass == "logs" && context.WasRecentlyModified)
+        {
+            return true;
+        }
+
+        if (normalizedClass == "temp" && context.WasRecentlyModified && context.SizeBytes >= 4L * 1024 * 1024)
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    internal static bool IsCrashArtifact(in CleanupFileContext context)
+    {
+        var signatures = Signatures;
+        var extension = NormalizeExtension(context.Extension);
+        if (signatures.CrashDumpExtensions.Contains(extension))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(context.Name))
+        {
+            var normalizedName = context.Name.ToLowerInvariant();
+            if (signatures.ExactCrashFileNames.Contains(normalizedName) || normalizedName.EndsWith(".wer", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            foreach (var prefix in signatures.CrashFilePrefixes)
+            {
+                if (normalizedName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        var normalizedPath = NormalizePath(context.FullPath);
+        if (!string.IsNullOrWhiteSpace(normalizedPath))
+        {
+            foreach (var hint in signatures.CrashPathHints)
+            {
+                if (!string.IsNullOrWhiteSpace(hint) && normalizedPath.IndexOf(hint, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    internal static string GetCrashProductKey(in CleanupFileContext context)
+    {
+        var name = context.Name;
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var normalizedName = name.ToLowerInvariant();
+        if (normalizedName == "memory.dmp")
+        {
+            return "system-memory";
+        }
+
+        var extension = NormalizeExtension(context.Extension);
+        var signatures = Signatures;
+        var isCrashExtension = signatures.CrashDumpExtensions.Contains(extension) || normalizedName.EndsWith(".wer", StringComparison.OrdinalIgnoreCase);
+        if (!isCrashExtension)
+        {
+            return normalizedName;
+        }
+
+        var trimmed = normalizedName;
+        if (!string.IsNullOrEmpty(extension) && trimmed.EndsWith(extension, StringComparison.OrdinalIgnoreCase))
+        {
+            trimmed = trimmed[..^extension.Length];
+        }
+
+        if (trimmed.Length == 0)
+        {
+            return normalizedName;
+        }
+
+        var delimiters = new[] { '.', '-', '_', ' ' };
+        var segments = trimmed.Split(delimiters, StringSplitOptions.RemoveEmptyEntries);
+        foreach (var segment in segments)
+        {
+            if (segment.All(static ch => char.IsDigit(ch)))
+            {
+                continue;
+            }
+
+            if (segment.Equals("dmp", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (segment.EndsWith("exe", StringComparison.OrdinalIgnoreCase))
+            {
+                return segment;
+            }
+
+            return segment;
+        }
+
+        return trimmed;
+    }
+
+    internal static DateTime GetMostRecentTimestamp(in CleanupFileContext context)
+    {
+        var candidate = context.LastModifiedUtc;
+        if (context.LastAccessUtc > candidate)
+        {
+            candidate = context.LastAccessUtc;
+        }
+
+        if (context.CreationUtc > candidate)
+        {
+            candidate = context.CreationUtc;
+        }
+
+        return candidate;
+    }
+
+    private static string NormalizePath(string? fullPath)
+    {
+        if (string.IsNullOrWhiteSpace(fullPath))
+        {
+            return string.Empty;
+        }
+
+        return fullPath.Replace("/", "\\");
     }
 
     private static long ComputeWeight(long sizeBytes, double confidence, bool isDirectoryCandidate)
@@ -528,6 +784,31 @@ internal static class CleanupIntelligence
         }
 
         return trimmed.ToLowerInvariant();
+    }
+
+    private static double ConvertScoreToConfidence(double score)
+    {
+        if (score <= 0)
+        {
+            return 0d;
+        }
+
+        var normalized = Math.Clamp(score / MaxScore, 0d, 1d);
+        var centered = (normalized - 0.5d) * 6d;
+        var logistic = Sigmoid(centered);
+        return Math.Clamp(logistic, 0d, 1d);
+    }
+
+    private static double Sigmoid(double value)
+    {
+        return 1d / (1d + Math.Exp(-value));
+    }
+
+    private static string NormalizeClassification(string? classification)
+    {
+        return string.IsNullOrWhiteSpace(classification)
+            ? string.Empty
+            : classification.Trim().ToLowerInvariant();
     }
 
     private static double DaysBetween(DateTime timestampUtc, DateTime referenceUtc)
