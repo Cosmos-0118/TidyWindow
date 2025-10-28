@@ -157,20 +157,15 @@
             <Grid x:Name="LayoutGrid"
                   Grid.Row="1"
                   Margin="0,28,0,0">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="3*"
+                                      MinWidth="360"/>
                     <ColumnDefinition Width="2*"
                                       MinWidth="320"/>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*"/>
-                        <ColumnDefinition Width="2*"/>
-                    </Grid.ColumnDefinitions>
-                    Grid.Column="0"
-                      Grid.RowSpan="2"
+                </Grid.ColumnDefinitions>
+
+            <Grid x:Name="LeftColumn"
+                Grid.Column="0"
                       Margin="0,0,24,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -554,21 +549,19 @@
                             </TextBlock>
                         </Grid>
                     </Border>
-            </Grid>
+                </Grid>
 
-            <Border x:Name="QueueCard"
-                    Grid.Row="0"
-                    Grid.Column="1"
-                    Grid.RowSpan="2"
-                    Background="#111827"
-                    CornerRadius="12"
-                    Padding="20"
-                    MinWidth="320"
-                    Width="Auto"
-                    HorizontalAlignment="Stretch"
-                    Margin="16,0,0,0"
-                    BorderBrush="#1E293B"
-                    BorderThickness="1">
+                <Border x:Name="QueueCard"
+                        Grid.Column="1"
+                        Background="#111827"
+                        CornerRadius="12"
+                        Padding="20"
+                        MinWidth="320"
+                        Width="Auto"
+                        HorizontalAlignment="Stretch"
+                        Margin="16,0,0,0"
+                        BorderBrush="#1E293B"
+                        BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -713,6 +706,6 @@
                 </Grid>
             </Border>
         </Grid>
-        </Grid>
+    </Grid>
     </ScrollViewer>
 </Page>

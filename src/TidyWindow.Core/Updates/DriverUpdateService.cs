@@ -17,6 +17,42 @@ public sealed class DriverUpdateService
         PropertyNameCaseInsensitive = true
     };
 
+    private static readonly IReadOnlyDictionary<int, string> DeviceProblemCodeDescriptions = new Dictionary<int, string>
+    {
+        { 0, "Working" },
+        { 1, "Configuration required" },
+        { 2, "Driver failed to load" },
+        { 3, "Driver may be corrupted" },
+        { 4, "Device reported a problem" },
+        { 5, "Resource allocation failure" },
+        { 6, "Boot configuration conflict" },
+        { 7, "Cannot filter device" },
+        { 8, "Driver loader missing" },
+        { 9, "Hardware signaled a failure" },
+        { 10, "Cannot start" },
+        { 11, "Device failure" },
+        { 12, "Not enough resources" },
+        { 13, "Resource verification failed" },
+        { 14, "Restart required" },
+        { 15, "Driver configuration incomplete" },
+        { 16, "Cannot identify required resources" },
+        { 17, "Device caused a system failure" },
+        { 18, "Reinstall the driver" },
+        { 19, "Configuration data invalid" },
+        { 20, "Conflicts with another device" },
+        { 21, "Device is being removed" },
+        { 22, "Disabled" },
+        { 23, "System failure" },
+        { 24, "Hardware missing or offline" },
+        { 25, "Device reported removal" },
+        { 26, "Device not ready" },
+        { 27, "No valid log configuration" },
+        { 28, "Driver not installed" },
+        { 29, "Firmware failed to start" },
+        { 30, "Incorrect driver loaded" },
+        { 31, "Driver not working properly" }
+    };
+
     private readonly PowerShellInvoker _powerShellInvoker;
 
     public DriverUpdateService(PowerShellInvoker powerShellInvoker)
@@ -46,7 +82,15 @@ public sealed class DriverUpdateService
         var jsonPayload = ExtractJsonPayload(result.Output);
         if (string.IsNullOrWhiteSpace(jsonPayload))
         {
-            return new DriverUpdateScanResult(Array.Empty<DriverUpdateInfo>(), DateTimeOffset.UtcNow, NormalizeWarnings(result.Errors));
+            return new DriverUpdateScanResult(
+                Array.Empty<DriverUpdateInfo>(),
+                DateTimeOffset.UtcNow,
+                NormalizeWarnings(result.Errors),
+                Array.Empty<InstalledDriverInfo>(),
+                null,
+                0,
+                0,
+                Array.Empty<string>());
         }
 
         DriverUpdatePayload? payload;
@@ -60,15 +104,32 @@ public sealed class DriverUpdateService
         }
 
         var updates = MapUpdates(payload?.Updates);
+        var installedDrivers = MapInstalledDrivers(payload?.InstalledDrivers);
+        var filters = MapFilters(payload?.AppliedFilters);
         var generatedAt = ResolveTimestamp(payload?.GeneratedAtUtc) ?? DateTimeOffset.UtcNow;
 
-        var warnings = NormalizeWarnings(result.Errors);
+        var warningsBuffer = new List<string>(NormalizeWarnings(result.Errors));
         if ((payload?.SkippedOptional ?? 0) > 0 && !(payload?.IncludeOptional ?? false))
         {
-            warnings = warnings.Concat(new[] { $"Skipped {payload!.SkippedOptional} optional update(s)." }).ToArray();
+            warningsBuffer.Add($"Skipped {payload!.SkippedOptional} optional update(s). Enable optional scans to include them.");
         }
 
-        return new DriverUpdateScanResult(updates, generatedAt, warnings);
+        if ((payload?.SkippedByFilters ?? 0) > 0)
+        {
+            warningsBuffer.Add($"{payload!.SkippedByFilters} update(s) were filtered out by driver class or vendor rules.");
+        }
+
+        var warnings = NormalizeWarnings(warningsBuffer);
+
+        return new DriverUpdateScanResult(
+            updates,
+            generatedAt,
+            warnings,
+            installedDrivers,
+            filters,
+            payload?.SkippedOptional ?? 0,
+            payload?.SkippedByFilters ?? 0,
+            payload?.SkipDetails is null ? Array.Empty<string>() : NormalizeWarnings(payload.SkipDetails));
     }
 
     private static IReadOnlyList<DriverUpdateInfo> MapUpdates(IEnumerable<DriverUpdateJson>? entries)
@@ -123,6 +184,14 @@ public sealed class DriverUpdateService
             var description = Normalize(entry.Description);
             var status = DetermineStatus(currentVersion, availableVersion);
             var isOptional = entry.IsOptional ?? false;
+            var driverClass = Normalize(entry.DriverClass);
+            var classification = Normalize(entry.Classification);
+            var severity = Normalize(entry.Severity);
+            var updateId = Normalize(entry.UpdateId);
+            var revisionNumber = entry.RevisionNumber;
+            var installedInfPath = Normalize(entry.InstalledInfPath);
+            var installedManufacturer = Normalize(entry.InstalledManufacturer);
+            var comparison = MapVersionComparison(entry.VersionComparison);
 
             items.Add(new DriverUpdateInfo(
                 title,
@@ -137,12 +206,180 @@ public sealed class DriverUpdateService
                 informationLinks,
                 isOptional,
                 status,
-                description));
+        description,
+        driverClass,
+        classification,
+        severity,
+        updateId,
+        revisionNumber,
+        installedInfPath,
+        installedManufacturer,
+        comparison));
         }
 
         return items
             .OrderByDescending(static item => item.Status == DriverUpdateStatus.UpdateAvailable ? 1 : 0)
             .ThenBy(static item => item.DeviceName, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static VersionComparisonInfo MapVersionComparison(VersionComparisonJson? metadata)
+    {
+        var details = Normalize(metadata?.Details);
+
+        if (metadata is null || string.IsNullOrWhiteSpace(metadata.Status))
+        {
+            return new VersionComparisonInfo(VersionComparisonStatus.Unknown, details);
+        }
+
+        if (Enum.TryParse<VersionComparisonStatus>(metadata.Status, true, out var parsed))
+        {
+            return new VersionComparisonInfo(parsed, details);
+        }
+
+        return new VersionComparisonInfo(VersionComparisonStatus.Unknown, details);
+    }
+
+    private static IReadOnlyList<InstalledDriverInfo> MapInstalledDrivers(IEnumerable<InstalledDriverJson>? entries)
+    {
+        if (entries is null)
+        {
+            return Array.Empty<InstalledDriverInfo>();
+        }
+
+        var items = new List<InstalledDriverInfo>();
+
+        foreach (var entry in entries)
+        {
+            if (entry is null)
+            {
+                continue;
+            }
+
+            var hardwareIds = NormalizeStringArray(entry.HardwareIds, StringComparer.OrdinalIgnoreCase);
+            var driverDate = ResolveTimestamp(entry.DriverDate);
+            var installDate = ResolveTimestamp(entry.InstallDate);
+            var status = ResolveDriverStatus(entry.Status, entry.ProblemCode, entry.Signed);
+
+            items.Add(new InstalledDriverInfo(
+                Normalize(entry.DeviceName) ?? "Unknown device",
+                Normalize(entry.Manufacturer),
+                Normalize(entry.Provider),
+                Normalize(entry.DriverVersion),
+                driverDate,
+                installDate,
+                Normalize(entry.ClassGuid),
+                Normalize(entry.DriverDescription),
+                hardwareIds,
+                entry.Signed,
+                Normalize(entry.InfName),
+                Normalize(entry.DeviceId),
+                entry.ProblemCode,
+                status));
+        }
+
+        return items
+            .OrderBy(static item => item.DeviceName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(static item => item.DriverVersion, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string ResolveDriverStatus(string? rawStatus, int? problemCode, bool? isSigned)
+    {
+        var normalized = Normalize(rawStatus);
+
+        if (!string.IsNullOrWhiteSpace(normalized) && !normalized.Equals("Unknown", StringComparison.OrdinalIgnoreCase))
+        {
+            if (normalized.Equals("OK", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Working";
+            }
+
+            if (normalized.Equals("Error", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Device reported a problem";
+            }
+
+            if (normalized.Equals("Degraded", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Running with reduced functionality";
+            }
+
+            if (normalized.Equals("Pred Fail", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Predictive failure reported";
+            }
+
+            if (normalized.Equals("Starting", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Starting";
+            }
+
+            if (normalized.Equals("Stopping", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Stopping";
+            }
+
+            return normalized;
+        }
+
+        if (problemCode is int code)
+        {
+            if (DeviceProblemCodeDescriptions.TryGetValue(code, out var description))
+            {
+                return description;
+            }
+
+            return $"Problem code {code}";
+        }
+
+        if (isSigned is false)
+        {
+            return "Unsigned";
+        }
+
+        if (isSigned is true)
+        {
+            return "Working";
+        }
+
+        return "Not reported";
+    }
+
+    private static DriverFilterSummary? MapFilters(DriverFilterMetadataJson? metadata)
+    {
+        if (metadata is null)
+        {
+            return null;
+        }
+
+        var include = NormalizeStringArray(metadata.IncludeDriverClasses, StringComparer.OrdinalIgnoreCase);
+        var exclude = NormalizeStringArray(metadata.ExcludeDriverClasses, StringComparer.OrdinalIgnoreCase);
+        var allow = NormalizeStringArray(metadata.AllowVendors, StringComparer.OrdinalIgnoreCase);
+        var block = NormalizeStringArray(metadata.BlockVendors, StringComparer.OrdinalIgnoreCase);
+
+        if (include.Length == 0 && exclude.Length == 0 && allow.Length == 0 && block.Length == 0)
+        {
+            return null;
+        }
+
+        return new DriverFilterSummary(include, exclude, allow, block);
+    }
+
+    private static string[] NormalizeStringArray(IEnumerable<string?>? values, IEqualityComparer<string>? comparer)
+    {
+        if (values is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        comparer ??= StringComparer.Ordinal;
+
+        return values
+            .Select(value => value?.Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .Distinct(comparer)
             .ToArray();
     }
 
@@ -258,7 +495,7 @@ public sealed class DriverUpdateService
         return segments;
     }
 
-    private static string[] NormalizeWarnings(IEnumerable<string> warnings)
+    private static string[] NormalizeWarnings(IEnumerable<string?> warnings)
     {
         if (warnings is null)
         {
@@ -268,6 +505,7 @@ public sealed class DriverUpdateService
         return warnings
             .Select(static warning => warning?.Trim())
             .Where(static warning => !string.IsNullOrWhiteSpace(warning))
+            .Select(static warning => warning!)
             .Distinct(StringComparer.Ordinal)
             .ToArray();
     }
@@ -318,10 +556,15 @@ public sealed class DriverUpdateService
 
     private sealed class DriverUpdatePayload
     {
+        public string? SchemaVersion { get; set; }
         public string? GeneratedAtUtc { get; set; }
         public bool? IncludeOptional { get; set; }
         public int? SkippedOptional { get; set; }
+        public int? SkippedByFilters { get; set; }
+        public string[]? SkipDetails { get; set; }
+        public DriverFilterMetadataJson? AppliedFilters { get; set; }
         public List<DriverUpdateJson>? Updates { get; set; }
+        public List<InstalledDriverJson>? InstalledDrivers { get; set; }
     }
 
     private sealed class DriverUpdateJson
@@ -338,6 +581,46 @@ public sealed class DriverUpdateService
         public string? Description { get; set; }
         public string[]? Categories { get; set; }
         public string[]? InformationUrls { get; set; }
+        public string? DriverClass { get; set; }
+        public string? Classification { get; set; }
+        public string? Severity { get; set; }
+        public string? UpdateId { get; set; }
+        public int? RevisionNumber { get; set; }
+        public string? InstalledInfPath { get; set; }
+        public string? InstalledManufacturer { get; set; }
+        public VersionComparisonJson? VersionComparison { get; set; }
+    }
+
+    private sealed class VersionComparisonJson
+    {
+        public string? Status { get; set; }
+        public string? Details { get; set; }
+    }
+
+    private sealed class DriverFilterMetadataJson
+    {
+        public string[]? IncludeDriverClasses { get; set; }
+        public string[]? ExcludeDriverClasses { get; set; }
+        public string[]? AllowVendors { get; set; }
+        public string[]? BlockVendors { get; set; }
+    }
+
+    private sealed class InstalledDriverJson
+    {
+        public string? DeviceName { get; set; }
+        public string? Manufacturer { get; set; }
+        public string? Provider { get; set; }
+        public string? DriverVersion { get; set; }
+        public string? DriverDate { get; set; }
+        public string? InstallDate { get; set; }
+        public string? ClassGuid { get; set; }
+        public string? DriverDescription { get; set; }
+        public string[]? HardwareIds { get; set; }
+        public bool? Signed { get; set; }
+        public string? InfName { get; set; }
+        public string? DeviceId { get; set; }
+        public int? ProblemCode { get; set; }
+        public string? Status { get; set; }
     }
 }
 
@@ -361,9 +644,54 @@ public sealed record DriverUpdateInfo(
     IReadOnlyList<Uri> InformationLinks,
     bool IsOptional,
     DriverUpdateStatus Status,
-    string? Description);
+    string? Description,
+    string? DriverClass,
+    string? Classification,
+    string? Severity,
+    string? UpdateId,
+    int? RevisionNumber,
+    string? InstalledInfPath,
+    string? InstalledManufacturer,
+    VersionComparisonInfo VersionComparison);
+
+public sealed record VersionComparisonInfo(VersionComparisonStatus Status, string? Details);
+
+public enum VersionComparisonStatus
+{
+    Unknown,
+    UpdateAvailable,
+    PotentialDowngrade,
+    Equal
+}
+
+public sealed record InstalledDriverInfo(
+    string DeviceName,
+    string? Manufacturer,
+    string? Provider,
+    string? DriverVersion,
+    DateTimeOffset? DriverDate,
+    DateTimeOffset? InstallDate,
+    string? ClassGuid,
+    string? Description,
+    IReadOnlyList<string> HardwareIds,
+    bool? IsSigned,
+    string? InfName,
+    string? DeviceId,
+    int? ProblemCode,
+    string Status);
+
+public sealed record DriverFilterSummary(
+    IReadOnlyList<string> IncludeDriverClasses,
+    IReadOnlyList<string> ExcludeDriverClasses,
+    IReadOnlyList<string> AllowVendors,
+    IReadOnlyList<string> BlockVendors);
 
 public sealed record DriverUpdateScanResult(
     IReadOnlyList<DriverUpdateInfo> Updates,
     DateTimeOffset GeneratedAt,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    IReadOnlyList<InstalledDriverInfo> InstalledDrivers,
+    DriverFilterSummary? Filters,
+    int SkippedOptional,
+    int SkippedByFilters,
+    IReadOnlyList<string> SkipDetails);
