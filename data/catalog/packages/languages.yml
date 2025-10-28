@@ -71,7 +71,7 @@ packages:
       summary: Interpreted high-level programming language with dynamic semantics.
       homepage: "https://www.python.org"
       tags: [runtime, python]
-    - id: node-lts
+    - id: nodejs-lts
       name: Node.js LTS
       manager: winget
       command: "winget install --id OpenJS.NodeJS.LTS -e --accept-package-agreements --accept-source-agreements"
@@ -513,4 +513,3 @@ packages:
       summary: High-level, general-purpose, interpreted, dynamic programming language.
       homepage: "https://www.tcl.tk"
       tags: [compiler, scripting]
-

@@ -50,6 +50,9 @@ public partial class PackageMaintenancePage : Page
     private const double ActionsPreferredWidth = 160d;
     private const double ActionsCompactWidth = 140d;
 
+    private const double CompactPrimaryMinWidth = 320d;
+    private const double CompactSecondaryMinWidth = 280d;
+
     private const double LayoutPadding = 56d;
 
     private const double WideLayoutBreakpoint = 1280d;
@@ -58,6 +61,7 @@ public partial class PackageMaintenancePage : Page
 
     private bool _isStackedLayout;
     private Thickness _secondaryColumnDefaultMargin;
+    private readonly Thickness _secondaryColumnCompactMargin = new(12, 0, 0, 0);
     private readonly Thickness _secondaryColumnStackedMargin = new Thickness(0, 24, 0, 0);
     private Thickness _scrollViewerDefaultMargin;
     private readonly Thickness _scrollViewerCompactMargin = new Thickness(24);
@@ -363,6 +367,24 @@ public partial class PackageMaintenancePage : Page
             if (!SecondaryColumnDefinition.Width.Equals(targetSecondary))
             {
                 SecondaryColumnDefinition.Width = targetSecondary;
+            }
+
+            var desiredPrimaryMin = tightMargins ? CompactPrimaryMinWidth : _primaryColumnDefaultMinWidth;
+            if (!PrimaryColumnDefinition.MinWidth.Equals(desiredPrimaryMin))
+            {
+                PrimaryColumnDefinition.MinWidth = desiredPrimaryMin;
+            }
+
+            var desiredSecondaryMin = tightMargins ? CompactSecondaryMinWidth : _secondaryColumnDefaultMinWidth;
+            if (!SecondaryColumnDefinition.MinWidth.Equals(desiredSecondaryMin))
+            {
+                SecondaryColumnDefinition.MinWidth = desiredSecondaryMin;
+            }
+
+            var desiredSecondaryMargin = tightMargins ? _secondaryColumnCompactMargin : _secondaryColumnDefaultMargin;
+            if (!SecondaryColumnHost.Margin.Equals(desiredSecondaryMargin))
+            {
+                SecondaryColumnHost.Margin = desiredSecondaryMargin;
             }
 
         }

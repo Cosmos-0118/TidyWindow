@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.IO.Enumeration;
 using System.Linq;
@@ -109,25 +110,42 @@ internal sealed class CleanupScanner
                 filesCount++;
                 totalSize += file.SizeBytes;
 
+                var wasRecentlyModified = IsRecentlyModified(file.LastModifiedUtc, nowUtc);
+
                 if (previewCount > 0 && itemKind != CleanupItemKind.Folders)
                 {
-                    var previewItem = new CleanupPreviewItem(
+                    var context = new CleanupFileContext(
                         file.Name,
                         file.FullPath,
+                        file.Extension,
                         file.SizeBytes,
                         file.LastModifiedUtc,
-                        isDirectory: false,
-                        file.Extension,
                         file.IsHidden,
                         file.IsSystem,
-                        IsRecentlyModified(file.LastModifiedUtc, nowUtc));
-                    topFiles.TryAdd(previewItem, file.SizeBytes);
+                        wasRecentlyModified);
+                    var evaluation = CleanupIntelligence.EvaluateFile(definition, context, nowUtc);
+                    if (evaluation.ShouldInclude)
+                    {
+                        var previewItem = new CleanupPreviewItem(
+                            file.Name,
+                            file.FullPath,
+                            file.SizeBytes,
+                            file.LastModifiedUtc,
+                            isDirectory: false,
+                            file.Extension,
+                            file.IsHidden,
+                            file.IsSystem,
+                            wasRecentlyModified,
+                            evaluation.Confidence,
+                            evaluation.Signals);
+                        topFiles.TryAdd(previewItem, evaluation.Weight);
+                    }
                 }
 
                 if (itemKind != CleanupItemKind.Files && directoryStats.Count > 0)
                 {
                     var accumulator = FindImmediateDirectory(file.DirectoryPath, resolvedPath, directoryStats);
-                    accumulator?.Add(file.SizeBytes, file.LastModifiedUtc);
+                    accumulator?.Add(file.SizeBytes, file.LastModifiedUtc, file.Extension, file.IsHidden, file.IsSystem, wasRecentlyModified);
                 }
             }
         }
@@ -149,7 +167,9 @@ internal sealed class CleanupScanner
         {
             foreach (var stat in directoryStats.Values)
             {
-                if (stat.SizeBytes <= 0)
+                var snapshot = stat.ToSnapshot();
+                var evaluation = CleanupIntelligence.EvaluateDirectory(definition, snapshot, nowUtc);
+                if (!evaluation.ShouldInclude)
                 {
                     continue;
                 }
@@ -163,8 +183,10 @@ internal sealed class CleanupScanner
                     extension: string.Empty,
                     stat.IsHidden,
                     stat.IsSystem,
-                    IsRecentlyModified(stat.LastModifiedUtc, nowUtc));
-                topDirectories.TryAdd(directoryItem, stat.SizeBytes);
+                    IsRecentlyModified(stat.LastModifiedUtc, nowUtc),
+                    evaluation.Confidence,
+                    evaluation.Signals);
+                topDirectories.TryAdd(directoryItem, evaluation.Weight);
             }
         }
 
@@ -207,7 +229,9 @@ internal sealed class CleanupScanner
         }
 
         return items
-            .OrderByDescending(static item => item.SizeBytes)
+            .OrderByDescending(static item => item.SizeBytes + item.Confidence * 25_000_000d)
+            .ThenByDescending(static item => item.Confidence)
+            .ThenByDescending(static item => item.SizeBytes)
             .Take(previewCount)
             .ToList();
     }
@@ -418,6 +442,8 @@ internal sealed class CleanupScanner
 
     private sealed class DirectoryAccumulator
     {
+        private Dictionary<string, int>? _extensionCounts;
+
         public DirectoryAccumulator(string fullPath, string name, DateTime lastModifiedUtc, bool isHidden, bool isSystem)
         {
             FullPath = fullPath;
@@ -439,13 +465,88 @@ internal sealed class CleanupScanner
 
         public bool IsSystem { get; }
 
-        public void Add(long sizeBytes, DateTime lastModifiedUtc)
+        public int FileCount { get; private set; }
+
+        public int HiddenFileCount { get; private set; }
+
+        public int SystemFileCount { get; private set; }
+
+        public int RecentFileCount { get; private set; }
+
+        public int TempFileCount { get; private set; }
+
+        public void Add(long sizeBytes, DateTime lastModifiedUtc, string? extension, bool isHidden, bool isSystem, bool wasRecentlyModified)
         {
             SizeBytes += sizeBytes;
             if (lastModifiedUtc > LastModifiedUtc)
             {
                 LastModifiedUtc = lastModifiedUtc;
             }
+
+            FileCount++;
+            if (isHidden)
+            {
+                HiddenFileCount++;
+            }
+
+            if (isSystem)
+            {
+                SystemFileCount++;
+            }
+
+            if (wasRecentlyModified)
+            {
+                RecentFileCount++;
+            }
+
+            if (!string.IsNullOrWhiteSpace(extension))
+            {
+                var normalized = extension.Trim();
+                if (!normalized.StartsWith(".", StringComparison.Ordinal))
+                {
+                    normalized = "." + normalized;
+                }
+
+                normalized = normalized.ToLowerInvariant();
+
+                _extensionCounts ??= new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                if (_extensionCounts.TryGetValue(normalized, out var count))
+                {
+                    _extensionCounts[normalized] = count + 1;
+                }
+                else
+                {
+                    _extensionCounts[normalized] = 1;
+                }
+
+                if (CleanupIntelligence.IsTempExtension(normalized))
+                {
+                    TempFileCount++;
+                }
+            }
+        }
+
+        public CleanupDirectorySnapshot ToSnapshot()
+        {
+            IReadOnlyDictionary<string, int>? histogram = null;
+            if (_extensionCounts is not null && _extensionCounts.Count > 0)
+            {
+                histogram = new ReadOnlyDictionary<string, int>(_extensionCounts);
+            }
+
+            return new CleanupDirectorySnapshot(
+                FullPath,
+                Name,
+                SizeBytes,
+                LastModifiedUtc,
+                IsHidden,
+                IsSystem,
+                FileCount,
+                HiddenFileCount,
+                SystemFileCount,
+                RecentFileCount,
+                TempFileCount,
+                histogram);
         }
     }
 

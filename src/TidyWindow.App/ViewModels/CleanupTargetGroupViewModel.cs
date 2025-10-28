@@ -212,6 +212,23 @@ public sealed partial class CleanupPreviewItemViewModel : ObservableObject
 
     public bool WasModifiedRecently => Model.WasModifiedRecently;
 
+    public double Confidence => Model.Confidence;
+
+    public bool HasSignals => Model.HasSignals;
+
+    public IReadOnlyList<string> Signals => Model.Signals;
+
+    public string SignalsSummary => HasSignals ? string.Join(", ", Model.Signals) : string.Empty;
+
+    public string ConfidenceDescription => Confidence switch
+    {
+        >= 0.85 => "Very high confidence",
+        >= 0.6 => "High confidence",
+        >= 0.35 => "Moderate confidence",
+        > 0 => "Low confidence",
+        _ => "Minimal signals"
+    };
+
     [ObservableProperty]
     private bool _isSelected;
 

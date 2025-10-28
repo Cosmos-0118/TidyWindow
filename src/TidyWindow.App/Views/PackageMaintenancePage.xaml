@@ -196,58 +196,58 @@
             </Setter>
         </Style>
 
-    <Style x:Key="DangerButtonStyle"
-           TargetType="Button">
-        <Setter Property="Background"
-            Value="#DC2626"/>
-        <Setter Property="Foreground"
-            Value="#F8FAFC"/>
-        <Setter Property="BorderBrush"
-            Value="#B91C1C"/>
-        <Setter Property="BorderThickness"
-            Value="0"/>
-        <Setter Property="Padding"
-            Value="14,6"/>
-        <Setter Property="Cursor"
-            Value="Hand"/>
-        <Setter Property="Template">
-        <Setter.Value>
-            <ControlTemplate TargetType="Button">
-            <Border x:Name="Root"
-                Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="8"
-                Padding="{TemplateBinding Padding}">
-                <ContentPresenter HorizontalAlignment="Center"
-                          VerticalAlignment="Center"/>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
+        <Style x:Key="DangerButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background"
+                    Value="#DC2626"/>
+            <Setter Property="Foreground"
+                    Value="#F8FAFC"/>
+            <Setter Property="BorderBrush"
                     Value="#B91C1C"/>
-                </Trigger>
-                <Trigger Property="IsPressed"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#991B1B"/>
-                </Trigger>
-                <Trigger Property="IsEnabled"
-                     Value="False">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#7F1D1D"/>
-                <Setter Property="Foreground"
-                    Value="#FCA5A5"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-            </ControlTemplate>
-        </Setter.Value>
-        </Setter>
-    </Style>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Padding"
+                    Value="14,6"/>
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#B91C1C"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#991B1B"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Root"
+                                        Property="Background"
+                                        Value="#7F1D1D"/>
+                                <Setter Property="Foreground"
+                                        Value="#FCA5A5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
         <Style x:Key="CardBorderStyle"
                TargetType="Border">
@@ -263,6 +263,167 @@
                     Value="20"/>
             <Setter Property="SnapsToDevicePixels"
                     Value="True"/>
+        </Style>
+
+        <Style x:Key="AnimatedGridRowItemStyle"
+               TargetType="ListViewItem">
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch"/>
+            <Setter Property="Padding"
+                    Value="12,9"/>
+            <Setter Property="Margin"
+                    Value="0,4"/>
+            <Setter Property="Background"
+                    Value="#0F172A"/>
+            <Setter Property="Foreground"
+                    Value="#F8FAFC"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Container"
+                                CornerRadius="10"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True"
+                                Opacity="0"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TranslateTransform Y="14"/>
+                            </Border.RenderTransform>
+                            <GridViewRowPresenter Content="{TemplateBinding Content}"
+                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Container"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.24">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="Container"
+                                                         Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                         To="0"
+                                                         Duration="0:0:0.28">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <Trigger Property="IsSelected"
+                                     Value="True">
+                                <Setter TargetName="Container"
+                                        Property="Background"
+                                        Value="#1E3A8A"/>
+                                <Setter Property="Foreground"
+                                        Value="#F8FAFC"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Container"
+                                        Property="Background"
+                                        Value="#1B2942"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="Container"
+                                        Property="Opacity"
+                                        Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="AnimatedQueueItemStyle"
+               TargetType="ListViewItem">
+            <Setter Property="HorizontalContentAlignment"
+                    Value="Stretch"/>
+            <Setter Property="Padding"
+                    Value="12"/>
+            <Setter Property="Margin"
+                    Value="0,4"/>
+            <Setter Property="Background"
+                    Value="#0F172A"/>
+            <Setter Property="Foreground"
+                    Value="#F8FAFC"/>
+            <Setter Property="BorderBrush"
+                    Value="Transparent"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListViewItem">
+                        <Border x:Name="Container"
+                                CornerRadius="10"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}"
+                                SnapsToDevicePixels="True"
+                                Opacity="0"
+                                RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform>
+                                <TranslateTransform Y="12"/>
+                            </Border.RenderTransform>
+                            <ContentPresenter HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Container"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.24">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                        <DoubleAnimation Storyboard.TargetName="Container"
+                                                         Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                         To="0"
+                                                         Duration="0:0:0.26">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                            <DataTrigger Binding="{Binding IsActive}"
+                                         Value="True">
+                                <Setter TargetName="Container"
+                                        Property="BorderBrush"
+                                        Value="#38BDF8"/>
+                                <Setter TargetName="Container"
+                                        Property="BorderThickness"
+                                        Value="1"/>
+                            </DataTrigger>
+                            <Trigger Property="IsSelected"
+                                     Value="True">
+                                <Setter TargetName="Container"
+                                        Property="Background"
+                                        Value="#1E3A8A"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="Container"
+                                        Property="Background"
+                                        Value="#1B2942"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <DataTemplate x:Key="OperationDetailsTemplate"
@@ -969,7 +1130,8 @@
                                           VirtualizingPanel.VirtualizationMode="Recycling"
                                           VirtualizingStackPanel.ScrollUnit="Pixel"
                                           Loaded="PackagesListView_Loaded"
-                                          SizeChanged="PackagesListView_SizeChanged">
+                                          SizeChanged="PackagesListView_SizeChanged"
+                                          ItemContainerStyle="{StaticResource AnimatedGridRowItemStyle}">
                                     <ListView.Style>
                                         <Style TargetType="ListView">
                                             <Setter Property="Visibility"
@@ -983,49 +1145,6 @@
                                             </Style.Triggers>
                                         </Style>
                                     </ListView.Style>
-                                    <ListView.ItemContainerStyle>
-                                        <Style TargetType="ListViewItem">
-                                            <Setter Property="HorizontalContentAlignment"
-                                                    Value="Stretch"/>
-                                            <Setter Property="Padding"
-                                                    Value="10,8"/>
-                                            <Setter Property="Margin"
-                                                    Value="0,3"/>
-                                            <Setter Property="Background"
-                                                    Value="#0F172A"/>
-                                            <Setter Property="Foreground"
-                                                    Value="#F8FAFC"/>
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate TargetType="ListViewItem">
-                                                        <Border x:Name="Container"
-                                                                CornerRadius="8"
-                                                                Background="{TemplateBinding Background}"
-                                                                Padding="{TemplateBinding Padding}">
-                                                            <GridViewRowPresenter Content="{TemplateBinding Content}"
-                                                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
-                                                        </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsSelected"
-                                                                     Value="True">
-                                                                <Setter TargetName="Container"
-                                                                        Property="Background"
-                                                                        Value="#1E3A8A"/>
-                                                                <Setter Property="Foreground"
-                                                                        Value="#F8FAFC"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsMouseOver"
-                                                                     Value="True">
-                                                                <Setter TargetName="Container"
-                                                                        Property="Background"
-                                                                        Value="#1B2942"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </Style>
-                                    </ListView.ItemContainerStyle>
                                     <ListView.View>
                                         <GridView x:Name="PackagesGridView"
                                                   AllowsColumnReorder="False">
@@ -1387,54 +1506,8 @@
                                       ScrollViewer.CanContentScroll="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
-                                      VirtualizingStackPanel.ScrollUnit="Pixel">
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="HorizontalContentAlignment"
-                                                Value="Stretch"/>
-                                        <Setter Property="Padding"
-                                                Value="0"/>
-                                        <Setter Property="Margin"
-                                                Value="0,3"/>
-                                        <Setter Property="Background"
-                                                Value="Transparent"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListViewItem">
-                                                    <Border x:Name="Container"
-                                                            Background="#0F172A"
-                                                            CornerRadius="10"
-                                                            Padding="12">
-                                                        <ContentPresenter/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <DataTrigger Binding="{Binding IsActive}"
-                                                                     Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="BorderBrush"
-                                                                    Value="#38BDF8"/>
-                                                            <Setter TargetName="Container"
-                                                                    Property="BorderThickness"
-                                                                    Value="1"/>
-                                                        </DataTrigger>
-                                                        <Trigger Property="IsSelected"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="Background"
-                                                                    Value="#1E3A8A"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="Background"
-                                                                    Value="#1B2942"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </ListView.ItemContainerStyle>
+                                      VirtualizingStackPanel.ScrollUnit="Pixel"
+                                      ItemContainerStyle="{StaticResource AnimatedQueueItemStyle}">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
                                         <StackPanel>

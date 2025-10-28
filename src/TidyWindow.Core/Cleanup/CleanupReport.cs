@@ -88,7 +88,9 @@ public sealed class CleanupPreviewItem
         string? extension,
         bool isHidden = false,
         bool isSystem = false,
-        bool wasModifiedRecently = false)
+        bool wasModifiedRecently = false,
+        double confidence = 0d,
+        IReadOnlyList<string>? signals = null)
     {
         Name = string.IsNullOrWhiteSpace(name) ? "(unknown)" : name;
         FullName = fullName ?? string.Empty;
@@ -99,6 +101,13 @@ public sealed class CleanupPreviewItem
         IsHidden = isHidden;
         IsSystem = isSystem;
         WasModifiedRecently = wasModifiedRecently;
+        Confidence = double.IsNaN(confidence) ? 0d : Math.Clamp(confidence, 0d, 1d);
+        Signals = signals is null
+            ? Array.Empty<string>()
+            : signals.Where(static signal => !string.IsNullOrWhiteSpace(signal))
+                .Select(static signal => signal.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
     }
 
     public string Name { get; }
@@ -118,6 +127,12 @@ public sealed class CleanupPreviewItem
     public bool IsSystem { get; }
 
     public bool WasModifiedRecently { get; }
+
+    public double Confidence { get; }
+
+    public IReadOnlyList<string> Signals { get; }
+
+    public bool HasSignals => Signals.Count > 0;
 
     public double SizeMegabytes => SizeBytes / 1_048_576d;
 
