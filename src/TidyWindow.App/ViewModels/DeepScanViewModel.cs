@@ -20,6 +20,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private readonly int _pageSize = 100;
 
     private bool _isBusy;
+    private bool _isDeleting;
     private string _targetPath = string.Empty;
     private int _minimumSizeMb = 200;
     private int _maxItems = 500;
@@ -248,6 +249,59 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task DeleteFindingAsync(DeepScanItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        if (IsBusy || _isDeleting)
+        {
+            return;
+        }
+
+        _isDeleting = true;
+
+        try
+        {
+            var path = item.Path;
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                _mainViewModel.SetStatusMessage("Delete failed: missing file path.");
+                return;
+            }
+
+            var name = item.Name;
+            var existsOnDisk = item.IsDirectory ? Directory.Exists(path) : File.Exists(path);
+            if (!existsOnDisk)
+            {
+                RemoveFinding(item.Finding);
+                _mainViewModel.SetStatusMessage($"'{name}' was already missing. Removed from the results.");
+                return;
+            }
+
+            _mainViewModel.SetStatusMessage($"Deleting '{name}'…");
+            var (success, error) = await Task.Run(() => TryDeleteItem(item));
+
+            if (success)
+            {
+                RemoveFinding(item.Finding);
+                _mainViewModel.SetStatusMessage($"Deleted '{name}'.");
+            }
+            else
+            {
+                var message = string.IsNullOrWhiteSpace(error) ? "Unknown error." : error;
+                _mainViewModel.SetStatusMessage($"Delete failed: {message}");
+            }
+        }
+        finally
+        {
+            _isDeleting = false;
+        }
+    }
+
+    [RelayCommand]
     private void PreviousPage()
     {
         if (CanGoToPreviousPage)
@@ -267,19 +321,40 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
     private void RefreshVisibleFindings()
     {
-        VisibleFindings.Clear();
-
         if (!HasResults)
         {
+            if (VisibleFindings.Count > 0)
+            {
+                VisibleFindings.Clear();
+            }
+
             return;
         }
 
         var startIndex = (_currentPage - 1) * PageSize;
         var endExclusive = Math.Min(startIndex + PageSize, _allFindings.Count);
+        var targetCount = Math.Max(0, endExclusive - startIndex);
 
-        for (var index = startIndex; index < endExclusive; index++)
+        for (var i = VisibleFindings.Count - 1; i >= targetCount; i--)
         {
-            VisibleFindings.Add(new DeepScanItemViewModel(_allFindings[index]));
+            VisibleFindings.RemoveAt(i);
+        }
+
+        for (var offset = 0; offset < targetCount; offset++)
+        {
+            var finding = _allFindings[startIndex + offset];
+            if (offset < VisibleFindings.Count)
+            {
+                var current = VisibleFindings[offset];
+                if (!ReferenceEquals(current.Finding, finding))
+                {
+                    VisibleFindings[offset] = new DeepScanItemViewModel(finding);
+                }
+            }
+            else
+            {
+                VisibleFindings.Add(new DeepScanItemViewModel(finding));
+            }
         }
     }
 
@@ -287,6 +362,55 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     {
         _allFindings.Clear();
         SetTotalFindings(0, resetPage: true, forceRefresh: true);
+    }
+
+    private void RemoveFinding(DeepScanFinding? finding)
+    {
+        if (finding is null)
+        {
+            return;
+        }
+
+        var removed = false;
+        for (var index = _allFindings.Count - 1; index >= 0; index--)
+        {
+            var current = _allFindings[index];
+            if (ReferenceEquals(current, finding) || string.Equals(current.Path, finding.Path, StringComparison.OrdinalIgnoreCase))
+            {
+                _allFindings.RemoveAt(index);
+                removed = true;
+                break;
+            }
+        }
+
+        if (!removed)
+        {
+            return;
+        }
+
+        SetTotalFindings(_allFindings.Count, resetPage: false, forceRefresh: true);
+        UpdateSummaryFromFindings();
+    }
+
+    private void UpdateSummaryFromFindings()
+    {
+        if (_allFindings.Count == 0)
+        {
+            Summary = "No items above the configured threshold.";
+            return;
+        }
+
+        long totalSize = 0;
+        for (var index = 0; index < _allFindings.Count; index++)
+        {
+            var size = _allFindings[index].SizeBytes;
+            if (size > 0)
+            {
+                totalSize += size;
+            }
+        }
+
+        Summary = $"{_allFindings.Count} item(s) • {FormatBytes(totalSize)}";
     }
 
     private void SetTotalFindings(int totalCount, bool resetPage, bool forceRefresh = false)
@@ -356,6 +480,11 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
     private void ReplaceFindings(IReadOnlyList<DeepScanFinding> findings, bool resetPage = true)
     {
+        if (!ShouldUpdateFindings(findings))
+        {
+            return;
+        }
+
         _allFindings.Clear();
         if (_allFindings.Capacity < findings.Count)
         {
@@ -368,6 +497,29 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
 
         SetTotalFindings(_allFindings.Count, resetPage, forceRefresh: true);
+    }
+
+    private bool ShouldUpdateFindings(IReadOnlyList<DeepScanFinding>? findings)
+    {
+        if (findings is null)
+        {
+            return _allFindings.Count != 0;
+        }
+
+        if (_allFindings.Count != findings.Count)
+        {
+            return true;
+        }
+
+        for (var index = 0; index < findings.Count; index++)
+        {
+            if (!ReferenceEquals(_allFindings[index], findings[index]))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private string BuildStreamingSummary(DeepScanProgressUpdate update)
@@ -528,6 +680,126 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         catch (Exception)
         {
             return string.Empty;
+        }
+    }
+
+    private static (bool Success, string? Error) TryDeleteItem(DeepScanItemViewModel item)
+    {
+        try
+        {
+            var targetPath = item.Path;
+            if (item.IsDirectory)
+            {
+                if (!Directory.Exists(targetPath))
+                {
+                    return (true, null);
+                }
+
+                ClearDirectoryReadOnlyFlags(targetPath);
+                Directory.Delete(targetPath, recursive: true);
+            }
+            else
+            {
+                if (!File.Exists(targetPath))
+                {
+                    return (true, null);
+                }
+
+                ClearFileReadOnlyFlag(targetPath);
+                File.Delete(targetPath);
+            }
+
+            return (true, null);
+        }
+        catch (Exception ex) when (ex is IOException
+            or UnauthorizedAccessException
+            or DirectoryNotFoundException
+            or FileNotFoundException
+            or NotSupportedException
+            or System.Security.SecurityException)
+        {
+            return (false, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
+    private static void ClearFileReadOnlyFlag(string filePath)
+    {
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                return;
+            }
+
+            var attributes = File.GetAttributes(filePath);
+            if ((attributes & FileAttributes.ReadOnly) == FileAttributes.ReadOnly)
+            {
+                File.SetAttributes(filePath, attributes & ~FileAttributes.ReadOnly);
+            }
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    private static void ClearDirectoryReadOnlyFlags(string directoryPath)
+    {
+        try
+        {
+            var root = new DirectoryInfo(directoryPath);
+            if (!root.Exists)
+            {
+                return;
+            }
+
+            var stack = new Stack<DirectoryInfo>();
+            stack.Push(root);
+
+            while (stack.Count > 0)
+            {
+                var current = stack.Pop();
+                try
+                {
+                    current.Attributes &= ~FileAttributes.ReadOnly;
+                }
+                catch (Exception)
+                {
+                }
+
+                FileSystemInfo[] entries;
+                try
+                {
+                    entries = current.GetFileSystemInfos();
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+
+                for (var index = 0; index < entries.Length; index++)
+                {
+                    var entry = entries[index];
+                    try
+                    {
+                        entry.Attributes &= ~FileAttributes.ReadOnly;
+                    }
+                    catch (Exception)
+                    {
+                    }
+
+                    if (entry is DirectoryInfo directory)
+                    {
+                        stack.Push(directory);
+                    }
+                }
+            }
+        }
+        catch (Exception)
+        {
         }
     }
 }

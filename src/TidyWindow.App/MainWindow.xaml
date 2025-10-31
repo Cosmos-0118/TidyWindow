@@ -4,8 +4,10 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
+    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
         mc:Ignorable="d"
         Title="TidyWindow"
+    x:Name="RootWindow"
         Width="1024"
         Height="640"
         MinWidth="900"
@@ -22,6 +24,8 @@
                          Color="#94A3B8"/>
         <SolidColorBrush x:Key="NavSubtleBrush"
                          Color="#64748B"/>
+    <SolidColorBrush x:Key="NavSelectedTextBrush"
+             Color="#07111D"/>
         <SolidColorBrush x:Key="AccentBrush"
                          Color="#22C55E"/>
         <SolidColorBrush x:Key="HoverBrush"
@@ -30,6 +34,10 @@
                          Color="#151F32"/>
         <SolidColorBrush x:Key="ContentBackgroundBrush"
                          Color="#0F172A"/>
+    <converters:NavigationWidthConverter x:Key="NavWidthConverter"
+                         Ratio="0.23"
+                         MinWidth="220"
+                         MaxWidth="340"/>
     </Window.Resources>
     <DockPanel Background="{DynamicResource ShellBackgroundBrush}">
         <StatusBar DockPanel.Dock="Bottom"
@@ -40,8 +48,10 @@
             </StatusBarItem>
         </StatusBar>
 
-        <Border DockPanel.Dock="Left"
-                Width="260"
+    <Border DockPanel.Dock="Left"
+        MinWidth="220"
+        MaxWidth="340"
+        Width="{Binding ElementName=RootWindow, Path=ActualWidth, Converter={StaticResource NavWidthConverter}}"
                 Background="{DynamicResource NavBackgroundBrush}"
                 BorderBrush="#1E293B"
                 BorderThickness="0,0,1,0">
@@ -115,9 +125,22 @@
                                            Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}"/>
                                 <TextBlock Text="{Binding Description}"
                                            FontSize="12"
-                                           Foreground="{DynamicResource NavMutedBrush}"
                                            TextWrapping="Wrap"
-                                           Margin="0,6,0,0"/>
+                                           Margin="0,6,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground"
+                                                    Value="{DynamicResource NavMutedBrush}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
+                                                             Value="True">
+                                                    <Setter Property="Foreground"
+                                                            Value="{DynamicResource NavSelectedTextBrush}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </DataTemplate>
                     </ListBox.ItemTemplate>

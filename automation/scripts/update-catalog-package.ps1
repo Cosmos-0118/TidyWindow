@@ -1156,9 +1156,58 @@ try {
             $summary = "Package '$DisplayName' appears updated but command returned exit code $exitCode."
         }
         elseif ($statusAfter -eq 'UpdateAvailable') {
-            $operationSucceeded = $false
-            if ([string]::IsNullOrWhiteSpace($summary)) {
-                $summary = "Package '$DisplayName' still reports an available update."
+            $canTreatAsSuccess = ($exitCode -eq 0) -and ($script:TidyErrorLines.Count -eq 0)
+
+            if ($canTreatAsSuccess) {
+                $retryCount = 0
+                $maxRetries = 3
+
+                while ($retryCount -lt $maxRetries -and $statusAfter -eq 'UpdateAvailable') {
+                    Start-Sleep -Seconds 2
+
+                    $installedAfter = Get-ManagerInstalledVersion -ManagerKey $managerKey -PackageId $PackageId
+                    $latestAfterRaw = Get-ManagerAvailableVersion -ManagerKey $managerKey -PackageId $PackageId
+                    if (-not $latestAfterRaw -and $installedAfter) {
+                        $latestAfterRaw = $installedAfter
+                    }
+
+                    if ([string]::IsNullOrWhiteSpace($latestAfterRaw)) {
+                        $latestAfter = 'Unknown'
+                    }
+                    else {
+                        $latestAfter = $latestAfterRaw
+                    }
+
+                    $statusComparisonAfter = if ($forceTargetVersion) { $targetVersionValue } else { $latestAfter }
+                    if ([string]::IsNullOrWhiteSpace($statusComparisonAfter)) {
+                        $statusComparisonAfter = $latestAfter
+                    }
+
+                    $statusAfter = Get-Status -Installed $installedAfter -Latest $statusComparisonAfter
+                    $retryCount++
+                }
+
+                if ($statusAfter -eq 'UpToDate') {
+                    $operationSucceeded = $true
+                    if ([string]::IsNullOrWhiteSpace($summary) -or $summary -eq 'Update command completed.') {
+                        $summary = "Package '$DisplayName' updated successfully."
+                    }
+                }
+                else {
+                    $operationSucceeded = $true
+                    if ([string]::IsNullOrWhiteSpace($summary) -or $summary -eq 'Update command completed.') {
+                        $summary = "Update command completed for '$DisplayName', but the package still reports an available update. A restart or additional verification may be required."
+                    }
+                    else {
+                        $summary = "$summary (Package still reports an available update; try restarting or refreshing the inventory.)"
+                    }
+                }
+            }
+            else {
+                $operationSucceeded = $false
+                if ([string]::IsNullOrWhiteSpace($summary)) {
+                    $summary = "Package '$DisplayName' still reports an available update."
+                }
             }
         }
     }

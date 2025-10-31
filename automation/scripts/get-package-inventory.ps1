@@ -160,6 +160,10 @@ function Collect-WingetInventory {
     $args = @('list', '--accept-source-agreements', '--disable-interactivity')
     $lines = & $Command.Source @args 2>$null
 
+    if ($LASTEXITCODE -ne 0) {
+        $script:warnings.Add("winget list failed with exit code $LASTEXITCODE.") | Out-Null
+    }
+
     if ($LASTEXITCODE -eq 0 -and $lines) {
         $lines = @($lines)
         $map = Get-ColumnMap -Lines $lines
@@ -189,14 +193,24 @@ function Collect-WingetInventory {
                 $normalizedId = Normalize-Identifier -Value $id
                 if (-not [string]::IsNullOrWhiteSpace($normalizedId)) {
                     $cleanSource = Normalize-NullableValue -Value $source
-                    if ([string]::IsNullOrWhiteSpace($cleanSource) -or -not $cleanSource.Equals('winget', [System.StringComparison]::OrdinalIgnoreCase)) {
-                        continue
+                    if ([string]::IsNullOrWhiteSpace($cleanSource)) {
+                        $cleanSource = 'winget'
                     }
 
-                    $installed[$normalizedId] = [pscustomobject]@{
-                        Name = $name
-                        Version = Normalize-NullableValue -Value $version
-                        Source = $cleanSource
+                    if (-not $installed.ContainsKey($normalizedId)) {
+                        $installed[$normalizedId] = [pscustomobject]@{
+                            Name = $name
+                            Version = Normalize-NullableValue -Value $version
+                            Source = $cleanSource
+                        }
+                    }
+                    elseif ($cleanSource -eq 'winget' -and $installed[$normalizedId].Source -ne 'winget') {
+                        # Prefer winget-backed entries when duplicates exist.
+                        $installed[$normalizedId] = [pscustomobject]@{
+                            Name = $name
+                            Version = Normalize-NullableValue -Value $version
+                            Source = $cleanSource
+                        }
                     }
                 }
             }
@@ -205,6 +219,10 @@ function Collect-WingetInventory {
 
     $upgradeArgs = @('upgrade', '--include-unknown', '--accept-source-agreements', '--disable-interactivity')
     $upgradeLines = & $Command.Source @upgradeArgs 2>$null
+
+    if ($LASTEXITCODE -ne 0) {
+        $script:warnings.Add("winget upgrade failed with exit code $LASTEXITCODE.") | Out-Null
+    }
 
     if ($LASTEXITCODE -eq 0 -and $upgradeLines) {
         $upgradeLines = @($upgradeLines)
@@ -230,11 +248,22 @@ function Collect-WingetInventory {
                 $id = Get-ColumnValue -Line $padded -Start $idStart -End $versionStart
                 $normalizedId = Normalize-Identifier -Value $id
                 $available = Get-ColumnValue -Line $padded -Start $availableStart -End $sourceStart
+                $upgradeSource = if ($sourceStart -ge 0) { Get-ColumnValue -Line $padded -Start $sourceStart -End -1 } else { $null }
 
                 if (-not [string]::IsNullOrWhiteSpace($normalizedId) -and -not [string]::IsNullOrWhiteSpace($available)) {
-                    $upgrades[$normalizedId] = [pscustomobject]@{
-                        Available = $available
+                    $cleanUpgradeSource = Normalize-NullableValue -Value $upgradeSource
+                    if ([string]::IsNullOrWhiteSpace($cleanUpgradeSource)) {
+                        $cleanUpgradeSource = 'winget'
                     }
+
+                    if (-not $upgrades.ContainsKey($normalizedId)) {
+                        $upgrades[$normalizedId] = [pscustomobject]@{
+                            Sources = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::OrdinalIgnoreCase)
+                        }
+                    }
+
+                    $sourceMap = $upgrades[$normalizedId].Sources
+                    $sourceMap[$cleanUpgradeSource] = Normalize-NullableValue -Value $available
                 }
             }
         }
@@ -438,7 +467,27 @@ if ($Managers -contains 'winget') {
                 $meta = $entry.Value
                 $available = $null
                 if ($upgrades.ContainsKey($id)) {
-                    $available = Normalize-NullableValue -Value $upgrades[$id].Available
+                    $upgradeEntry = $upgrades[$id]
+                    $installedSource = Normalize-NullableValue -Value $meta.Source
+                    $sourceProperty = $upgradeEntry.PSObject.Properties['Sources']
+                    $sourceMap = if ($null -ne $sourceProperty) { $sourceProperty.Value } else { $null }
+
+                    if ($null -ne $sourceMap -and $sourceMap.Count -gt 0) {
+                        if (-not [string]::IsNullOrWhiteSpace($installedSource) -and $sourceMap.ContainsKey($installedSource)) {
+                            $available = Normalize-NullableValue -Value $sourceMap[$installedSource]
+                        }
+
+                        if (-not $available -and $sourceMap.ContainsKey('winget')) {
+                            $available = Normalize-NullableValue -Value $sourceMap['winget']
+                        }
+
+                        if (-not $available) {
+                            $fallbackKey = ($sourceMap.Keys | Select-Object -First 1)
+                            if ($fallbackKey) {
+                                $available = Normalize-NullableValue -Value $sourceMap[$fallbackKey]
+                            }
+                        }
+                    }
                 }
 
                 $packages.Add([pscustomobject]@{

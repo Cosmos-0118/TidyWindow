@@ -15,6 +15,7 @@ public partial class DeepScanPage : Page
     private readonly DeepScanViewModel _viewModel;
     private WpfListView? _findingsListView;
     private ScrollViewer? _findingsScrollViewer;
+    private ScrollViewer? _rootScrollViewer;
     private GridViewColumn? _itemColumn;
     private GridViewColumn? _typeColumn;
     private GridViewColumn? _categoryColumn;
@@ -49,9 +50,9 @@ public partial class DeepScanPage : Page
     private const double PathCompactWidth = 220d;
     private const double PathMinimumWidth = 180d;
 
-    private const double ActionsPreferredWidth = 140d;
-    private const double ActionsCompactWidth = 120d;
-    private const double ActionsMinimumWidth = 110d;
+    private const double ActionsPreferredWidth = 240d;
+    private const double ActionsCompactWidth = 200d;
+    private const double ActionsMinimumWidth = 160d;
 
     private const double LayoutPadding = 56d;
 
@@ -93,6 +94,46 @@ public partial class DeepScanPage : Page
         {
             _viewModel.TargetPath = dialog.SelectedPath;
         }
+    }
+
+    private async void DeleteButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { DataContext: DeepScanItemViewModel item })
+        {
+            return;
+        }
+
+        var itemKind = item.IsDirectory ? "folder" : "file";
+        var message = $"We cannot tell whether '{item.Name}' is important. Deleting this {itemKind} is permanent and your responsibility.\n\nDo you want to continue?";
+        var confirmation = System.Windows.MessageBox.Show(
+            message,
+            "Confirm permanent deletion",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var commandProperty = _viewModel.GetType().GetProperty("DeleteFindingCommand");
+        var deleteCommand = commandProperty?.GetValue(_viewModel);
+
+        if (deleteCommand is IAsyncRelayCommand<DeepScanItemViewModel?> asyncCommandWithParam)
+        {
+            await asyncCommandWithParam.ExecuteAsync(item);
+        }
+        else if (deleteCommand is IAsyncRelayCommand asyncCommand)
+        {
+            await asyncCommand.ExecuteAsync(item);
+        }
+        else if (deleteCommand is IRelayCommand relayCommand && relayCommand.CanExecute(item))
+        {
+            relayCommand.Execute(item);
+        }
+
+        e.Handled = true;
     }
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
@@ -251,7 +292,7 @@ public partial class DeepScanPage : Page
             return;
         }
 
-        AttachScrollHandler(_findingsListView ?? FindingsListView);
+        AttachScrollHandler(_findingsListView ?? GetFindingsListView());
         _scrollHandlersAttached = true;
     }
 
@@ -273,7 +314,7 @@ public partial class DeepScanPage : Page
             return;
         }
 
-        DetachScrollHandler(_findingsListView ?? FindingsListView);
+        DetachScrollHandler(_findingsListView ?? GetFindingsListView());
         _scrollHandlersAttached = false;
     }
 
@@ -289,7 +330,8 @@ public partial class DeepScanPage : Page
 
     private void BubbleScroll(MouseWheelEventArgs e, DependencyObject source)
     {
-        if (RootScrollViewer is null || RootScrollViewer.ScrollableHeight <= 0)
+        var rootScrollViewer = GetRootScrollViewer();
+        if (rootScrollViewer is null || rootScrollViewer.ScrollableHeight <= 0)
         {
             return;
         }
@@ -310,17 +352,17 @@ public partial class DeepScanPage : Page
 
         e.Handled = true;
 
-        var targetOffset = RootScrollViewer.VerticalOffset - e.Delta;
+        var targetOffset = rootScrollViewer.VerticalOffset - e.Delta;
         if (targetOffset < 0)
         {
             targetOffset = 0;
         }
-        else if (targetOffset > RootScrollViewer.ScrollableHeight)
+        else if (targetOffset > rootScrollViewer.ScrollableHeight)
         {
-            targetOffset = RootScrollViewer.ScrollableHeight;
+            targetOffset = rootScrollViewer.ScrollableHeight;
         }
 
-        RootScrollViewer.ScrollToVerticalOffset(targetOffset);
+        rootScrollViewer.ScrollToVerticalOffset(targetOffset);
     }
 
     private static void OnNestedPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -392,6 +434,18 @@ public partial class DeepScanPage : Page
         }
 
         return null;
+    }
+
+    private WpfListView? GetFindingsListView()
+    {
+        _findingsListView ??= FindName("FindingsListView") as WpfListView;
+        return _findingsListView;
+    }
+
+    private ScrollViewer? GetRootScrollViewer()
+    {
+        _rootScrollViewer ??= FindName("RootScrollViewer") as ScrollViewer;
+        return _rootScrollViewer;
     }
 }
 

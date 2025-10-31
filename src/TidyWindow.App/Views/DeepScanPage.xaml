@@ -534,26 +534,26 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-                        <DockPanel Grid.Row="0"
-                                   Margin="0,0,0,12">
-                            <StackPanel Orientation="Horizontal"
-                                        VerticalAlignment="Center"
-                                        DockPanel.Dock="Left">
-                                <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
-                                           FontSize="12"
-                                           Foreground="#CBD5F5"/>
-                                <TextBlock Text="•"
-                                           Margin="8,0"
-                                           FontSize="12"
-                                           Foreground="#64748B"/>
-                                <TextBlock Text="{Binding PageDisplay}"
-                                           FontSize="12"
-                                           Foreground="#64748B"/>
-                                <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
-                                           FontSize="12"
-                                           Foreground="#64748B"
-                                           Margin="8,0,0,0"/>
-                            </StackPanel>
+               <DockPanel Grid.Row="0"
+                    Margin="0,0,0,12">
+                <StackPanel Orientation="Horizontal"
+                         VerticalAlignment="Center"
+                         DockPanel.Dock="Left">
+                    <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
+                         FontSize="12"
+                         Foreground="#CBD5F5"/>
+                    <TextBlock Text="•"
+                         Margin="8,0"
+                         FontSize="12"
+                         Foreground="#64748B"/>
+                    <TextBlock Text="{Binding PageDisplay}"
+                         FontSize="12"
+                         Foreground="#64748B"/>
+                    <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
+                         FontSize="12"
+                         Foreground="#64748B"
+                         Margin="8,0,0,0"/>
+                </StackPanel>
                             <StackPanel Orientation="Horizontal"
                                         DockPanel.Dock="Right">
                                 <Button Content="⟨ Prev"
@@ -709,20 +709,34 @@
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>
                                     <GridViewColumn x:Name="ActionsColumn"
-                                                    Width="140">
+                                                    Width="260">
                                         <GridViewColumn.Header>
                                             <TextBlock Text="Actions"/>
                                         </GridViewColumn.Header>
                                         <GridViewColumn.CellTemplate>
                                             <DataTemplate>
-                                                <Button Content="Open location"
-                                                        Command="{Binding DataContext.OpenContainingFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                        CommandParameter="{Binding}"
-                                                        Padding="8,4"
-                                                        Background="#1E293B"
-                                                        Foreground="#38BDF8"
-                                                        BorderBrush="#0F172A"
-                                                        Cursor="Hand"/>
+                        <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Left">
+                                                    <Button Content="Open location"
+                                                            Command="{Binding DataContext.OpenContainingFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            Padding="8,4"
+                                MinWidth="110"
+                                                            Background="#1E293B"
+                                                            Foreground="#38BDF8"
+                                                            BorderBrush="#0F172A"
+                                                            Cursor="Hand"/>
+                                                    <Button Content="Delete"
+                                Click="DeleteButton_OnClick"
+                                                            Padding="8,4"
+                                MinWidth="72"
+                                                            Margin="8,0,0,0"
+                                                            Background="#1E293B"
+                                                            Foreground="#F87171"
+                                                            BorderBrush="#0F172A"
+                                                            Cursor="Hand"
+                                                            ToolTip="Deleting an item is permanent. Review it carefully before proceeding."/>
+                                                </StackPanel>
                                             </DataTemplate>
                                         </GridViewColumn.CellTemplate>
                                     </GridViewColumn>

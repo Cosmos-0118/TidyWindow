@@ -258,6 +258,7 @@ public sealed class DeepScanService
         cancellationToken.ThrowIfCancellationRequested();
 
         long directorySize = 0;
+        List<FileEntry>? subdirectories = null;
 
         foreach (var entry in EnumerateEntries(directoryPath, context))
         {
@@ -286,7 +287,64 @@ public sealed class DeepScanService
                 continue;
             }
 
+            subdirectories ??= new List<FileEntry>();
+            subdirectories.Add(entry);
+        }
+
+        if (subdirectories is null || subdirectories.Count == 0)
+        {
+            return directorySize;
+        }
+
+        if (subdirectories.Count == 1 || context.MaxDegreeOfParallelism <= 1)
+        {
+            foreach (var entry in subdirectories)
+            {
+                var childSize = ProcessDirectory(entry.FullPath, queue, context, cancellationToken);
+                directorySize += childSize;
+
+                if (!context.IncludeDirectories || childSize < context.MinSizeBytes)
+                {
+                    continue;
+                }
+
+                if (!MatchesName(entry.Name, context))
+                {
+                    continue;
+                }
+
+                var directoryFinding = new DeepScanFinding(
+                    path: entry.FullPath,
+                    name: entry.Name,
+                    directory: entry.Directory,
+                    sizeBytes: childSize,
+                    modifiedUtc: entry.LastWriteUtc,
+                    extension: string.Empty,
+                    isDirectory: true);
+
+                AddCandidate(queue, directoryFinding, context);
+            }
+
+            return directorySize;
+        }
+
+        var childSizes = new long[subdirectories.Count];
+
+        Parallel.For(0, subdirectories.Count, new ParallelOptions
+        {
+            CancellationToken = cancellationToken,
+            MaxDegreeOfParallelism = context.MaxDegreeOfParallelism
+        }, index =>
+        {
+            var entry = subdirectories[index];
             var childSize = ProcessDirectory(entry.FullPath, queue, context, cancellationToken);
+            childSizes[index] = childSize;
+        });
+
+        for (var i = 0; i < subdirectories.Count; i++)
+        {
+            var entry = subdirectories[i];
+            var childSize = childSizes[i];
             directorySize += childSize;
 
             if (!context.IncludeDirectories || childSize < context.MinSizeBytes)
@@ -316,17 +374,7 @@ public sealed class DeepScanService
 
     private static void AddCandidate(PriorityQueue<DeepScanFinding, long> queue, DeepScanFinding candidate, ScanContext context)
     {
-        queue.Enqueue(candidate, candidate.SizeBytes);
-        TrimQueue(queue, context.Limit);
-        context.Emit(queue, candidate.Path, isFinal: false, latestFinding: candidate, force: true);
-    }
-
-    private static void TrimQueue(PriorityQueue<DeepScanFinding, long> queue, int limit)
-    {
-        while (queue.Count > limit)
-        {
-            queue.Dequeue();
-        }
+        context.TryEnqueueCandidate(queue, candidate);
     }
 
     private static List<DeepScanFinding> DrainQueue(PriorityQueue<DeepScanFinding, long> queue)
@@ -640,12 +688,17 @@ public sealed class DeepScanService
 
     private sealed class ScanContext
     {
-        private const int ReportItemThreshold = 250;
-        private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(350);
+        private const int ReportItemThreshold = 1500;
+        private const int LargeQueueSnapshotThreshold = 200_000;
+        private const int ProgressPreviewLimit = 500;
+        private static readonly TimeSpan ReportInterval = TimeSpan.FromMilliseconds(600);
+        private static readonly TimeSpan CandidateReportInterval = TimeSpan.FromMilliseconds(220);
         private static readonly IReadOnlyDictionary<string, long> EmptyCategoryTotals = new ReadOnlyDictionary<string, long>(new Dictionary<string, long>());
 
+        private readonly object _syncRoot = new();
         private int _itemsSinceLastReport;
-        private DateTime _lastReportTimestamp = DateTime.UtcNow;
+        private DateTime _lastReportTimestamp = DateTime.UtcNow - ReportInterval;
+        private bool _hasPendingCandidate;
 
         public ScanContext(
             int limit,
@@ -666,6 +719,10 @@ public sealed class DeepScanService
             IncludeDirectories = includeDirectories;
             Progress = progress;
 
+            var processorCount = Environment.ProcessorCount > 0 ? Environment.ProcessorCount : 1;
+            var suggestedDegree = processorCount <= 2 ? processorCount : Math.Min(processorCount, 8);
+            MaxDegreeOfParallelism = Math.Max(1, suggestedDegree);
+
             var attributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System;
             if (!includeHidden)
             {
@@ -677,12 +734,15 @@ public sealed class DeepScanService
                 AttributesToSkip = attributesToSkip,
                 IgnoreInaccessible = true,
                 RecurseSubdirectories = false,
-                ReturnSpecialDirectories = false
+                ReturnSpecialDirectories = false,
+                BufferSize = 131072
             };
             HasNameFilters = NameFilters.Count > 0;
         }
 
         public int Limit { get; }
+
+        public int MaxDegreeOfParallelism { get; }
 
         public long MinSizeBytes { get; }
 
@@ -708,48 +768,109 @@ public sealed class DeepScanService
 
         public void RecordProcessed(long sizeBytes, string currentPath, PriorityQueue<DeepScanFinding, long> queue)
         {
-            ProcessedEntries++;
-            if (sizeBytes > 0)
+            lock (_syncRoot)
             {
-                ProcessedSizeBytes += sizeBytes;
-            }
+                ProcessedEntries++;
+                if (sizeBytes > 0)
+                {
+                    ProcessedSizeBytes += sizeBytes;
+                }
 
-            if (Progress is null)
-            {
-                return;
-            }
+                if (Progress is null)
+                {
+                    return;
+                }
 
-            _itemsSinceLastReport++;
-            var now = DateTime.UtcNow;
-            if (_itemsSinceLastReport >= ReportItemThreshold || now - _lastReportTimestamp >= ReportInterval)
-            {
-                EmitSnapshot(queue, currentPath, isFinal: false, latestFinding: null);
+                _itemsSinceLastReport++;
+                TryEmitLocked(queue, currentPath, isFinal: false, latestFinding: null, force: false);
             }
         }
 
         public void Emit(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding, bool force)
         {
-            if (Progress is null)
+            lock (_syncRoot)
             {
-                return;
+                TryEmitLocked(queue, currentPath, isFinal, latestFinding, force);
             }
-
-            if (!force)
-            {
-                return;
-            }
-
-            EmitSnapshot(queue, currentPath, isFinal, latestFinding);
         }
 
-        private void EmitSnapshot(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding)
+        public bool TryEnqueueCandidate(PriorityQueue<DeepScanFinding, long> queue, DeepScanFinding candidate)
+        {
+            if (Limit <= 0)
+            {
+                return false;
+            }
+
+            lock (_syncRoot)
+            {
+                if (queue.Count >= Limit && queue.TryPeek(out _, out var smallestPriority) && candidate.SizeBytes <= smallestPriority)
+                {
+                    return false;
+                }
+
+                queue.Enqueue(candidate, candidate.SizeBytes);
+
+                if (queue.Count > Limit)
+                {
+                    queue.Dequeue();
+                }
+
+                if (Progress is not null)
+                {
+                    _hasPendingCandidate = true;
+                    TryEmitLocked(queue, candidate.Path, isFinal: false, latestFinding: candidate, force: false);
+                }
+
+                return true;
+            }
+        }
+
+        private void TryEmitLocked(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding, bool force)
         {
             if (Progress is null)
             {
                 return;
             }
 
-            var snapshot = BuildSnapshot(queue);
+            var now = DateTime.UtcNow;
+            if (!force)
+            {
+                var elapsed = now - _lastReportTimestamp;
+                if (_hasPendingCandidate)
+                {
+                    if (elapsed < CandidateReportInterval)
+                    {
+                        return;
+                    }
+                }
+                else if (_itemsSinceLastReport < ReportItemThreshold && elapsed < ReportInterval)
+                {
+                    return;
+                }
+            }
+
+            if (!force && !isFinal && queue.Count > LargeQueueSnapshotThreshold)
+            {
+                _itemsSinceLastReport = 0;
+                _hasPendingCandidate = false;
+                _lastReportTimestamp = now;
+                Progress.Report(new DeepScanProgressUpdate(
+                    Array.Empty<DeepScanFinding>(),
+                    ProcessedEntries,
+                    ProcessedSizeBytes,
+                    currentPath,
+                    latestFinding,
+                    EmptyCategoryTotals,
+                    false));
+                return;
+            }
+
+            EmitSnapshotLocked(queue, currentPath, isFinal, latestFinding, now);
+        }
+
+        private void EmitSnapshotLocked(PriorityQueue<DeepScanFinding, long> queue, string? currentPath, bool isFinal, DeepScanFinding? latestFinding, DateTime timestampUtc)
+        {
+            var snapshot = BuildSnapshot(queue, isFinal);
             IReadOnlyDictionary<string, long> categories;
             if (snapshot.Count == 0)
             {
@@ -757,44 +878,85 @@ public sealed class DeepScanService
             }
             else
             {
-                var dict = snapshot
-                    .GroupBy(static finding => string.IsNullOrWhiteSpace(finding.Category) ? "Other" : finding.Category)
-                    .ToDictionary(static group => group.Key, static group => group.Sum(static item => Math.Max(item.SizeBytes, 0L)));
-                categories = new ReadOnlyDictionary<string, long>(dict);
+                var dict = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                for (var index = 0; index < snapshot.Count; index++)
+                {
+                    var finding = snapshot[index];
+                    var category = string.IsNullOrWhiteSpace(finding.Category) ? "Other" : finding.Category;
+                    var size = Math.Max(0L, finding.SizeBytes);
+                    if (size == 0)
+                    {
+                        continue;
+                    }
+
+                    dict[category] = dict.TryGetValue(category, out var current)
+                        ? current + size
+                        : size;
+                }
+
+                categories = dict.Count == 0
+                    ? EmptyCategoryTotals
+                    : new ReadOnlyDictionary<string, long>(dict);
             }
 
-            IReadOnlyList<DeepScanFinding> readOnlySnapshot;
-            if (snapshot.Count == 0)
-            {
-                readOnlySnapshot = Array.Empty<DeepScanFinding>();
-            }
-            else if (snapshot is List<DeepScanFinding> list)
-            {
-                readOnlySnapshot = new ReadOnlyCollection<DeepScanFinding>(list);
-            }
-            else
-            {
-                readOnlySnapshot = new ReadOnlyCollection<DeepScanFinding>(snapshot.ToList());
-            }
+            IReadOnlyList<DeepScanFinding> readOnlySnapshot = snapshot.Count == 0
+                ? Array.Empty<DeepScanFinding>()
+                : snapshot;
 
             var update = new DeepScanProgressUpdate(readOnlySnapshot, ProcessedEntries, ProcessedSizeBytes, currentPath, latestFinding, categories, isFinal);
-            Progress.Report(update);
+            Progress!.Report(update);
 
             _itemsSinceLastReport = 0;
-            _lastReportTimestamp = DateTime.UtcNow;
+            _hasPendingCandidate = false;
+            _lastReportTimestamp = timestampUtc;
         }
 
-        private static IReadOnlyList<DeepScanFinding> BuildSnapshot(PriorityQueue<DeepScanFinding, long> queue)
+        private static List<DeepScanFinding> BuildSnapshot(PriorityQueue<DeepScanFinding, long> queue, bool isFinal)
         {
             if (queue.Count == 0)
             {
-                return Array.Empty<DeepScanFinding>();
+                return new List<DeepScanFinding>(0);
             }
 
-            return queue.UnorderedItems
-                .Select(static item => item.Element)
-                .OrderByDescending(static finding => finding.SizeBytes)
-                .ToList();
+            var target = isFinal || queue.Count <= ProgressPreviewLimit ? queue.Count : ProgressPreviewLimit;
+
+            if (target >= queue.Count)
+            {
+                var listAll = new List<DeepScanFinding>(queue.Count);
+                foreach (var item in queue.UnorderedItems)
+                {
+                    listAll.Add(item.Element);
+                }
+
+                listAll.Sort(static (left, right) => right.SizeBytes.CompareTo(left.SizeBytes));
+                return listAll;
+            }
+
+            var previewHeap = new PriorityQueue<DeepScanFinding, long>(target);
+            foreach (var item in queue.UnorderedItems)
+            {
+                var element = item.Element;
+                if (previewHeap.Count < target)
+                {
+                    previewHeap.Enqueue(element, element.SizeBytes);
+                    continue;
+                }
+
+                if (previewHeap.TryPeek(out _, out var smallest) && element.SizeBytes > smallest)
+                {
+                    previewHeap.Dequeue();
+                    previewHeap.Enqueue(element, element.SizeBytes);
+                }
+            }
+
+            var list = new List<DeepScanFinding>(previewHeap.Count);
+            while (previewHeap.TryDequeue(out var element, out _))
+            {
+                list.Add(element);
+            }
+
+            list.Sort(static (left, right) => right.SizeBytes.CompareTo(left.SizeBytes));
+            return list;
         }
     }
 }
