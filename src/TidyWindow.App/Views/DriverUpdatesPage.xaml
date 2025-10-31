@@ -5,66 +5,61 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
       xmlns:core="clr-namespace:TidyWindow.Core.Updates;assembly=TidyWindow.Core"
-    xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
+      xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
       mc:Ignorable="d"
       Title="Driver updates"
       Background="Transparent">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
 
-    <SolidColorBrush x:Key="ListItemHoverBrush"
-              Color="#16233B"/>
-    <SolidColorBrush x:Key="ListItemSelectedBrush"
-              Color="#233554"/>
-    <SolidColorBrush x:Key="ListItemSelectedInactiveBrush"
-              Color="#1A253A"/>
+        <SolidColorBrush x:Key="ListItemHoverBrush" Color="#1B2A44"/>
+        <SolidColorBrush x:Key="ListItemSelectedBrush" Color="#294565"/>
+        <SolidColorBrush x:Key="ListItemSelectedInactiveBrush" Color="#1A253A"/>
 
-        <Style x:Key="DriverCardStyle"
-               TargetType="Border">
-            <Setter Property="Background"
-                    Value="#101D30"/>
-            <Setter Property="BorderBrush"
-                    Value="#223857"/>
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-            <Setter Property="CornerRadius"
-                    Value="10"/>
-            <Setter Property="Padding"
-                    Value="16"/>
-            <Setter Property="Margin"
-                    Value="0,8,0,8"/>
-        <Style.Triggers>
-        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
-                 Value="True">
-            <Setter Property="Background"
-                Value="{StaticResource ListItemHoverBrush}"/>
-            <Setter Property="BorderBrush"
-                Value="#2F4668"/>
-        </DataTrigger>
-        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
-                 Value="True">
-            <Setter Property="Background"
-                Value="{StaticResource ListItemSelectedBrush}"/>
-            <Setter Property="BorderBrush"
-                Value="#38BDF8"/>
-        </DataTrigger>
-        </Style.Triggers>
+        <LinearGradientBrush x:Key="DriverCardBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#152C4C" Offset="0"/>
+            <GradientStop Color="#0B162A" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="SummaryBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#102036" Offset="0"/>
+            <GradientStop Color="#071222" Offset="1"/>
+        </LinearGradientBrush>
+
+        <DropShadowEffect x:Key="CardShadowEffect"
+                          Color="#000000"
+                          ShadowDepth="0"
+                          BlurRadius="18"
+                          Opacity="0.35"/>
+
+        <Style x:Key="DriverCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource DriverCardBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="#2A4363"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="24,20"/>
+            <Setter Property="Margin" Value="0,12,0,12"/>
+            <Setter Property="Effect" Value="{StaticResource CardShadowEffect}"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ListItemHoverBrush}"/>
+                    <Setter Property="BorderBrush" Value="#3C6CB3"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource ListItemSelectedBrush}"/>
+                    <Setter Property="BorderBrush" Value="#38BDF8"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
-        <Style x:Key="StatusTagStyle"
-               TargetType="Border">
-            <Setter Property="Background"
-                    Value="#1E293B"/>
-            <Setter Property="BorderBrush"
-                    Value="#334155"/>
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-            <Setter Property="CornerRadius"
-                    Value="6"/>
-            <Setter Property="Padding"
-                    Value="8,2"/>
-            <Setter Property="Margin"
-                    Value="12,0,0,0"/>
+        <Style x:Key="StatusTagStyle" TargetType="Border">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="Margin" Value="12,0,0,0"/>
         </Style>
     </Page.Resources>
 
@@ -72,14 +67,14 @@
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch"
+                  CanContentScroll="False"
+                  PanningMode="VerticalOnly"
                   x:Name="RootScrollViewer">
         <StackPanel Orientation="Vertical"
                     MaxWidth="1280"
                     HorizontalAlignment="Center"
                     d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
-            <StackPanel Orientation="Horizontal"
-                        Margin="0,0,0,24"
-                        VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
                 <Border Width="48"
                         Height="48"
                         CornerRadius="12"
@@ -102,92 +97,57 @@
                 </StackPanel>
             </StackPanel>
 
-            <Border Background="#0F172A"
-                    BorderBrush="#1E293B"
+            <Border Background="#12263F"
+                    BorderBrush="#1F365B"
                     BorderThickness="1"
                     CornerRadius="12"
                     Padding="20"
-                    Margin="0,0,0,20">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="{Binding Summary}"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Foreground="#E2E8F0"/>
-                        <TextBlock Text="{Binding LastCheckedDisplay}"
-                                   Margin="0,6,0,0"
-                                   FontSize="12"
-                                   Foreground="#94A3B8"/>
-                        <TextBlock Text="{Binding InstalledDriversSummary}"
-                                   Margin="0,6,0,0"
-                                   FontSize="12"
-                                   Foreground="#94A3B8"
-                                   Visibility="{Binding HasInstalledDrivers, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Text="{Binding ActiveFiltersSummary}"
-                                   Margin="0,6,0,0"
-                                   FontSize="12"
-                                   Foreground="#38BDF8"
-                                   Visibility="{Binding HasActiveFilters, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <TextBlock Text="Scanning for driver updates..."
-                                   Margin="0,10,0,0"
-                                   FontSize="12"
-                                   Foreground="#38BDF8"
-                                   Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    </StackPanel>
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Top"
-                                HorizontalAlignment="Right">
-                        <CheckBox Content="Include optional"
-                                  Margin="0,0,16,0"
-                                  Foreground="#F1F5F9"
-                                  IsChecked="{Binding IncludeOptional}"/>
-                        <Button Content="Refresh"
-                                MinWidth="110"
-                                Command="{Binding RefreshCommand}"
-                                Padding="16,6"
-                                Background="#38BDF8"
-                                Foreground="#04152B"
-                                BorderBrush="Transparent"
-                                BorderThickness="0"
-                                Cursor="Hand"/>
-                    </StackPanel>
-                </Grid>
+                    Margin="0,0,0,24"
+                    Effect="{StaticResource CardShadowEffect}">
+                <StackPanel>
+                    <TextBlock Text="Driver intelligence that sticks"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="Driver scan insights are now cached just like Maintenance results. When you return, we restore the last scan instantly while you decide whether to refresh. Double-click any driver entry to jump straight to its driver package location for quick disable or removal."
+                               Margin="0,8,0,0"
+                               FontSize="13"
+                               Foreground="#A5B4FC"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
             </Border>
 
-            <Border Background="#1E293B"
-                    BorderBrush="#334155"
+            <Border Background="{StaticResource SummaryBackgroundBrush}"
+                    BorderBrush="#1E293B"
                     BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12"
+                    CornerRadius="12"
+                    Padding="24"
                     Margin="0,0,0,20"
-                    Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    Effect="{StaticResource CardShadowEffect}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,0,0,6">
-                        <TextBlock Text="⚠"
-                                   FontSize="14"
-                                   Margin="0,0,6,0"
-                                   Foreground="#FBBF24"/>
-                        <TextBlock Text="Warnings"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#F8FAFC"/>
-                    </StackPanel>
-                    <ItemsControl ItemsSource="{Binding Warnings}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,2,0,2"
-                                           Foreground="#F8FAFC"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                    <TextBlock Text="{Binding Summary}"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#E2E8F0"/>
+                    <TextBlock Text="{Binding LastCheckedDisplay}"
+                               Margin="0,6,0,0"
+                               FontSize="12"
+                               Foreground="#94A3B8"/>
+                    <TextBlock Text="{Binding InstalledDriversSummary}"
+                               Margin="0,6,0,0"
+                               FontSize="12"
+                               Foreground="#94A3B8"
+                               Visibility="{Binding HasInstalledDrivers, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Text="{Binding ActiveFiltersSummary}"
+                               Margin="0,6,0,0"
+                               FontSize="12"
+                               Foreground="#38BDF8"
+                               Visibility="{Binding HasActiveFilters, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                    <TextBlock Text="Scanning for driver updates..."
+                               Margin="0,10,0,0"
+                               FontSize="12"
+                               Foreground="#38BDF8"
+                               Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 </StackPanel>
             </Border>
 
@@ -199,8 +159,7 @@
                     Margin="0,0,0,20"
                     Visibility="{Binding HasSkipDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,0,0,6">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                         <TextBlock Text="ℹ"
                                    FontSize="14"
                                    Margin="0,0,6,0"
@@ -231,13 +190,10 @@
                        d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
-                        <Setter Property="Visibility"
-                                Value="Visible"/>
+                        <Setter Property="Visibility" Value="Visible"/>
                         <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasResults}"
-                                         Value="True">
-                                <Setter Property="Visibility"
-                                        Value="Collapsed"/>
+                            <DataTrigger Binding="{Binding HasResults}" Value="True">
+                                <Setter Property="Visibility" Value="Collapsed"/>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
@@ -250,20 +206,28 @@
                       Background="Transparent"
                       BorderThickness="0"
                       Foreground="#E2E8F0"
+                      Margin="0,0,0,16"
+                      AlternationCount="2"
                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                      ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                      ScrollViewer.CanContentScroll="True"
+                      ScrollViewer.IsDeferredScrollingEnabled="False"
+                      ScrollViewer.PanningMode="VerticalOnly"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      VirtualizingStackPanel.ScrollUnit="Pixel"
+                      MaxHeight="520">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
-                        <Setter Property="Padding"
-                                Value="0"/>
-                        <Setter Property="Margin"
-                                Value="0,4"/>
-                        <Setter Property="HorizontalContentAlignment"
-                                Value="Stretch"/>
-                        <Setter Property="Background"
-                                Value="Transparent"/>
-                        <Setter Property="BorderThickness"
-                                Value="0"/>
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0,10"/>
+                        <Setter Property="MinHeight" Value="150"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <EventSetter Event="MouseDoubleClick" Handler="OnUpdateItemDoubleClick"/>
                         <Setter Property="Template">
                             <Setter.Value>
                                 <ControlTemplate TargetType="ListViewItem">
@@ -276,28 +240,22 @@
                                                           VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
                                     </Border>
                                     <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="ItemBackground"
-                                                    Property="Background"
-                                                    Value="{StaticResource ListItemHoverBrush}"/>
+                                        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                            <Setter TargetName="ItemBackground" Property="Background" Value="#122641"/>
+                                            <Setter Property="Background" Value="#122641"/>
                                         </Trigger>
-                                        <Trigger Property="IsSelected"
-                                                 Value="True">
-                                            <Setter TargetName="ItemBackground"
-                                                    Property="Background"
-                                                    Value="{StaticResource ListItemSelectedBrush}"/>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="ItemBackground" Property="Background" Value="{StaticResource ListItemHoverBrush}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="ItemBackground" Property="Background" Value="{StaticResource ListItemSelectedBrush}"/>
                                         </Trigger>
                                         <MultiTrigger>
                                             <MultiTrigger.Conditions>
-                                                <Condition Property="IsSelected"
-                                                           Value="True"/>
-                                                <Condition Property="primitives:Selector.IsSelectionActive"
-                                                           Value="False"/>
+                                                <Condition Property="IsSelected" Value="True"/>
+                                                <Condition Property="primitives:Selector.IsSelectionActive" Value="False"/>
                                             </MultiTrigger.Conditions>
-                                            <Setter TargetName="ItemBackground"
-                                                    Property="Background"
-                                                    Value="{StaticResource ListItemSelectedInactiveBrush}"/>
+                                            <Setter TargetName="ItemBackground" Property="Background" Value="{StaticResource ListItemSelectedInactiveBrush}"/>
                                         </MultiTrigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -306,179 +264,172 @@
                     </Style>
                 </ListView.ItemContainerStyle>
                 <ListView.ItemTemplate>
-                <DataTemplate DataType="{x:Type vm:DriverUpdateItemViewModel}">
-                    <Border Style="{StaticResource DriverCardStyle}">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="{Binding DeviceName}"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
-                                <Border Style="{StaticResource StatusTagStyle}">
-                                    <TextBlock Text="{Binding StatusLabel}"
+                    <DataTemplate DataType="{x:Type vm:DriverUpdateItemViewModel}">
+                        <Border Style="{StaticResource DriverCardStyle}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding DeviceName}"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <Border Style="{StaticResource StatusTagStyle}">
+                                        <TextBlock Text="{Binding StatusLabel}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Foreground" Value="#38BDF8"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static core:DriverUpdateStatus.UpdateAvailable}">
+                                                            <Setter Property="Foreground" Value="#F97316"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="{x:Static core:DriverUpdateStatus.UpToDate}">
+                                                            <Setter Property="Foreground" Value="#22C55E"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Border>
+                                    <Border Style="{StaticResource StatusTagStyle}"
+                                            Visibility="{Binding ShowOptionalBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Optional"
+                                                   FontSize="12"
+                                                   Foreground="#94A3B8"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding Manufacturer}"
+                                           Margin="0,4,0,0"
+                                           Foreground="#94A3B8"
+                                           Visibility="{Binding HasManufacturer, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                                    <TextBlock Text="{Binding VersionSummary}"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text=" · "
+                                               Foreground="#64748B"
+                                               Visibility="{Binding HasCurrentVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <TextBlock Text="{Binding CurrentVersionDateDisplay}"
+                                               Foreground="#94A3B8"
+                                               Visibility="{Binding HasCurrentVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <TextBlock Text=" ⟶ "
+                                               Foreground="#64748B"
+                                               Visibility="{Binding HasAvailableVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <TextBlock Text="{Binding AvailableVersionDateDisplay}"
+                                               Foreground="#94A3B8"
+                                               Visibility="{Binding HasAvailableVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding ComparisonStatusLabel}"
+                                           Margin="0,6,0,0"
+                                           FontSize="12"
+                                           Foreground="#E2E8F0"
+                                           Visibility="{Binding IsComparisonMeaningful, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <TextBlock Text="{Binding ComparisonDetails}"
+                                           Margin="0,2,0,0"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasComparisonDetails, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <TextBlock Text="{Binding CategoryDisplay}"
+                                           Margin="0,6,0,0"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"/>
+
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,6,0,0"
+                                            Visibility="{Binding HasDriverClass, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="Class:"
                                                FontSize="12"
-                                               FontWeight="SemiBold">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground"
-                                                        Value="#38BDF8"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Status}"
-                                                                 Value="{x:Static core:DriverUpdateStatus.UpdateAvailable}">
-                                                        <Setter Property="Foreground"
-                                                                Value="#F97316"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Status}"
-                                                                 Value="{x:Static core:DriverUpdateStatus.UpToDate}">
-                                                        <Setter Property="Foreground"
-                                                                Value="#22C55E"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Border>
-                                <Border Style="{StaticResource StatusTagStyle}"
-                                        Visibility="{Binding ShowOptionalBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock Text="Optional"
+                                               FontWeight="SemiBold"
+                                               Foreground="#CBD5F5"
+                                               Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding DriverClass}"
                                                FontSize="12"
                                                Foreground="#94A3B8"/>
-                                </Border>
-                            </StackPanel>
+                                </StackPanel>
 
-                            <TextBlock Text="{Binding Manufacturer}"
-                                       Margin="0,4,0,0"
-                                       Foreground="#94A3B8"
-                                       Visibility="{Binding HasManufacturer, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,2,0,0"
+                                            Visibility="{Binding HasClassification, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="Classification:"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#CBD5F5"
+                                               Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding Classification}"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                </StackPanel>
 
-                            <StackPanel Orientation="Horizontal"
-                                        Margin="0,10,0,0">
-                                <TextBlock Text="{Binding VersionSummary}"
-                                           FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
-                                <TextBlock Text=" · "
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,2,0,0"
+                                            Visibility="{Binding HasSeverity, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="Severity:"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#CBD5F5"
+                                               Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding Severity}"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding HardwareIdsDisplay}"
+                                           Margin="0,8,0,0"
+                                           FontSize="12"
+                                           Foreground="#CBD5F5"
+                                           TextWrapping="Wrap"/>
+
+                                <TextBlock Text="{Binding Description}"
+                                           Margin="0,10,0,0"
+                                           FontSize="12"
+                                           Foreground="#E2E8F0"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,10,0,0"
+                                            Visibility="{Binding HasInstalledManufacturer, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="Installed manufacturer:"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Foreground="#CBD5F5"
+                                               Margin="0,0,6,0"/>
+                                    <TextBlock Text="{Binding InstalledManufacturerDisplay}"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding InstalledInfPath}"
+                                           Margin="0,2,0,0"
+                                           FontSize="11"
                                            Foreground="#64748B"
-                                           Visibility="{Binding HasCurrentVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                <TextBlock Text="{Binding CurrentVersionDateDisplay}"
-                                           Foreground="#94A3B8"
-                                           Visibility="{Binding HasCurrentVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                <TextBlock Text=" ⟶ "
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasInstalledInfPath, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <TextBlock Text="{Binding UpdateIdentifierDisplay}"
+                                           Margin="0,10,0,0"
+                                           FontSize="11"
                                            Foreground="#64748B"
-                                           Visibility="{Binding HasAvailableVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                <TextBlock Text="{Binding AvailableVersionDateDisplay}"
-                                           Foreground="#94A3B8"
-                                           Visibility="{Binding HasAvailableVersionTimestamp, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding HasUpdateIdentifier, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <TextBlock Margin="0,10,0,0"
+                                           FontSize="12"
+                                           Foreground="#38BDF8"
+                                           Visibility="{Binding HasInformationLinks, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Hyperlink NavigateUri="{Binding PrimaryInformationLink}"
+                                               RequestNavigate="OnHyperlinkRequestNavigate">
+                                        <Run Text="Open vendor support"/>
+                                    </Hyperlink>
+                                </TextBlock>
                             </StackPanel>
-
-                <TextBlock Text="{Binding ComparisonStatusLabel}"
-                       Margin="0,6,0,0"
-                       FontSize="12"
-                       Foreground="#E2E8F0"
-                       Visibility="{Binding IsComparisonMeaningful, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                <TextBlock Text="{Binding ComparisonDetails}"
-                       Margin="0,2,0,0"
-                       FontSize="12"
-                       Foreground="#94A3B8"
-                       TextWrapping="Wrap"
-                       Visibility="{Binding HasComparisonDetails, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                            <TextBlock Text="{Binding CategoryDisplay}"
-                                       Margin="0,6,0,0"
-                                       FontSize="12"
-                                       Foreground="#94A3B8"/>
-
-                <StackPanel Orientation="Horizontal"
-                    Margin="0,6,0,0"
-                    Visibility="{Binding HasDriverClass, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Text="Class:"
-                       FontSize="12"
-                       FontWeight="SemiBold"
-                       Foreground="#CBD5F5"
-                       Margin="0,0,6,0"/>
-                <TextBlock Text="{Binding DriverClass}"
-                       FontSize="12"
-                       Foreground="#94A3B8"/>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal"
-                    Margin="0,2,0,0"
-                    Visibility="{Binding HasClassification, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Text="Classification:"
-                       FontSize="12"
-                       FontWeight="SemiBold"
-                       Foreground="#CBD5F5"
-                       Margin="0,0,6,0"/>
-                <TextBlock Text="{Binding Classification}"
-                       FontSize="12"
-                       Foreground="#94A3B8"/>
-                </StackPanel>
-
-                <StackPanel Orientation="Horizontal"
-                    Margin="0,2,0,0"
-                    Visibility="{Binding HasSeverity, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Text="Severity:"
-                       FontSize="12"
-                       FontWeight="SemiBold"
-                       Foreground="#CBD5F5"
-                       Margin="0,0,6,0"/>
-                <TextBlock Text="{Binding Severity}"
-                       FontSize="12"
-                       Foreground="#94A3B8"/>
-                </StackPanel>
-
-                            <TextBlock Text="{Binding HardwareIdsDisplay}"
-                                       Margin="0,8,0,0"
-                                       FontSize="12"
-                                       Foreground="#CBD5F5"
-                                       TextWrapping="Wrap"/>
-
-                            <TextBlock Text="{Binding Description}"
-                                       Margin="0,10,0,0"
-                                       FontSize="12"
-                                       Foreground="#E2E8F0"
-                                       TextWrapping="Wrap"
-                                       Visibility="{Binding HasDescription, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                <StackPanel Orientation="Horizontal"
-                    Margin="0,10,0,0"
-                    Visibility="{Binding HasInstalledManufacturer, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <TextBlock Text="Installed manufacturer:"
-                       FontSize="12"
-                       FontWeight="SemiBold"
-                       Foreground="#CBD5F5"
-                       Margin="0,0,6,0"/>
-                <TextBlock Text="{Binding InstalledManufacturerDisplay}"
-                       FontSize="12"
-                       Foreground="#94A3B8"/>
-                </StackPanel>
-
-                <TextBlock Text="{Binding InstalledInfPath}"
-                       Margin="0,2,0,0"
-                       FontSize="11"
-                       Foreground="#64748B"
-                       TextWrapping="Wrap"
-                       Visibility="{Binding HasInstalledInfPath, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                <TextBlock Text="{Binding UpdateIdentifierDisplay}"
-                       Margin="0,10,0,0"
-                       FontSize="11"
-                       Foreground="#64748B"
-                       TextWrapping="Wrap"
-                       Visibility="{Binding HasUpdateIdentifier, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                            <TextBlock Margin="0,10,0,0"
-                                       FontSize="12"
-                                       Foreground="#38BDF8"
-                                       Visibility="{Binding HasInformationLinks, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <Hyperlink NavigateUri="{Binding PrimaryInformationLink}"
-                                           RequestNavigate="OnHyperlinkRequestNavigate">
-                                    <Run Text="Open vendor support"/>
-                                </Hyperlink>
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
-                </DataTemplate>
+                        </Border>
+                    </DataTemplate>
                 </ListView.ItemTemplate>
             </ListView>
 
@@ -497,78 +448,77 @@
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    Foreground="#F8FAFC"/>
-                        <Border Style="{StaticResource StatusTagStyle}"
-                                Margin="12,0,0,0">
+                        <Border Style="{StaticResource StatusTagStyle}" Margin="12,0,0,0">
                             <TextBlock Text="{Binding InstalledDrivers.Count}"
                                        FontSize="12"
                                        Foreground="#94A3B8"/>
                         </Border>
                     </StackPanel>
 
-                    <ListView ItemsSource="{Binding InstalledDrivers}"
+                    <ListView x:Name="InstalledDriversList"
+                              ItemsSource="{Binding InstalledDrivers}"
                               Background="Transparent"
                               BorderThickness="0"
                               Foreground="#E2E8F0"
-                  ScrollViewer.VerticalScrollBarVisibility="Auto">
-            <ListView.ItemContainerStyle>
-                <Style TargetType="ListViewItem">
-                <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
-                <Setter Property="Background"
-                    Value="Transparent"/>
-                <Setter Property="HorizontalContentAlignment"
-                    Value="Stretch"/>
-                <Setter Property="Padding"
-                    Value="0"/>
-                <Setter Property="Margin"
-                    Value="0"/>
-                <Setter Property="BorderThickness"
-                    Value="0"/>
-                <Setter Property="Template">
-                    <Setter.Value>
-                    <ControlTemplate TargetType="ListViewItem">
-                        <Border x:Name="RowBackground"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="6"
-                            SnapsToDevicePixels="True">
-                        <GridViewRowPresenter Margin="6,2"
-                                      Content="{TemplateBinding Content}"
-                                      Columns="{TemplateBinding GridView.ColumnCollection}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver"
-                             Value="True">
-                            <Setter TargetName="RowBackground"
-                                Property="Background"
-                                Value="{StaticResource ListItemHoverBrush}"/>
-                        </Trigger>
-                        <Trigger Property="IsSelected"
-                             Value="True">
-                            <Setter TargetName="RowBackground"
-                                Property="Background"
-                                Value="{StaticResource ListItemSelectedBrush}"/>
-                            <Setter Property="Foreground"
-                                Value="#F8FAFC"/>
-                        </Trigger>
-                        <MultiTrigger>
-                            <MultiTrigger.Conditions>
-                            <Condition Property="IsSelected"
-                                   Value="True"/>
-                            <Condition Property="primitives:Selector.IsSelectionActive"
-                                   Value="False"/>
-                            </MultiTrigger.Conditions>
-                            <Setter TargetName="RowBackground"
-                                Property="Background"
-                                Value="{StaticResource ListItemSelectedInactiveBrush}"/>
-                            <Setter Property="Foreground"
-                                Value="#CBD5F5"/>
-                        </MultiTrigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                    </Setter.Value>
-                </Setter>
-                </Style>
-            </ListView.ItemContainerStyle>
+                              Margin="0,12,0,0"
+                              AlternationCount="2"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.IsDeferredScrollingEnabled="False"
+                              ScrollViewer.PanningMode="VerticalOnly"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingStackPanel.ScrollUnit="Pixel"
+                              MaxHeight="360">
+                        <ListView.ItemContainerStyle>
+                            <Style TargetType="ListViewItem">
+                                <Setter Property="Foreground" Value="#E2E8F0"/>
+                                <Setter Property="Background" Value="Transparent"/>
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="0,6"/>
+                                <Setter Property="MinHeight" Value="56"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                <Setter Property="BorderThickness" Value="0"/>
+                                <EventSetter Event="MouseDoubleClick" Handler="OnInstalledDriverDoubleClick"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListViewItem">
+                                            <Border x:Name="RowBackground"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="6"
+                                                    SnapsToDevicePixels="True">
+                                                <GridViewRowPresenter Margin="18,8"
+                                                                      Content="{TemplateBinding Content}"
+                                                                      Columns="{TemplateBinding GridView.ColumnCollection}"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                                                    <Setter TargetName="RowBackground" Property="Background" Value="#162B46"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource ListItemHoverBrush}"/>
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource ListItemSelectedBrush}"/>
+                                                    <Setter Property="Foreground" Value="#F8FAFC"/>
+                                                </Trigger>
+                                                <MultiTrigger>
+                                                    <MultiTrigger.Conditions>
+                                                        <Condition Property="IsSelected" Value="True"/>
+                                                        <Condition Property="primitives:Selector.IsSelectionActive" Value="False"/>
+                                                    </MultiTrigger.Conditions>
+                                                    <Setter TargetName="RowBackground" Property="Background" Value="{StaticResource ListItemSelectedInactiveBrush}"/>
+                                                    <Setter Property="Foreground" Value="#CBD5F5"/>
+                                                </MultiTrigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListView.ItemContainerStyle>
                         <ListView.View>
                             <GridView AllowsColumnReorder="False">
                                 <GridViewColumn Header="Device" DisplayMemberBinding="{Binding DeviceName}" Width="220"/>
