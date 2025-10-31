@@ -1,12 +1,12 @@
 <Page x:Class="TidyWindow.App.Views.BootstrapPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
-      mc:Ignorable="d"
-      Title="Bootstrap"
-      Background="Transparent">
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+    mc:Ignorable="d"
+    Title="Bootstrap"
+    Background="Transparent">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
@@ -125,11 +125,14 @@
 
     </Page.Resources>
 
-    <ScrollViewer Margin="32"
+    <ScrollViewer x:Name="RootScrollViewer"
+                  Margin="32"
                   VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Auto"
-                  CanContentScroll="False">
-        <Grid MinWidth="720">
+                  HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False"
+                  PanningMode="VerticalOnly">
+        <Grid x:Name="PageGrid"
+              MinWidth="720">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -158,14 +161,18 @@
                 </StackPanel>
             </StackPanel>
 
-            <Grid Grid.Row="1"
+            <Grid x:Name="LayoutGrid"
+                  Grid.Row="1"
                   Margin="0,28,0,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"/>
-                    <ColumnDefinition Width="2*"/>
+                    <ColumnDefinition Width="3*"
+                                      MinWidth="360"/>
+                    <ColumnDefinition Width="2*"
+                                      MinWidth="320"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0"
+                <StackPanel x:Name="LeftColumn"
+                            Grid.Column="0"
                             Margin="0,0,24,0">
                     <Border Style="{StaticResource BootstrapCardStyle}"
                             Margin="0,0,0,24">
@@ -188,8 +195,8 @@
                                            TextWrapping="Wrap"/>
                             </StackPanel>
 
-                            <Grid Grid.Row="1"
-                                  Margin="0,18,0,0">
+                    <Grid Grid.Row="1"
+                        Margin="0,18,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -230,8 +237,8 @@
                                 </StackPanel>
                             </Grid>
 
-                            <Grid Grid.Row="2"
-                                  Margin="0,20,0,0">
+                    <Grid Grid.Row="2"
+                        Margin="0,20,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
@@ -284,7 +291,8 @@
                                 </Border>
                             </StackPanel>
 
-                            <ListView Grid.Row="1"
+                            <ListView x:Name="ManagersList"
+                                      Grid.Row="1"
                                       Margin="0,18,0,0"
                                       ItemsSource="{Binding Managers}"
                                       Background="Transparent"
@@ -380,8 +388,7 @@
                                                                Foreground="#CBD5F5"
                                                                TextWrapping="Wrap"
                                                                LineStackingStrategy="BlockLineHeight"
-                                                               LineHeight="18"
-                                                               MaxWidth="500"/>
+                                                               LineHeight="18"/>
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1"
@@ -473,10 +480,11 @@
                     </Border>
                 </StackPanel>
 
-                <StackPanel Grid.Column="1"
-                            Margin="16,0,0,0">
-                    <Border Style="{StaticResource BootstrapCardStyle}"
-                            Margin="0,0,0,24">
+        <StackPanel x:Name="RightColumn"
+                Grid.Column="1"
+                Margin="16,0,0,0">
+            <Border Style="{StaticResource BootstrapCardStyle}"
+                Margin="0,0,0,24">
                         <StackPanel>
                             <TextBlock Text="PowerShell runtime"
                                        FontSize="16"
@@ -516,8 +524,8 @@
                                        FontSize="12"/>
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource BootstrapCardStyle}"
-                            Margin="0,0,0,24">
+            <Border Style="{StaticResource BootstrapCardStyle}"
+                Margin="0,0,0,24">
                         <StackPanel>
                             <TextBlock Text="Quick guidance"
                                        FontSize="16"
