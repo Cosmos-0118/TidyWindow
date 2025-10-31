@@ -1,0 +1,381 @@
+{
+  "tweaks": [
+    {
+      "id": "menu-show-delay",
+      "name": "Accelerate menu reveal",
+      "category": "Interface responsiveness",
+      "summary": "Reduce the pop-up menu show delay for faster navigation.",
+      "riskLevel": "Safe",
+      "icon": "⚡",
+      "defaultState": true,
+      "documentationLink": "docs/registry/menu-delay.md",
+      "constraints": {
+        "type": "range",
+        "min": 0,
+        "max": 2000,
+        "default": 400
+      },
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-menu-show-delay.ps1",
+          "parameters": {
+            "DelayMilliseconds": 120
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-menu-show-delay.ps1",
+          "parameters": {
+            "RevertToDefault": true
+          }
+        }
+      }
+    },
+    {
+      "id": "window-animation",
+      "name": "Disable window animations",
+      "category": "Interface responsiveness",
+      "summary": "Turns off non-essential animations to sharpen responsiveness on slower devices.",
+      "riskLevel": "Safe",
+      "icon": "🎞️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-window-animation.ps1",
+          "parameters": {
+            "AnimationState": "Disable"
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-window-animation.ps1",
+          "parameters": {
+            "AnimationState": "Enable"
+          }
+        }
+      }
+    },
+    {
+      "id": "visual-effects",
+      "name": "Optimize visual effects",
+      "category": "Visual clarity",
+      "summary": "Writes Desktop Window Manager flags for a balanced performance profile.",
+      "riskLevel": "Caution",
+      "icon": "🖥️",
+      "defaultState": true,
+      "documentationLink": "docs/registry/visual-effects.md",
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-visual-effects.ps1",
+          "parameters": {
+            "Profile": "Balanced"
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-visual-effects.ps1",
+          "parameters": {
+            "Profile": "Default"
+          }
+        }
+      }
+    },
+    {
+      "id": "prefetching",
+      "name": "Tidy prefetching",
+      "category": "Storage & caching",
+      "summary": "Tunes prefetch behaviours to match SSD recommendations.",
+      "riskLevel": "Caution",
+      "icon": "🚀",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/manage-prefetching.ps1",
+          "parameters": {
+            "Mode": "SsdRecommended"
+          }
+        },
+        "disable": {
+          "script": "automation/registry/manage-prefetching.ps1",
+          "parameters": {
+            "Mode": "Default"
+          }
+        }
+      }
+    },
+    {
+      "id": "telemetry-level",
+      "name": "Limit diagnostics",
+      "category": "Privacy",
+      "summary": "Restricts telemetry uploads to the minimum supported level.",
+      "riskLevel": "Moderate",
+      "icon": "🛰️",
+      "defaultState": true,
+      "documentationLink": "docs/registry/telemetry.md",
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-telemetry-level.ps1",
+          "parameters": {
+            "TelemetryLevel": 1
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-telemetry-level.ps1",
+          "parameters": {
+            "RevertToWindowsDefault": true
+          }
+        }
+      }
+    },
+    {
+      "id": "cortana-policy",
+      "name": "Disable Cortana background",
+      "category": "Privacy",
+      "summary": "Turns off Cortana background components while keeping search operational.",
+      "riskLevel": "Moderate",
+      "icon": "🔍",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-cortana-policy.ps1",
+          "parameters": {
+            "Mode": "Disable"
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-cortana-policy.ps1",
+          "parameters": {
+            "Mode": "Enable"
+          }
+        }
+      }
+    },
+    {
+      "id": "network-latency",
+      "name": "Trim network latency",
+      "category": "Networking",
+      "summary": "Applies stack tuning for quicker TCP acknowledgements on wired networks.",
+      "riskLevel": "Advanced",
+      "icon": "🌐",
+      "defaultState": false,
+      "documentationLink": "docs/registry/network-latency.md",
+      "operations": {
+        "enable": {
+          "script": "automation/registry/tune-network-latency.ps1",
+          "parameters": {
+            "Profile": "Workstation"
+          }
+        },
+        "disable": {
+          "script": "automation/registry/tune-network-latency.ps1",
+          "parameters": {
+            "Revert": true
+          }
+        }
+      }
+    },
+    {
+      "id": "sysmain-service",
+      "name": "Stop SysMain service",
+      "category": "Background services",
+      "summary": "Converts SysMain to manual start for systems with fast solid-state storage.",
+      "riskLevel": "Advanced",
+      "icon": "🧠",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/stop-sysmain.ps1",
+          "parameters": {
+            "Mode": "Manual"
+          }
+        },
+        "disable": {
+          "script": "automation/registry/stop-sysmain.ps1",
+          "parameters": {
+            "Mode": "Automatic"
+          }
+        }
+      }
+    },
+    {
+      "id": "low-disk-alerts",
+      "name": "Silence low disk warnings",
+      "category": "Notifications",
+      "summary": "Disables repeating low disk notifications while keeping storage sense intact.",
+      "riskLevel": "Safe",
+      "icon": "💾",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/hide-low-disk-alerts.ps1",
+          "parameters": {
+            "Suppress": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/hide-low-disk-alerts.ps1",
+          "parameters": {
+            "Suppress": false
+          }
+        }
+      }
+    },
+    {
+      "id": "auto-restart",
+      "name": "Prevent surprise restarts",
+      "category": "Reliability",
+      "summary": "Blocks auto-restart after updates when a user is logged on.",
+      "riskLevel": "Safe",
+      "icon": "🔁",
+      "defaultState": true,
+      "documentationLink": "docs/registry/auto-restart.md",
+      "operations": {
+        "enable": {
+          "script": "automation/registry/configure-auto-restart-sign-on.ps1",
+          "parameters": {
+            "NoAutoReboot": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/configure-auto-restart-sign-on.ps1",
+          "parameters": {
+            "NoAutoReboot": false
+          }
+        }
+      }
+    },
+    {
+      "id": "auto-end-tasks",
+      "name": "Auto-close hung apps",
+      "category": "Reliability",
+      "summary": "Ends non-responsive apps automatically on shutdown.",
+      "riskLevel": "Moderate",
+      "icon": "🧹",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/auto-end-tasks.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/auto-end-tasks.ps1",
+          "parameters": {
+            "Enable": false
+          }
+        }
+      }
+    },
+    {
+      "id": "hung-app-timeouts",
+      "name": "Shorten hung app timeout",
+      "category": "Reliability",
+      "summary": "Tweaks wait-to-kill timeout for faster shutdown while staying safe for services.",
+      "riskLevel": "Caution",
+      "icon": "⏱️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/adjust-hung-app-timeouts.ps1",
+          "parameters": {
+            "HungAppTimeout": 5000,
+            "WaitToKillServiceTimeout": 7000
+          }
+        },
+        "disable": {
+          "script": "automation/registry/adjust-hung-app-timeouts.ps1",
+          "parameters": {
+            "Revert": true
+          }
+        }
+      }
+    },
+    {
+      "id": "lock-workstation",
+      "name": "Respect lock shortcut",
+      "category": "Security",
+      "summary": "Ensures workstation lock hotkeys remain enabled across policies.",
+      "riskLevel": "Safe",
+      "icon": "🔒",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/toggle-lock-workstation.ps1",
+          "parameters": {
+            "EnsureEnabled": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/toggle-lock-workstation.ps1",
+          "parameters": {
+            "EnsureEnabled": false
+          }
+        }
+      }
+    }
+  ],
+  "presets": [
+    {
+      "id": "balanced",
+      "name": "Balanced defaults",
+      "description": "Applies conservative improvements for most systems.",
+      "icon": "⚙️",
+      "isDefault": true,
+      "states": {
+        "menu-show-delay": true,
+        "window-animation": false,
+        "visual-effects": true,
+        "prefetching": true,
+        "telemetry-level": true,
+        "cortana-policy": false,
+        "network-latency": false,
+        "sysmain-service": false,
+        "low-disk-alerts": false,
+        "auto-restart": true,
+        "auto-end-tasks": false,
+        "hung-app-timeouts": false,
+        "lock-workstation": true
+      }
+    },
+    {
+      "id": "performance",
+      "name": "Performance boost",
+      "description": "Prioritises speed over visuals on gaming or development rigs.",
+      "icon": "🚀",
+      "states": {
+        "menu-show-delay": true,
+        "window-animation": true,
+        "visual-effects": true,
+        "prefetching": true,
+        "telemetry-level": true,
+        "cortana-policy": true,
+        "network-latency": true,
+        "sysmain-service": false,
+        "low-disk-alerts": true,
+        "auto-restart": true,
+        "auto-end-tasks": true,
+        "hung-app-timeouts": true,
+        "lock-workstation": true
+      }
+    },
+    {
+      "id": "minimal",
+      "name": "Minimal changes",
+      "description": "Keeps Windows defaults while exposing toggles for manual control.",
+      "icon": "🪟",
+      "states": {
+        "menu-show-delay": false,
+        "window-animation": false,
+        "visual-effects": false,
+        "prefetching": false,
+        "telemetry-level": false,
+        "cortana-policy": false,
+        "network-latency": false,
+        "sysmain-service": false,
+        "low-disk-alerts": false,
+        "auto-restart": false,
+        "auto-end-tasks": false,
+        "hung-app-timeouts": false,
+        "lock-workstation": true
+      }
+    }
+  ]
+}

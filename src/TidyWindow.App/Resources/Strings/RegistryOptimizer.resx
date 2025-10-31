@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="PageTitle" xml:space="preserve">
+    <value>Registry optimizer</value>
+  </data>
+  <data name="PageHeadline" xml:space="preserve">
+    <value>Preview safe registry adjustments before applying.</value>
+  </data>
+  <data name="LeadCardTitle" xml:space="preserve">
+    <value>Safely stage registry tweaks</value>
+  </data>
+  <data name="LeadCardDescription" xml:space="preserve">
+    <value>Preview recommended defaults before pushing changes system-wide.</value>
+  </data>
+  <data name="TweaksHeader" xml:space="preserve">
+    <value>Tweaks &amp; safeguards</value>
+  </data>
+  <data name="TweaksDescription" xml:space="preserve">
+    <value>Toggle the adjustments you want to stage now.</value>
+  </data>
+  <data name="PresetsHeader" xml:space="preserve">
+    <value>Presets</value>
+  </data>
+  <data name="PresetsDescription" xml:space="preserve">
+    <value>Load a baseline profile that fits your risk tolerance.</value>
+  </data>
+  <data name="Tweak_MenuShowDelay_Name" xml:space="preserve">
+    <value>Accelerate menu reveal</value>
+  </data>
+  <data name="Tweak_MenuShowDelay_Summary" xml:space="preserve">
+    <value>Reduce the pop-up menu show delay for faster navigation.</value>
+  </data>
+  <data name="Tweak_MenuShowDelay_Risk" xml:space="preserve">
+    <value>Safe</value>
+  </data>
+  <data name="Tweak_WindowAnimation_Name" xml:space="preserve">
+    <value>Disable window animations</value>
+  </data>
+  <data name="Tweak_WindowAnimation_Summary" xml:space="preserve">
+    <value>Turns off non-essential animations to sharpen responsiveness on slower devices.</value>
+  </data>
+  <data name="Tweak_WindowAnimation_Risk" xml:space="preserve">
+    <value>Safe</value>
+  </data>
+  <data name="Tweak_VisualEffects_Name" xml:space="preserve">
+    <value>Optimize visual effects</value>
+  </data>
+  <data name="Tweak_VisualEffects_Summary" xml:space="preserve">
+    <value>Writes Desktop Window Manager flags for a balanced performance profile.</value>
+  </data>
+  <data name="Tweak_VisualEffects_Risk" xml:space="preserve">
+    <value>Caution</value>
+  </data>
+  <data name="Tweak_Prefetching_Name" xml:space="preserve">
+    <value>Tidy prefetching</value>
+  </data>
+  <data name="Tweak_Prefetching_Summary" xml:space="preserve">
+    <value>Tunes prefetch behaviours to match SSD recommendations.</value>
+  </data>
+  <data name="Tweak_Prefetching_Risk" xml:space="preserve">
+    <value>Caution</value>
+  </data>
+  <data name="Tweak_TelemetryLevel_Name" xml:space="preserve">
+    <value>Limit diagnostics</value>
+  </data>
+  <data name="Tweak_TelemetryLevel_Summary" xml:space="preserve">
+    <value>Restricts telemetry uploads to the minimum supported level.</value>
+  </data>
+  <data name="Tweak_TelemetryLevel_Risk" xml:space="preserve">
+    <value>Moderate</value>
+  </data>
+  <data name="Tweak_CortanaPolicy_Name" xml:space="preserve">
+    <value>Disable Cortana background</value>
+  </data>
+  <data name="Tweak_CortanaPolicy_Summary" xml:space="preserve">
+    <value>Turns off Cortana background components while keeping search operational.</value>
+  </data>
+  <data name="Tweak_CortanaPolicy_Risk" xml:space="preserve">
+    <value>Moderate</value>
+  </data>
+  <data name="Tweak_NetworkLatency_Name" xml:space="preserve">
+    <value>Trim network latency</value>
+  </data>
+  <data name="Tweak_NetworkLatency_Summary" xml:space="preserve">
+    <value>Applies stack tuning for quicker TCP acknowledgements on wired networks.</value>
+  </data>
+  <data name="Tweak_NetworkLatency_Risk" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="Tweak_SysmainService_Name" xml:space="preserve">
+    <value>Stop SysMain service</value>
+  </data>
+  <data name="Tweak_SysmainService_Summary" xml:space="preserve">
+    <value>Converts SysMain to manual start for systems with fast solid-state storage.</value>
+  </data>
+  <data name="Tweak_SysmainService_Risk" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="Tweak_LowDiskAlerts_Name" xml:space="preserve">
+    <value>Silence low disk warnings</value>
+  </data>
+  <data name="Tweak_LowDiskAlerts_Summary" xml:space="preserve">
+    <value>Disables repeating low disk notifications while keeping storage sense intact.</value>
+  </data>
+  <data name="Tweak_LowDiskAlerts_Risk" xml:space="preserve">
+    <value>Safe</value>
+  </data>
+  <data name="Tweak_AutoRestart_Name" xml:space="preserve">
+    <value>Prevent surprise restarts</value>
+  </data>
+  <data name="Tweak_AutoRestart_Summary" xml:space="preserve">
+    <value>Blocks auto-restart after updates when a user is logged on.</value>
+  </data>
+  <data name="Tweak_AutoRestart_Risk" xml:space="preserve">
+    <value>Safe</value>
+  </data>
+  <data name="Tweak_AutoEndTasks_Name" xml:space="preserve">
+    <value>Auto-close hung apps</value>
+  </data>
+  <data name="Tweak_AutoEndTasks_Summary" xml:space="preserve">
+    <value>Ends non-responsive apps automatically on shutdown.</value>
+  </data>
+  <data name="Tweak_AutoEndTasks_Risk" xml:space="preserve">
+    <value>Moderate</value>
+  </data>
+  <data name="Tweak_HungAppTimeouts_Name" xml:space="preserve">
+    <value>Shorten hung app timeout</value>
+  </data>
+  <data name="Tweak_HungAppTimeouts_Summary" xml:space="preserve">
+    <value>Tweaks wait-to-kill timeout for faster shutdown while staying safe for services.</value>
+  </data>
+  <data name="Tweak_HungAppTimeouts_Risk" xml:space="preserve">
+    <value>Caution</value>
+  </data>
+  <data name="Tweak_LockWorkstation_Name" xml:space="preserve">
+    <value>Respect lock shortcut</value>
+  </data>
+  <data name="Tweak_LockWorkstation_Summary" xml:space="preserve">
+    <value>Ensures workstation lock hotkeys remain enabled across policies.</value>
+  </data>
+  <data name="Tweak_LockWorkstation_Risk" xml:space="preserve">
+    <value>Safe</value>
+  </data>
+  <data name="ApplyButton" xml:space="preserve">
+    <value>Apply staged</value>
+  </data>
+  <data name="RevertButton" xml:space="preserve">
+    <value>Revert</value>
+  </data>
+  <data name="PendingNotice" xml:space="preserve">
+    <value>Changes staged but not yet applied</value>
+  </data>
+  <data name="SyncedNotice" xml:space="preserve">
+    <value>All tweaks synced with applied baseline</value>
+  </data>
+  <data name="DefaultEnabled" xml:space="preserve">
+    <value>Default: Enabled</value>
+  </data>
+  <data name="DefaultDisabled" xml:space="preserve">
+    <value>Default: Disabled</value>
+  </data>
+  <data name="RiskSafe" xml:space="preserve">
+    <value>Safe</value>
+  </data>
+  <data name="RiskModerate" xml:space="preserve">
+    <value>Moderate</value>
+  </data>
+  <data name="RiskCaution" xml:space="preserve">
+    <value>Caution</value>
+  </data>
+  <data name="RiskAdvanced" xml:space="preserve">
+    <value>Advanced</value>
+  </data>
+  <data name="RestoreButton" xml:space="preserve">
+    <value>Restore last snapshot</value>
+  </data>
+  <data name="RestoreButtonDescription" xml:space="preserve">
+    <value>Roll back the most recent registry changes.</value>
+  </data>
+  <data name="RollbackDialogTitle" xml:space="preserve">
+    <value>Confirm registry changes</value>
+  </data>
+  <data name="RollbackDialogHeader" xml:space="preserve">
+    <value>Registry changes applied</value>
+  </data>
+  <data name="RollbackDialogDescription" xml:space="preserve">
+    <value>Keep changes or revert them before the timer runs out.</value>
+  </data>
+  <data name="RollbackDialogKeep" xml:space="preserve">
+    <value>Keep changes</value>
+  </data>
+  <data name="RollbackDialogRevert" xml:space="preserve">
+    <value>Revert now</value>
+  </data>
+  <data name="RollbackDialogCountdown" xml:space="preserve">
+    <value>Reverting in {0}s</value>
+  </data>
+  <data name="RollbackDialogAutoNotice" xml:space="preserve">
+    <value>Reverting...</value>
+  </data>
+  <data name="RestorePointCreated" xml:space="preserve">
+    <value>Registry restore point saved to {0}.</value>
+  </data>
+  <data name="RestorePointApplied" xml:space="preserve">
+    <value>Registry restore point reapplied.</value>
+  </data>
+  <data name="RestorePointFailed" xml:space="preserve">
+    <value>Registry restore point failed.</value>
+  </data>
+</root>

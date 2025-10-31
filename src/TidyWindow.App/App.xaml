@@ -4,7 +4,12 @@
              xmlns:converters="clr-namespace:TidyWindow.App.Converters"
              xmlns:local="clr-namespace:TidyWindow.App">
     <Application.Resources>
-        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
-        <converters:BooleanToYesNoConverter x:Key="BooleanToYesNoConverter"/>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/TidyWindow;component/Resources/RegistryOptimizer.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+            <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+            <converters:BooleanToYesNoConverter x:Key="BooleanToYesNoConverter"/>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

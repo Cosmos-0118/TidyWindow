@@ -22,9 +22,13 @@ namespace TidyWindow.App;
 public partial class App : WpfApplication
 {
     private IHost? _host;
+    private CrashLogService? _crashLogs;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        _crashLogs = new CrashLogService();
+        _crashLogs.Attach(this);
+
         if (!EnsureElevated())
         {
             Shutdown();
@@ -53,6 +57,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<DriverUpdateService>();
                 services.AddSingleton<EssentialsTaskCatalog>();
                 services.AddSingleton<EssentialsTaskQueue>();
+                services.AddSingleton<RegistryOptimizerService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -64,6 +69,7 @@ public partial class App : WpfApplication
                 services.AddTransient<LogsViewModel>();
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<DriverUpdatesViewModel>();
+                services.AddTransient<RegistryOptimizerViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -74,6 +80,7 @@ public partial class App : WpfApplication
                 services.AddTransient<LogsPage>();
                 services.AddTransient<EssentialsPage>();
                 services.AddTransient<DriverUpdatesPage>();
+                services.AddTransient<RegistryOptimizerPage>();
 
                 services.AddSingleton<MainWindow>();
             })
@@ -124,6 +131,8 @@ public partial class App : WpfApplication
             await _host.StopAsync();
             _host.Dispose();
         }
+
+        _crashLogs?.Dispose();
 
         base.OnExit(e);
     }
