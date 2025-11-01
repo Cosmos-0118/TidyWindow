@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -25,7 +26,11 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<Guid, InstallOperationItemViewModel> _operationLookup = new();
     private readonly Dictionary<Guid, InstallQueueOperationSnapshot> _snapshotCache = new();
     private readonly Dictionary<string, int> _activePackageCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
     private bool _isDisposed;
+    private Task? _initializationTask;
+    private bool _catalogInitialized;
+    private bool _suppressFilters;
 
     public InstallHubViewModel(InstallCatalogService catalogService, InstallQueue installQueue, BundlePresetService presetService, MainViewModel mainViewModel, ActivityLogService activityLogService)
     {
@@ -38,8 +43,6 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         Bundles = new ObservableCollection<InstallBundleItemViewModel>();
         Packages = new ObservableCollection<InstallPackageItemViewModel>();
         Operations = new ObservableCollection<InstallOperationItemViewModel>();
-
-        InitializeCatalog();
 
         foreach (var snapshot in _installQueue.GetSnapshot())
         {
@@ -59,9 +62,9 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             }
         }
 
-        UpdatePackageQueueStates();
-
         _installQueue.OperationChanged += OnInstallQueueChanged;
+
+        UpdatePackageQueueStates();
     }
 
     public ObservableCollection<InstallBundleItemViewModel> Bundles { get; }
@@ -82,49 +85,140 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _headline = "Curate developer bundles";
 
-    private void InitializeCatalog()
+    [ObservableProperty]
+    private bool _isLoading;
+
+    public Task EnsureLoadedAsync()
     {
-        IReadOnlyList<InstallPackageDefinition> allPackages;
+        if (_catalogInitialized)
+        {
+            return Task.CompletedTask;
+        }
+
+        return _initializationTask ??= LoadCatalogAsync();
+    }
+
+    public bool IsInitialized => _catalogInitialized;
+
+    private async Task LoadCatalogAsync()
+    {
+        var success = false;
+        await _loadSemaphore.WaitAsync();
 
         try
         {
-            allPackages = _catalogService.Packages;
+            if (_catalogInitialized)
+            {
+                success = true;
+                return;
+            }
+
+            IsLoading = true;
+
+            IReadOnlyList<InstallPackageDefinition> packages = Array.Empty<InstallPackageDefinition>();
+            IReadOnlyList<InstallBundleDefinition> bundles = Array.Empty<InstallBundleDefinition>();
+            Exception? failure = null;
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    packages = _catalogService.Packages;
+                    bundles = _catalogService.Bundles;
+                }
+                catch (Exception ex)
+                {
+                    failure = ex;
+                }
+            });
+
+            if (failure is not null)
+            {
+                _mainViewModel.SetStatusMessage($"Install catalog failed to load: {failure.Message}");
+                return;
+            }
+
+            if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+            {
+                await dispatcher.InvokeAsync(() => ApplyCatalog(packages, bundles));
+            }
+            else
+            {
+                ApplyCatalog(packages, bundles);
+            }
+
+            _catalogInitialized = true;
+            success = true;
         }
-        catch (Exception ex)
+        finally
         {
-            _mainViewModel.SetStatusMessage($"Install catalog failed to load: {ex.Message}");
-            return;
+            if (!success)
+            {
+                _initializationTask = null;
+            }
+
+            IsLoading = false;
+            _loadSemaphore.Release();
         }
 
-        var allBundle = InstallBundleItemViewModel.CreateAll(allPackages.Count);
-        Bundles.Add(allBundle);
+        UpdatePackageQueueStates();
+    }
 
-        foreach (var package in allPackages)
+    private void ApplyCatalog(IReadOnlyList<InstallPackageDefinition> packages, IReadOnlyList<InstallBundleDefinition> bundles)
+    {
+        _suppressFilters = true;
+
+        try
         {
-            var vm = new InstallPackageItemViewModel(package);
-            _packageLookup[package.Id] = vm;
-        }
+            Bundles.Clear();
+            Packages.Clear();
+            _packageLookup.Clear();
 
-        foreach (var bundle in _catalogService.Bundles)
+            var allBundle = InstallBundleItemViewModel.CreateAll(packages.Count);
+            Bundles.Add(allBundle);
+
+            foreach (var package in packages)
+            {
+                var vm = new InstallPackageItemViewModel(package);
+                _packageLookup[package.Id] = vm;
+            }
+
+            foreach (var bundle in bundles)
+            {
+                Bundles.Add(new InstallBundleItemViewModel(
+                    bundle.Id,
+                    bundle.Name,
+                    bundle.Description,
+                    bundle.PackageIds));
+            }
+
+            SelectedBundle = Bundles.FirstOrDefault();
+        }
+        finally
         {
-            Bundles.Add(new InstallBundleItemViewModel(
-                bundle.Id,
-                bundle.Name,
-                bundle.Description,
-                bundle.PackageIds));
+            _suppressFilters = false;
         }
 
-        SelectedBundle = Bundles.FirstOrDefault();
         ApplyBundleFilter();
     }
 
     partial void OnSelectedBundleChanged(InstallBundleItemViewModel? oldValue, InstallBundleItemViewModel? newValue)
     {
+        if (_suppressFilters)
+        {
+            return;
+        }
+
         ApplyBundleFilter();
     }
 
     partial void OnSearchTextChanged(string? oldValue, string? newValue)
     {
+        if (_suppressFilters)
+        {
+            return;
+        }
+
         ApplyBundleFilter();
     }
 
@@ -374,6 +468,17 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
     private void ApplyBundleFilter()
     {
+        if (_suppressFilters)
+        {
+            return;
+        }
+
+        if (_packageLookup.Count == 0)
+        {
+            Packages.Clear();
+            return;
+        }
+
         IEnumerable<InstallPackageItemViewModel> items;
 
         if (SelectedBundle is null || SelectedBundle.IsSyntheticAll)
