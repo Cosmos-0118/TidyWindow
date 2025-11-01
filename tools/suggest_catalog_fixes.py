@@ -66,7 +66,7 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
     parser.add_argument(
         "--input",
         type=Path,
-        required=True,
+        default=None,
         help="Path to JSON output produced by check_package_availability.py",
     )
     parser.add_argument(
@@ -108,6 +108,17 @@ def parse_args(argv: Optional[Sequence[str]]) -> argparse.Namespace:
         type=int,
         default=25,
         help="Per search timeout in seconds (defaults to 25).",
+    )
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=None,
+        help="Path to write JSON suggestions (defaults to root/fixes.json).",
+    )
+    parser.add_argument(
+        "--no-stdout",
+        action="store_true",
+        help="Suppress suggestion details on stdout.",
     )
     return parser.parse_args(argv)
 
@@ -454,13 +465,67 @@ def render_record(record: ResultRecord, suggestions: List[ScoredSuggestion],
     print()
 
 
+def build_output_record(record: ResultRecord,
+                        suggestions: List[ScoredSuggestion],
+                        notes: Sequence[str], limit: int) -> Dict[str, object]:
+    entry = record.entry
+    suggestion_payload: List[Dict[str, object]] = []
+    for item in suggestions[:limit]:
+        suggestion_payload.append({
+            "manager":
+            item.manager,
+            "identifier":
+            item.identifier,
+            "name":
+            item.name,
+            "score":
+            round(item.score, 4),
+            "command":
+            build_install_command(item.manager, item.identifier),
+            "metadata":
+            item.metadata,
+            "query":
+            item.query,
+            "raw":
+            item.raw,
+        })
+
+    return {
+        "package_id": entry.package_id,
+        "manager": entry.manager,
+        "status": record.status,
+        "message": record.message,
+        "file_path": str(entry.file_path),
+        "index": entry.index,
+        "manager_identifier": record.manager_identifier,
+        "suggestions": suggestion_payload,
+        "notes": list(notes),
+    }
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
-    if not args.input.exists():
-        print(f"Input JSON not found: {args.input}", file=sys.stderr)
+    root = args.root
+    if not root.is_absolute():
+        root = (Path.cwd() / root).resolve()
+
+    input_path = args.input
+    if input_path is None:
+        input_path = root / "failures.json"
+    elif not input_path.is_absolute():
+        input_path = (root / input_path).resolve()
+
+    if not input_path.exists():
+        print(f"Input JSON not found: {input_path}", file=sys.stderr)
         return 1
 
-    records = load_results(args.input, args.root)
+    output_path = args.output
+    if output_path is None:
+        output_path = root / "fixes.json"
+    elif not output_path.is_absolute():
+        output_path = (root / output_path).resolve()
+
+    records = load_results(input_path, root)
     records = filter_records(records, args.managers, args.package_ids)
     if not records:
         print("No failing entries matched the provided filters.")
@@ -468,10 +533,33 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     search_managers = resolve_search_managers(args.search_managers)
 
+    output_payload: List[Dict[str, object]] = []
     for record in records:
         suggestions, notes = search_for_record(record, search_managers,
                                                args.timeout)
-        render_record(record, suggestions, notes, args.max_suggestions)
+        if not args.no_stdout:
+            render_record(record, suggestions, notes, args.max_suggestions)
+        output_payload.append(
+            build_output_record(record, suggestions, notes,
+                                args.max_suggestions))
+
+    try:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(output_payload, indent=2) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        print(f"Failed to write output JSON: {exc}", file=sys.stderr)
+        return 1
+
+    if args.no_stdout:
+        print(
+            f"Wrote {len(output_payload)} suggestion records to {output_path}")
+    else:
+        print(
+            f"Suggestion details also saved to {output_path} ({len(output_payload)} records)."
+        )
 
     return 0
 
