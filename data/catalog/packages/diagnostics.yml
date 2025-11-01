@@ -10,7 +10,7 @@ packages:
     - id: fiddler
       name: Fiddler Everywhere
       manager: winget
-      command: "winget install --id Progress.TelerikFiddlerEverywhere -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Telerik.Fiddler.Everywhere -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Web debugging proxy for HTTP/S traffic.
       homepage: "https://www.telerik.com/fiddler"
@@ -25,25 +25,17 @@ packages:
       tags: [network]
     - id: notepadplusplus
       name: Notepad++
-      manager: winget
-      command: "winget install --id Notepad++.Notepad++ -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install notepadplusplus -y --no-progress"
       requiresAdmin: true
       summary: Advanced text editor for Windows.
       homepage: "https://notepad-plus-plus.org"
       tags: [editor]
-    - id: redisinsight
-      name: RedisInsight
-      manager: winget
-      command: "winget install --id Redis.RedisInsight -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: GUI for managing Redis data.
-      homepage: "https://redis.com/redis-enterprise/redis-insight/"
-      tags: [database]
     - id: insomnia
       name: Insomnia
-      manager: winget
-      command: "winget install --id Kong.Insomnia -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install insomnia -y --no-progress"
+      requiresAdmin: true
       summary: API design and testing platform.
       homepage: "https://insomnia.rest"
       tags: [api]
@@ -89,9 +81,9 @@ packages:
       tags: [api]
     - id: nuget-package-explorer
       name: NuGet Package Explorer
-      manager: winget
-      command: "winget install --id NugetPackageExplorer.NugetPackageExplorer -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install nugetpackageexplorer -y --no-progress"
+      requiresAdmin: true
       summary: Inspect and author NuGet packages.
       homepage: "https://github.com/NuGetPackageExplorer/NuGetPackageExplorer"
       tags: [nuget]
@@ -106,7 +98,7 @@ packages:
     - id: grafana
       name: Grafana
       manager: winget
-      command: "winget install --id GrafanaLabs.Grafana -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id GrafanaLabs.Grafana.OSS -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
       summary: Observability dashboards and alerting platform.
       homepage: "https://grafana.com"
@@ -121,52 +113,20 @@ packages:
       tags: [electronics, simulation]
     - id: fastfetch
       name: fastfetch
-      manager: scoop
-      command: "scoop install fastfetch"
+      manager: winget
+      command: "winget install --id Fastfetch-cli.Fastfetch -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: High-performance system information tool modeled after neofetch.
       homepage: "https://github.com/fastfetch-cli/fastfetch"
       tags: [diagnostics]
-    - id: neofetch
-      name: neofetch
-      manager: scoop
-      command: "scoop install neofetch"
-      requiresAdmin: false
-      summary: Command-line summary of system information.
-      homepage: "https://github.com/dylanaraps/neofetch"
-      tags: [diagnostics]
     - id: hyperfine
       name: hyperfine
-      manager: winget
-      command: "winget install --id Sharkdp.Hyperfine -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install hyperfine -y --no-progress"
+      requiresAdmin: true
       summary: Benchmarking tool for measuring command execution time.
       homepage: "https://github.com/sharkdp/hyperfine"
       tags: [performance]
-    - id: curlie
-      name: curlie
-      manager: winget
-      command: "winget install --id rs.curlie -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: User-friendly curl wrapper for crafting HTTP requests.
-      homepage: "https://github.com/rs/curlie"
-      tags: [api]
-    - id: grpcurl
-      name: grpcurl
-      manager: winget
-      command: "winget install --id Fullstorydev.grpcurl -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Command-line gRPC client for probing gRPC services.
-      homepage: "https://github.com/fullstorydev/grpcurl"
-      tags: [api]
-    - id: httpyac
-      name: httpyac
-      manager: winget
-      command: "winget install --id Anweber.httpyac -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Versatile HTTP client for REST, GraphQL, and gRPC testing.
-      homepage: "https://httpyac.github.io"
-      tags: [api]
     - id: mitmproxy
       name: mitmproxy
       manager: winget
@@ -201,8 +161,8 @@ packages:
       tags: [security]
     - id: processhacker
       name: Process Hacker
-      manager: winget
-      command: "winget install --id ProcessHacker.ProcessHacker -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install processhacker -y --no-progress"
       requiresAdmin: true
       summary: Advanced process viewer and system monitoring tool.
       homepage: "https://processhacker.sourceforge.io"
@@ -231,14 +191,6 @@ packages:
       summary: Secure file deletion utility from Sysinternals.
       homepage: "https://learn.microsoft.com/sysinternals/downloads/sdelete"
       tags: [security]
-    - id: npcap
-      name: Npcap
-      manager: winget
-      command: "winget install --id Npcap.Npcap -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Packet capture driver compatible with WinPcap for network inspection tools.
-      homepage: "https://npcap.com"
-      tags: [network]
     - id: autoruns
       name: Autoruns
       manager: winget
@@ -266,7 +218,7 @@ packages:
     - id: exiftool
       name: ExifTool
       manager: winget
-      command: "winget install --id PhilHarvey.ExifTool -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id OliverBetz.ExifTool -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Metadata reader and editor for images, audio, and video files.
       homepage: "https://exiftool.org"
@@ -559,4 +511,3 @@ packages:
       summary: Fast, cost-effective monitoring solution and time series database.
       homepage: "https://victoriametrics.com"
       tags: [monitoring, database]
-

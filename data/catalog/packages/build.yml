@@ -49,8 +49,8 @@ packages:
       tags: [build]
     - id: pipx
       name: pipx
-      manager: winget
-      command: "winget install --id Python.Pipx -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install pipx"
       requiresAdmin: false
       summary: Run Python applications in isolated environments.
       homepage: "https://pypa.github.io/pipx"
@@ -137,8 +137,8 @@ packages:
       tags: [build]
     - id: just
       name: just
-      manager: scoop
-      command: "scoop install just"
+      manager: winget
+      command: "winget install --id Casey.Just -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Command runner for project task automation.
       homepage: "https://just.systems"
@@ -161,17 +161,17 @@ packages:
       tags: [javascript, runtime]
     - id: gradle
       name: Gradle
-      manager: winget
-      command: "winget install --id Gradle.Gradle -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install gradle -y --no-progress"
+      requiresAdmin: true
       summary: Build automation tool for Java and other JVM languages.
       homepage: "https://gradle.org"
       tags: [build, java]
     - id: maven
       name: Apache Maven
-      manager: winget
-      command: "winget install --id Apache.Maven -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install maven -y --no-progress"
+      requiresAdmin: true
       summary: Java project management and build automation tool.
       homepage: "https://maven.apache.org"
       tags: [build, java]
@@ -257,8 +257,8 @@ packages:
       tags: [build, cpp]
     - id: vcpkg
       name: vcpkg
-      manager: winget
-      command: "winget install --id Microsoft.vcpkg -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install vcpkg"
       requiresAdmin: false
       summary: C++ library manager for Windows, Linux, and macOS.
       homepage: "https://vcpkg.io"
@@ -375,14 +375,6 @@ packages:
       summary: Infrastructure as Code tool for managing cloud resources.
       homepage: "https://www.terraform.io"
       tags: [iac, devops]
-    - id: ansible
-      name: Ansible
-      manager: winget
-      command: "winget install --id RedHat.Ansible -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Automation platform for configuration management and deployment.
-      homepage: "https://www.ansible.com"
-      tags: [automation, devops]
     - id: vagrant
       name: Vagrant
       manager: winget
@@ -543,14 +535,6 @@ packages:
       summary: Ruby IDE by JetBrains.
       homepage: "https://www.jetbrains.com/ruby"
       tags: [ide, ruby]
-    - id: jetbrains-appcode
-      name: JetBrains AppCode
-      manager: winget
-      command: "winget install --id JetBrains.AppCode -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: iOS/macOS IDE by JetBrains.
-      homepage: "https://www.jetbrains.com/objc"
-      tags: [ide, ios]
     - id: jetbrains-datagrip
       name: JetBrains DataGrip
       manager: winget
@@ -583,14 +567,6 @@ packages:
       summary: Issue tracking and project management by JetBrains.
       homepage: "https://www.jetbrains.com/youtrack"
       tags: [ide, project-management]
-    - id: jetbrains-upsource
-      name: JetBrains Upsource
-      manager: winget
-      command: "winget install --id JetBrains.Upsource -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Code review and repository browser by JetBrains.
-      homepage: "https://www.jetbrains.com/upsource"
-      tags: [ide, code-review]
     - id: visual-studio-2022-build-tools
       name: Visual Studio 2022 Build Tools
       manager: winget
@@ -601,138 +577,113 @@ packages:
       tags: [build, tools]
     - id: visual-studio-2022-test-agent
       name: Visual Studio 2022 Test Agent
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.TestAgent -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022testagent -y --no-progress"
       requiresAdmin: true
       summary: Test agent for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#test-agent-for-visual-studio-2022"
       tags: [build, testing]
     - id: visual-studio-2022-test-controller
       name: Visual Studio 2022 Test Controller
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.TestController -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022testcontroller -y --no-progress"
       requiresAdmin: true
       summary: Test controller for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#test-controller-for-visual-studio-2022"
       tags: [build, testing]
     - id: visual-studio-2022-team-explorer
       name: Visual Studio 2022 Team Explorer
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.TeamExplorer -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022teamexplorer -y --no-progress"
       requiresAdmin: true
       summary: Team Explorer for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#team-explorer-for-visual-studio-2022"
       tags: [build, collaboration]
     - id: visual-studio-2022-workload-azure
       name: Visual Studio 2022 Azure Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Azure -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-azure -y --no-progress"
       requiresAdmin: true
       summary: Azure development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#azure-workload-for-visual-studio-2022"
       tags: [build, azure]
     - id: visual-studio-2022-workload-data
       name: Visual Studio 2022 Data Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Data -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-data -y --no-progress"
       requiresAdmin: true
       summary: Data development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#data-workload-for-visual-studio-2022"
       tags: [build, data]
     - id: visual-studio-2022-workload-game
       name: Visual Studio 2022 Game Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Game -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-nativegame -y --no-progress"
       requiresAdmin: true
       summary: Game development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#game-workload-for-visual-studio-2022"
       tags: [build, game]
     - id: visual-studio-2022-workload-mobile
       name: Visual Studio 2022 Mobile Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Mobile -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-nativemobile -y --no-progress"
       requiresAdmin: true
       summary: Mobile development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#mobile-workload-for-visual-studio-2022"
       tags: [build, mobile]
     - id: visual-studio-2022-workload-net
       name: Visual Studio 2022 .NET Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Net -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-netweb -y --no-progress"
       requiresAdmin: true
       summary: .NET development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#net-workload-for-visual-studio-2022"
       tags: [build, dotnet]
     - id: visual-studio-2022-workload-universal
       name: Visual Studio 2022 Universal Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Universal -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-universal -y --no-progress"
       requiresAdmin: true
       summary: Universal Windows Platform development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#universal-workload-for-visual-studio-2022"
       tags: [build, universal]
     - id: visual-studio-2022-workload-web
       name: Visual Studio 2022 Web Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Web -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-webbuildtools -y --no-progress"
       requiresAdmin: true
       summary: Web development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#web-workload-for-visual-studio-2022"
       tags: [build, web]
     - id: visual-studio-2022-workload-desktop
       name: Visual Studio 2022 Desktop Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Desktop -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-nativedesktop -y --no-progress"
       requiresAdmin: true
       summary: Desktop development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#desktop-workload-for-visual-studio-2022"
       tags: [build, desktop]
     - id: visual-studio-2022-workload-office
       name: Visual Studio 2022 Office Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Office -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-office -y --no-progress"
       requiresAdmin: true
       summary: Office development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#office-workload-for-visual-studio-2022"
       tags: [build, office]
     - id: visual-studio-2022-workload-python
       name: Visual Studio 2022 Python Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Python -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-python -y --no-progress"
       requiresAdmin: true
       summary: Python development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#python-workload-for-visual-studio-2022"
       tags: [build, python]
     - id: visual-studio-2022-workload-node
       name: Visual Studio 2022 Node.js Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Node -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install visualstudio2022-workload-node -y --no-progress"
       requiresAdmin: true
       summary: Node.js development workload for Visual Studio 2022.
       homepage: "https://visualstudio.microsoft.com/downloads/#node-workload-for-visual-studio-2022"
       tags: [build, nodejs]
-    - id: visual-studio-2022-workload-cpp
-      name: Visual Studio 2022 C++ Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.CPP -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: C++ development workload for Visual Studio 2022.
-      homepage: "https://visualstudio.microsoft.com/downloads/#cpp-workload-for-visual-studio-2022"
-      tags: [build, cpp]
-    - id: visual-studio-2022-workload-android
-      name: Visual Studio 2022 Android Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.Android -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Android development workload for Visual Studio 2022.
-      homepage: "https://visualstudio.microsoft.com/downloads/#android-workload-for-visual-studio-2022"
-      tags: [build, android]
-    - id: visual-studio-2022-workload-ios
-      name: Visual Studio 2022 iOS Workload
-      manager: winget
-      command: "winget install --id Microsoft.VisualStudio.2022.Workload.iOS -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: iOS development workload for Visual Studio 2022.
-      homepage: "https://visualstudio.microsoft.com/downloads/#ios-workload-for-visual-studio-2022"
-      tags: [build, ios]
-

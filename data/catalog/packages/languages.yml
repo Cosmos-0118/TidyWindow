@@ -31,18 +31,10 @@ packages:
       summary: Package manager for Lua modules.
       homepage: "https://luarocks.org"
       tags: [lua, package-manager]
-    - id: ghcup
-      name: GHCup
-      manager: scoop
-      command: "scoop install ghcup"
-      requiresAdmin: false
-      summary: Toolchain manager for Glasgow Haskell Compiler and related tooling.
-      homepage: "https://www.haskell.org/ghcup/"
-      tags: [runtime, haskell]
     - id: julia
       name: Julia
       manager: winget
-      command: "winget install --id JuliaComputing.Julia -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Julialang.Julia -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
       summary: High-performance language for numerical and scientific computing.
       homepage: "https://julialang.org"
@@ -98,26 +90,24 @@ packages:
     - id: dart-sdk
       name: Dart SDK
       manager: winget
-      command: "winget install --id Dart.Dart -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Google.DartSDK -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
       summary: SDK for the Dart programming language used for Flutter development.
       homepage: "https://dart.dev"
       tags: [runtime, dart]
     - id: flutter
       name: Flutter SDK
-      manager: winget
-      command: "winget install --id Google.Flutter -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install flutter -y --no-progress"
       requiresAdmin: true
       summary: UI toolkit for building natively compiled applications from a single codebase.
       homepage: "https://flutter.dev"
       tags: [sdk, dart]
     - id: swiftforwindows
       name: Swift for Windows
-      manager: scoop
-      command: "scoop install swift"
-      requiresAdmin: false
-      buckets:
-          - extras
+      manager: choco
+      command: "choco install swiftforwindows -y --no-progress"
+      requiresAdmin: true
       summary: Swift programming language support for Windows.
       homepage: "https://swift.org"
       tags: [runtime, swift]
@@ -161,19 +151,11 @@ packages:
       summary: Cross-platform automation and configuration tool/framework.
       homepage: "https://github.com/PowerShell/PowerShell"
       tags: [runtime, powershell]
-    - id: f-sharp
-      name: F# Compiler
-      manager: winget
-      command: "winget install --id Microsoft.FSharp -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Functional-first programming language for .NET ecosystem.
-      homepage: "https://fsharp.org"
-      tags: [runtime, fsharp]
     - id: gcc
       name: MinGW-w64 GCC
-      manager: scoop
-      command: "scoop install mingw"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install mingw -y --no-progress"
+      requiresAdmin: true
       summary: Minimalist GNU for Windows with GCC toolchain.
       homepage: "https://www.mingw-w64.org"
       tags: [compiler, c, cpp]
@@ -193,14 +175,6 @@ packages:
       summary: Microsoft C++ compiler and build tools.
       homepage: "https://visualstudio.microsoft.com/vs/features/cplusplus"
       tags: [compiler, c, cpp, microsoft]
-    - id: intel-c-compiler
-      name: Intel C++ Compiler
-      manager: winget
-      command: "winget install --id Intel.IntelCCompiler -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: High-performance C++ compiler from Intel.
-      homepage: "https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler.html"
-      tags: [compiler, c, cpp, intel]
     - id: tcc
       name: Tiny C Compiler
       manager: choco
@@ -220,7 +194,7 @@ packages:
     - id: swift
       name: Swift
       manager: winget
-      command: "winget install --id Swift.Swift -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Swift.Toolchain -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
       summary: Apple's programming language for iOS, macOS, and Linux.
       homepage: "https://swift.org"
@@ -385,18 +359,10 @@ packages:
       summary: Rust toolchain installer and version manager.
       homepage: "https://rustup.rs"
       tags: [compiler, rust]
-    - id: cargo
-      name: Cargo
-      manager: winget
-      command: "winget install --id Rustlang.Cargo -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Rust package manager and build system.
-      homepage: "https://doc.rust-lang.org/cargo"
-      tags: [compiler, rust]
     - id: zig
       name: Zig
       manager: winget
-      command: "winget install --id Zig.Zig -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id zig.zig -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: General-purpose programming language and toolchain.
       homepage: "https://ziglang.org"
@@ -404,7 +370,7 @@ packages:
     - id: nim
       name: Nim
       manager: winget
-      command: "winget install --id Nim.Nim -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id nim.nim -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Statically typed compiled systems programming language.
       homepage: "https://nim-lang.org"
@@ -412,87 +378,71 @@ packages:
     - id: crystal
       name: Crystal
       manager: winget
-      command: "winget install --id Crystal.Crystal -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id CrystalLang.Crystal -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Fast, statically typed compiled language with Ruby-like syntax.
       homepage: "https://crystal-lang.org"
       tags: [compiler, systems]
     - id: v
       name: V
-      manager: winget
-      command: "winget install --id V.V -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install v"
       requiresAdmin: false
       summary: Simple, fast, safe, compiled language for developing maintainable software.
       homepage: "https://vlang.io"
       tags: [compiler, systems]
     - id: ocaml
       name: OCaml
-      manager: winget
-      command: "winget install --id OCaml.OCaml -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install ocaml -y --no-progress"
+      requiresAdmin: true
       summary: Functional programming language with object-oriented features.
       homepage: "https://ocaml.org"
       tags: [compiler, functional]
     - id: fsharp
       name: F#
       manager: winget
-      command: "winget install --id Microsoft.FSharp -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      command: "winget install --id Microsoft.DotNet.SDK.8 -e --accept-package-agreements --accept-source-agreements"
+      requiresAdmin: true
       summary: Functional programming language for .NET.
       homepage: "https://fsharp.org"
       tags: [compiler, functional]
     - id: haskell
       name: Haskell
-      manager: winget
-      command: "winget install --id Haskell.Haskell -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install haskell"
       requiresAdmin: false
       summary: Purely functional programming language.
       homepage: "https://www.haskell.org"
       tags: [compiler, functional]
     - id: elixir
       name: Elixir
-      manager: winget
-      command: "winget install --id Elixir.Elixir -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install elixir -y --no-progress"
+      requiresAdmin: true
       summary: Dynamic, functional language for building maintainable applications.
       homepage: "https://elixir-lang.org"
       tags: [compiler, functional]
     - id: erlang
       name: Erlang
-      manager: winget
-      command: "winget install --id Erlang.OTP -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install erlang -y --no-progress"
+      requiresAdmin: true
       summary: Programming language and runtime system for building massively scalable soft real-time systems.
       homepage: "https://www.erlang.org"
       tags: [compiler, functional]
     - id: lua
       name: Lua
       manager: winget
-      command: "winget install --id Lua.Lua -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id DEVCOM.Lua -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Lightweight, embeddable scripting language.
       homepage: "https://www.lua.org"
       tags: [compiler, scripting]
-    - id: lua-jit
-      name: LuaJIT
-      manager: winget
-      command: "winget install --id LuaJIT.LuaJIT -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Just-in-time compiler for Lua programming language.
-      homepage: "https://luajit.org"
-      tags: [compiler, scripting]
-    - id: lua-rocks
-      name: LuaRocks
-      manager: winget
-      command: "winget install --id LuaRocks.LuaRocks -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Package manager for Lua modules.
-      homepage: "https://luarocks.org"
-      tags: [compiler, lua]
     - id: perl
       name: Perl
-      manager: winget
-      command: "winget install --id Perl.Perl -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install perl"
       requiresAdmin: false
       summary: High-level, general-purpose, interpreted, dynamic programming language.
       homepage: "https://www.perl.org"
@@ -500,16 +450,8 @@ packages:
     - id: raku
       name: Raku
       manager: winget
-      command: "winget install --id Raku.Raku -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Rakudo.Rakudo -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Multi-paradigm programming language, formerly known as Perl 6.
       homepage: "https://raku.org"
-      tags: [compiler, scripting]
-    - id: tcl
-      name: Tcl
-      manager: winget
-      command: "winget install --id Tcl.Tcl -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: High-level, general-purpose, interpreted, dynamic programming language.
-      homepage: "https://www.tcl.tk"
       tags: [compiler, scripting]

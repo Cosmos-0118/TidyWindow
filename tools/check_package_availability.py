@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import collections
 import json
+import os
 import re
 import shlex
 import shutil
@@ -48,6 +49,53 @@ CLI_NAME_BY_MANAGER = {
     "chocolatey": "choco",
     "scoop": "scoop",
 }
+
+
+def _find_windows_shim(executable: str) -> Optional[Tuple[str, str]]:
+    path_env = os.environ.get("PATH", "")
+    if not path_env:
+        return None
+    extensions = [".exe", ".bat", ".cmd", ".ps1"]
+    for directory in path_env.split(os.pathsep):
+        if not directory:
+            continue
+        base = Path(directory.strip('"'))
+        for suffix in extensions:
+            candidate = base / f"{executable}{suffix}"
+            if candidate.exists():
+                return str(candidate), suffix.lower()
+    return None
+
+
+def _prepare_command(command: Sequence[str]) -> List[str]:
+    if not command:
+        raise ValueError("Command sequence cannot be empty")
+
+    executable = command[0]
+    resolved = shutil.which(executable)
+    if resolved:
+        return [resolved, *command[1:]]
+
+    if sys.platform.startswith("win"):
+        shim = _find_windows_shim(executable)
+        if shim:
+            path, suffix = shim
+            if suffix == ".ps1":
+                shell = shutil.which("pwsh") or shutil.which("powershell")
+                if shell:
+                    return [
+                        shell,
+                        "-NoLogo",
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-File",
+                        path,
+                        *command[1:],
+                    ]
+            return [path, *command[1:]]
+
+    return list(command)
 
 
 @dataclass(frozen=True)
@@ -293,9 +341,6 @@ def check_package(entry: PackageEntry, timeout: int) -> CheckResult:
         return CheckResult(
             entry, manager_identifier, "skipped",
             f"No CLI mapping registered for manager '{entry.manager}'.", None)
-    if shutil.which(cli_name) is None:
-        return CheckResult(entry, manager_identifier, "skipped",
-                           f"CLI '{cli_name}' is not available on PATH.", None)
 
     try:
         command = build_check_command(entry.manager, manager_identifier)
@@ -303,9 +348,11 @@ def check_package(entry: PackageEntry, timeout: int) -> CheckResult:
         return CheckResult(entry, manager_identifier, "skipped", str(exc),
                            None)
 
+    prepared = _prepare_command(command)
+
     try:
         completed = subprocess.run(
-            command,
+            prepared,
             capture_output=True,
             text=True,
             encoding="utf-8",

@@ -40,35 +40,25 @@ packages:
       homepage: "https://ramensoftware.com/7-taskbar-tweaker"
       tags: [productivity]
     - id: wingetui
-      name: WinGetUI
-      manager: scoop
-      command: "scoop install wingetui"
+      name: UniGetUI
+      manager: winget
+      command: "winget install --id MartiCliment.UniGetUI -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
-      buckets:
-          - extras
-      summary: Graphical interface for managing winget, Chocolatey, and Scoop packages.
+      summary: Graphical interface for managing WinGet, Chocolatey, and Scoop packages.
       homepage: "https://www.marticliment.com/wingetui"
       tags: [package-manager]
     - id: bat
       name: bat
-      manager: scoop
-      command: "scoop install bat"
+      manager: winget
+      command: "winget install --id sharkdp.bat -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Cat clone with syntax highlighting and Git integration.
       homepage: "https://github.com/sharkdp/bat"
       tags: [cli]
-    - id: ripgrep
-      name: ripgrep
-      manager: scoop
-      command: "scoop install ripgrep"
-      requiresAdmin: false
-      summary: Fast text search tool using Rust's regex library.
-      homepage: "https://github.com/BurntSushi/ripgrep"
-      tags: [cli]
     - id: fd
       name: fd
-      manager: scoop
-      command: "scoop install fd"
+      manager: winget
+      command: "winget install --id sharkdp.fd -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Simple, fast, and user-friendly alternative to the find command.
       homepage: "https://github.com/sharkdp/fd"
@@ -92,7 +82,7 @@ packages:
     - id: ditto
       name: Ditto Clipboard
       manager: winget
-      command: "winget install --id Sabrogden.Ditto -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Ditto.Ditto -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Clipboard history manager with search and sync support.
       homepage: "https://ditto-cp.sourceforge.io"
@@ -131,9 +121,9 @@ packages:
       tags: [automation]
     - id: keypirinha
       name: Keypirinha
-      manager: winget
-      command: "winget install --id Keypirinha.Keypirinha -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install keypirinha -y --no-progress"
+      requiresAdmin: true
       summary: Quick launcher for keyboard-driven workflows.
       homepage: "https://keypirinha.com"
       tags: [productivity]
@@ -164,7 +154,7 @@ packages:
     - id: zotero
       name: Zotero
       manager: winget
-      command: "winget install --id CorporationforDigitalScholarship.Zotero -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id DigitalScholar.Zotero -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Reference manager for collecting and citing research sources.
       homepage: "https://www.zotero.org"
@@ -186,18 +176,20 @@ packages:
       homepage: "https://www.freecad.org"
       tags: [cad]
     - id: geogebra
-      name: GeoGebra Classic 6
+      name: GeoGebra Classic 5
       manager: winget
-      command: "winget install --id GeoGebra.GeoGebraClassic6 -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id GeoGebra.Classic.5 -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Interactive mathematics platform for algebra, calculus, and geometry.
       homepage: "https://www.geogebra.org"
       tags: [math, education]
     - id: fritzing
       name: Fritzing
-      manager: winget
-      command: "winget install --id Fritzing.Fritzing -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
+      manager: scoop
+      command: "scoop install fritzing"
+      requiresAdmin: false
+      buckets:
+          - extras
       summary: Open-source tool for designing electronics and PCBs.
       homepage: "https://fritzing.org"
       tags: [electronics, design]
@@ -227,8 +219,8 @@ packages:
       tags: [productivity, project-management]
     - id: anydesk
       name: AnyDesk
-      manager: winget
-      command: "winget install --id AnyDeskSoftwareGmbH.AnyDesk -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install anydesk -y --no-progress"
       requiresAdmin: true
       summary: Remote desktop software with high performance.
       homepage: "https://anydesk.com"
@@ -243,16 +235,16 @@ packages:
       tags: [productivity, writing]
     - id: microsoft-onenote
       name: Microsoft OneNote
-      manager: winget
-      command: "winget install --id Microsoft.OneNote -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install onenote -y --no-progress"
+      requiresAdmin: true
       summary: Digital note-taking app for organizing notes and information.
       homepage: "https://www.microsoft.com/en-us/microsoft-365/onenote"
       tags: [productivity, notes]
     - id: evernote
       name: Evernote
       manager: winget
-      command: "winget install --id evernote.evernote -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Evernote.Evernote -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Note-taking application for capturing ideas and organizing information.
       homepage: "https://evernote.com"
@@ -267,9 +259,9 @@ packages:
       tags: [cloud-storage, productivity]
     - id: rescuetime
       name: RescueTime
-      manager: winget
-      command: "winget install --id RescueTime.RescueTime -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install rescuetime -y --no-progress"
+      requiresAdmin: true
       summary: Time tracking and productivity monitoring software.
       homepage: "https://www.rescuetime.com"
       tags: [productivity, time-management]
@@ -308,7 +300,7 @@ packages:
     - id: focusrite-audio
       name: Focusrite Control
       manager: winget
-      command: "winget install --id Focusrite.FocusriteControl -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id FocusriteAudioEngineeringLtd.FocusriteControl -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
       summary: Control software for Focusrite audio interfaces.
       homepage: "https://focusrite.com"
@@ -323,28 +315,20 @@ packages:
       tags: [productivity, audio]
     - id: translucenttb
       name: TranslucentTB
-      manager: winget
-      command: "winget install --id TranslucentTB.TranslucentTB -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install translucenttb -y --no-progress"
+      requiresAdmin: true
       summary: Customize the Windows taskbar with transparency, colors, and blur effects.
       homepage: "https://github.com/TranslucentTB/TranslucentTB"
       tags: [productivity, customization]
     - id: lively-wallpaper
       name: Lively Wallpaper
-      manager: winget
-      command: "winget install --id Rocksdanister.LivelyWallpaper -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install lively -y --no-progress"
+      requiresAdmin: true
       summary: Animated wallpaper engine for bringing interactive backgrounds to the desktop.
       homepage: "https://rocksdanister.github.io/lively"
       tags: [productivity, customization]
-    - id: trello
-      name: Trello
-      manager: winget
-      command: "winget install --id Atlassian.Trello -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Visual project management tool with Kanban-style boards.
-      homepage: "https://trello.com"
-      tags: [productivity, project-management]
     - id: clipboardfusion
       name: ClipboardFusion
       manager: choco
@@ -393,27 +377,19 @@ packages:
       summary: Screen, webcam and sketchboard recorder with integrated editor.
       homepage: "https://www.screentogif.com"
       tags: [productivity, screenshot]
-    - id: freefilesync
-      name: FreeFileSync
-      manager: winget
-      command: "winget install --id FreeFileSync.FreeFileSync -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Folder comparison and synchronization tool.
-      homepage: "https://freefilesync.org"
-      tags: [productivity, file-management]
     - id: treesizefree
       name: TreeSize Free
       manager: winget
-      command: "winget install --id JAMSoftware.TreeSizeFree -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id JAMSoftware.TreeSize.Free -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Disk space analyzer with graphical display of folder sizes.
       homepage: "https://www.jam-software.com/treesize_free"
       tags: [productivity, disk-management]
     - id: typora
       name: Typora
-      manager: winget
-      command: "winget install --id Typora.Typora -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install typora -y --no-progress"
+      requiresAdmin: true
       summary: Markdown editor with live preview and clean interface.
       homepage: "https://typora.io"
       tags: [productivity, markdown]
@@ -435,9 +411,9 @@ packages:
       tags: [communication]
     - id: skype
       name: Skype
-      manager: winget
-      command: "winget install --id Microsoft.Skype -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install skype -y --no-progress"
+      requiresAdmin: true
       summary: Video calling and messaging application.
       homepage: "https://www.skype.com"
       tags: [communication]
@@ -448,14 +424,6 @@ packages:
       requiresAdmin: false
       summary: Secure messaging app with cloud sync and group features.
       homepage: "https://telegram.org"
-      tags: [communication]
-    - id: whatsapp
-      name: WhatsApp Desktop
-      manager: winget
-      command: "winget install --id WhatsApp.WhatsApp -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Cross-platform messaging and voice calling app.
-      homepage: "https://www.whatsapp.com"
       tags: [communication]
     - id: signal
       name: Signal
@@ -524,7 +492,7 @@ packages:
     - id: itch
       name: itch.io
       manager: winget
-      command: "winget install --id itchcorp.itch -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id ItchIo.Itch -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Platform for indie games and creative content.
       homepage: "https://itch.io"
@@ -532,7 +500,7 @@ packages:
     - id: gimp
       name: GIMP
       manager: winget
-      command: "winget install --id GIMP.GIMP -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id GIMP.GIMP.3 -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Free and open-source raster graphics editor.
       homepage: "https://www.gimp.org"
@@ -585,14 +553,6 @@ packages:
       summary: Free and open-source video transcoder.
       homepage: "https://handbrake.fr"
       tags: [video, transcoding]
-    - id: da Vinci-resolve
-      name: DaVinci Resolve
-      manager: winget
-      command: "winget install --id BlackmagicDesign.DaVinciResolve -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Professional video editing and color correction software.
-      homepage: "https://www.blackmagicdesign.com/products/davinciresolve"
-      tags: [video, editing]
     - id: shotcut
       name: Shotcut
       manager: winget
@@ -627,44 +587,28 @@ packages:
       tags: [graphics, painting]
     - id: paint-net
       name: Paint.NET
-      manager: winget
-      command: "winget install --id PaintDotNet.PaintDotNet -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install paint.net -y --no-progress"
+      requiresAdmin: true
       summary: Free image and photo editing software.
       homepage: "https://www.getpaint.net"
       tags: [graphics, image-editing]
-    - id: paint-3d
-      name: Paint 3D
-      manager: winget
-      command: "winget install --id Microsoft.Paint3D -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: 3D creation and editing application.
-      homepage: "https://www.microsoft.com/paint-3d"
-      tags: [3d, graphics]
     - id: sketchup
       name: SketchUp
       manager: winget
-      command: "winget install --id Trimble.SketchUp -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Trimble.SketchUp.2025 -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: 3D modeling software for architecture and design.
       homepage: "https://www.sketchup.com"
       tags: [3d, modeling]
     - id: fusion-360
       name: Fusion 360
-      manager: winget
-      command: "winget install --id Autodesk.Fusion360 -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install autodesk-fusion360 -y --no-progress"
+      requiresAdmin: true
       summary: 3D CAD, CAM, and CAE software for product design.
       homepage: "https://www.autodesk.com/products/fusion-360"
       tags: [3d, cad]
-    - id: tinkercad
-      name: Tinkercad
-      manager: winget
-      command: "winget install --id Autodesk.Tinkercad -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Free 3D design, electronics, and coding platform.
-      homepage: "https://www.tinkercad.com"
-      tags: [3d, education]
     - id: cura
       name: Ultimaker Cura
       manager: winget
@@ -683,20 +627,12 @@ packages:
       tags: [3d, printing]
     - id: meshlab
       name: MeshLab
-      manager: winget
-      command: "winget install --id MeshLab.MeshLab -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install meshlab -y --no-progress"
+      requiresAdmin: true
       summary: Free 3D mesh processing software.
       homepage: "https://www.meshlab.net"
       tags: [3d, mesh]
-    - id: opencad
-      name: OpenCAD
-      manager: winget
-      command: "winget install --id OpenCAD.OpenCAD -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Free and open-source CAD software.
-      homepage: "https://opencad.org"
-      tags: [cad]
     - id: solve-space
       name: SolveSpace
       manager: winget
@@ -715,17 +651,17 @@ packages:
       tags: [cad]
     - id: qcad
       name: QCAD
-      manager: winget
-      command: "winget install --id RibbonSoft.QCAD -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install qcad -y --no-progress"
+      requiresAdmin: true
       summary: Free 2D CAD software for technical drawings.
       homepage: "https://www.qcad.org"
       tags: [cad]
     - id: sweet-home-3d
       name: Sweet Home 3D
-      manager: winget
-      command: "winget install --id SweetHome3D.SweetHome3D -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install sweet-home-3d -y --no-progress"
+      requiresAdmin: true
       summary: Free interior design and architecture software.
       homepage: "https://www.sweethome3d.com"
       tags: [architecture, design]
@@ -739,28 +675,12 @@ packages:
       tags: [3d, viewer]
     - id: meshmixer
       name: Meshmixer
-      manager: winget
-      command: "winget install --id Autodesk.Meshmixer -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install meshmixer -y --no-progress"
+      requiresAdmin: true
       summary: Free 3D mesh editing and 3D printing preparation software.
       homepage: "https://www.meshmixer.com"
       tags: [3d, mesh]
-    - id: netfabb
-      name: Netfabb
-      manager: winget
-      command: "winget install --id Autodesk.Netfabb -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: 3D printing preparation and optimization software.
-      homepage: "https://www.autodesk.com/products/netfabb"
-      tags: [3d, printing]
-    - id: simplify3d
-      name: Simplify3D
-      manager: winget
-      command: "winget install --id Simplify3D.Simplify3D -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Professional 3D printing software with advanced features.
-      homepage: "https://www.simplify3d.com"
-      tags: [3d, printing]
     - id: mattercontrol
       name: MatterControl
       manager: winget
@@ -769,164 +689,110 @@ packages:
       summary: Free 3D printing software with cloud integration.
       homepage: "https://www.matterhackers.com/mattercontrol"
       tags: [3d, printing]
-    - id: repetier-host
-      name: Repetier-Host
-      manager: winget
-      command: "winget install --id Repetier.RepetierHost -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Free 3D printing software with multi-printer support.
-      homepage: "https://www.repetier.com"
-      tags: [3d, printing]
     - id: slic3r
       name: Slic3r
-      manager: winget
-      command: "winget install --id Slic3r.Slic3r -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install slic3r"
       requiresAdmin: false
+      buckets:
+          - extras
       summary: Free 3D printing software with advanced slicing features.
       homepage: "https://slic3r.org"
       tags: [3d, printing]
     - id: slic3r-prusa
       name: Slic3r Prusa Edition
-      manager: winget
-      command: "winget install --id Prusa3D.Slic3rPrusaEdition -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install prusaslicer -y --no-progress"
+      requiresAdmin: true
       summary: Prusa-specific version of Slic3r with enhanced features.
       homepage: "https://www.prusa3d.com/slic3r-prusa-edition"
       tags: [3d, printing]
-    - id: octoprint
-      name: OctoPrint
-      manager: winget
-      command: "winget install --id OctoPrint.OctoPrint -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Web interface for 3D printer control and monitoring.
-      homepage: "https://octoprint.org"
-      tags: [3d, printing]
     - id: pronterface
       name: Pronterface
-      manager: winget
-      command: "winget install --id Kliment.Pronterface -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install pronterface -y --no-progress"
+      requiresAdmin: true
       summary: Free 3D printing software with printer control interface.
       homepage: "https://www.pronterface.com"
       tags: [3d, printing]
-    - id: printrun
-      name: Printrun
-      manager: winget
-      command: "winget install --id Printrun.Printrun -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Free 3D printing software with G-code support.
-      homepage: "https://github.com/kliment/Printrun"
-      tags: [3d, printing]
-    - id: repetier-server
-      name: Repetier-Server
-      manager: winget
-      command: "winget install --id Repetier.RepetierServer -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Web-based 3D printing management software.
-      homepage: "https://www.repetier.com"
-      tags: [3d, printing]
-    - id: astroprint
-      name: AstroPrint
-      manager: winget
-      command: "winget install --id AstroPrint.AstroPrint -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Cloud-based 3D printing management platform.
-      homepage: "https://www.astroprint.com"
-      tags: [3d, printing]
-    - id: 3d-printer-os
-      name: 3D Printer OS
-      manager: winget
-      command: "winget install --id 3DPrinterOS.3DPrinterOS -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Cloud-based 3D printing management software.
-      homepage: "https://www.3dprinteros.com"
-      tags: [3d, printing]
+    - id: microsoft-excel
+      name: Microsoft Excel (Office Deployment Tool)
+      manager: choco
+      command: "choco install microsoft-office-deployment -y --no-progress"
+      requiresAdmin: true
+      summary: Installs Microsoft Excel through the Office deployment tool recommended in fixes.
+      homepage: "https://www.microsoft.com/microsoft-365"
+      tags: [office, spreadsheet]
+    - id: microsoft-powerpoint
+      name: Microsoft PowerPoint Viewer
+      manager: choco
+      command: "choco install PowerPointViewer -y --no-progress"
+      requiresAdmin: true
+      summary: Installs the Microsoft PowerPoint Viewer as the catalog alternative.
+      homepage: "https://www.microsoft.com/download/details.aspx?id=13"
+      tags: [office, presentation]
+    - id: microsoft-outlook
+      name: Zoom for Outlook
+      manager: choco
+      command: "choco install zoom-outlook -y --no-progress"
+      requiresAdmin: true
+      summary: Adds the Zoom for Outlook integration suggested as the available package.
+      homepage: "https://marketplace.zoom.us/apps/MtGT4BkDSn2ua6nuhoJsmg"
+      tags: [office, communication]
+    - id: microsoft-access
+      name: Microsoft Access (Office Deployment Tool)
+      manager: choco
+      command: "choco install microsoft-office-deployment -y --no-progress"
+      requiresAdmin: true
+      summary: Deploys Microsoft Access via the Office deployment tool alternative.
+      homepage: "https://www.microsoft.com/microsoft-365/access"
+      tags: [office, database]
+    - id: microsoft-publisher
+      name: Microsoft Publisher (Office Deployment Tool)
+      manager: choco
+      command: "choco install microsoft-office-deployment -y --no-progress"
+      requiresAdmin: true
+      summary: Provides Microsoft Publisher through the Office deployment tool alternative.
+      homepage: "https://www.microsoft.com/microsoft-365/publisher"
+      tags: [office, publishing]
+    - id: microsoft-project
+      name: ProjectLibre (Alternative to Microsoft Project)
+      manager: choco
+      command: "choco install projectlibre -y --no-progress"
+      requiresAdmin: true
+      summary: Installs ProjectLibre, the suggested open-source alternative to Microsoft Project.
+      homepage: "https://www.projectlibre.com"
+      tags: [office, project-management]
+    - id: microsoft-visio
+      name: Microsoft Visio Viewer
+      manager: choco
+      command: "choco install visioviewer -y --no-progress"
+      requiresAdmin: true
+      summary: Installs Microsoft Visio Viewer as the catalog alternative for Visio diagrams.
+      homepage: "https://www.microsoft.com/download/details.aspx?id=3584"
+      tags: [office, diagram]
+    - id: microsoft-sharepoint
+      name: Veeam Explorer for Microsoft SharePoint
+      manager: choco
+      command: "choco install veeam-explorer-for-microsoft-sharepoint -y --no-progress"
+      requiresAdmin: true
+      summary: Deploys the Veeam Explorer utility recommended for SharePoint data access.
+      homepage: "https://www.veeam.com"
+      tags: [office, collaboration]
     - id: microsoft-office
       name: Microsoft Office
-      manager: winget
-      command: "winget install --id Microsoft.Office -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install microsoft-office-deployment -y --no-progress"
       requiresAdmin: true
       summary: Microsoft Office productivity suite.
       homepage: "https://www.microsoft.com/microsoft-365"
       tags: [office, productivity]
-    - id: microsoft-word
-      name: Microsoft Word
-      manager: winget
-      command: "winget install --id Microsoft.Word -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft Word document editor.
-      homepage: "https://www.microsoft.com/microsoft-365/word"
-      tags: [office, word-processing]
-    - id: microsoft-excel
-      name: Microsoft Excel
-      manager: winget
-      command: "winget install --id Microsoft.Excel -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft Excel spreadsheet application.
-      homepage: "https://www.microsoft.com/microsoft-365/excel"
-      tags: [office, spreadsheet]
-    - id: microsoft-powerpoint
-      name: Microsoft PowerPoint
-      manager: winget
-      command: "winget install --id Microsoft.PowerPoint -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft PowerPoint presentation software.
-      homepage: "https://www.microsoft.com/microsoft-365/powerpoint"
-      tags: [office, presentation]
-    - id: microsoft-outlook
-      name: Microsoft Outlook
-      manager: winget
-      command: "winget install --id Microsoft.Outlook -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft Outlook email and calendar application.
-      homepage: "https://www.microsoft.com/microsoft-365/outlook"
-      tags: [office, email]
-    - id: microsoft-access
-      name: Microsoft Access
-      manager: winget
-      command: "winget install --id Microsoft.Access -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft Access database management system.
-      homepage: "https://www.microsoft.com/microsoft-365/access"
-      tags: [office, database]
-    - id: microsoft-publisher
-      name: Microsoft Publisher
-      manager: winget
-      command: "winget install --id Microsoft.Publisher -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft Publisher desktop publishing application.
-      homepage: "https://www.microsoft.com/microsoft-365/publisher"
-      tags: [office, publishing]
-    - id: microsoft-project
-      name: Microsoft Project
-      manager: winget
-      command: "winget install --id Microsoft.Project -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft Project project management software.
-      homepage: "https://www.microsoft.com/microsoft-365/project"
-      tags: [office, project-management]
-    - id: microsoft-visio
-      name: Microsoft Visio
-      manager: winget
-      command: "winget install --id Microsoft.Visio -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft Visio diagramming and vector graphics application.
-      homepage: "https://www.microsoft.com/microsoft-365/visio"
-      tags: [office, diagramming]
-    - id: microsoft-sharepoint
-      name: Microsoft SharePoint
-      manager: winget
-      command: "winget install --id Microsoft.SharePoint -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Microsoft SharePoint collaboration platform.
-      homepage: "https://www.microsoft.com/microsoft-365/sharepoint"
-      tags: [office, collaboration]
     - id: microsoft-skype
       name: Microsoft Skype
-      manager: winget
-      command: "winget install --id Microsoft.Skype -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Microsoft Skype video calling and messaging application.
+      manager: choco
+      command: "choco install skype -y --no-progress"
+      requiresAdmin: true
+      summary: Installs Skype using the Chocolatey package recommended in fixes.
       homepage: "https://www.skype.com"
       tags: [office, communication]
     - id: microsoft-edge
@@ -939,26 +805,28 @@ packages:
       tags: [office, browser]
     - id: microsoft-edge-dev
       name: Microsoft Edge Dev
-      manager: winget
-      command: "winget install --id Microsoft.EdgeDev -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Microsoft Edge Dev Channel for testing new features.
+      manager: choco
+      command: "choco install microsoft-edge-insider-dev -y --no-progress"
+      requiresAdmin: true
+      summary: Installs the Edge Insider Dev build recommended by catalog fixes.
       homepage: "https://www.microsoft.com/edge"
       tags: [office, browser]
     - id: microsoft-edge-beta
       name: Microsoft Edge Beta
-      manager: winget
-      command: "winget install --id Microsoft.EdgeBeta -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Microsoft Edge Beta Channel for testing new features.
+      manager: choco
+      command: "choco install microsoft-edge-insider -y --no-progress"
+      requiresAdmin: true
+      summary: Installs the Edge Insider Beta build recommended by catalog fixes.
       homepage: "https://www.microsoft.com/edge"
       tags: [office, browser]
     - id: microsoft-edge-canary
       name: Microsoft Edge Canary
-      manager: winget
-      command: "winget install --id Microsoft.EdgeCanary -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install microsoft-edge-canary-np"
       requiresAdmin: false
-      summary: Microsoft Edge Canary Channel for testing new features.
+      buckets:
+          - nonportable
+      summary: Installs the Scoop non-portable Edge Canary build suggested in fixes.
       homepage: "https://www.microsoft.com/edge"
       tags: [office, browser]
     - id: google-chrome
@@ -1002,27 +870,27 @@ packages:
       homepage: "https://www.mozilla.org/firefox"
       tags: [office, browser]
     - id: mozilla-firefox-beta
-      name: Mozilla Firefox Beta
-      manager: winget
-      command: "winget install --id Mozilla.Firefox.Beta -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Mozilla Firefox Beta Channel for testing new features.
-      homepage: "https://www.mozilla.org/firefox/beta"
+      name: Mozilla Firefox Beta (LibreWolf Fork)
+      manager: choco
+      command: "choco install librefox-firefox -y --no-progress"
+      requiresAdmin: true
+      summary: Installs LibreWolf/LibreFox as the Chocolatey alternative surfaced for Firefox Beta builds.
+      homepage: "https://librewolf.net"
       tags: [office, browser]
     - id: mozilla-firefox-developer
-      name: Mozilla Firefox Developer
+      name: Mozilla Firefox Developer Edition
       manager: winget
-      command: "winget install --id Mozilla.Firefox.Developer -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Mozilla.Firefox.DeveloperEdition -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
-      summary: Mozilla Firefox Developer Edition for web developers.
+      summary: Installs the Developer Edition using the winget identifier recommended in fixes.
       homepage: "https://www.mozilla.org/firefox/developer"
       tags: [office, browser]
     - id: mozilla-firefox-nightly
       name: Mozilla Firefox Nightly
-      manager: winget
-      command: "winget install --id Mozilla.Firefox.Nightly -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Mozilla Firefox Nightly Channel for testing new features.
+      manager: choco
+      command: "choco install firefox-nightly -y --no-progress"
+      requiresAdmin: true
+      summary: Installs the nightly Firefox build via the Chocolatey package.
       homepage: "https://www.mozilla.org/firefox/nightly"
       tags: [office, browser]
     - id: opera
@@ -1044,7 +912,7 @@ packages:
     - id: vivaldi
       name: Vivaldi
       manager: winget
-      command: "winget install --id VivaldiTechnologies.Vivaldi -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Vivaldi.Vivaldi -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Fast, secure, and free web browser.
       homepage: "https://vivaldi.com"
@@ -1052,7 +920,7 @@ packages:
     - id: brave
       name: Brave
       manager: winget
-      command: "winget install --id BraveSoftware.BraveBrowser -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Brave.Brave -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Fast, secure, and free web browser with built-in ad blocker.
       homepage: "https://brave.com"
@@ -1075,24 +943,24 @@ packages:
       tags: [office, browser]
     - id: palemoon
       name: Pale Moon
-      manager: winget
-      command: "winget install --id PaleMoon.PaleMoon -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Fast, secure, and free web browser based on Firefox.
+      manager: choco
+      command: "choco install palemoon -y --no-progress"
+      requiresAdmin: true
+      summary: Installs Pale Moon via the Chocolatey package recommended in fixes.
       homepage: "https://www.palemoon.org"
       tags: [office, browser]
     - id: seamonkey
       name: SeaMonkey
-      manager: winget
-      command: "winget install --id SeaMonkey.SeaMonkey -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Free and open-source web browser and email client.
+      manager: choco
+      command: "choco install seamonkey -y --no-progress"
+      requiresAdmin: true
+      summary: Installs SeaMonkey using the Chocolatey package surfaced in fixes.
       homepage: "https://www.seamonkey-project.org"
       tags: [office, browser]
     - id: chromium
       name: Chromium
       manager: winget
-      command: "winget install --id Chromium.Chromium -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Hibbiki.Chromium -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Open-source web browser project.
       homepage: "https://www.chromium.org"

@@ -10,7 +10,7 @@ packages:
     - id: glab
       name: GitLab CLI
       manager: winget
-      command: "winget install --id GitLab.GitLabCLI -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id GLab.GLab -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Command-line interface for GitLab automation and workflows.
       homepage: "https://gitlab.com/gitlab-org/cli"
@@ -33,9 +33,9 @@ packages:
       tags: [vcs, gui]
     - id: git-credential-manager-core
       name: Git Credential Manager Core
-      manager: winget
-      command: "winget install --id Microsoft.GitCredentialManagerCore -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install git-credential-manager-core -y --no-progress"
+      requiresAdmin: true
       summary: Secure single sign-on credential helper for Git on Windows.
       homepage: "https://aka.ms/gcm"
       tags: [vcs]
@@ -90,9 +90,9 @@ packages:
     - id: eclipse-ide
       name: Eclipse IDE
       manager: winget
-      command: "winget install --id EclipseFoundation.Eclipse -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id EclipseFoundation.Eclipse.DSL -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
-      summary: Extensible IDE for Java and enterprise workloads.
+      summary: Eclipse IDE distribution for Java and DSL developers delivered via winget.
       homepage: "https://www.eclipse.org/ide/"
       tags: [ide, java]
     - id: powershell7
@@ -183,16 +183,6 @@ packages:
       summary: Install Temurin JDK 17 from Chocolatey feeds.
       homepage: "https://adoptium.net"
       tags: [java, runtime]
-    - id: openjdk17-scoop
-      name: Temurin JDK 17 (Scoop)
-      manager: scoop
-      command: "scoop install temurin17-jdk"
-      requiresAdmin: false
-      buckets:
-          - java
-      summary: Scoop installation of Temurin JDK 17 with optional bucket support.
-      homepage: "https://adoptium.net"
-      tags: [java, runtime]
     - id: openjdk21
       name: Temurin JDK 21
       manager: winget
@@ -209,24 +199,6 @@ packages:
       summary: Chocolatey distribution for Temurin JDK 21.
       homepage: "https://adoptium.net"
       tags: [java, runtime]
-    - id: openjdk21-scoop
-      name: Temurin JDK 21 (Scoop)
-      manager: scoop
-      command: "scoop install temurin21-jdk"
-      requiresAdmin: false
-      buckets:
-          - java
-      summary: Install Temurin JDK 21 via Scoop's java bucket.
-      homepage: "https://adoptium.net"
-      tags: [java, runtime]
-    - id: openjdk25-preview
-      name: Temurin JDK 25 EA
-      manager: winget
-      command: "winget install --id EclipseAdoptium.Temurin.25.JDK.EA -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Early-access Temurin JDK 25 build delivered via winget.
-      homepage: "https://adoptium.net"
-      tags: [java, runtime, preview]
     - id: 7zip
       name: 7-Zip
       manager: winget
@@ -254,7 +226,7 @@ packages:
     - id: arduino-ide
       name: Arduino IDE
       manager: winget
-      command: "winget install --id Arduino.ArduinoIDE -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id ArduinoSA.IDE.stable -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
       summary: Develop and upload firmware to Arduino boards.
       homepage: "https://www.arduino.cc/en/software"
@@ -285,24 +257,24 @@ packages:
       tags: [dotnet, sdk]
     - id: php
       name: PHP
-      manager: winget
-      command: "winget install --id PHP.PHP -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install php -y --no-progress"
       requiresAdmin: true
       summary: PHP runtime for web development on Windows.
       homepage: "https://www.php.net"
       tags: [php, runtime]
     - id: composer
       name: Composer
-      manager: winget
-      command: "winget install --id Composer.Composer -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install composer -y --no-progress"
+      requiresAdmin: true
       summary: Dependency manager for PHP projects.
       homepage: "https://getcomposer.org"
       tags: [php, package-manager]
     - id: wsl2
       name: Windows Subsystem for Linux
-      manager: winget
-      command: "winget install --id Microsoft.WindowsSubsystemForLinux -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install wsl2 -y --no-progress"
       requiresAdmin: true
       summary: Windows Subsystem for Linux 2 for running Linux environments.
       homepage: "https://docs.microsoft.com/windows/wsl"
@@ -325,24 +297,16 @@ packages:
       tags: [linux, debian]
     - id: wsl-kali
       name: Kali Linux on WSL
-      manager: winget
-      command: "winget install --id KaliLinux.Kali -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install wsl-kalilinux -y --no-progress"
+      requiresAdmin: true
       summary: Kali Linux distribution for penetration testing on WSL.
       homepage: "https://www.kali.org"
       tags: [linux, security]
-    - id: hyper-v
-      name: Hyper-V
-      manager: winget
-      command: "winget install --id Microsoft.HyperV -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Windows hypervisor for running virtual machines.
-      homepage: "https://docs.microsoft.com/virtualization/hyper-v"
-      tags: [virtualization, hypervisor]
     - id: vmware-workstation
       name: VMware Workstation Pro
-      manager: winget
-      command: "winget install --id VMware.WorkstationPro -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install vmwareworkstation -y --no-progress"
       requiresAdmin: true
       summary: Professional desktop virtualization platform.
       homepage: "https://www.vmware.com/products/workstation-pro.html"
@@ -365,16 +329,16 @@ packages:
       tags: [virtualization, linux]
     - id: chef-workstation
       name: Chef Workstation
-      manager: winget
-      command: "winget install --id ChefSoftware.ChefWorkstation -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install chef-workstation -y --no-progress"
       requiresAdmin: true
       summary: Chef development environment and tools.
       homepage: "https://docs.chef.io/workstation"
       tags: [automation, configuration]
     - id: puppet-agent
       name: Puppet Agent
-      manager: winget
-      command: "winget install --id Puppet.PuppetAgent -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install puppet-agent -y --no-progress"
       requiresAdmin: true
       summary: Configuration management agent for Puppet.
       homepage: "https://puppet.com"
@@ -403,14 +367,6 @@ packages:
       summary: AWS Cloud Development Kit for defining cloud infrastructure.
       homepage: "https://aws.amazon.com/cdk"
       tags: [iac, aws]
-    - id: windows-subsystem-for-linux
-      name: Windows Subsystem for Linux
-      manager: winget
-      command: "winget install --id Microsoft.WindowsSubsystemForLinux -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Windows Subsystem for Linux 2 for running Linux environments.
-      homepage: "https://docs.microsoft.com/windows/wsl"
-      tags: [linux, subsystem]
     - id: powershell-7
       name: PowerShell 7
       manager: winget
@@ -427,14 +383,6 @@ packages:
       summary: Distributed version control system.
       homepage: "https://git-scm.com"
       tags: [vcs, git]
-    - id: gitlab-cli
-      name: GitLab CLI
-      manager: winget
-      command: "winget install --id GitLab.GitLabCLI -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Command-line interface for GitLab automation and workflows.
-      homepage: "https://gitlab.com/gitlab-org/cli"
-      tags: [cli, gitlab]
     - id: google-cloud-cli
       name: Google Cloud CLI
       manager: winget
@@ -451,14 +399,6 @@ packages:
       summary: Command-line tool for controlling Kubernetes clusters.
       homepage: "https://kubernetes.io/docs/reference/kubectl"
       tags: [cli, kubernetes]
-    - id: ansible-cli
-      name: Ansible CLI
-      manager: winget
-      command: "winget install --id RedHat.Ansible -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Automation platform for configuration management.
-      homepage: "https://www.ansible.com"
-      tags: [cli, automation]
     - id: vagrant-cli
       name: Vagrant CLI
       manager: winget

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -178,17 +179,63 @@ def resolve_search_managers(search_managers: Sequence[str]) -> List[str]:
     return ["winget", "choco", "scoop"]
 
 
+def _find_windows_shim(executable: str) -> Optional[Tuple[str, str]]:
+    path_env = os.environ.get("PATH", "")
+    if not path_env:
+        return None
+    candidates = [".exe", ".bat", ".cmd", ".ps1"]
+    for directory in path_env.split(os.pathsep):
+        if not directory:
+            continue
+        base = Path(directory.strip('"'))
+        for suffix in candidates:
+            candidate = base / f"{executable}{suffix}"
+            if candidate.exists():
+                return str(candidate), suffix.lower()
+    return None
+
+
+def _prepare_command(command: Sequence[str]) -> List[str]:
+    if not command:
+        raise ValueError("Command sequence cannot be empty")
+
+    executable = command[0]
+    resolved = shutil.which(executable)
+    if resolved:
+        return [resolved, *command[1:]]
+
+    if sys.platform.startswith("win"):
+        shim = _find_windows_shim(executable)
+        if shim:
+            path, suffix = shim
+            if suffix == ".ps1":
+                shell = shutil.which("pwsh") or shutil.which("powershell")
+                if shell:
+                    return [
+                        shell, "-NoLogo", "-NoProfile", "-ExecutionPolicy",
+                        "Bypass", "-File", path, *command[1:]
+                    ]
+            return [path, *command[1:]]
+
+    return list(command)
+
+
 def run_search_command(command: Sequence[str],
                        timeout: int) -> Tuple[int, str]:
-    completed = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        timeout=timeout,
-        check=False,
-    )
+    prepared = _prepare_command(command)
+    try:
+        completed = subprocess.run(
+            prepared,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            check=False,
+        )
+    except FileNotFoundError as exc:
+        raise SearchError(
+            f"CLI '{command[0]}' is not available on PATH.") from exc
     combined = (completed.stdout or "") + (completed.stderr or "")
     return completed.returncode, combined
 
@@ -276,14 +323,29 @@ def search_choco(query: str, timeout: int) -> List[SearchCandidate]:
 def search_scoop(query: str, timeout: int) -> List[SearchCandidate]:
     command = ["scoop", "search", query]
     code, output = run_search_command(command, timeout)
+    normalized = output.lower()
+    if "no matches found" in normalized:
+        return []
     if code != 0 and not output.strip():
         raise SearchError("scoop search returned no output")
     results: List[SearchCandidate] = []
     for line in output.splitlines():
-        columns = re.split(r"\s{2,}", line.strip())
+        stripped = line.strip()
+        if not stripped:
+            continue
+        lowered = stripped.lower()
+        if lowered.startswith("name ") or lowered.startswith("----"):
+            continue
+        if lowered.startswith("warn"):
+            continue
+        if "no matches found" in lowered:
+            return []
+        columns = re.split(r"\s{2,}", stripped)
         if len(columns) < 1:
             continue
         identifier = columns[0]
+        if not identifier or identifier.lower() in {"name", "warn"}:
+            continue
         bucket = columns[1] if len(columns) >= 2 else ""
         name = identifier
         metadata = {"bucket": bucket} if bucket else {}
@@ -392,9 +454,6 @@ def search_for_record(
     notes: List[str] = []
     for manager in managers:
         cli = SEARCH_CLI.get(manager, manager)
-        if shutil.which(cli) is None:
-            notes.append(f"{manager}: CLI '{cli}' is not available on PATH.")
-            continue
         search_fn = SEARCH_FUNCTIONS.get(manager)
         if not search_fn:
             notes.append(f"{manager}: no search implementation available.")

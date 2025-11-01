@@ -49,9 +49,9 @@ packages:
       tags: [kubernetes]
     - id: azure-storage-explorer
       name: Azure Storage Explorer
-      manager: winget
-      command: "winget install --id Microsoft.AzureStorageExplorer -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install microsoftazurestorageexplorer -y --no-progress"
+      requiresAdmin: true
       summary: Manage Azure storage accounts visually.
       homepage: "https://learn.microsoft.com/azure/storage/common/storage-explorer"
       tags: [cloud]
@@ -65,11 +65,9 @@ packages:
       tags: [containers]
     - id: k3d
       name: k3d
-      manager: scoop
-      command: "scoop install k3d"
+      manager: winget
+      command: "winget install --id k3d.k3d -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
-      buckets:
-          - extras
       summary: Lightweight wrapper to run K3s Kubernetes clusters in Docker.
       homepage: "https://k3d.io"
       tags: [kubernetes]
@@ -91,11 +89,9 @@ packages:
       tags: [security]
     - id: dive
       name: Dive
-      manager: scoop
-      command: "scoop install dive"
+      manager: winget
+      command: "winget install --id wagoodman.dive -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
-      buckets:
-          - extras
       summary: Inspect container image layers to analyze contents and size.
       homepage: "https://github.com/wagoodman/dive"
       tags: [containers]
@@ -133,21 +129,17 @@ packages:
       tags: [kubernetes]
     - id: kubectx
       name: kubectx
-      manager: scoop
-      command: "scoop install kubectx"
-      requiresAdmin: false
-      buckets:
-          - extras
+      manager: choco
+      command: "choco install kubectx -y --no-progress"
+      requiresAdmin: true
       summary: Fast kubeconfig context switching helper for kubectl.
       homepage: "https://github.com/ahmetb/kubectx"
       tags: [kubernetes]
     - id: kubens
       name: kubens
-      manager: scoop
-      command: "scoop install kubens"
-      requiresAdmin: false
-      buckets:
-          - extras
+      manager: choco
+      command: "choco install kubens -y --no-progress"
+      requiresAdmin: true
       summary: Quick namespace switcher companion to kubectx.
       homepage: "https://github.com/ahmetb/kubectx"
       tags: [kubernetes]
@@ -169,8 +161,8 @@ packages:
       tags: [devops]
     - id: jq
       name: jq
-      manager: scoop
-      command: "scoop install jq"
+      manager: winget
+      command: "winget install --id jqlang.jq -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Lightweight JSON processor.
       homepage: "https://stedolan.github.io/jq"
@@ -193,8 +185,8 @@ packages:
       tags: [virtualization]
     - id: vmware-player
       name: VMware Workstation Player
-      manager: winget
-      command: "winget install --id VMware.WorkstationPlayer -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install vmware-workstation-player -y --no-progress"
       requiresAdmin: true
       summary: VMware desktop hypervisor for labs.
       homepage: "https://www.vmware.com/products/workstation-player.html"
@@ -241,9 +233,9 @@ packages:
       tags: [microservices]
     - id: talosctl
       name: talosctl
-      manager: winget
-      command: "winget install --id SideroLabs.Talosctl -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install talosctl -y --no-progress"
+      requiresAdmin: true
       summary: Management CLI for Talos Linux Kubernetes operating system.
       homepage: "https://www.talos.dev"
       tags: [kubernetes]
@@ -281,17 +273,19 @@ packages:
       tags: [cloud]
     - id: portainer
       name: Portainer
-      manager: winget
-      command: "winget install --id Portainer.Portainer -e --accept-package-agreements --accept-source-agreements"
+      manager: scoop
+      command: "scoop install portainer"
       requiresAdmin: false
+      buckets:
+          - main
       summary: Container management UI for Docker and Kubernetes.
       homepage: "https://www.portainer.io"
       tags: [containers, ui]
     - id: kustomize
       name: Kustomize
-      manager: winget
-      command: "winget install --id Kubernetes.Kustomize -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install kustomize -y --no-progress"
+      requiresAdmin: true
       summary: Kubernetes native configuration management.
       homepage: "https://kustomize.io"
       tags: [kubernetes, configuration]
@@ -305,20 +299,12 @@ packages:
       tags: [kubernetes, ide]
     - id: hadolint
       name: Hadolint
-      manager: winget
-      command: "winget install --id Hadolint.Hadolint -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install hadolint -y --no-progress"
+      requiresAdmin: true
       summary: Dockerfile linter for best practices.
       homepage: "https://hadolint.github.io/hadolint"
       tags: [containers, linting]
-    - id: docker-slim
-      name: Docker Slim
-      manager: winget
-      command: "winget install --id DockerSlim.DockerSlim -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Tool for minimizing Docker images.
-      homepage: "https://github.com/docker-slim/docker-slim"
-      tags: [containers, optimization]
     - id: buildx
       name: Docker Buildx
       manager: winget
@@ -329,28 +315,20 @@ packages:
       tags: [containers, build]
     - id: kompose
       name: Kompose
-      manager: winget
-      command: "winget install --id Kubernetes.Kompose -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install kubernetes-kompose -y --no-progress"
+      requiresAdmin: true
       summary: Tool to convert Docker Compose to Kubernetes.
       homepage: "https://kompose.io"
       tags: [kubernetes, migration]
     - id: tilt
       name: Tilt
-      manager: winget
-      command: "winget install --id Tilt.Tilt -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install tilt -y --no-progress"
+      requiresAdmin: true
       summary: Development environment for Kubernetes applications.
       homepage: "https://tilt.dev"
       tags: [kubernetes, development]
-    - id: garden
-      name: Garden
-      manager: winget
-      command: "winget install --id Garden.Garden -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Development workflow automation for Kubernetes.
-      homepage: "https://garden.io"
-      tags: [kubernetes, automation]
     - id: istio
       name: Istio
       manager: choco
@@ -495,4 +473,3 @@ packages:
       summary: GitHub Actions for Kubernetes.
       homepage: "https://github.com/actions/kubernetes"
       tags: [github, kubernetes]
-

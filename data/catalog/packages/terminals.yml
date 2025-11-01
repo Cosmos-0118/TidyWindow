@@ -7,19 +7,11 @@ packages:
       summary: Modern tabbed terminal host for Windows.
       homepage: "https://aka.ms/terminal"
       tags: [terminal]
-    - id: windows-terminal-preview
-      name: Windows Terminal Preview
-      manager: winget
-      command: "winget install --id Microsoft.WindowsTerminalPreview -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Early-access channel for Windows Terminal features.
-      homepage: "https://aka.ms/terminal"
-      tags: [terminal]
     - id: fluent-terminal
       name: Fluent Terminal
-      manager: winget
-      command: "winget install --id YugenApp.FluentTerminal -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install fluent-terminal -y --no-progress"
+      requiresAdmin: true
       summary: Fluent Design-inspired terminal host for Windows 10 and 11.
       homepage: "https://github.com/felixse/FluentTerminal"
       tags: [terminal]
@@ -39,36 +31,6 @@ packages:
       summary: Highly configurable Windows terminal emulator supporting tabs and splits.
       homepage: "https://conemu.github.io"
       tags: [terminal]
-    - id: ranger
-      name: ranger
-      manager: scoop
-      command: "scoop install ranger"
-      requiresAdmin: false
-      buckets:
-          - extras
-      summary: Vim-inspired console file manager with multi-pane previews.
-      homepage: "https://ranger.github.io"
-      tags: [terminal, file-manager]
-    - id: tmux
-      name: tmux
-      manager: scoop
-      command: "scoop install tmux"
-      requiresAdmin: false
-      buckets:
-          - extras
-      summary: Terminal multiplexer for managing multiple shell sessions.
-      homepage: "https://github.com/tmux/tmux"
-      tags: [terminal]
-    - id: supershell
-      name: Supershell
-      manager: scoop
-      command: "scoop install supershell"
-      requiresAdmin: false
-      buckets:
-          - extras
-      summary: Enhanced shell helpers for PowerShell.
-      homepage: "https://github.com/dahlbyk/supershell"
-      tags: [shell]
     - id: oh-my-posh
       name: oh-my-posh
       manager: winget
@@ -112,7 +74,7 @@ packages:
     - id: dust
       name: dust
       manager: winget
-      command: "winget install --id Bootandy.dust -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id bootandy.dust -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Intuitive disk usage analyzer for the terminal.
       homepage: "https://github.com/bootandy/dust"
@@ -120,7 +82,7 @@ packages:
     - id: procs
       name: procs
       manager: winget
-      command: "winget install --id Dalance.Procs -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id dalance.procs -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Modern process viewer with tree and container awareness.
       homepage: "https://github.com/dalance/procs"
@@ -133,22 +95,6 @@ packages:
       summary: Graphical ping utility that renders latency charts in the terminal.
       homepage: "https://github.com/orf/gping"
       tags: [terminal, network]
-    - id: nnn
-      name: nnn
-      manager: winget
-      command: "winget install --id Jarun.NNN -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Fast, minimal terminal file manager.
-      homepage: "https://github.com/jarun/nnn"
-      tags: [terminal, file-manager]
-    - id: zellij
-      name: Zellij
-      manager: winget
-      command: "winget install --id ZellijOrg.Zellij -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Terminal workspace multiplexer with pane layout management.
-      homepage: "https://zellij.dev"
-      tags: [terminal]
     - id: delta
       name: delta
       manager: winget
@@ -159,16 +105,16 @@ packages:
       tags: [vcs]
     - id: tealdeer
       name: tealdeer (tldr)
-      manager: winget
-      command: "winget install --id dbrgn.Tealdeer -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install tealdeer -y --no-progress"
+      requiresAdmin: true
       summary: Fast TL;DR client providing concise manual page examples.
       homepage: "https://dbrgn.ch/tealdeer"
       tags: [terminal]
     - id: fzf
       name: fzf
       manager: winget
-      command: "winget install --id Junegunn.fzf -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id junegunn.fzf -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: General-purpose fuzzy finder for shell pipelines and editors.
       homepage: "https://github.com/junegunn/fzf"
@@ -199,16 +145,16 @@ packages:
       tags: [terminal, emulator]
     - id: kitty
       name: Kitty
-      manager: winget
-      command: "winget install --id KovidGoyal.Kitty -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install kitty -y --no-progress"
+      requiresAdmin: true
       summary: Fast, feature-rich, GPU-based terminal emulator.
       homepage: "https://sw.kovidgoyal.net/kitty"
       tags: [terminal, emulator]
     - id: wezterm
       name: WezTerm
       manager: winget
-      command: "winget install --id WezFurlong.WezTerm -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id wez.wezterm -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: GPU-accelerated cross-platform terminal emulator.
       homepage: "https://wezfurlong.org/wezterm"
@@ -216,7 +162,7 @@ packages:
     - id: hyper
       name: Hyper
       manager: winget
-      command: "winget install --id Hyper.Hyper -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Vercel.Hyper -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Electron-based terminal emulator with web technologies.
       homepage: "https://hyper.is"
@@ -224,7 +170,7 @@ packages:
     - id: tabby
       name: Tabby
       manager: winget
-      command: "winget install --id Tabby.Tabby -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Eugeny.Tabby -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Modern terminal with built-in SSH and Telnet client.
       homepage: "https://tabby.sh"
@@ -239,9 +185,9 @@ packages:
       tags: [terminal, emulator]
     - id: terminus
       name: Terminus
-      manager: winget
-      command: "winget install --id Eugeny.Terminus -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install terminus -y --no-progress"
+      requiresAdmin: true
       summary: Modern terminal with split panes and tabs.
       homepage: "https://eugeny.github.io/terminus"
       tags: [terminal, emulator]
@@ -279,28 +225,20 @@ packages:
       tags: [terminal, ftp]
     - id: filezilla
       name: FileZilla
-      manager: winget
-      command: "winget install --id FileZilla.FileZilla -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install filezilla -y --no-progress"
+      requiresAdmin: true
       summary: Cross-platform FTP, FTPS, and SFTP client.
       homepage: "https://filezilla-project.org"
       tags: [terminal, ftp]
     - id: cyberduck
       name: Cyberduck
       manager: winget
-      command: "winget install --id Cyberduck.Cyberduck -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Iterate.Cyberduck -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: false
       summary: Libre server and cloud storage browser.
       homepage: "https://cyberduck.io"
       tags: [terminal, ftp]
-    - id: babun
-      name: Babun
-      manager: winget
-      command: "winget install --id Babun.Babun -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Windows shell based on Cygwin and zsh.
-      homepage: "https://babun.github.io"
-      tags: [terminal, shell]
     - id: cygwin
       name: Cygwin
       manager: winget
@@ -316,30 +254,6 @@ packages:
       requiresAdmin: false
       summary: Bash shell for Windows with Git integration.
       homepage: "https://git-scm.com"
-      tags: [terminal, shell]
-    - id: powershell-ise
-      name: PowerShell ISE
-      manager: winget
-      command: "winget install --id Microsoft.PowerShell.ISE -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Integrated Scripting Environment for PowerShell.
-      homepage: "https://docs.microsoft.com/powershell/scripting/windows-powershell/ise"
-      tags: [terminal, shell]
-    - id: powershell-studio
-      name: PowerShell Studio
-      manager: winget
-      command: "winget install --id SAPIEN.PowerShellStudio -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: PowerShell development environment with GUI designer.
-      homepage: "https://www.sapien.com/software/powershell_studio"
-      tags: [terminal, shell]
-    - id: powershell-pro
-      name: PowerShell Pro
-      manager: winget
-      command: "winget install --id SAPIEN.PowerShellPro -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Professional PowerShell development tools.
-      homepage: "https://www.sapien.com/software/powershell_pro"
       tags: [terminal, shell]
     - id: firefox
       name: Mozilla Firefox
@@ -367,27 +281,11 @@ packages:
       tags: [browser, web]
     - id: midori
       name: Midori
-      manager: winget
-      command: "winget install --id Midori.Midori -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install midori-browser -y --no-progress"
+      requiresAdmin: true
       summary: Lightweight web browser.
       homepage: "https://www.midori-browser.org"
-      tags: [browser, web]
-    - id: konqueror
-      name: Konqueror
-      manager: winget
-      command: "winget install --id KDE.Konqueror -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: KDE web browser and file manager.
-      homepage: "https://www.kde.org/applications/internet/konqueror"
-      tags: [browser, web]
-    - id: epiphany
-      name: Epiphany
-      manager: winget
-      command: "winget install --id GNOME.Epiphany -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: GNOME web browser.
-      homepage: "https://wiki.gnome.org/Apps/Web"
       tags: [browser, web]
     - id: falkon
       name: Falkon
@@ -397,4 +295,3 @@ packages:
       summary: KDE web browser based on QtWebEngine.
       homepage: "https://www.falkon.org"
       tags: [browser, web]
-

@@ -17,9 +17,9 @@ packages:
       tags: [python, data]
     - id: azure-data-studio
       name: Azure Data Studio
-      manager: winget
-      command: "winget install --id Microsoft.AzureDataStudio -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install azure-data-studio -y --no-progress"
+      requiresAdmin: true
       summary: Cross-platform data editor for SQL workloads.
       homepage: "https://learn.microsoft.com/azure-data-studio"
       tags: [database]
@@ -33,9 +33,9 @@ packages:
       tags: [database]
     - id: pgadmin4
       name: pgAdmin 4
-      manager: winget
-      command: "winget install --id pgAdmin.pgAdmin4 -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install pgadmin4 -y --no-progress"
+      requiresAdmin: true
       summary: PostgreSQL administration and query tool.
       homepage: "https://www.pgadmin.org"
       tags: [database]
@@ -65,8 +65,8 @@ packages:
       tags: [database]
     - id: azure-cosmos-emulator
       name: Azure Cosmos DB Emulator
-      manager: winget
-      command: "winget install --id Microsoft.AzureCosmosEmulator -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install azure-cosmosdb-emulator -y --no-progress"
       requiresAdmin: true
       summary: Local emulator for Azure Cosmos DB workloads.
       homepage: "https://learn.microsoft.com/azure/cosmos-db/local-emulator"
@@ -90,7 +90,7 @@ packages:
     - id: rstudio
       name: RStudio
       manager: winget
-      command: "winget install --id RStudio.RStudio -e --accept-package-agreements --accept-source-agreements"
+      command: "winget install --id Posit.RStudio -e --accept-package-agreements --accept-source-agreements"
       requiresAdmin: true
       summary: IDE for R and Python with notebook and visualization support.
       homepage: "https://posit.co/products/open-source/rstudio/"
@@ -113,10 +113,10 @@ packages:
       tags: [database]
     - id: redis-cli
       name: Redis CLI (via Redis)
-      manager: scoop
-      command: "scoop install redis"
-      requiresAdmin: false
-      summary: Installs Redis for Windows including the redis-cli command-line interface.
+      manager: choco
+      command: "choco install redis-64 -y --no-progress"
+      requiresAdmin: true
+      summary: Installs Redis for Windows via Chocolatey, including the redis-cli command-line interface.
       homepage: "https://redis.io"
       tags: [database, cli]
     - id: octave
@@ -129,9 +129,9 @@ packages:
       tags: [math, data]
     - id: sqlitestudio
       name: SQLiteStudio
-      manager: winget
-      command: "winget install --id SQLiteStudio.SQLiteStudio -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install sqlitestudio -y --no-progress"
+      requiresAdmin: true
       summary: Desktop manager for SQLite databases with schema and data editing.
       homepage: "https://sqlitestudio.pl"
       tags: [database]
@@ -153,27 +153,19 @@ packages:
       tags: [database, timeseries]
     - id: mongosh
       name: MongoDB Shell (mongosh)
-      manager: winget
-      command: "winget install --id MongoDB.MongoDBShell -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install mongosh -y --no-progress"
+      requiresAdmin: true
       summary: Modern CLI shell for interacting with MongoDB clusters.
       homepage: "https://www.mongodb.com/products/shell"
       tags: [database, cli]
     - id: duckdb
       name: DuckDB CLI
-      manager: winget
-      command: "winget install --id DuckDB.DuckDB -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install duckdb -y --no-progress"
+      requiresAdmin: true
       summary: In-process analytical database for local data warehouse workloads.
       homepage: "https://duckdb.org"
-      tags: [database]
-    - id: clickhouse-client
-      name: ClickHouse Client
-      manager: winget
-      command: "winget install --id ClickHouse.ClickHouse -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: true
-      summary: Columnar OLAP database client and server binaries for ClickHouse.
-      homepage: "https://clickhouse.com"
       tags: [database]
     - id: kafka
       name: Apache Kafka
@@ -193,8 +185,8 @@ packages:
       tags: [bi]
     - id: tableau-public
       name: Tableau Public
-      manager: winget
-      command: "winget install --id TableauPublic.TableauPublic -e --accept-package-agreements --accept-source-agreements"
+      manager: choco
+      command: "choco install tableau-public -y --no-progress"
       requiresAdmin: true
       summary: Visual analytics platform for publishing interactive data stories.
       homepage: "https://public.tableau.com"
@@ -231,14 +223,6 @@ packages:
       summary: Single-file database management tool.
       homepage: "https://www.adminer.org"
       tags: [database, web]
-    - id: sequel-pro
-      name: Sequel Pro
-      manager: winget
-      command: "winget install --id SequelPro.SequelPro -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: Native Mac database management application for MySQL.
-      homepage: "https://sequelpro.com"
-      tags: [database, mysql]
     - id: navicat
       name: Navicat
       manager: winget
@@ -257,9 +241,9 @@ packages:
       tags: [database, ide]
     - id: dbeaver-ce
       name: DBeaver Community Edition
-      manager: winget
-      command: "winget install --id DBeaverCorp.DBeaverCommunity -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install dbeaver -y --no-progress"
+      requiresAdmin: true
       summary: Universal database tool and SQL client.
       homepage: "https://dbeaver.io"
       tags: [database, universal]
@@ -271,27 +255,19 @@ packages:
       summary: Web-based Redis management interface.
       homepage: "https://github.com/joeferner/redis-commander"
       tags: [database, redis, web]
-    - id: redis-insight
-      name: RedisInsight
-      manager: winget
-      command: "winget install --id Redis.RedisInsight -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
-      summary: GUI for Redis data visualization and management.
-      homepage: "https://redis.com/redis-enterprise/redis-insight"
-      tags: [database, redis, gui]
     - id: studio-3t
       name: Studio 3T
-      manager: winget
-      command: "winget install --id Studio3T.Studio3T -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install studio3t -y --no-progress"
+      requiresAdmin: true
       summary: Professional MongoDB IDE and client.
       homepage: "https://studio3t.com"
       tags: [database, mongodb, professional]
     - id: robo-3t
       name: Robo 3T
-      manager: winget
-      command: "winget install --id Robo3T.Robo3T -e --accept-package-agreements --accept-source-agreements"
-      requiresAdmin: false
+      manager: choco
+      command: "choco install robo3t -y --no-progress"
+      requiresAdmin: true
       summary: Lightweight MongoDB management tool.
       homepage: "https://robomongo.org"
       tags: [database, mongodb, lightweight]
@@ -495,4 +471,3 @@ packages:
       summary: Framework to enable, monitor and manage comprehensive data security.
       homepage: "https://ranger.apache.org"
       tags: [security, governance]
-
