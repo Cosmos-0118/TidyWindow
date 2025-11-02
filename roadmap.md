@@ -127,11 +127,17 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 -   `dotnet build src/TidyWindow.sln`
 -   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
-## Defender Scan (Optional)
+## Registry Optimizer Rework
 
-[ ] Step 10.1: Script a quick-scan bridge `automation/scripts/windows-defender-quickscan.ps1` that runs `Start-MpScan -ScanType QuickScan` and captures summary output.
-[ ] Step 10.2: Surface the scan result in `PackageMaintenancePage` or a lightweight status panel (no heuristics engine).
-[ ] Step 10.3: Document how to interpret Defender output in `docs/security-notes.md` (linking to Microsoft guidance).
+[x] Step 10.1: Extend `data/cleanup/registry-defaults.json` so each tweak includes a `detection` block describing the hive, key, value name, data type, and whether the tweak accepts custom values (alongside the recommended baseline to surface in the UI).
+[x] Step 10.2: Add automation probe `automation/registry/get-registry-state.ps1` (re-using `registry-common.ps1`) that reads the configured key/value, returns the current data, and resolves the effective on/off flag plus formatted display text.
+[x] Step 10.3: Introduce `src/TidyWindow.Core/Maintenance/RegistryStateService.cs` to orchestrate detection scripts, cache results for the session so the page no longer rehydrates on every navigation, and surface a strongly-typed `RegistryTweakState` model.
+[x] Step 10.4: Update `RegistryOptimizerService` and `RegistrySelection` models to accept dynamic parameter payloads so custom numeric/string values flow through apply and restore operations.
+[x] Step 10.5: Refresh `RegistryOptimizerViewModel` and `RegistryTweakCardViewModel` to load the cached state, expose `CurrentValue`, `RecommendedValue`, and a bindable `CustomValue` with validation derived from `RegistryTweakConstraints`.
+[x] Step 10.6: Redesign `Views/RegistryOptimizerPage.xaml` (and supporting resource dictionary) to align with the Maintenance page layout, showing three columns for current/recommended/custom values, an inline info button explaining the impact of higher/lower inputs, and responsive behaviour for narrow screens.
+[x] Step 10.7: Persist user-specified custom values per tweak (e.g., via `RegistryStateService` or `Settings/Registry` storage) so subsequent app launches restore the choice instead of falling back to defaults.
+[ ] Step 10.8: Add unit coverage in `tests/TidyWindow.Core.Tests/Maintenance` for detection caching and custom parameter plumbing, plus MVVM tests in `tests/TidyWindow.App.Tests/RegistryOptimizer` validating validation states and command availability.
+[ ] Step 10.9: Document the new registry flow in `docs/registry/README.md` (covering detection, custom values, and restore points) and include manual QA steps in `docs/automation.md`.
 
 **Build & Run Checkpoint**
 

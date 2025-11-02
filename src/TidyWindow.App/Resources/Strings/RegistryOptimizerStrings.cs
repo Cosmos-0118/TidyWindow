@@ -69,6 +69,26 @@ internal static class RegistryOptimizerStrings
 
     public static string RestorePointFailed => GetString(nameof(RestorePointFailed), nameof(RestorePointFailed));
 
+    public static string ValueHeaderDetails => GetString(nameof(ValueHeaderDetails), nameof(ValueHeaderDetails));
+
+    public static string ValueHeaderCurrent => GetString(nameof(ValueHeaderCurrent), nameof(ValueHeaderCurrent));
+
+    public static string ValueHeaderRecommended => GetString(nameof(ValueHeaderRecommended), nameof(ValueHeaderRecommended));
+
+    public static string ValueHeaderCustom => GetString(nameof(ValueHeaderCustom), nameof(ValueHeaderCustom));
+
+    public static string ValueNotAvailable => GetString(nameof(ValueNotAvailable), nameof(ValueNotAvailable));
+
+    public static string ValueRecommendationUnavailable => GetString(nameof(ValueRecommendationUnavailable), nameof(ValueRecommendationUnavailable));
+
+    public static string CustomValueNotSupported => GetString(nameof(CustomValueNotSupported), nameof(CustomValueNotSupported));
+
+    public static string CustomValueInfoGeneral => GetString(nameof(CustomValueInfoGeneral), nameof(CustomValueInfoGeneral));
+
+    public static string CustomValueInfoRange => GetString(nameof(CustomValueInfoRange), nameof(CustomValueInfoRange));
+
+    public static string CustomValuePlaceholder => GetString(nameof(CustomValuePlaceholder), nameof(CustomValuePlaceholder));
+
     public static string GetTweakName(string tweakId, string fallback)
         => GetString(BuildTweakKey(tweakId, "Name"), fallback);
 

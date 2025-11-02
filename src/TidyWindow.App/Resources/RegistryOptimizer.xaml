@@ -244,4 +244,142 @@
             </Setter.Value>
         </Setter>
     </Style>
+
+    <Style x:Key="RegistryColumnHeaderTextStyle"
+           TargetType="TextBlock">
+        <Setter Property="Foreground"
+                Value="#64748B"/>
+        <Setter Property="FontSize"
+                Value="11"/>
+        <Setter Property="FontWeight"
+                Value="SemiBold"/>
+        <Setter Property="TextWrapping"
+                Value="Wrap"/>
+        <Setter Property="Margin"
+                Value="0,0,0,6"/>
+    </Style>
+
+    <Style x:Key="RegistryValueTextStyle"
+           TargetType="TextBlock">
+        <Setter Property="Foreground"
+                Value="#E2E8F0"/>
+        <Setter Property="FontSize"
+                Value="13"/>
+        <Setter Property="TextWrapping"
+                Value="Wrap"/>
+    </Style>
+
+    <Style x:Key="RegistryValueTextBoxStyle"
+           TargetType="TextBox">
+        <Setter Property="Background"
+                Value="#0F172A"/>
+        <Setter Property="BorderBrush"
+                Value="#27374D"/>
+        <Setter Property="BorderThickness"
+                Value="1"/>
+        <Setter Property="Foreground"
+                Value="#F8FAFC"/>
+        <Setter Property="Padding"
+                Value="8,4"/>
+        <Setter Property="MinWidth"
+                Value="120"/>
+        <Setter Property="HorizontalAlignment"
+                Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment"
+                Value="Center"/>
+        <Setter Property="CaretBrush"
+                Value="#38BDF8"/>
+        <Setter Property="SelectionBrush"
+                Value="#38BDF8"/>
+        <Setter Property="SelectionOpacity"
+                Value="0.4"/>
+        <Setter Property="FocusVisualStyle"
+                Value="{x:Null}"/>
+        <Setter Property="Margin"
+                Value="0,4,0,0"/>
+        <Style.Triggers>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Opacity"
+                        Value="0.6"/>
+                <Setter Property="BorderBrush"
+                        Value="#1B2335"/>
+            </Trigger>
+            <DataTrigger Binding="{Binding HasValidationError}"
+                         Value="True">
+                <Setter Property="BorderBrush"
+                        Value="#F87171"/>
+                <Setter Property="Foreground"
+                        Value="#F87171"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RegistryInfoButtonStyle"
+           TargetType="Button">
+        <Setter Property="Width"
+                Value="22"/>
+        <Setter Property="Height"
+                Value="22"/>
+        <Setter Property="Padding"
+                Value="0"/>
+        <Setter Property="Margin"
+                Value="6,0,0,0"/>
+        <Setter Property="Background"
+                Value="#132540"/>
+        <Setter Property="BorderBrush"
+                Value="#1F2D44"/>
+        <Setter Property="BorderThickness"
+                Value="1"/>
+        <Setter Property="Foreground"
+                Value="#38BDF8"/>
+        <Setter Property="FontSize"
+                Value="12"/>
+        <Setter Property="FontWeight"
+                Value="Bold"/>
+        <Setter Property="Content"
+                Value="?"/>
+        <Setter Property="Cursor"
+                Value="Hand"/>
+        <Setter Property="FocusVisualStyle"
+                Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="11">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver"
+                                 Value="True">
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="#1B3354"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed"
+                                 Value="True">
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="#10243E"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled"
+                                 Value="False">
+                            <Setter TargetName="Root"
+                                    Property="Background"
+                                    Value="#101D30"/>
+                            <Setter Property="Foreground"
+                                    Value="#475569"/>
+                            <Setter Property="BorderBrush"
+                                    Value="#19273D"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

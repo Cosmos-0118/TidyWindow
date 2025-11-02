@@ -62,17 +62,9 @@ public sealed class PowerShellInvoker
         {
             foreach (var kvp in parameters)
             {
-                if (kvp.Value is bool boolValue)
-                {
-                    if (boolValue)
-                    {
-                        ps.AddParameter(kvp.Key);
-                    }
-                }
-                else
-                {
-                    ps.AddParameter(kvp.Key, kvp.Value);
-                }
+                // For the in-process runspace we can add parameters directly; let the PowerShell host
+                // handle proper conversion of booleans, arrays, etc.
+                ps.AddParameter(kvp.Key, kvp.Value);
             }
         }
 
@@ -333,10 +325,9 @@ public sealed class PowerShellInvoker
 
                 if (value is bool b)
                 {
-                    if (b)
-                    {
-                        args.Add($"-{key}");
-                    }
+                    // Prefer explicit PowerShell boolean literal syntax so parsing is unambiguous
+                    // for external pwsh.exe invocation (e.g. -SupportsCustomValue:$true).
+                    args.Add(b ? $"-{key}:$true" : $"-{key}:$false");
                 }
                 else if (value is IEnumerable enumerable && value is not string)
                 {

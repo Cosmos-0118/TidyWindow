@@ -86,13 +86,13 @@ public sealed class RegistryOptimizerService
             var targetOperation = definition.ResolveOperation(selection.TargetState);
             if (targetOperation is not null)
             {
-                apply.Add(CreateInvocation(definition, targetOperation, selection.TargetState));
+                apply.Add(CreateInvocation(definition, targetOperation, selection.TargetState, selection.TargetParameters));
             }
 
             var revertOperation = definition.ResolveOperation(selection.PreviousState);
             if (revertOperation is not null)
             {
-                revert.Add(CreateInvocation(definition, revertOperation, selection.PreviousState));
+                revert.Add(CreateInvocation(definition, revertOperation, selection.PreviousState, selection.PreviousParameters));
             }
         }
 
@@ -455,11 +455,51 @@ public sealed class RegistryOptimizerService
         public Dictionary<string, string?>? Parameters { get; set; }
     }
 
-    private RegistryScriptInvocation CreateInvocation(RegistryTweakDefinition definition, RegistryOperationDefinition operation, bool targetState)
+    private RegistryScriptInvocation CreateInvocation(RegistryTweakDefinition definition, RegistryOperationDefinition operation, bool targetState, IReadOnlyDictionary<string, object?>? selectionParameters)
     {
         var scriptPath = ResolveAssetPath(operation.Script);
-        var parameters = operation.Parameters ?? ImmutableDictionary<string, object?>.Empty;
+        var parameters = MergeParameters(operation.Parameters, selectionParameters);
         return new RegistryScriptInvocation(definition.Id, definition.Name, targetState, scriptPath, parameters);
+    }
+
+    private static IReadOnlyDictionary<string, object?> MergeParameters(
+        IReadOnlyDictionary<string, object?>? baseParameters,
+        IReadOnlyDictionary<string, object?>? overrideParameters)
+    {
+        var hasBase = baseParameters is not null && baseParameters.Count > 0;
+        var hasOverride = overrideParameters is not null && overrideParameters.Count > 0;
+
+        if (!hasBase && !hasOverride)
+        {
+            return ImmutableDictionary<string, object?>.Empty;
+        }
+
+        if (!hasOverride)
+        {
+            return baseParameters!;
+        }
+
+        var builder = ImmutableDictionary.CreateBuilder<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        if (hasBase)
+        {
+            foreach (var pair in baseParameters!)
+            {
+                builder[pair.Key] = pair.Value;
+            }
+        }
+
+        foreach (var pair in overrideParameters!)
+        {
+            if (string.IsNullOrWhiteSpace(pair.Key))
+            {
+                continue;
+            }
+
+            builder[pair.Key] = pair.Value;
+        }
+
+        return builder.ToImmutable();
     }
 
     private static RegistryOptimizerConfiguration LoadConfiguration()
@@ -503,6 +543,10 @@ public sealed class RegistryOptimizerService
                 ? ParseConstraints(constraintsElement)
                 : null;
 
+            var detection = element.TryGetProperty("detection", out var detectionElement) && detectionElement.ValueKind == JsonValueKind.Object
+                ? ParseDetection(detectionElement)
+                : null;
+
             if (!element.TryGetProperty("operations", out var operationsElement) || operationsElement.ValueKind != JsonValueKind.Object)
             {
                 throw new InvalidOperationException($"Tweak '{id}' must define 'operations'.");
@@ -521,7 +565,7 @@ public sealed class RegistryOptimizerService
                 throw new InvalidOperationException($"Tweak '{id}' must define at least one enable or disable operation.");
             }
 
-            builder.Add(new RegistryTweakDefinition(id, name, category, summary, riskLevel, icon, defaultState, documentationLink, constraints, enableOperation, disableOperation));
+            builder.Add(new RegistryTweakDefinition(id, name, category, summary, riskLevel, icon, defaultState, documentationLink, constraints, detection, enableOperation, disableOperation));
         }
 
         return builder.ToImmutable();
@@ -592,6 +636,66 @@ public sealed class RegistryOptimizerService
             : (double?)null;
 
         return new RegistryTweakConstraints(type, min, max, @default);
+    }
+
+    private static RegistryTweakDetection? ParseDetection(JsonElement element)
+    {
+        if (!element.TryGetProperty("values", out var valuesElement) || valuesElement.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var builder = ImmutableArray.CreateBuilder<RegistryValueDetection>();
+
+        foreach (var valueElement in valuesElement.EnumerateArray())
+        {
+            var hive = valueElement.TryGetProperty("hive", out var hiveElement) && hiveElement.ValueKind == JsonValueKind.String
+                ? hiveElement.GetString()
+                : null;
+
+            var key = valueElement.TryGetProperty("key", out var keyElement) && keyElement.ValueKind == JsonValueKind.String
+                ? keyElement.GetString()
+                : null;
+
+            var valueName = valueElement.TryGetProperty("valueName", out var valueNameElement) && valueNameElement.ValueKind == JsonValueKind.String
+                ? valueNameElement.GetString()
+                : null;
+
+            if (string.IsNullOrWhiteSpace(hive))
+            {
+                throw new InvalidOperationException("Registry detection requires a 'hive' property.");
+            }
+
+            if (string.IsNullOrWhiteSpace(valueName))
+            {
+                throw new InvalidOperationException($"Registry detection for hive '{hive}' is missing 'valueName'.");
+            }
+
+            if (key is null)
+            {
+                key = string.Empty;
+            }
+
+            var valueType = valueElement.TryGetProperty("valueType", out var valueTypeElement) && valueTypeElement.ValueKind == JsonValueKind.String
+                ? valueTypeElement.GetString() ?? "String"
+                : "String";
+
+            var supportsCustom = valueElement.TryGetProperty("supportsCustomValue", out var supportsElement) && supportsElement.ValueKind == JsonValueKind.True;
+
+            object? recommended = null;
+            if (valueElement.TryGetProperty("recommendedValue", out var recommendedElement))
+            {
+                recommended = ConvertJsonValue(recommendedElement);
+            }
+
+            var lookup = valueElement.TryGetProperty("lookupValueName", out var lookupElement) && lookupElement.ValueKind == JsonValueKind.String
+                ? lookupElement.GetString()
+                : null;
+
+            builder.Add(new RegistryValueDetection(hive, key, valueName, valueType, supportsCustom, recommended, lookup));
+        }
+
+        return builder.Count == 0 ? null : new RegistryTweakDetection(builder.ToImmutable());
     }
 
     private static ImmutableArray<RegistryPresetDefinition> ParsePresets(JsonElement root)
@@ -672,7 +776,12 @@ public sealed class RegistryOptimizerService
         IReadOnlyDictionary<string, RegistryTweakDefinition> TweakLookup);
 }
 
-public sealed record RegistrySelection(string TweakId, bool TargetState, bool PreviousState);
+public sealed record RegistrySelection(
+    string TweakId,
+    bool TargetState,
+    bool PreviousState,
+    IReadOnlyDictionary<string, object?>? TargetParameters = null,
+    IReadOnlyDictionary<string, object?>? PreviousParameters = null);
 
 public sealed record RegistryRestorePoint(
     Guid Id,
@@ -738,12 +847,24 @@ public sealed record RegistryTweakDefinition(
     bool DefaultState,
     string? DocumentationLink,
     RegistryTweakConstraints? Constraints,
+    RegistryTweakDetection? Detection,
     RegistryOperationDefinition? EnableOperation,
     RegistryOperationDefinition? DisableOperation)
 {
     public RegistryOperationDefinition? ResolveOperation(bool state)
         => state ? EnableOperation : DisableOperation;
 }
+
+public sealed record RegistryTweakDetection(ImmutableArray<RegistryValueDetection> Values);
+
+public sealed record RegistryValueDetection(
+    string Hive,
+    string Key,
+    string ValueName,
+    string ValueType,
+    bool SupportsCustomValue,
+    object? RecommendedValue,
+    string? LookupValueName);
 
 public sealed record RegistryTweakConstraints(
     string? Type,

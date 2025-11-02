@@ -58,6 +58,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<EssentialsTaskCatalog>();
                 services.AddSingleton<EssentialsTaskQueue>();
                 services.AddSingleton<RegistryOptimizerService>();
+                services.AddSingleton<RegistryPreferenceService>();
+                services.AddSingleton<RegistryStateService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();

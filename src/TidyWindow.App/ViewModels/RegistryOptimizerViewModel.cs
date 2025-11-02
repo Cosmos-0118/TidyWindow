@@ -1,9 +1,12 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -18,15 +21,26 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
     private readonly RegistryOptimizerService _registryService;
+    private readonly RegistryStateService _registryStateService;
+    private readonly RegistryPreferenceService _registryPreferenceService;
+    private readonly SynchronizationContext? _uiContext;
     private bool _isInitialized;
 
     public event EventHandler<RegistryRestorePointCreatedEventArgs>? RestorePointCreated;
 
-    public RegistryOptimizerViewModel(ActivityLogService activityLogService, MainViewModel mainViewModel, RegistryOptimizerService registryService)
+    public RegistryOptimizerViewModel(
+        ActivityLogService activityLogService,
+        MainViewModel mainViewModel,
+        RegistryOptimizerService registryService,
+        RegistryStateService registryStateService,
+        RegistryPreferenceService registryPreferenceService)
     {
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
+        _registryStateService = registryStateService ?? throw new ArgumentNullException(nameof(registryStateService));
+        _registryPreferenceService = registryPreferenceService ?? throw new ArgumentNullException(nameof(registryPreferenceService));
+        _uiContext = SynchronizationContext.Current;
 
         Tweaks = new ObservableCollection<RegistryTweakCardViewModel>();
         Presets = new ObservableCollection<RegistryPresetViewModel>();
@@ -41,6 +55,8 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
         UpdatePendingChanges();
         UpdateRestorePointState(_registryService.TryGetLatestRestorePoint());
+        UpdateValidationState();
+        StartStateInitialization();
         _isInitialized = true;
     }
 
@@ -56,6 +72,9 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _hasPendingChanges;
+
+    [ObservableProperty]
+    private bool _hasValidationErrors;
 
     [ObservableProperty]
     private bool _isPresetCustomized;
@@ -95,15 +114,30 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             return;
         }
 
+        if (HasValidationErrors)
+        {
+            const string validationMessage = "Resolve invalid registry custom values before applying.";
+            LastOperationSummary = validationMessage;
+            _activityLog.LogWarning("Registry", validationMessage);
+            _mainViewModel.SetStatusMessage("Fix invalid custom values before applying.");
+            return;
+        }
+
         var pendingTweaks = Tweaks.Where(t => t.HasPendingChanges).ToList();
         if (pendingTweaks.Count == 0)
         {
             UpdatePendingChanges();
+            UpdateValidationState();
             return;
         }
 
         var selections = pendingTweaks
-            .Select(tweak => new RegistrySelection(tweak.Id, tweak.IsSelected, tweak.IsBaselineEnabled))
+            .Select(tweak => new RegistrySelection(
+                tweak.Id,
+                tweak.IsSelected,
+                tweak.IsBaselineEnabled,
+                tweak.GetTargetParameterOverrides(),
+                tweak.GetBaselineParameterOverrides()))
             .ToImmutableArray();
 
         var plan = _registryService.BuildPlan(selections);
@@ -115,6 +149,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             }
 
             UpdatePendingChanges();
+            UpdateValidationState();
             LastOperationSummary = $"No registry scripts required ({DateTime.Now:t}).";
             _activityLog.LogInformation("Registry", LastOperationSummary);
             _mainViewModel.SetStatusMessage("Registry tweaks already in desired state.");
@@ -142,6 +177,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             }
 
             UpdatePendingChanges();
+            UpdateValidationState();
             var appliedCount = pendingTweaks.Count;
             var summary = $"Applied {appliedCount} registry tweak(s) at {DateTime.Now:t}.";
             LastOperationSummary = summary;
@@ -179,12 +215,13 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
 
         UpdatePendingChanges();
+        UpdateValidationState();
         LastOperationSummary = $"Selections reverted at {DateTime.Now:t}.";
         _activityLog.LogInformation("Registry", "Selections reverted to last applied values.");
         _mainViewModel.SetStatusMessage("Registry selections reset.");
     }
 
-    private bool CanApply() => HasPendingChanges && !IsBusy;
+    private bool CanApply() => HasPendingChanges && !IsBusy && !HasValidationErrors;
 
     private bool CanRevertChanges() => HasPendingChanges && !IsBusy;
 
@@ -199,6 +236,11 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     {
         ApplyCommand.NotifyCanExecuteChanged();
         RevertChangesCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnHasValidationErrorsChanged(bool oldValue, bool newValue)
+    {
+        ApplyCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnLatestRestorePointChanged(RegistryRestorePoint? oldValue, RegistryRestorePoint? newValue)
@@ -220,18 +262,13 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             var localizedRisk = RegistryOptimizerStrings.GetTweakRisk(tweakDefinition.Id, tweakDefinition.RiskLevel);
 
             var tweak = new RegistryTweakCardViewModel(
-                tweakDefinition.Id,
+                tweakDefinition,
                 localizedName,
                 localizedSummary,
-                tweakDefinition.RiskLevel,
                 localizedRisk,
-                tweakDefinition.Icon,
-                tweakDefinition.Category,
-                tweakDefinition.DefaultState,
-                tweakDefinition.DocumentationLink,
-                tweakDefinition.Constraints);
+                _registryPreferenceService);
 
-            tweak.PropertyChanged += (_, _) => UpdatePendingChanges();
+            tweak.PropertyChanged += OnTweakPropertyChanged;
             Tweaks.Add(tweak);
         }
 
@@ -252,6 +289,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
 
         UpdatePendingChanges();
+        UpdateValidationState();
     }
 
     private void UpdatePendingChanges()
@@ -284,6 +322,86 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         });
 
         IsPresetCustomized = !isExactMatch;
+    }
+
+    private void OnTweakPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        UpdatePendingChanges();
+        UpdateValidationState();
+    }
+
+    private void UpdateValidationState()
+    {
+        var hasErrors = Tweaks.Any(tweak => tweak.HasValidationError);
+        if (HasValidationErrors != hasErrors)
+        {
+            HasValidationErrors = hasErrors;
+        }
+    }
+
+    private void StartStateInitialization()
+    {
+        if (Tweaks.Count == 0)
+        {
+            return;
+        }
+
+        var snapshot = Tweaks.ToList();
+
+        _ = Task.Run(async () =>
+        {
+            foreach (var tweak in snapshot)
+            {
+                RegistryTweakState? state = null;
+
+                try
+                {
+                    state = await _registryStateService.GetStateAsync(tweak.Id).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    PostToUi(() => _activityLog.LogWarning("Registry", $"Failed to load registry state for '{tweak.Id}': {ex.Message}"));
+                }
+
+                if (state is null)
+                {
+                    continue;
+                }
+
+                PostToUi(() =>
+                {
+                    tweak.UpdateState(state);
+                    UpdatePendingChanges();
+                    UpdateValidationState();
+
+                    if (state.Errors.Length > 0)
+                    {
+                        var summary = string.Join("; ", state.Errors.Where(static line => !string.IsNullOrWhiteSpace(line)).Take(3));
+                        if (!string.IsNullOrWhiteSpace(summary))
+                        {
+                            _activityLog.LogWarning("Registry", $"Detection issues for '{tweak.Title}': {summary}");
+                        }
+                    }
+                });
+            }
+        });
+    }
+
+    private void PostToUi(Action action)
+    {
+        if (action is null)
+        {
+            return;
+        }
+
+        if (_uiContext is not null)
+        {
+            _uiContext.Post(_ => action(), null);
+        }
+        else
+        {
+            action();
+        }
     }
 
     [RelayCommand(CanExecute = nameof(CanRestoreSnapshot))]
@@ -370,26 +488,42 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
 public sealed partial class RegistryTweakCardViewModel : ObservableObject
 {
+    private readonly RegistryTweakDefinition _definition;
+    private readonly RegistryPreferenceService _preferences;
     private bool _baselineState;
+    private string? _baselineCustomValueRaw;
+    private object? _baselineCustomValuePayload;
+    private object? _customValuePayload;
+    private string? _customParameterName;
+    private bool _customValueInitialized;
+    private string? _pendingPersistedCustomValue;
 
-    public RegistryTweakCardViewModel(string id, string title, string summary, string riskLevel, string riskLabel, string icon, string category, bool baselineState, string? documentationLink, RegistryTweakConstraints? constraints = null)
+    public RegistryTweakCardViewModel(RegistryTweakDefinition definition, string title, string summary, string riskLabel, RegistryPreferenceService preferences)
     {
-        if (string.IsNullOrWhiteSpace(id))
+        _definition = definition ?? throw new ArgumentNullException(nameof(definition));
+        _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
+
+        if (string.IsNullOrWhiteSpace(title))
         {
-            throw new ArgumentException("Value cannot be null or whitespace.", nameof(id));
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(title));
         }
 
-        Id = id;
-        Title = title ?? throw new ArgumentNullException(nameof(title));
-        Summary = summary ?? throw new ArgumentNullException(nameof(summary));
-        RiskLevel = riskLevel ?? "Safe";
-        RiskLabel = string.IsNullOrWhiteSpace(riskLabel) ? RegistryOptimizerStrings.GetTweakRisk(id, RiskLevel) : riskLabel;
-        Icon = string.IsNullOrWhiteSpace(icon) ? "🧰" : icon;
-        Category = category ?? "General";
-        DocumentationLink = documentationLink;
-        Constraints = constraints;
-        _baselineState = baselineState;
-        _isSelected = baselineState;
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            throw new ArgumentException("Value cannot be null or whitespace.", nameof(summary));
+        }
+
+        Id = _definition.Id;
+        Title = title;
+        Summary = summary;
+        RiskLevel = _definition.RiskLevel;
+        RiskLabel = string.IsNullOrWhiteSpace(riskLabel)
+            ? RegistryOptimizerStrings.GetTweakRisk(_definition.Id, RiskLevel)
+            : riskLabel;
+
+        _baselineState = _definition.DefaultState;
+        _isSelected = _definition.DefaultState;
+        _pendingPersistedCustomValue = _preferences.GetCustomValue(_definition.Id);
     }
 
     public string Id { get; }
@@ -402,15 +536,15 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
 
     public string RiskLabel { get; }
 
-    public string Icon { get; }
+    public string Icon => string.IsNullOrWhiteSpace(_definition.Icon) ? "🧰" : _definition.Icon;
 
-    public string Category { get; }
+    public string Category => _definition.Category;
 
-    public string? DocumentationLink { get; }
+    public string? DocumentationLink => _definition.DocumentationLink;
 
-    public RegistryTweakConstraints? Constraints { get; }
+    public RegistryTweakConstraints? Constraints => _definition.Constraints;
 
-    public bool HasPendingChanges => IsSelected != _baselineState;
+    public bool HasPendingChanges => (IsSelected != _baselineState) || HasCustomValueChanges;
 
     public bool IsBaselineEnabled => _baselineState;
 
@@ -418,9 +552,43 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         ? RegistryOptimizerStrings.DefaultEnabled
         : RegistryOptimizerStrings.DefaultDisabled;
 
+    public bool HasCustomValueChanges => SupportsCustomValue && !IsCustomValueBaseline;
+
+    public bool IsCustomValueBaseline => SupportsCustomValue ? ArePayloadsEqual(_customValuePayload, _baselineCustomValuePayload) : true;
+
+    public bool HasValidationError => SupportsCustomValue && !CustomValueIsValid;
+
+    public string CustomValueInfoText => BuildCustomValueInfoText();
+
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
     private bool _isSelected;
+
+    [ObservableProperty]
+    private string? _currentValue;
+
+    [ObservableProperty]
+    private string? _recommendedValue;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    [NotifyPropertyChangedFor(nameof(HasCustomValueChanges))]
+    [NotifyPropertyChangedFor(nameof(IsCustomValueBaseline))]
+    private string? _customValue;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasValidationError))]
+    private bool _customValueIsValid = true;
+
+    [ObservableProperty]
+    private string? _customValueError;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
+    [NotifyPropertyChangedFor(nameof(HasCustomValueChanges))]
+    [NotifyPropertyChangedFor(nameof(IsCustomValueBaseline))]
+    [NotifyPropertyChangedFor(nameof(HasValidationError))]
+    private bool _supportsCustomValue;
 
     public void SetSelection(bool value)
     {
@@ -430,6 +598,7 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     public void CommitSelection()
     {
         _baselineState = IsSelected;
+        SetBaselineToCurrentCustomValue();
         OnPropertyChanged(nameof(IsBaselineEnabled));
         OnPropertyChanged(nameof(DefaultStateLabel));
     }
@@ -437,6 +606,492 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     public void RevertToBaseline()
     {
         IsSelected = _baselineState;
+
+        if (SupportsCustomValue)
+        {
+            if (_baselineCustomValueRaw is null)
+            {
+                CustomValue = null;
+            }
+            else if (!string.Equals(CustomValue, _baselineCustomValueRaw, StringComparison.Ordinal))
+            {
+                CustomValue = _baselineCustomValueRaw;
+            }
+
+            ValidateCustomValue();
+        }
+    }
+
+    public void UpdateState(RegistryTweakState state)
+    {
+        if (state is null)
+        {
+            throw new ArgumentNullException(nameof(state));
+        }
+
+        var values = state.Values;
+        var primaryValue = values.FirstOrDefault(v => v.SupportsCustomValue) ?? values.FirstOrDefault();
+
+        var displayValue = primaryValue is null
+            ? null
+            : FormatDisplayValue(primaryValue.CurrentDisplay, primaryValue.CurrentValue);
+
+        if (string.IsNullOrWhiteSpace(displayValue) && primaryValue is not null)
+        {
+            displayValue = ResolveSnapshotDisplay(primaryValue);
+        }
+
+        if (string.IsNullOrWhiteSpace(displayValue))
+        {
+            var detectionError = ResolveDetectionError(state, primaryValue);
+            if (!string.IsNullOrWhiteSpace(detectionError))
+            {
+                displayValue = $"Detection error: {detectionError}";
+            }
+        }
+
+        CurrentValue = string.IsNullOrWhiteSpace(displayValue) ? null : displayValue;
+
+        RecommendedValue = primaryValue is null
+            ? null
+            : FormatRecommended(primaryValue);
+
+        var supportsCustom = (_definition.Constraints is not null) || values.Any(v => v.SupportsCustomValue);
+        SupportsCustomValue = supportsCustom && ResolveCustomParameterName() is not null;
+
+        if (!SupportsCustomValue)
+        {
+            return;
+        }
+
+        var initialCustomValue = DetermineInitialCustomValue(primaryValue);
+        var shouldUpdateCustom = !_customValueInitialized || string.IsNullOrWhiteSpace(CustomValue);
+
+        if (shouldUpdateCustom)
+        {
+            _customValueInitialized = true;
+            if (!string.IsNullOrWhiteSpace(_pendingPersistedCustomValue))
+            {
+                CustomValue = _pendingPersistedCustomValue;
+                _pendingPersistedCustomValue = null;
+            }
+            else
+            {
+                CustomValue = initialCustomValue;
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(_pendingPersistedCustomValue))
+        {
+            CustomValue = _pendingPersistedCustomValue;
+            _pendingPersistedCustomValue = null;
+        }
+
+        if (_baselineCustomValueRaw is null)
+        {
+            SetBaselineToCurrentCustomValue();
+        }
+
+        OnPropertyChanged(nameof(CustomValueInfoText));
+    }
+
+    public IReadOnlyDictionary<string, object?>? GetTargetParameterOverrides()
+    {
+        if (!SupportsCustomValue || !CustomValueIsValid || _customValuePayload is null)
+        {
+            return null;
+        }
+
+        var parameterName = ResolveCustomParameterName();
+        if (string.IsNullOrWhiteSpace(parameterName))
+        {
+            return null;
+        }
+
+        return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            [parameterName] = ConvertPayloadForScript(_customValuePayload)
+        };
+    }
+
+    public IReadOnlyDictionary<string, object?>? GetBaselineParameterOverrides()
+    {
+        if (!SupportsCustomValue || _baselineCustomValuePayload is null)
+        {
+            return null;
+        }
+
+        var parameterName = ResolveCustomParameterName();
+        if (string.IsNullOrWhiteSpace(parameterName))
+        {
+            return null;
+        }
+
+        return new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            [parameterName] = ConvertPayloadForScript(_baselineCustomValuePayload)
+        };
+    }
+
+    partial void OnCustomValueChanged(string? value)
+    {
+        _customValueInitialized = true;
+        ValidateCustomValue();
+    }
+
+    partial void OnSupportsCustomValueChanged(bool oldValue, bool newValue)
+    {
+        if (!newValue)
+        {
+            _customValuePayload = null;
+            _baselineCustomValuePayload = null;
+            _baselineCustomValueRaw = null;
+            _customParameterName = null;
+            _pendingPersistedCustomValue = _preferences.GetCustomValue(_definition.Id);
+            CustomValueIsValid = true;
+            CustomValueError = null;
+            OnPropertyChanged(nameof(HasPendingChanges));
+            OnPropertyChanged(nameof(HasCustomValueChanges));
+            OnPropertyChanged(nameof(IsCustomValueBaseline));
+            OnPropertyChanged(nameof(HasValidationError));
+            OnPropertyChanged(nameof(CustomValueInfoText));
+        }
+        else
+        {
+            _pendingPersistedCustomValue ??= _preferences.GetCustomValue(_definition.Id);
+            ValidateCustomValue();
+            OnPropertyChanged(nameof(CustomValueInfoText));
+        }
+    }
+
+    private void SetBaselineToCurrentCustomValue()
+    {
+        if (!SupportsCustomValue || !CustomValueIsValid)
+        {
+            return;
+        }
+
+        _baselineCustomValueRaw = CustomValue;
+        _baselineCustomValuePayload = _customValuePayload;
+        PersistBaseline();
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(HasCustomValueChanges));
+        OnPropertyChanged(nameof(IsCustomValueBaseline));
+        OnPropertyChanged(nameof(CustomValueInfoText));
+    }
+
+    private void ValidateCustomValue()
+    {
+        if (!SupportsCustomValue)
+        {
+            _customValuePayload = null;
+            CustomValueIsValid = true;
+            CustomValueError = null;
+            OnPropertyChanged(nameof(HasPendingChanges));
+            OnPropertyChanged(nameof(HasCustomValueChanges));
+            OnPropertyChanged(nameof(IsCustomValueBaseline));
+            OnPropertyChanged(nameof(CustomValueInfoText));
+            return;
+        }
+
+        if (!TryParseCustomValue(CustomValue, out var payload, out var error))
+        {
+            _customValuePayload = null;
+            CustomValueIsValid = false;
+            CustomValueError = error;
+            OnPropertyChanged(nameof(HasPendingChanges));
+            OnPropertyChanged(nameof(HasCustomValueChanges));
+            OnPropertyChanged(nameof(IsCustomValueBaseline));
+            OnPropertyChanged(nameof(CustomValueInfoText));
+            return;
+        }
+
+        _customValuePayload = payload;
+        CustomValueIsValid = true;
+        CustomValueError = null;
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(HasCustomValueChanges));
+        OnPropertyChanged(nameof(IsCustomValueBaseline));
+        OnPropertyChanged(nameof(CustomValueInfoText));
+    }
+
+    partial void OnRecommendedValueChanged(string? oldValue, string? newValue)
+    {
+        OnPropertyChanged(nameof(CustomValueInfoText));
+    }
+
+    private string BuildCustomValueInfoText()
+    {
+        if (!SupportsCustomValue)
+        {
+            return RegistryOptimizerStrings.CustomValueNotSupported;
+        }
+
+        var recommended = string.IsNullOrWhiteSpace(RecommendedValue)
+            ? RegistryOptimizerStrings.ValueRecommendationUnavailable
+            : RecommendedValue!;
+
+        var constraints = _definition.Constraints;
+        if (constraints is not null && constraints.Min.HasValue && constraints.Max.HasValue)
+        {
+            var minText = FormatNumeric(constraints.Min.Value);
+            var maxText = FormatNumeric(constraints.Max.Value);
+            var defaultText = constraints.Default.HasValue
+                ? FormatNumeric(constraints.Default.Value)
+                : recommended;
+
+            return string.Format(
+                CultureInfo.CurrentCulture,
+                RegistryOptimizerStrings.CustomValueInfoRange,
+                minText,
+                maxText,
+                defaultText,
+                recommended);
+        }
+
+        return string.Format(
+            CultureInfo.CurrentCulture,
+            RegistryOptimizerStrings.CustomValueInfoGeneral,
+            recommended);
+    }
+
+    private static string FormatNumeric(double value)
+    {
+        return value.ToString("0.##", CultureInfo.CurrentCulture);
+    }
+
+    private void PersistBaseline()
+    {
+        if (_preferences is null)
+        {
+            return;
+        }
+
+        if (!SupportsCustomValue)
+        {
+            return;
+        }
+
+        _preferences.SetCustomValue(Id, string.IsNullOrWhiteSpace(_baselineCustomValueRaw) ? null : _baselineCustomValueRaw);
+    }
+
+    private string? ResolveCustomParameterName()
+    {
+        if (_customParameterName is not null)
+        {
+            return _customParameterName;
+        }
+
+        var parameters = _definition.EnableOperation?.Parameters;
+        if (parameters is null || parameters.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var pair in parameters)
+        {
+            if (pair.Value is bool)
+            {
+                continue;
+            }
+
+            _customParameterName = pair.Key;
+            return _customParameterName;
+        }
+
+        return null;
+    }
+
+    private string? DetermineInitialCustomValue(RegistryValueState? state)
+    {
+        if (state is not null)
+        {
+            if (state.CurrentValue is not null)
+            {
+                return FormatEditableValue(state.CurrentValue);
+            }
+
+            if (state.RecommendedValue is not null)
+            {
+                return FormatEditableValue(state.RecommendedValue);
+            }
+        }
+
+        var @default = _definition.Constraints?.Default;
+        return @default.HasValue ? @default.Value.ToString(CultureInfo.InvariantCulture) : null;
+    }
+
+    private static string? FormatEditableValue(object value)
+    {
+        return value switch
+        {
+            null => null,
+            string s => s,
+            double d => d.ToString("0.##", CultureInfo.InvariantCulture),
+            float f => f.ToString("0.##", CultureInfo.InvariantCulture),
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => value.ToString()
+        };
+    }
+
+    private static string? ResolveDetectionError(RegistryTweakState state, RegistryValueState? primaryValue)
+    {
+        if (primaryValue is not null)
+        {
+            var valueError = primaryValue.Errors.FirstOrDefault(static e => !string.IsNullOrWhiteSpace(e));
+            if (!string.IsNullOrWhiteSpace(valueError))
+            {
+                return valueError;
+            }
+        }
+
+        var stateError = state.Errors.FirstOrDefault(static e => !string.IsNullOrWhiteSpace(e));
+        return string.IsNullOrWhiteSpace(stateError) ? null : stateError;
+    }
+
+    private static string? FormatDisplayValue(ImmutableArray<string> display, object? fallback)
+    {
+        if (!display.IsDefaultOrEmpty)
+        {
+            var candidate = display.FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line));
+            if (!string.IsNullOrWhiteSpace(candidate))
+            {
+                return candidate.Trim();
+            }
+        }
+
+        return FormatValue(fallback);
+    }
+
+    private static string? FormatRecommended(RegistryValueState state)
+    {
+        if (!string.IsNullOrWhiteSpace(state.RecommendedDisplay))
+        {
+            return state.RecommendedDisplay;
+        }
+
+        return FormatValue(state.RecommendedValue);
+    }
+
+    private static string? FormatValue(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            string s => string.IsNullOrWhiteSpace(s) ? null : s,
+            bool b => b.ToString(),
+            double d => d.ToString("0.##", CultureInfo.CurrentCulture),
+            float f => f.ToString("0.##", CultureInfo.CurrentCulture),
+            IFormattable formattable => formattable.ToString(null, CultureInfo.CurrentCulture),
+            IEnumerable enumerable => string.Join(", ", enumerable.Cast<object?>().Select(FormatValue).Where(static v => !string.IsNullOrWhiteSpace(v))),
+            _ => value.ToString()
+        };
+    }
+
+    private static string? ResolveSnapshotDisplay(RegistryValueState value)
+    {
+        foreach (var snapshot in value.Snapshots)
+        {
+            if (!string.IsNullOrWhiteSpace(snapshot.Display))
+            {
+                return snapshot.Display.Trim();
+            }
+
+            if (snapshot.Value is not null)
+            {
+                var formatted = FormatValue(snapshot.Value);
+                if (!string.IsNullOrWhiteSpace(formatted))
+                {
+                    return formatted;
+                }
+            }
+        }
+
+        var fallback = FormatValue(value.CurrentValue) ?? FormatValue(value.RecommendedValue);
+        return string.IsNullOrWhiteSpace(fallback) ? null : fallback.Trim();
+    }
+
+    private bool TryParseCustomValue(string? input, out object? payload, out string? error)
+    {
+        payload = null;
+        error = null;
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            error = "Value is required.";
+            return false;
+        }
+
+        var trimmed = input.Trim();
+        var constraints = _definition.Constraints;
+        var type = constraints?.Type?.ToLowerInvariant();
+
+        if (string.Equals(type, "range", StringComparison.OrdinalIgnoreCase) || string.Equals(type, "number", StringComparison.OrdinalIgnoreCase))
+        {
+            if (!TryParseDouble(trimmed, out var numeric))
+            {
+                error = "Enter a valid number.";
+                return false;
+            }
+
+            if (constraints?.Min is double min && numeric < min)
+            {
+                error = string.Format(CultureInfo.CurrentCulture, "Value must be at least {0}.", min);
+                return false;
+            }
+
+            if (constraints?.Max is double max && numeric > max)
+            {
+                error = string.Format(CultureInfo.CurrentCulture, "Value must be at most {0}.", max);
+                return false;
+            }
+
+            payload = numeric;
+            return true;
+        }
+
+        payload = trimmed;
+        return true;
+    }
+
+    private static bool TryParseDouble(string text, out double value)
+    {
+        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out value)
+            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value);
+    }
+
+    private static object? ConvertPayloadForScript(object? payload)
+    {
+        if (payload is double numeric)
+        {
+            if (Math.Abs(numeric - Math.Round(numeric)) < 0.0001)
+            {
+                return (int)Math.Round(numeric);
+            }
+
+            return numeric;
+        }
+
+        return payload;
+    }
+
+    private static bool ArePayloadsEqual(object? left, object? right)
+    {
+        if (left is null && right is null)
+        {
+            return true;
+        }
+
+        if (left is null || right is null)
+        {
+            return false;
+        }
+
+        if (left is double leftDouble && right is double rightDouble)
+        {
+            return Math.Abs(leftDouble - rightDouble) < 0.0001;
+        }
+
+        return string.Equals(Convert.ToString(left, CultureInfo.InvariantCulture), Convert.ToString(right, CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
     }
 }
 

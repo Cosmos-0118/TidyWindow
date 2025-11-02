@@ -13,13 +13,13 @@
         "type": "range",
         "min": 0,
         "max": 2000,
-        "default": 400
+        "default": 60
       },
       "operations": {
         "enable": {
           "script": "automation/registry/set-menu-show-delay.ps1",
           "parameters": {
-            "DelayMilliseconds": 120
+            "DelayMilliseconds": 60
           }
         },
         "disable": {
@@ -28,6 +28,18 @@
             "RevertToDefault": true
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Desktop",
+            "valueName": "MenuShowDelay",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "60"
+          }
+        ]
       }
     },
     {
@@ -37,7 +49,7 @@
       "summary": "Turns off non-essential animations to sharpen responsiveness on slower devices.",
       "riskLevel": "Safe",
       "icon": "🎞️",
-      "defaultState": false,
+    "defaultState": true,
       "operations": {
         "enable": {
           "script": "automation/registry/set-window-animation.ps1",
@@ -51,6 +63,26 @@
             "AnimationState": "Enable"
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Desktop",
+            "valueName": "MinAnimate",
+            "valueType": "String",
+            "supportsCustomValue": false,
+            "recommendedValue": "0"
+          },
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+            "valueName": "TaskbarAnimations",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
       }
     },
     {
@@ -66,7 +98,7 @@
         "enable": {
           "script": "automation/registry/set-visual-effects.ps1",
           "parameters": {
-            "Profile": "Balanced"
+            "Profile": "Performance"
           }
         },
         "disable": {
@@ -75,6 +107,18 @@
             "Profile": "Default"
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\VisualEffects",
+            "valueName": "VisualFXSetting",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 2
+          }
+        ]
       }
     },
     {
@@ -98,6 +142,26 @@
             "Mode": "Default"
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters",
+            "valueName": "EnablePrefetcher",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          },
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management\\PrefetchParameters",
+            "valueName": "EnableSuperfetch",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
       }
     },
     {
@@ -122,6 +186,18 @@
             "RevertToWindowsDefault": true
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\DataCollection",
+            "valueName": "AllowTelemetry",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
       }
     },
     {
@@ -145,6 +221,18 @@
             "Mode": "Enable"
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\Windows Search",
+            "valueName": "AllowCortana",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
       }
     },
     {
@@ -169,6 +257,26 @@
             "Revert": true
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\*",
+            "valueName": "TcpAckFrequency",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          },
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Services\\Tcpip\\Parameters\\Interfaces\\*",
+            "valueName": "TCPNoDelay",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
       }
     },
     {
@@ -192,6 +300,18 @@
             "Mode": "Automatic"
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Services\\SysMain",
+            "valueName": "Start",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 3
+          }
+        ]
       }
     },
     {
@@ -215,6 +335,18 @@
             "Suppress": false
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+            "valueName": "NoLowDiskSpaceChecks",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
       }
     },
     {
@@ -239,6 +371,34 @@
             "NoAutoReboot": false
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+            "valueName": "NoAutoRebootWithLoggedOnUsers",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU",
+            "valueName": "NoAutoRebootWithLoggedOnUsers",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+            "valueName": "AutoRestartSignOn",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
       }
     },
     {
@@ -262,6 +422,18 @@
             "Enable": false
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Desktop",
+            "valueName": "AutoEndTasks",
+            "valueType": "String",
+            "supportsCustomValue": false,
+            "recommendedValue": "1"
+          }
+        ]
       }
     },
     {
@@ -286,6 +458,34 @@
             "Revert": true
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Desktop",
+            "valueName": "HungAppTimeout",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "5000"
+          },
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Desktop",
+            "valueName": "WaitToKillAppTimeout",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "5000"
+          },
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control",
+            "valueName": "WaitToKillServiceTimeout",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "7000"
+          }
+        ]
       }
     },
     {
@@ -309,6 +509,18 @@
             "EnsureEnabled": false
           }
         }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+            "valueName": "DisableLockWorkstation",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
       }
     }
   ],
@@ -321,7 +533,7 @@
       "isDefault": true,
       "states": {
         "menu-show-delay": true,
-        "window-animation": false,
+    "window-animation": true,
         "visual-effects": true,
         "prefetching": true,
         "telemetry-level": true,

@@ -219,4 +219,34 @@
   <data name="RestorePointFailed" xml:space="preserve">
     <value>Registry restore point failed.</value>
   </data>
+  <data name="ValueHeaderDetails" xml:space="preserve">
+    <value>Details</value>
+  </data>
+  <data name="ValueHeaderCurrent" xml:space="preserve">
+    <value>Current value</value>
+  </data>
+  <data name="ValueHeaderRecommended" xml:space="preserve">
+    <value>Recommended</value>
+  </data>
+  <data name="ValueHeaderCustom" xml:space="preserve">
+    <value>Custom value</value>
+  </data>
+  <data name="ValueNotAvailable" xml:space="preserve">
+    <value>Not detected</value>
+  </data>
+  <data name="ValueRecommendationUnavailable" xml:space="preserve">
+    <value>No recommendation</value>
+  </data>
+  <data name="CustomValueNotSupported" xml:space="preserve">
+    <value>Managed by the scripted toggle.</value>
+  </data>
+  <data name="CustomValueInfoGeneral" xml:space="preserve">
+    <value>Higher numbers increase impact while lower numbers soften the effect. Recommended baseline: {0}.</value>
+  </data>
+  <data name="CustomValueInfoRange" xml:space="preserve">
+    <value>Higher numbers increase impact while lower numbers soften the effect. Allowed range: {0}–{1}. Default: {2}. Recommended: {3}.</value>
+  </data>
+  <data name="CustomValuePlaceholder" xml:space="preserve">
+    <value>Enter custom value</value>
+  </data>
 </root>
