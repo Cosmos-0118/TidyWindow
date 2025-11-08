@@ -1,18 +1,20 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using TidyWindow.App.Services;
 using TidyWindow.App.Views;
 
 namespace TidyWindow.App.ViewModels;
 
-public sealed class MainViewModel : ViewModelBase
+public sealed partial class MainViewModel : ViewModelBase
 {
     private readonly NavigationService _navigationService;
     private readonly ActivityLogService _activityLogService;
     private NavigationItemViewModel? _selectedItem;
     private string _statusMessage = "Ready";
+    private int _loadingOperations;
 
     public MainViewModel(NavigationService navigationService, ActivityLogService activityLogService)
     {
@@ -33,6 +35,9 @@ public sealed class MainViewModel : ViewModelBase
             new("Settings", "Configure preferences and integrations", typeof(SettingsPage))
         };
     }
+
+    [ObservableProperty]
+    private bool _isShellLoading;
 
     public ObservableCollection<NavigationItemViewModel> NavigationItems { get; }
 
@@ -106,5 +111,24 @@ public sealed class MainViewModel : ViewModelBase
 
         _navigationService.Navigate(item.PageType);
         SetStatusMessage(item.Description);
+    }
+
+    public void BeginShellLoad()
+    {
+        var operations = Interlocked.Increment(ref _loadingOperations);
+        if (operations == 1)
+        {
+            IsShellLoading = true;
+        }
+    }
+
+    public void CompleteShellLoad()
+    {
+        var operations = Interlocked.Decrement(ref _loadingOperations);
+        if (operations <= 0)
+        {
+            Interlocked.Exchange(ref _loadingOperations, 0);
+            IsShellLoading = false;
+        }
     }
 }

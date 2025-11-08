@@ -29,6 +29,8 @@ internal static class RegistryOptimizerStrings
 
     public static string RevertButton => GetString(nameof(RevertButton), nameof(RevertButton));
 
+    public static string RefreshButton => GetString(nameof(RefreshButton), nameof(RefreshButton));
+
     public static string PendingNotice => GetString(nameof(PendingNotice), nameof(PendingNotice));
 
     public static string SyncedNotice => GetString(nameof(SyncedNotice), nameof(SyncedNotice));

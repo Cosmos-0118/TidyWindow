@@ -159,6 +159,9 @@
   <data name="RevertButton" xml:space="preserve">
     <value>Revert</value>
   </data>
+  <data name="RefreshButton" xml:space="preserve">
+    <value>Refresh values</value>
+  </data>
   <data name="PendingNotice" xml:space="preserve">
     <value>Changes staged but not yet applied</value>
   </data>

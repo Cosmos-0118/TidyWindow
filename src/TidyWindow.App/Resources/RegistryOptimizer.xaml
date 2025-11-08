@@ -12,6 +12,14 @@
                      Color="#F8FAFC"/>
     <SolidColorBrush x:Key="RegistryAccentBrush"
                      Color="#38BDF8"/>
+        <SolidColorBrush x:Key="RegistryAccentSafeBrush"
+                                         Color="#34D399"/>
+        <SolidColorBrush x:Key="RegistryAccentModerateBrush"
+                                         Color="#F97316"/>
+        <SolidColorBrush x:Key="RegistryAccentCautionBrush"
+                                         Color="#FACC15"/>
+        <SolidColorBrush x:Key="RegistryAccentAdvancedBrush"
+                                         Color="#F87171"/>
     <SolidColorBrush x:Key="RegistryAccentHoverBrush"
                      Color="#1D9CEC"/>
     <SolidColorBrush x:Key="RegistryAccentActiveBrush"
@@ -32,6 +40,22 @@
                      Color="#7C2D12"/>
     <SolidColorBrush x:Key="RegistryRiskInformationalBorderBrush"
                      Color="#243B5A"/>
+        <SolidColorBrush x:Key="RegistryRowBackgroundBrush"
+                                         Color="#0E1B2E"/>
+        <SolidColorBrush x:Key="RegistryRowHoverBrush"
+                                         Color="#142941"/>
+        <SolidColorBrush x:Key="RegistryRowSelectedBrush"
+                                         Color="#1B3454"/>
+        <SolidColorBrush x:Key="RegistryValueChipBrush"
+                                         Color="#101C33"/>
+        <SolidColorBrush x:Key="RegistryValueChipBorderBrush"
+                                         Color="#1C2C44"/>
+
+        <DropShadowEffect x:Key="RegistryRowShadow"
+                                          Color="#050E1A"
+                                          BlurRadius="18"
+                                          ShadowDepth="0"
+                                          Opacity="0.32"/>
 
     <Style x:Key="RegistryCardStyle"
            TargetType="Border">
@@ -50,15 +74,19 @@
     <Style x:Key="RegistryToggleRowStyle"
            TargetType="Border">
         <Setter Property="Background"
-                Value="#101D30"/>
+                Value="{StaticResource RegistryRowBackgroundBrush}"/>
         <Setter Property="BorderBrush"
-                Value="#1F2D44"/>
+                Value="#1E2F46"/>
         <Setter Property="BorderThickness"
                 Value="1"/>
         <Setter Property="CornerRadius"
-                Value="10"/>
-        <Setter Property="Padding"
                 Value="16"/>
+        <Setter Property="Padding"
+                Value="20"/>
+        <Setter Property="SnapsToDevicePixels"
+                Value="True"/>
+        <Setter Property="Effect"
+                Value="{StaticResource RegistryRowShadow}"/>
     </Style>
 
     <Style x:Key="RegistryRiskBadgeStyle"
@@ -72,9 +100,125 @@
         <Setter Property="Margin"
                 Value="8,0,0,0"/>
         <Setter Property="Background"
-                Value="#1C2F47"/>
+                Value="#132A42"/>
         <Setter Property="BorderBrush"
-                Value="#243B5A"/>
+                Value="#1F3B57"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Safe">
+                <Setter Property="Background"
+                        Value="#103426"/>
+                <Setter Property="BorderBrush"
+                        Value="#1F6F52"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Moderate">
+                <Setter Property="Background"
+                        Value="#3B2410"/>
+                <Setter Property="BorderBrush"
+                        Value="#8C4512"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Caution">
+                <Setter Property="Background"
+                        Value="#3A2A08"/>
+                <Setter Property="BorderBrush"
+                        Value="#836414"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Advanced">
+                <Setter Property="Background"
+                        Value="#3E1216"/>
+                <Setter Property="BorderBrush"
+                        Value="#991B1B"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RegistryTweakCardContainerStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource RegistryToggleRowStyle}">
+        <Setter Property="BorderBrush"
+                Value="Transparent"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                         Value="True">
+                <Setter Property="Background"
+                        Value="{StaticResource RegistryRowSelectedBrush}"/>
+                <Setter Property="BorderBrush"
+                        Value="{StaticResource RegistryAccentBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
+                         Value="True">
+                <Setter Property="Background"
+                        Value="{StaticResource RegistryRowHoverBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsKeyboardFocusWithin}"
+                         Value="True">
+                <Setter Property="BorderBrush"
+                        Value="{StaticResource RegistryAccentHoverBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RegistryTweakAccentBarStyle"
+           TargetType="Border">
+        <Setter Property="Width"
+                Value="6"/>
+        <Setter Property="Background"
+                Value="{StaticResource RegistryAccentBrush}"/>
+        <Setter Property="CornerRadius"
+                Value="12,0,0,12"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Safe">
+                <Setter Property="Background"
+                        Value="{StaticResource RegistryAccentSafeBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Moderate">
+                <Setter Property="Background"
+                        Value="{StaticResource RegistryAccentModerateBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Caution">
+                <Setter Property="Background"
+                        Value="{StaticResource RegistryAccentCautionBrush}"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Advanced">
+                <Setter Property="Background"
+                        Value="{StaticResource RegistryAccentAdvancedBrush}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="RegistryMetaPillStyle"
+           TargetType="Border">
+        <Setter Property="CornerRadius"
+                Value="12"/>
+        <Setter Property="Padding"
+                Value="8,2"/>
+        <Setter Property="Background"
+                Value="#172840"/>
+        <Setter Property="BorderBrush"
+                Value="#243654"/>
+        <Setter Property="BorderThickness"
+                Value="1"/>
+    </Style>
+
+    <Style x:Key="RegistryValueChipStyle"
+           TargetType="Border">
+        <Setter Property="Background"
+                Value="{StaticResource RegistryValueChipBrush}"/>
+        <Setter Property="BorderBrush"
+                Value="{StaticResource RegistryValueChipBorderBrush}"/>
+        <Setter Property="BorderThickness"
+                Value="1"/>
+        <Setter Property="CornerRadius"
+                Value="12"/>
+        <Setter Property="Padding"
+                Value="14,12"/>
     </Style>
 
     <Style x:Key="RegistryAccentButtonStyle"

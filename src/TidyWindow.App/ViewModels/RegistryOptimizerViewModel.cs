@@ -25,6 +25,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private readonly RegistryPreferenceService _registryPreferenceService;
     private readonly SynchronizationContext? _uiContext;
     private bool _isInitialized;
+    private bool _isRefreshing;
 
     public event EventHandler<RegistryRestorePointCreatedEventArgs>? RestorePointCreated;
 
@@ -157,6 +158,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
 
         IsBusy = true;
+        var refreshAfterApply = false;
         try
         {
             var result = await _registryService.ApplyAsync(plan);
@@ -174,6 +176,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             foreach (var tweak in pendingTweaks)
             {
                 tweak.CommitSelection();
+                _registryStateService.Invalidate(tweak.Id);
             }
 
             UpdatePendingChanges();
@@ -183,6 +186,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             LastOperationSummary = summary;
             _activityLog.LogSuccess("Registry", summary, result.Executions.SelectMany(exec => exec.Output));
             _mainViewModel.SetStatusMessage("Registry tweaks applied.");
+            refreshAfterApply = true;
 
             try
             {
@@ -203,6 +207,10 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+            if (refreshAfterApply)
+            {
+                StartStateInitialization(triggeredByUser: true);
+            }
         }
     }
 
@@ -221,15 +229,24 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         _mainViewModel.SetStatusMessage("Registry selections reset.");
     }
 
+    [RelayCommand(CanExecute = nameof(CanRefreshState))]
+    private void RefreshState()
+    {
+        StartStateInitialization(triggeredByUser: true);
+    }
+
     private bool CanApply() => HasPendingChanges && !IsBusy && !HasValidationErrors;
 
     private bool CanRevertChanges() => HasPendingChanges && !IsBusy;
+
+    private bool CanRefreshState() => !IsBusy && !_isRefreshing;
 
     partial void OnIsBusyChanged(bool oldValue, bool newValue)
     {
         ApplyCommand.NotifyCanExecuteChanged();
         RevertChangesCommand.NotifyCanExecuteChanged();
         RestoreLastSnapshotCommand.NotifyCanExecuteChanged();
+        RefreshStateCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnHasPendingChangesChanged(bool oldValue, bool newValue)
@@ -339,49 +356,84 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
     }
 
-    private void StartStateInitialization()
+    private void StartStateInitialization(bool triggeredByUser = false)
     {
+        if (triggeredByUser)
+        {
+            _isRefreshing = true;
+            _mainViewModel.SetStatusMessage("Refreshing registry values...");
+            RefreshStateCommand.NotifyCanExecuteChanged();
+        }
+
         if (Tweaks.Count == 0)
         {
+            if (triggeredByUser)
+            {
+                _isRefreshing = false;
+                RefreshStateCommand.NotifyCanExecuteChanged();
+                _mainViewModel.SetStatusMessage("No registry tweaks to refresh.");
+                LastOperationSummary = $"Registry values refreshed at {DateTime.Now:t}.";
+            }
+
+            _mainViewModel.CompleteShellLoad();
             return;
         }
 
+        _mainViewModel.BeginShellLoad();
         var snapshot = Tweaks.ToList();
 
         _ = Task.Run(async () =>
         {
-            foreach (var tweak in snapshot)
+            try
             {
-                RegistryTweakState? state = null;
-
-                try
+                foreach (var tweak in snapshot)
                 {
-                    state = await _registryStateService.GetStateAsync(tweak.Id).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    PostToUi(() => _activityLog.LogWarning("Registry", $"Failed to load registry state for '{tweak.Id}': {ex.Message}"));
-                }
+                    RegistryTweakState? state = null;
 
-                if (state is null)
-                {
-                    continue;
-                }
+                    try
+                    {
+                        state = await _registryStateService.GetStateAsync(tweak.Id, forceRefresh: triggeredByUser).ConfigureAwait(false);
+                    }
+                    catch (Exception ex)
+                    {
+                        PostToUi(() => _activityLog.LogWarning("Registry", $"Failed to load registry state for '{tweak.Id}': {ex.Message}"));
+                    }
 
+                    if (state is null)
+                    {
+                        continue;
+                    }
+
+                    PostToUi(() =>
+                    {
+                        tweak.UpdateState(state);
+                        UpdatePendingChanges();
+                        UpdateValidationState();
+
+                        if (state.Errors.Length > 0)
+                        {
+                            var summary = string.Join("; ", state.Errors.Where(static line => !string.IsNullOrWhiteSpace(line)).Take(3));
+                            if (!string.IsNullOrWhiteSpace(summary))
+                            {
+                                _activityLog.LogWarning("Registry", $"Detection issues for '{tweak.Title}': {summary}");
+                            }
+                        }
+                    });
+                }
+            }
+            finally
+            {
                 PostToUi(() =>
                 {
-                    tweak.UpdateState(state);
-                    UpdatePendingChanges();
-                    UpdateValidationState();
-
-                    if (state.Errors.Length > 0)
+                    if (triggeredByUser)
                     {
-                        var summary = string.Join("; ", state.Errors.Where(static line => !string.IsNullOrWhiteSpace(line)).Take(3));
-                        if (!string.IsNullOrWhiteSpace(summary))
-                        {
-                            _activityLog.LogWarning("Registry", $"Detection issues for '{tweak.Title}': {summary}");
-                        }
+                        _isRefreshing = false;
+                        LastOperationSummary = $"Registry values refreshed at {DateTime.Now:t}.";
+                        _mainViewModel.SetStatusMessage("Registry values refreshed.");
+                        RefreshStateCommand.NotifyCanExecuteChanged();
                     }
+
+                    _mainViewModel.CompleteShellLoad();
                 });
             }
         });
@@ -497,6 +549,7 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     private string? _customParameterName;
     private bool _customValueInitialized;
     private string? _pendingPersistedCustomValue;
+    private DateTimeOffset _lastObservedAt;
 
     public RegistryTweakCardViewModel(RegistryTweakDefinition definition, string title, string summary, string riskLabel, RegistryPreferenceService preferences)
     {
@@ -628,6 +681,14 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         {
             throw new ArgumentNullException(nameof(state));
         }
+
+        // Avoid regressions when an older probe completes after a newer refresh.
+        if (state.ObservedAt < _lastObservedAt)
+        {
+            return;
+        }
+
+        _lastObservedAt = state.ObservedAt;
 
         var values = state.Values;
         var primaryValue = values.FirstOrDefault(v => v.SupportsCustomValue) ?? values.FirstOrDefault();

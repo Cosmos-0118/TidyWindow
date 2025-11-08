@@ -637,26 +637,5 @@
             </Grid>
         </ScrollViewer>
 
-    <Border Margin="{Binding ElementName=ContentScrollViewer, Path=Margin}"
-        Background="#0F172AD0"
-        CornerRadius="12"
-        Visibility="{Binding IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}"
-        IsHitTestVisible="{Binding IsLoading}"
-        HorizontalAlignment="Center"
-        MaxWidth="1360"
-        Panel.ZIndex="1">
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                <ProgressBar Width="200"
-                             Height="6"
-                             IsIndeterminate="True"
-                             Margin="0,0,0,12"/>
-                <TextBlock Text="Loading install catalog..."
-                           Foreground="#F8FAFC"
-                           FontSize="14"
-                           HorizontalAlignment="Center"
-                           TextAlignment="Center"/>
-            </StackPanel>
-        </Border>
     </Grid>
 </Page>

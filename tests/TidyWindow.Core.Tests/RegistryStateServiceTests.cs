@@ -23,4 +23,5 @@ public sealed class RegistryStateServiceTests
         Assert.True(value.CurrentDisplay.Length > 0);
         Assert.Equal("60", value.CurrentDisplay[0]);
     }
+
 }

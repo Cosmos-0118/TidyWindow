@@ -24,8 +24,8 @@
                          Color="#94A3B8"/>
         <SolidColorBrush x:Key="NavSubtleBrush"
                          Color="#64748B"/>
-    <SolidColorBrush x:Key="NavSelectedTextBrush"
-             Color="#07111D"/>
+        <SolidColorBrush x:Key="NavSelectedTextBrush"
+                         Color="#07111D"/>
         <SolidColorBrush x:Key="AccentBrush"
                          Color="#22C55E"/>
         <SolidColorBrush x:Key="HoverBrush"
@@ -34,128 +34,225 @@
                          Color="#151F32"/>
         <SolidColorBrush x:Key="ContentBackgroundBrush"
                          Color="#0F172A"/>
+        <DropShadowEffect x:Key="LoadingCardShadow"
+                          Color="#000000"
+                          BlurRadius="24"
+                          ShadowDepth="0"
+                          Opacity="0.45"/>
+        <QuarticEase x:Key="SpinnerEase"
+                     EasingMode="EaseInOut"/>
     <converters:NavigationWidthConverter x:Key="NavWidthConverter"
                          Ratio="0.23"
                          MinWidth="220"
                          MaxWidth="340"/>
     </Window.Resources>
-    <DockPanel Background="{DynamicResource ShellBackgroundBrush}">
-        <StatusBar DockPanel.Dock="Bottom"
-                   Background="{DynamicResource NavBackgroundBrush}"
-                   Foreground="{DynamicResource NavForegroundBrush}">
-            <StatusBarItem>
-                <TextBlock Text="{Binding StatusMessage}"/>
-            </StatusBarItem>
-        </StatusBar>
+    <Grid x:Name="RootGrid" Background="{DynamicResource ShellBackgroundBrush}">
+        <DockPanel Background="{DynamicResource ShellBackgroundBrush}">
+            <StatusBar DockPanel.Dock="Bottom"
+                       Background="{DynamicResource NavBackgroundBrush}"
+                       Foreground="{DynamicResource NavForegroundBrush}">
+                <StatusBarItem>
+                    <TextBlock Text="{Binding StatusMessage}"/>
+                </StatusBarItem>
+            </StatusBar>
 
-    <Border DockPanel.Dock="Left"
-        MinWidth="220"
-        MaxWidth="340"
-        Width="{Binding ElementName=RootWindow, Path=ActualWidth, Converter={StaticResource NavWidthConverter}}"
-                Background="{DynamicResource NavBackgroundBrush}"
-                BorderBrush="#1E293B"
-                BorderThickness="0,0,1,0">
-            <DockPanel>
-                <StackPanel Margin="20"
-                            DockPanel.Dock="Top">
-                    <TextBlock Text="TidyWindow"
-                               FontSize="24"
-                               FontWeight="Bold"
-                               FontFamily="Segoe UI Semibold"
-                               Foreground="{DynamicResource NavForegroundBrush}"/>
-                    <TextBlock FontSize="11"
-                               FontWeight="SemiBold"
-                               TextOptions.TextFormattingMode="Ideal"
-                               Foreground="{DynamicResource NavSubtleBrush}"
-                               Text="SYSTEM CARE COCKPIT"/>
-                </StackPanel>
-                <ListBox ItemsSource="{Binding NavigationItems}"
-                         SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
-                         BorderThickness="0"
-                         Background="Transparent"
-                         Foreground="{DynamicResource NavForegroundBrush}"
-                         Margin="12"
-                         FontFamily="Segoe UI"
-                         ScrollViewer.VerticalScrollBarVisibility="Hidden">
-                    <ListBox.ItemContainerStyle>
-                        <Style TargetType="ListBoxItem">
-                            <Setter Property="Padding"
-                                    Value="0"/>
-                            <Setter Property="HorizontalContentAlignment"
-                                    Value="Stretch"/>
-                            <Setter Property="Background"
-                                    Value="Transparent"/>
-                            <Setter Property="Foreground"
-                                    Value="#E2E8F0"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="ListBoxItem">
-                                        <Border x:Name="ItemBorder"
-                                                CornerRadius="6"
-                                                Background="Transparent">
-                                            <ContentPresenter/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsSelected"
-                                                     Value="True">
-                                                <Setter TargetName="ItemBorder"
-                                                        Property="Background"
-                                                        Value="{DynamicResource AccentBrush}"/>
-                                                <Setter Property="Foreground"
-                                                        Value="#07111D"/>
-                                            </Trigger>
-                                            <Trigger Property="IsMouseOver"
-                                                     Value="True">
-                                                <Setter TargetName="ItemBorder"
-                                                        Property="Background"
-                                                        Value="{DynamicResource HoverBrush}"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                        </Style>
-                    </ListBox.ItemContainerStyle>
-                    <ListBox.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:NavigationItemViewModel}">
-                            <StackPanel Margin="16,10">
-                                <TextBlock Text="{Binding Title}"
-                                           FontSize="15"
-                                           FontFamily="Segoe UI Semibold"
-                                           Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}"/>
-                                <TextBlock Text="{Binding Description}"
-                                           FontSize="12"
-                                           TextWrapping="Wrap"
-                                           Margin="0,6,0,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground"
-                                                    Value="{DynamicResource NavMutedBrush}"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
-                                                             Value="True">
+            <Border DockPanel.Dock="Left"
+                    MinWidth="220"
+                    MaxWidth="340"
+                    Width="{Binding ElementName=RootWindow, Path=ActualWidth, Converter={StaticResource NavWidthConverter}}"
+                    Background="{DynamicResource NavBackgroundBrush}"
+                    BorderBrush="#1E293B"
+                    BorderThickness="0,0,1,0">
+                <DockPanel>
+                    <StackPanel Margin="20"
+                                DockPanel.Dock="Top">
+                        <TextBlock Text="TidyWindow"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   FontFamily="Segoe UI Semibold"
+                                   Foreground="{DynamicResource NavForegroundBrush}"/>
+                        <TextBlock FontSize="11"
+                                   FontWeight="SemiBold"
+                                   TextOptions.TextFormattingMode="Ideal"
+                                   Foreground="{DynamicResource NavSubtleBrush}"
+                                   Text="SYSTEM CARE COCKPIT"/>
+                    </StackPanel>
+                    <ListBox ItemsSource="{Binding NavigationItems}"
+                             SelectedItem="{Binding SelectedItem, Mode=TwoWay}"
+                             BorderThickness="0"
+                             Background="Transparent"
+                             Foreground="{DynamicResource NavForegroundBrush}"
+                             Margin="12"
+                             FontFamily="Segoe UI"
+                             ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="Padding"
+                                        Value="0"/>
+                                <Setter Property="HorizontalContentAlignment"
+                                        Value="Stretch"/>
+                                <Setter Property="Background"
+                                        Value="Transparent"/>
+                                <Setter Property="Foreground"
+                                        Value="#E2E8F0"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="ListBoxItem">
+                                            <Border x:Name="ItemBorder"
+                                                    CornerRadius="6"
+                                                    Background="Transparent">
+                                                <ContentPresenter/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsSelected"
+                                                         Value="True">
+                                                    <Setter TargetName="ItemBorder"
+                                                            Property="Background"
+                                                            Value="{DynamicResource AccentBrush}"/>
                                                     <Setter Property="Foreground"
-                                                            Value="{DynamicResource NavSelectedTextBrush}"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
-            </DockPanel>
-        </Border>
+                                                            Value="#07111D"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver"
+                                                         Value="True">
+                                                    <Setter TargetName="ItemBorder"
+                                                            Property="Background"
+                                                            Value="{DynamicResource HoverBrush}"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:NavigationItemViewModel}">
+                                <StackPanel Margin="16,10">
+                                    <TextBlock Text="{Binding Title}"
+                                               FontSize="15"
+                                               FontFamily="Segoe UI Semibold"
+                                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}"/>
+                                    <TextBlock Text="{Binding Description}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground"
+                                                        Value="{DynamicResource NavMutedBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
+                                                                 Value="True">
+                                                        <Setter Property="Foreground"
+                                                                Value="{DynamicResource NavSelectedTextBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
 
-        <Border Margin="24"
-                Background="{DynamicResource ContentBackgroundBrush}"
-                CornerRadius="18"
-                Padding="0">
-            <Frame x:Name="ContentFrame"
-                   NavigationUIVisibility="Hidden"
-                   Margin="0"
-                   Background="{DynamicResource SurfaceBrush}"/>
+            <Border Margin="24"
+                    Background="{DynamicResource ContentBackgroundBrush}"
+                    CornerRadius="18"
+                    Padding="0">
+                <Frame x:Name="ContentFrame"
+                       NavigationUIVisibility="Hidden"
+                       Margin="0"
+                       Background="{DynamicResource SurfaceBrush}"/>
+            </Border>
+        </DockPanel>
+
+        <Border x:Name="LoadingOverlay"
+                Visibility="Collapsed"
+                Opacity="0"
+                Background="#E610172A"
+                Panel.ZIndex="40"
+                IsHitTestVisible="False">
+            <Grid>
+                <Border Width="420"
+                        Padding="36"
+                        CornerRadius="24"
+                        Background="{DynamicResource ContentBackgroundBrush}"
+                        BorderBrush="#1E2F49"
+                        BorderThickness="1"
+                        Effect="{StaticResource LoadingCardShadow}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <StackPanel>
+                        <Canvas Width="72"
+                                Height="72"
+                                HorizontalAlignment="Center">
+                            <Path StrokeThickness="6"
+                                  Stroke="#38BDF8"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  Data="M36,6 A30,30 0 1 1 35.99,6">
+                                <Path.RenderTransform>
+                                    <RotateTransform CenterX="36"
+                                                     CenterY="36"/>
+                                </Path.RenderTransform>
+                                <Path.Triggers>
+                                    <EventTrigger RoutedEvent="Path.Loaded">
+                                        <BeginStoryboard>
+                                            <Storyboard RepeatBehavior="Forever">
+                                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                 From="0"
+                                                                 To="360"
+                                                                 Duration="0:0:1.6"
+                                                                 EasingFunction="{StaticResource SpinnerEase}"/>
+                                            </Storyboard>
+                                        </BeginStoryboard>
+                                    </EventTrigger>
+                                </Path.Triggers>
+                            </Path>
+                        </Canvas>
+                        <TextBlock Text="Warming up the cockpit..."
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F8FAFC"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,18,0,0"/>
+                        <TextBlock Text="Preparing modules and fetching your automation suite."
+                                   FontSize="13"
+                                   Foreground="#94A3B8"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"/>
+                        <Border Height="6"
+                                Margin="0,28,0,0"
+                                Background="#14243A"
+                                CornerRadius="3"
+                                ClipToBounds="True">
+                            <Grid>
+                                <Rectangle Width="160"
+                                           Fill="#38BDF8">
+                                    <Rectangle.RenderTransform>
+                                        <TranslateTransform X="-200"/>
+                                    </Rectangle.RenderTransform>
+                                    <Rectangle.Triggers>
+                                        <EventTrigger RoutedEvent="Rectangle.Loaded">
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever">
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                                     From="-220"
+                                                                     To="420"
+                                                                     Duration="0:0:2.35"
+                                                                     EasingFunction="{StaticResource SpinnerEase}"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </EventTrigger>
+                                    </Rectangle.Triggers>
+                                </Rectangle>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Border>
-    </DockPanel>
+    </Grid>
 </Window>

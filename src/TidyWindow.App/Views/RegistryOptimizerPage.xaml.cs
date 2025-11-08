@@ -21,9 +21,8 @@ public partial class RegistryOptimizerPage : Page
     private bool _scrollHandlersAttached;
     private bool _rollbackPromptOpen;
 
-    private const double WideLayoutBreakpoint = 1240d;
-    private const double CompactLayoutBreakpoint = 1080d;
-    private const double StackedLayoutBreakpoint = 940d;
+    private const double MarginTighteningBuffer = 160d;
+    private const double ScreenMaxWidthRatio = 0.92d;
 
     private Thickness _secondaryColumnDefaultMargin;
     private readonly Thickness _secondaryColumnStackedMargin = new(0, 24, 0, 0);
@@ -32,6 +31,8 @@ public partial class RegistryOptimizerPage : Page
     private readonly Thickness _scrollViewerStackedMargin = new(16, 24, 16, 24);
     private double _primaryColumnDefaultMinWidth;
     private double _secondaryColumnDefaultMinWidth;
+    private readonly double _columnSpacing;
+    private readonly double _pageContentDefaultMaxWidth;
 
     public RegistryOptimizerPage(RegistryOptimizerViewModel viewModel)
     {
@@ -44,6 +45,10 @@ public partial class RegistryOptimizerPage : Page
         _scrollViewerDefaultMargin = ContentScrollViewer.Margin;
         _primaryColumnDefaultMinWidth = PrimaryColumnDefinition.MinWidth;
         _secondaryColumnDefaultMinWidth = SecondaryColumnDefinition.MinWidth;
+        _columnSpacing = PrimaryColumnHost.Margin.Right <= 0 ? 24d : PrimaryColumnHost.Margin.Right;
+        _pageContentDefaultMaxWidth = double.IsNaN(PageContentGrid.MaxWidth) || PageContentGrid.MaxWidth <= 0
+            ? double.PositiveInfinity
+            : PageContentGrid.MaxWidth;
 
         Loaded += OnPageLoaded;
         Unloaded += OnPageUnloaded;
@@ -100,9 +105,36 @@ public partial class RegistryOptimizerPage : Page
             return;
         }
 
-        var stackLayout = viewportWidth < StackedLayoutBreakpoint;
-        var compactColumns = viewportWidth < WideLayoutBreakpoint;
-        var tightMargins = viewportWidth < CompactLayoutBreakpoint;
+        var screenWidth = SystemParameters.WorkArea.Width;
+        if (double.IsNaN(screenWidth) || screenWidth <= 0)
+        {
+            screenWidth = viewportWidth;
+        }
+
+        var defaultMaxWidth = double.IsPositiveInfinity(_pageContentDefaultMaxWidth)
+            ? screenWidth * ScreenMaxWidthRatio
+            : Math.Min(_pageContentDefaultMaxWidth, screenWidth * ScreenMaxWidthRatio);
+
+        var targetWidth = Math.Min(viewportWidth, defaultMaxWidth);
+        if (targetWidth <= 0)
+        {
+            targetWidth = viewportWidth;
+        }
+
+        var totalMinimum = _primaryColumnDefaultMinWidth + _secondaryColumnDefaultMinWidth + _columnSpacing;
+        var stackLayout = targetWidth < totalMinimum;
+
+        var tightMargins = viewportWidth < totalMinimum + MarginTighteningBuffer;
+        var desiredMargin = stackLayout
+            ? _scrollViewerStackedMargin
+            : tightMargins
+                ? _scrollViewerCompactMargin
+                : _scrollViewerDefaultMargin;
+
+        if (!ContentScrollViewer.Margin.Equals(desiredMargin))
+        {
+            ContentScrollViewer.Margin = desiredMargin;
+        }
 
         if (stackLayout)
         {
@@ -118,6 +150,10 @@ public partial class RegistryOptimizerPage : Page
 
             SecondaryColumnDefinition.Width = new GridLength(0d, GridUnitType.Pixel);
             PrimaryColumnDefinition.Width = new GridLength(1d, GridUnitType.Star);
+
+            PageContentGrid.Width = double.IsNaN(targetWidth) ? double.NaN : targetWidth;
+            PageContentGrid.MaxWidth = Math.Max(totalMinimum, defaultMaxWidth);
+            return;
         }
         else
         {
@@ -130,26 +166,75 @@ public partial class RegistryOptimizerPage : Page
                 SecondaryColumnDefinition.MinWidth = _secondaryColumnDefaultMinWidth;
                 _isStackedLayout = false;
             }
+        }
 
-            var primary = compactColumns ? new GridLength(1d, GridUnitType.Star) : new GridLength(3d, GridUnitType.Star);
-            var secondary = compactColumns ? new GridLength(1d, GridUnitType.Star) : new GridLength(2d, GridUnitType.Star);
+        var frameWidth = Math.Max(targetWidth, totalMinimum);
+        PageContentGrid.Width = frameWidth;
+        PageContentGrid.MaxWidth = Math.Max(totalMinimum, defaultMaxWidth);
 
-            if (!PrimaryColumnDefinition.Width.Equals(primary))
+        var availableForColumns = frameWidth - _columnSpacing;
+        if (availableForColumns <= 0)
+        {
+            availableForColumns = totalMinimum - _columnSpacing;
+        }
+
+        // Measure child columns so we can scale based on their desired width instead of fixed breakpoints.
+        PrimaryColumnHost.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        SecondaryColumnHost.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+
+        var desiredPrimary = Math.Max(_primaryColumnDefaultMinWidth, PrimaryColumnHost.DesiredSize.Width);
+        var desiredSecondary = Math.Max(_secondaryColumnDefaultMinWidth, SecondaryColumnHost.DesiredSize.Width);
+        var desiredTotal = desiredPrimary + desiredSecondary;
+
+        double primaryWidth;
+        double secondaryWidth;
+
+        if (desiredTotal <= availableForColumns)
+        {
+            primaryWidth = desiredPrimary;
+            secondaryWidth = desiredSecondary;
+        }
+        else
+        {
+            var scale = availableForColumns / desiredTotal;
+            primaryWidth = Math.Max(_primaryColumnDefaultMinWidth, desiredPrimary * scale);
+            secondaryWidth = Math.Max(_secondaryColumnDefaultMinWidth, availableForColumns - primaryWidth);
+
+            if (primaryWidth + secondaryWidth > availableForColumns)
             {
-                PrimaryColumnDefinition.Width = primary;
-            }
+                var overflow = primaryWidth + secondaryWidth - availableForColumns;
+                var maxPrimaryReduction = Math.Max(0d, primaryWidth - _primaryColumnDefaultMinWidth);
+                var primaryReduction = Math.Min(overflow * 0.55, maxPrimaryReduction);
+                primaryWidth -= primaryReduction;
+                overflow -= primaryReduction;
 
-            if (!SecondaryColumnDefinition.Width.Equals(secondary))
-            {
-                SecondaryColumnDefinition.Width = secondary;
+                if (overflow > 0)
+                {
+                    var maxSecondaryReduction = Math.Max(0d, secondaryWidth - _secondaryColumnDefaultMinWidth);
+                    var secondaryReduction = Math.Min(overflow, maxSecondaryReduction);
+                    secondaryWidth -= secondaryReduction;
+                    overflow -= secondaryReduction;
+
+                    if (overflow > 0)
+                    {
+                        primaryWidth = Math.Max(_primaryColumnDefaultMinWidth, primaryWidth - overflow);
+                    }
+                }
             }
         }
 
-        ContentScrollViewer.Margin = stackLayout
-            ? _scrollViewerStackedMargin
-            : tightMargins || compactColumns
-                ? _scrollViewerCompactMargin
-                : _scrollViewerDefaultMargin;
+        var remaining = availableForColumns - (primaryWidth + secondaryWidth);
+        if (remaining > 0)
+        {
+            primaryWidth += remaining * 0.55;
+            secondaryWidth += remaining * 0.45;
+        }
+
+        primaryWidth = Math.Max(_primaryColumnDefaultMinWidth, primaryWidth);
+        secondaryWidth = Math.Max(_secondaryColumnDefaultMinWidth, secondaryWidth);
+
+        PrimaryColumnDefinition.Width = new GridLength(primaryWidth, GridUnitType.Pixel);
+        SecondaryColumnDefinition.Width = new GridLength(secondaryWidth, GridUnitType.Pixel);
     }
 
     private void EnsureScrollHandlers()

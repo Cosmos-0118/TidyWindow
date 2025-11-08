@@ -453,6 +453,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                 item.IsBusy = false;
                 item.IsQueued = false;
                 item.QueueStatus = message;
+                item.ApplyMaintenanceResult(result);
                 item.ApplyOperationResult(result.Success, message);
             }).ConfigureAwait(false);
 
@@ -944,6 +945,11 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         {
             ApplyFilters();
         }
+
+        if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.HasUpdate))
+        {
+            ApplyFilters();
+        }
     }
 
     private bool EnsureElevation(PackageMaintenanceItemViewModel item, bool requiresAdmin)
@@ -1269,6 +1275,20 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     private static readonly string[] _wingetAliases = { "winget" };
     private static readonly string[] _chocoAliases = { "choco", "chocolatey" };
 
+    private string _manager = string.Empty;
+    private string _packageIdentifier = string.Empty;
+    private string _displayName = string.Empty;
+    private string _installedVersion = "Unknown";
+    private string? _availableVersion;
+    private bool _hasUpdate;
+    private string _source = string.Empty;
+    private string? _summary;
+    private string? _homepage;
+    private ImmutableArray<string> _tags = ImmutableArray<string>.Empty;
+    private string _tagsDisplay = string.Empty;
+    private string? _installPackageId;
+    private bool _requiresAdministrativeAccess;
+
     public PackageMaintenanceItemViewModel(PackageInventoryItem item)
     {
         UpdateFrom(item);
@@ -1283,42 +1303,145 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
         if (item.Catalog is not null)
         {
             InstallPackageId = item.Catalog.InstallPackageId;
-            Summary = string.IsNullOrWhiteSpace(item.Catalog.Summary) ? null : item.Catalog.Summary.Trim();
-            Homepage = string.IsNullOrWhiteSpace(item.Catalog.Homepage) ? null : item.Catalog.Homepage.Trim();
+            Summary = item.Catalog.Summary;
+            Homepage = item.Catalog.Homepage;
             Tags = item.Catalog.Tags;
             RequiresAdministrativeAccess = item.Catalog.RequiresAdmin;
         }
-
-        TagsDisplay = Tags.IsDefaultOrEmpty ? string.Empty : string.Join(" • ", Tags);
+        else
+        {
+            Tags = ImmutableArray<string>.Empty;
+        }
     }
 
-    public string Manager { get; private set; } = string.Empty;
+    public string Manager
+    {
+        get => _manager;
+        private set
+        {
+            if (SetProperty(ref _manager, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CanRemove));
+                OnPropertyChanged(nameof(CanForceRemove));
+                OnPropertyChanged(nameof(CanUpdate));
+            }
+        }
+    }
 
     public string ManagerDisplay { get; }
 
-    public string PackageIdentifier { get; private set; } = string.Empty;
+    public string PackageIdentifier
+    {
+        get => _packageIdentifier;
+        private set
+        {
+            if (SetProperty(ref _packageIdentifier, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(CanRemove));
+                OnPropertyChanged(nameof(CanForceRemove));
+                OnPropertyChanged(nameof(CanUpdate));
+            }
+        }
+    }
 
-    public string DisplayName { get; private set; } = string.Empty;
+    public string DisplayName
+    {
+        get => _displayName;
+        private set => SetProperty(ref _displayName, value ?? string.Empty);
+    }
 
-    public string InstalledVersion { get; private set; } = "Unknown";
+    public string InstalledVersion
+    {
+        get => _installedVersion;
+        private set
+        {
+            var candidate = string.IsNullOrWhiteSpace(value) ? "Unknown" : value.Trim();
+            if (SetProperty(ref _installedVersion, candidate))
+            {
+                NotifyPackageStateChanged();
+            }
+        }
+    }
 
-    public string? AvailableVersion { get; private set; }
+    public string? AvailableVersion
+    {
+        get => _availableVersion;
+        private set
+        {
+            var candidate = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (SetProperty(ref _availableVersion, candidate))
+            {
+                NotifyPackageStateChanged();
+            }
+        }
+    }
 
-    public bool HasUpdate { get; private set; }
+    public bool HasUpdate
+    {
+        get => _hasUpdate;
+        private set
+        {
+            if (SetProperty(ref _hasUpdate, value))
+            {
+                NotifyPackageStateChanged();
+            }
+        }
+    }
 
-    public string Source { get; private set; } = string.Empty;
+    public string Source
+    {
+        get => _source;
+        private set => SetProperty(ref _source, string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim());
+    }
 
-    public string? Summary { get; private set; }
+    public string? Summary
+    {
+        get => _summary;
+        private set => SetProperty(ref _summary, string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    }
 
-    public string? Homepage { get; private set; }
+    public string? Homepage
+    {
+        get => _homepage;
+        private set => SetProperty(ref _homepage, string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    }
 
-    public ImmutableArray<string> Tags { get; private set; } = ImmutableArray<string>.Empty;
+    public ImmutableArray<string> Tags
+    {
+        get => _tags;
+        private set
+        {
+            if (SetProperty(ref _tags, value))
+            {
+                TagsDisplay = value.IsDefaultOrEmpty ? string.Empty : string.Join(" • ", value);
+            }
+        }
+    }
 
-    public string TagsDisplay { get; private set; } = string.Empty;
+    public string TagsDisplay
+    {
+        get => _tagsDisplay;
+        private set => SetProperty(ref _tagsDisplay, value ?? string.Empty);
+    }
 
-    public string? InstallPackageId { get; private set; }
+    public string? InstallPackageId
+    {
+        get => _installPackageId;
+        private set
+        {
+            var candidate = string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            if (SetProperty(ref _installPackageId, candidate))
+            {
+                OnPropertyChanged(nameof(CanUpdate));
+            }
+        }
+    }
 
-    public bool RequiresAdministrativeAccess { get; private set; }
+    public bool RequiresAdministrativeAccess
+    {
+        get => _requiresAdministrativeAccess;
+        private set => SetProperty(ref _requiresAdministrativeAccess, value);
+    }
 
     public bool CanUpdate => (HasUpdate || !string.IsNullOrWhiteSpace(TargetVersion))
                              && (!string.IsNullOrWhiteSpace(InstallPackageId) || !string.IsNullOrWhiteSpace(PackageIdentifier));
@@ -1366,12 +1489,17 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
 
     public void UpdateFrom(PackageInventoryItem item)
     {
+        if (item is null)
+        {
+            return;
+        }
+
         Manager = item.Manager ?? string.Empty;
         PackageIdentifier = item.PackageIdentifier ?? string.Empty;
         DisplayName = string.IsNullOrWhiteSpace(item.Name) ? PackageIdentifier : item.Name.Trim();
-        InstalledVersion = string.IsNullOrWhiteSpace(item.InstalledVersion) ? "Unknown" : item.InstalledVersion.Trim();
-        AvailableVersion = string.IsNullOrWhiteSpace(item.AvailableVersion) ? null : item.AvailableVersion.Trim();
-        Source = string.IsNullOrWhiteSpace(item.Source) ? string.Empty : item.Source.Trim();
+        InstalledVersion = item.InstalledVersion;
+        AvailableVersion = item.AvailableVersion;
+        Source = item.Source;
         HasUpdate = item.IsUpdateAvailable;
     }
 
@@ -1394,5 +1522,106 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     {
         LastOperationSucceeded = success;
         LastOperationMessage = string.IsNullOrWhiteSpace(message) ? (success ? "Operation completed." : "Operation failed.") : message.Trim();
+    }
+
+    public void ApplyMaintenanceResult(PackageMaintenanceResult result)
+    {
+        if (result is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.InstalledVersion))
+        {
+            InstalledVersion = result.InstalledVersion;
+        }
+        else if (string.Equals(result.StatusAfter, "NotInstalled", StringComparison.OrdinalIgnoreCase))
+        {
+            InstalledVersion = "Not installed";
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.LatestVersion))
+        {
+            AvailableVersion = result.LatestVersion;
+        }
+        else if (!string.IsNullOrWhiteSpace(result.InstalledVersion)
+                 && string.Equals(result.StatusAfter, "UpToDate", StringComparison.OrdinalIgnoreCase))
+        {
+            AvailableVersion = result.InstalledVersion;
+        }
+        else if (string.Equals(result.StatusAfter, "NotInstalled", StringComparison.OrdinalIgnoreCase))
+        {
+            AvailableVersion = null;
+        }
+
+        var statusAfter = result.StatusAfter;
+        bool? newHasUpdate = statusAfter switch
+        {
+            string status when string.Equals(status, "UpdateAvailable", StringComparison.OrdinalIgnoreCase) => true,
+            string status when string.Equals(status, "UpToDate", StringComparison.OrdinalIgnoreCase) => false,
+            string status when string.Equals(status, "NotInstalled", StringComparison.OrdinalIgnoreCase) => false,
+            _ => null
+        };
+
+        if (newHasUpdate is not null)
+        {
+            HasUpdate = newHasUpdate.Value;
+        }
+        else
+        {
+            var normalizedInstalled = NormalizeVersionText(result.InstalledVersion) ?? NormalizeVersionText(InstalledVersion);
+            var normalizedLatest = NormalizeVersionText(result.LatestVersion)
+                                  ?? NormalizeVersionText(result.RequestedVersion)
+                                  ?? normalizedInstalled;
+
+            if (normalizedInstalled is not null && normalizedLatest is not null)
+            {
+                HasUpdate = !string.Equals(normalizedInstalled, normalizedLatest, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        if (result.Success && !HasUpdate && !string.IsNullOrWhiteSpace(TargetVersion))
+        {
+            TargetVersion = null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.PackageId) && string.IsNullOrWhiteSpace(PackageIdentifier))
+        {
+            PackageIdentifier = result.PackageId.Trim();
+        }
+    }
+
+    private void NotifyPackageStateChanged()
+    {
+        OnPropertyChanged(nameof(VersionDisplay));
+        OnPropertyChanged(nameof(CanUpdate));
+    }
+
+    private static string? NormalizeVersionText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            return null;
+        }
+
+        if (string.Equals(trimmed, "unknown", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(trimmed, "not installed", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var candidate = trimmed.Replace('_', '.').Replace('-', '.');
+        while (candidate.Contains(".."))
+        {
+            candidate = candidate.Replace("..", ".");
+        }
+
+        return candidate.Trim('.');
     }
 }

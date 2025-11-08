@@ -58,7 +58,8 @@ function Get-CachedCommandPath {
     $resolved = Get-Command -Name $CommandName -ErrorAction SilentlyContinue
     $path = if ($resolved) {
         if (-not [string]::IsNullOrWhiteSpace($resolved.Source)) { $resolved.Source } else { $CommandName }
-    } else {
+    }
+    else {
         $null
     }
 
@@ -302,9 +303,16 @@ function Normalize-VersionString {
     }
 
     $trimmed = $Value.Trim()
-    if ($trimmed -match '([0-9]+(?:[\._][0-9A-Za-z]+)*)') {
-        $candidate = $matches[1].Replace('_', '.')
-        return $candidate
+
+    # Accept common separators so values like 2025-11-04 normalize correctly.
+    if ($trimmed -match '([0-9]+(?:[\._\-][0-9A-Za-z]+)*)') {
+        $candidate = $matches[1]
+        $candidate = $candidate.Replace('_', '.').Replace('-', '.')
+        while ($candidate.Contains('..')) {
+            $candidate = $candidate.Replace('..', '.')
+        }
+
+        return $candidate.Trim('. ')
     }
 
     return $trimmed
@@ -920,20 +928,20 @@ function Invoke-ManagerUpdate {
             }
         }
         'choco' {
-            $args = @('upgrade', $PackageId, '-y', '--no-progress')
+            $argList = @('upgrade', $PackageId, '-y', '--no-progress')
             if ($hasTarget) {
-                $args += @('--version', $TargetVersion, '--allow-downgrade')
+                $argList += @('--version', $TargetVersion, '--allow-downgrade')
             }
 
-            $args
+            $argList
         }
         'chocolatey' {
-            $args = @('upgrade', $PackageId, '-y', '--no-progress')
+            $argList = @('upgrade', $PackageId, '-y', '--no-progress')
             if ($hasTarget) {
-                $args += @('--version', $TargetVersion, '--allow-downgrade')
+                $argList += @('--version', $TargetVersion, '--allow-downgrade')
             }
 
-            $args
+            $argList
         }
         'scoop' {
             if ($hasTarget) {
@@ -1193,20 +1201,18 @@ try {
                         $summary = "Package '$DisplayName' updated successfully."
                     }
                 }
-                else {
-                    $operationSucceeded = $true
-                    if ([string]::IsNullOrWhiteSpace($summary) -or $summary -eq 'Update command completed.') {
-                        $summary = "Update command completed for '$DisplayName', but the package still reports an available update. A restart or additional verification may be required."
-                    }
-                    else {
-                        $summary = "$summary (Package still reports an available update; try restarting or refreshing the inventory.)"
-                    }
-                }
             }
-            else {
+
+            if ($statusAfter -eq 'UpdateAvailable') {
                 $operationSucceeded = $false
-                if ([string]::IsNullOrWhiteSpace($summary)) {
+                if ($canTreatAsSuccess -and [string]::IsNullOrWhiteSpace($summary)) {
+                    $summary = "Update command completed for '$DisplayName', but the package still reports an available update. A restart or additional verification may be required."
+                }
+                elseif ([string]::IsNullOrWhiteSpace($summary)) {
                     $summary = "Package '$DisplayName' still reports an available update."
+                }
+                elseif ($canTreatAsSuccess) {
+                    $summary = "$summary (Package still reports an available update; try restarting or refreshing the inventory.)"
                 }
             }
         }

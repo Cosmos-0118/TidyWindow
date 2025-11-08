@@ -152,55 +152,38 @@
                         <Grid Grid.IsSharedSizeScope="True">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0"
-                                        Margin="0,0,0,20">
-                                <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksHeader}"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"/>
-                                <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksDescription}"
-                                           FontSize="12"
-                                           Foreground="#64748B"/>
-                            </StackPanel>
-
-                    <Grid Grid.Row="1"
-                        Margin="0,0,0,12">
+                            <Grid Grid.Row="0"
+                                  Margin="0,0,0,20">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"
-                                                      SharedSizeGroup="RegistryTweakDetails"/>
-                                    <ColumnDefinition Width="170"
-                                                      SharedSizeGroup="RegistryCurrentColumn"/>
-                                    <ColumnDefinition Width="170"
-                                                      SharedSizeGroup="RegistryRecommendedColumn"/>
-                                    <ColumnDefinition Width="220"
-                                                      SharedSizeGroup="RegistryCustomColumn"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0"
-                                           Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderDetails}"
-                                           Style="{StaticResource RegistryColumnHeaderTextStyle}"/>
-                <TextBlock Grid.Column="1"
-                                           Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderCurrent}"
-                       Style="{StaticResource RegistryColumnHeaderTextStyle}"
-                       Margin="16,0,0,0"/>
-                <TextBlock Grid.Column="2"
-                                           Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderRecommended}"
-                       Style="{StaticResource RegistryColumnHeaderTextStyle}"
-                       Margin="16,0,0,0"/>
-                <StackPanel Grid.Column="3"
-                        Orientation="Horizontal"
-                        Margin="16,0,0,0">
-                    <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderCustom}"
-                           Style="{StaticResource RegistryColumnHeaderTextStyle}"/>
+                                <StackPanel>
+                                    <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksHeader}"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#E2E8F0"/>
+                                    <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksDescription}"
+                                               FontSize="12"
+                                               Foreground="#64748B"/>
                                 </StackPanel>
+
+                                <Button Grid.Column="1"
+                                        Content="{x:Static strings:RegistryOptimizerStrings.RefreshButton}"
+                                        Command="{Binding RefreshStateCommand}"
+                                        Style="{StaticResource RegistrySecondaryButtonStyle}"
+                                        Margin="16,0,0,0"
+                                        MinWidth="130"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"/>
                             </Grid>
 
                             <ListView x:Name="TweaksListView"
-                                      Grid.Row="2"
+                                      Grid.Row="1"
                                       ItemsSource="{Binding Tweaks}"
                                       Background="Transparent"
                                       BorderThickness="0"
@@ -211,134 +194,86 @@
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                       VirtualizingStackPanel.ScrollUnit="Pixel">
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="Padding"
-                                                Value="0"/>
-                                        <Setter Property="Margin"
-                                                Value="0,6"/>
-                                        <Setter Property="HorizontalContentAlignment"
-                                                Value="Stretch"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListViewItem">
-                                                    <Border x:Name="Container"
-                                                            Background="#101D30"
-                                                            BorderBrush="#1F2D44"
-                                                            BorderThickness="1"
-                                                            CornerRadius="10"
-                                                            Padding="0">
-                                                        <ContentPresenter Margin="0"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsMouseOver"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="Background"
-                                                                    Value="#132540"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsSelected"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="BorderBrush"
-                                                                    Value="#38BDF8"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </ListView.ItemContainerStyle>
-                                <ListView.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Style="{StaticResource RegistryToggleRowStyle}">
-                                                                                        <Grid>
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Padding"
+                                            Value="0"/>
+                                    <Setter Property="Margin"
+                                            Value="0,12"/>
+                                    <Setter Property="HorizontalContentAlignment"
+                                            Value="Stretch"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="ListViewItem">
+                                                <Border Background="Transparent"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border x:Name="RowCard"
+                                            Style="{StaticResource RegistryTweakCardContainerStyle}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Border Grid.Column="0"
+                                                    Style="{StaticResource RegistryTweakAccentBarStyle}"
+                                                    Margin="-20,-20,16,-20"/>
+
+                                            <Grid Grid.Column="1">
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                     <RowDefinition Height="Auto"/>
                                                 </Grid.RowDefinitions>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"
-                                                                      SharedSizeGroup="RegistryTweakDetails"/>
-                                                    <ColumnDefinition Width="170"
-                                                                      SharedSizeGroup="RegistryCurrentColumn"/>
-                                                    <ColumnDefinition Width="170"
-                                                                      SharedSizeGroup="RegistryRecommendedColumn"/>
-                                                    <ColumnDefinition Width="220"
-                                                                      SharedSizeGroup="RegistryCustomColumn"/>
-                                                </Grid.ColumnDefinitions>
 
-                                <Grid Grid.Row="0"
-                                    Grid.ColumnSpan="4">
+                                                <Grid Grid.Row="0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <Border Width="32"
-                                                            Height="32"
-                                                            CornerRadius="8"
-                                                            Background="#182742"
+
+                                                    <Border Width="42"
+                                                            Height="42"
+                                                            CornerRadius="14"
+                                                            Background="#192C48"
                                                             HorizontalAlignment="Center"
                                                             VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Icon}"
-                                                                   FontSize="16"
+                                                                   FontSize="18"
                                                                    HorizontalAlignment="Center"
                                                                    VerticalAlignment="Center"/>
                                                     </Border>
+
                                                     <StackPanel Grid.Column="1"
-                                                                Margin="12,0,0,0">
+                                                                Margin="18,0,0,0">
                                                         <StackPanel Orientation="Horizontal">
                                                             <TextBlock Text="{Binding Title}"
-                                                                       FontSize="15"
-                                                                       FontWeight="SemiBold"/>
-                                                            <Border Margin="12,0,0,0"
-                                                                    Padding="6,2"
-                                                                    CornerRadius="4"
-                                                                    BorderThickness="1">
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border"
-                                                                           BasedOn="{StaticResource RegistryRiskBadgeStyle}">
-                                                                        <Setter Property="Background"
-                                                                                Value="#1C2F47"/>
-                                                                        <Setter Property="BorderBrush"
-                                                                                Value="#243B5A"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding RiskLevel}"
-                                                                                         Value="Advanced">
-                                                                                <Setter Property="Background"
-                                                                                        Value="#451A2E"/>
-                                                                                <Setter Property="BorderBrush"
-                                                                                        Value="#7C1025"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding RiskLevel}"
-                                                                                         Value="Moderate">
-                                                                                <Setter Property="Background"
-                                                                                        Value="#3A2309"/>
-                                                                                <Setter Property="BorderBrush"
-                                                                                        Value="#73400F"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding RiskLevel}"
-                                                                                         Value="Caution">
-                                                                                <Setter Property="Background"
-                                                                                        Value="#2D2812"/>
-                                                                                <Setter Property="BorderBrush"
-                                                                                        Value="#5A4D17"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Border.Style>
+                                                                       FontSize="16"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#F8FAFC"/>
+                                                            <Border Style="{StaticResource RegistryRiskBadgeStyle}"
+                                                                    Margin="12,0,0,0">
                                                                 <TextBlock Text="{Binding RiskLabel}"
                                                                            FontSize="11"
-                                                                           Foreground="#EAB308"/>
+                                                                           Foreground="#F8FAFC"/>
                                                             </Border>
                                                         </StackPanel>
                                                         <TextBlock Text="{Binding Category}"
+                                                                   Foreground="#7C8BA5"
                                                                    FontSize="11"
-                                                                   Foreground="#64748B"
                                                                    Margin="0,6,0,0"/>
                                                     </StackPanel>
+
                                                     <ToggleButton Grid.Column="2"
                                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                   Style="{StaticResource RegistryToggleSwitchStyle}"
@@ -346,147 +281,195 @@
                                                                   VerticalAlignment="Center"/>
                                                 </Grid>
 
-                                                <StackPanel Grid.Row="1"
-                                                            Grid.Column="0"
-                                                            Grid.ColumnSpan="4">
-                                                    <TextBlock Text="{Binding Summary}"
-                                                               Foreground="#94A3B8"
-                                                               FontSize="12"
-                                                               TextWrapping="Wrap"/>
-                                                    <TextBlock Margin="0,8,0,0"
-                                                               FontSize="11"
-                                                               Foreground="#60A5FA">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility"
-                                                                        Value="Visible"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding DocumentationLink}"
-                                                                                 Value="">
-                                                                        <Setter Property="Visibility"
-                                                                                Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding DocumentationLink}"
-                                                                                 Value="{x:Null}">
-                                                                        <Setter Property="Visibility"
-                                                                                Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                        <Hyperlink NavigateUri="{Binding DocumentationLink}"
-                                                                   RequestNavigate="DocumentationLink_RequestNavigate"
+                                                <Border Grid.Row="1"
+                                                        Background="#0B1626"
+                                                        BorderBrush="#1B2A42"
+                                                        BorderThickness="1"
+                                                        CornerRadius="12"
+                                                        Padding="14"
+                                                        Margin="0,18,0,0">
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding Summary}"
+                                                                   Foreground="#9CAEC8"
+                                                                   FontSize="12"
+                                                                   TextWrapping="Wrap"/>
+                                                        <TextBlock Margin="0,10,0,0"
+                                                                   FontSize="11"
                                                                    Foreground="#60A5FA">
-                                                            <Run Text="See supporting notes"/>
-                                                        </Hyperlink>
-                                                    </TextBlock>
-                                                </StackPanel>
-
-                        <StackPanel Grid.Row="2"
-                                Grid.Column="0"
-                                Margin="0,8,0,0">
-                                                    <TextBlock Text="{Binding DefaultStateLabel}"
-                                                               Style="{StaticResource RegistryValueTextStyle}"/>
-                                                    <TextBlock Text="{Binding Category}"
-                                                               Foreground="#94A3B8"
-                                                               FontSize="11"
-                                                               Margin="0,4,0,0"/>
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Row="2"
-                                Grid.Column="1"
-                                Margin="16,8,0,0">
-                                                    <TextBlock Text="{Binding CurrentValue, TargetNullValue={x:Static strings:RegistryOptimizerStrings.ValueNotAvailable}}"
-                                                               Style="{StaticResource RegistryValueTextStyle}"/>
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Row="2"
-                                Grid.Column="2"
-                                Margin="16,8,0,0">
-                                                    <TextBlock Text="{Binding RecommendedValue, TargetNullValue={x:Static strings:RegistryOptimizerStrings.ValueRecommendationUnavailable}}"
-                                                               Style="{StaticResource RegistryValueTextStyle}"/>
-                                                </StackPanel>
-
-                                                <StackPanel Grid.Row="2"
-                                Grid.Column="3"
-                                Margin="16,8,0,0">
-                                                    <StackPanel Orientation="Horizontal"
-                                                                VerticalAlignment="Center"
-                                                                HorizontalAlignment="Left">
-                                                        <Button ToolTipService.ToolTip="{Binding CustomValueInfoText}"
-                                                                ToolTipService.ShowDuration="20000"
-                                                                AutomationProperties.Name="{x:Static strings:RegistryOptimizerStrings.ValueHeaderCustom}">
-                                                            <Button.Style>
-                                                                <Style TargetType="Button"
-                                                                       BasedOn="{StaticResource RegistryInfoButtonStyle}">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Visible"/>
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding SupportsCustomValue}"
-                                                                                     Value="False">
+                                                                        <DataTrigger Binding="{Binding DocumentationLink}"
+                                                                                     Value="">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding DocumentationLink}"
+                                                                                     Value="{x:Null}">
                                                                             <Setter Property="Visibility"
                                                                                     Value="Collapsed"/>
                                                                         </DataTrigger>
                                                                     </Style.Triggers>
                                                                 </Style>
-                                                            </Button.Style>
-                                                        </Button>
+                                                            </TextBlock.Style>
+                                                            <Hyperlink NavigateUri="{Binding DocumentationLink}"
+                                                                       RequestNavigate="DocumentationLink_RequestNavigate"
+                                                                       Foreground="#60A5FA">
+                                                                <Run Text="See supporting notes"/>
+                                                            </Hyperlink>
+                                                        </TextBlock>
                                                     </StackPanel>
-                                                    <TextBox Text="{Binding CustomValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             ToolTip="{Binding CustomValueInfoText}"
-                                                             AutomationProperties.HelpText="{x:Static strings:RegistryOptimizerStrings.CustomValuePlaceholder}">
-                                                        <TextBox.Style>
-                                                            <Style TargetType="TextBox"
-                                                                   BasedOn="{StaticResource RegistryValueTextBoxStyle}">
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding SupportsCustomValue}"
-                                                                                 Value="False">
+                                                </Border>
+
+                                                <Grid Grid.Row="2"
+                                                      Margin="0,20,0,0"
+                                                      Grid.IsSharedSizeScope="True">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"
+                                                                          SharedSizeGroup="RegistryTweakDetails"/>
+                                                        <ColumnDefinition Width="170"
+                                                                          SharedSizeGroup="RegistryCurrentColumn"/>
+                                                        <ColumnDefinition Width="170"
+                                                                          SharedSizeGroup="RegistryRecommendedColumn"/>
+                                                        <ColumnDefinition Width="220"
+                                                                          SharedSizeGroup="RegistryCustomColumn"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Border Grid.Column="0"
+                                                            Style="{StaticResource RegistryValueChipStyle}">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderDetails}"
+                                                                       Foreground="#7C8BA5"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{Binding DefaultStateLabel}"
+                                                                       Style="{StaticResource RegistryValueTextStyle}"
+                                                                       Margin="0,6,0,0"/>
+                                                            <TextBlock Text="{Binding Category}"
+                                                                       Foreground="#64748B"
+                                                                       FontSize="11"
+                                                                       Margin="0,6,0,0"/>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Grid.Column="1"
+                                                            Style="{StaticResource RegistryValueChipStyle}"
+                                                            Margin="18,0,0,0">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderCurrent}"
+                                                                       Foreground="#7C8BA5"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{Binding CurrentValue, TargetNullValue={x:Static strings:RegistryOptimizerStrings.ValueNotAvailable}}"
+                                                                       Style="{StaticResource RegistryValueTextStyle}"
+                                                                       Margin="0,6,0,0"/>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Grid.Column="2"
+                                                            Style="{StaticResource RegistryValueChipStyle}"
+                                                            Margin="18,0,0,0">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderRecommended}"
+                                                                       Foreground="#7C8BA5"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{Binding RecommendedValue, TargetNullValue={x:Static strings:RegistryOptimizerStrings.ValueRecommendationUnavailable}}"
+                                                                       Style="{StaticResource RegistryValueTextStyle}"
+                                                                       Margin="0,6,0,0"/>
+                                                        </StackPanel>
+                                                    </Border>
+
+                                                    <Border Grid.Column="3"
+                                                            Style="{StaticResource RegistryValueChipStyle}"
+                                                            Margin="18,0,0,0">
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderCustom}"
+                                                                           Foreground="#7C8BA5"
+                                                                           FontSize="11"
+                                                                           FontWeight="SemiBold"/>
+                                                                <Button ToolTipService.ToolTip="{Binding CustomValueInfoText}"
+                                                                        ToolTipService.ShowDuration="20000"
+                                                                        AutomationProperties.Name="{x:Static strings:RegistryOptimizerStrings.ValueHeaderCustom}">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button"
+                                                                               BasedOn="{StaticResource RegistryInfoButtonStyle}">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SupportsCustomValue}"
+                                                                                             Value="False">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                            </StackPanel>
+                                                            <TextBox Text="{Binding CustomValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                     ToolTip="{Binding CustomValueInfoText}"
+                                                                     AutomationProperties.HelpText="{x:Static strings:RegistryOptimizerStrings.CustomValuePlaceholder}"
+                                                                     Margin="0,10,0,0">
+                                                                <TextBox.Style>
+                                                                    <Style TargetType="TextBox"
+                                                                           BasedOn="{StaticResource RegistryValueTextBoxStyle}">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding SupportsCustomValue}"
+                                                                                         Value="False">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBox.Style>
+                                                            </TextBox>
+                                                            <TextBlock Text="{Binding CustomValueInfoText}"
+                                                                       Foreground="#94A3B8"
+                                                                       FontSize="11"
+                                                                       Margin="0,10,0,0">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
                                                                         <Setter Property="Visibility"
                                                                                 Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBox.Style>
-                                                    </TextBox>
-                                                    <TextBlock Text="{Binding CustomValueInfoText}"
-                                                               Foreground="#94A3B8"
-                                                               FontSize="11"
-                                                               Margin="0,4,0,0">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility"
-                                                                        Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding SupportsCustomValue}"
-                                                                                 Value="False">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding SupportsCustomValue}"
+                                                                                         Value="False">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding CustomValueError}"
+                                                                       Foreground="#F87171"
+                                                                       FontSize="11"
+                                                                       Margin="0,8,0,0">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
                                                                         <Setter Property="Visibility"
-                                                                                Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <TextBlock Text="{Binding CustomValueError}"
-                                                               Foreground="#F87171"
-                                                               FontSize="11"
-                                                               Margin="0,4,0,0">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility"
-                                                                        Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding HasValidationError}"
-                                                                                 Value="True">
-                                                                        <Setter Property="Visibility"
-                                                                                Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </StackPanel>
+                                                                                Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasValidationError}"
+                                                                                         Value="True">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </Grid>
                                             </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
                             </ListView>
                         </Grid>
                     </Border>

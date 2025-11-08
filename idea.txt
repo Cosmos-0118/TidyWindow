@@ -1,0 +1,3 @@
+A dedicated “Version Control” page sounds useful for surfacing anomalies (multiple installed builds, mismatched manifests). You could populate it from the maintenance inventory, flag packages where installed ≠ highest available or when multiple install roots exist, and offer quick actions (uninstall, pin, refresh inventory).
+If you move that data to the new page, consider trimming the maintenance view to exceptions only, so users aren’t re-reading healthy entries.
+Next steps: 1) Sketch the data contract for the version-control view (fields, actions). 2) Decide how to detect duplicate installs (winget list output, registry, etc.). 3) Wire the UI once the backend exposes the query.

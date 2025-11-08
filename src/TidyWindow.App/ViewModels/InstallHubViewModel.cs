@@ -103,6 +103,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private async Task LoadCatalogAsync()
     {
         var success = false;
+        var overlayEngaged = false;
         await _loadSemaphore.WaitAsync();
 
         try
@@ -113,6 +114,8 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
                 return;
             }
 
+            _mainViewModel.BeginShellLoad();
+            overlayEngaged = true;
             IsLoading = true;
 
             IReadOnlyList<InstallPackageDefinition> packages = Array.Empty<InstallPackageDefinition>();
@@ -158,6 +161,12 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             }
 
             IsLoading = false;
+
+            if (overlayEngaged)
+            {
+                _mainViewModel.CompleteShellLoad();
+            }
+
             _loadSemaphore.Release();
         }
 
