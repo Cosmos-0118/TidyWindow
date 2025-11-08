@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using System.Text;
+using TidyWindow.Core.Maintenance;
 
 namespace TidyWindow.App.Services;
 
@@ -65,7 +66,7 @@ public sealed class PrivilegeService : IPrivilegeService
             return PrivilegeRestartResult.Failure("Unable to determine the current executable path.");
         }
 
-        var argumentsTail = BuildArgumentsTail();
+        var argumentsTail = AppendOriginalUserSidArgument(BuildArgumentsTail());
         var commandLine = BuildCommandLine(processPath, argumentsTail);
         var workingDirectory = Environment.CurrentDirectory;
 
@@ -129,6 +130,41 @@ public sealed class PrivilegeService : IPrivilegeService
         }
 
         return builder.ToString();
+    }
+
+    private static string AppendOriginalUserSidArgument(string argumentsTail)
+    {
+        var sid = TryGetCurrentUserSid();
+        if (string.IsNullOrWhiteSpace(sid))
+        {
+            return argumentsTail;
+        }
+
+        var argument = QuoteArgument($"{RegistryUserContext.OriginalUserSidArgumentPrefix}{sid}");
+        if (string.IsNullOrEmpty(argumentsTail))
+        {
+            return argument;
+        }
+
+        return string.Concat(argumentsTail, ' ', argument);
+    }
+
+    private static string? TryGetCurrentUserSid()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            return identity?.User?.Value;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string BuildCommandLine(string processPath, string argumentsTail)

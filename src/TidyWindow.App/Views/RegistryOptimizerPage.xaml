@@ -362,9 +362,86 @@
                                                                        Foreground="#7C8BA5"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding CurrentValue, TargetNullValue={x:Static strings:RegistryOptimizerStrings.ValueNotAvailable}}"
-                                                                       Style="{StaticResource RegistryValueTextStyle}"
-                                                                       Margin="0,6,0,0"/>
+                                                            <ProgressBar Height="3"
+                                                                         Margin="0,6,0,0"
+                                                                         IsIndeterminate="True"
+                                                                         Foreground="#38BDF8"
+                                                                         Visibility="{Binding IsStatePending, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            <ItemsControl ItemsSource="{Binding CurrentValueLines}"
+                                                                          Margin="0,6,0,0">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <TextBlock Text="{Binding}"
+                                                                                   Style="{StaticResource RegistryValueTextStyle}"
+                                                                                   Margin="0,2,0,0"/>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderSnapshots}"
+                                                                       Foreground="#7C8BA5"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       Margin="0,12,0,0">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasSnapshots}"
+                                                                                         Value="False">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <ItemsControl ItemsSource="{Binding SnapshotEntries}"
+                                                                          Margin="0,6,0,0">
+                                                                <ItemsControl.Style>
+                                                                    <Style TargetType="ItemsControl">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasSnapshots}"
+                                                                                         Value="False">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </ItemsControl.Style>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <StackPanel Margin="0,4,0,0">
+                                                                            <TextBlock Text="{Binding Path}"
+                                                                                       Foreground="#64748B"
+                                                                                       FontSize="10"/>
+                                                                            <TextBlock Text="{Binding Display}"
+                                                                                       Style="{StaticResource RegistryValueTextStyle}"
+                                                                                       Margin="0,2,0,0"/>
+                                                                        </StackPanel>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <TextBlock Text="{Binding StateError}"
+                                                                       Foreground="#FBBF24"
+                                                                       FontSize="11"
+                                                                       Margin="0,10,0,0">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasStateError}"
+                                                                                         Value="True">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
                                                         </StackPanel>
                                                     </Border>
 
@@ -376,7 +453,7 @@
                                                                        Foreground="#7C8BA5"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
-                                                            <TextBlock Text="{Binding RecommendedValue, TargetNullValue={x:Static strings:RegistryOptimizerStrings.ValueRecommendationUnavailable}}"
+                                                            <TextBlock Text="{Binding RecommendedValue}"
                                                                        Style="{StaticResource RegistryValueTextStyle}"
                                                                        Margin="0,6,0,0"/>
                                                         </StackPanel>

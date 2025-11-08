@@ -234,6 +234,9 @@
   <data name="ValueHeaderCustom" xml:space="preserve">
     <value>Custom value</value>
   </data>
+  <data name="ValueHeaderSnapshots" xml:space="preserve">
+    <value>Resolved registry paths</value>
+  </data>
   <data name="ValueNotAvailable" xml:space="preserve">
     <value>Not detected</value>
   </data>

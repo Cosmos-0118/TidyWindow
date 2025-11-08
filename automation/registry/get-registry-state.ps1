@@ -24,10 +24,52 @@ param(
 
     [Parameter(Mandatory = $false)]
     [AllowEmptyString()]
-    [string] $LookupValueName
+    [string] $LookupValueName,
+
+    [Parameter(Mandatory = $false)]
+    [AllowEmptyString()]
+    [string] $UserSid
 )
 
 . "$PSScriptRoot\registry-common.ps1"
+
+function Resolve-UserRegistryPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Path,
+
+        [Parameter(Mandatory = $false)]
+        [string] $UserSid
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $Path
+    }
+
+    if ([string]::IsNullOrWhiteSpace($UserSid)) {
+        return $Path
+    }
+
+    $normalizedSid = $UserSid.Trim()
+    if ([string]::IsNullOrWhiteSpace($normalizedSid)) {
+        return $Path
+    }
+
+    $prefixes = @('HKCU:\\', 'HKCU:', 'HKCU\\', 'HKEY_CURRENT_USER\\', 'HKEY_CURRENT_USER:')
+    foreach ($prefix in $prefixes) {
+        if ($Path.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $remainder = $Path.Substring($prefix.Length)
+            $remainder = $remainder.TrimStart('\\')
+                if ([string]::IsNullOrWhiteSpace($remainder)) {
+                    return "Registry::HKEY_USERS\{0}" -f $normalizedSid
+                }
+
+                return "Registry::HKEY_USERS\{0}\{1}" -f $normalizedSid, $remainder
+        }
+    }
+
+    return $Path
+}
 
     function Resolve-ComparableValue {
         param(
@@ -58,8 +100,10 @@ param(
 Initialize-RegistryScript -Cmdlet $PSCmdlet -ResultPath $ResultPath -OperationName 'Registry state discovery'
 
 try {
-    $itemPath = if ($RegistryPath.StartsWith('HK', [System.StringComparison]::OrdinalIgnoreCase)) {
-        $RegistryPath
+    $resolvedPath = Resolve-UserRegistryPath -Path $RegistryPath -UserSid $UserSid
+
+    $itemPath = if ($resolvedPath.StartsWith('HK', [System.StringComparison]::OrdinalIgnoreCase) -or $resolvedPath.StartsWith('Registry::', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $resolvedPath
     }
     else {
         throw "RegistryPath must include the hive prefix (e.g. 'HKCU:\\...')."
@@ -103,7 +147,8 @@ try {
     foreach ($path in $pathsToQuery) {
         try {
             $property = Get-ItemProperty -LiteralPath $path -Name $effectiveValueName -ErrorAction Stop
-            $value = $property.$effectiveValueName
+            $rawValue = $property.$effectiveValueName
+            $value = Resolve-ComparableValue -Value $rawValue -ValueType $ValueType
             $display = Format-RegistryValue $value
             $collected += [pscustomobject]@{
                 Path    = $path
@@ -127,9 +172,11 @@ try {
         $collected = @([pscustomobject]@{ Path = $itemPath; Value = $null; Display = Format-RegistryValue $null })
     }
 
-    $currentValue = if ($collected.Count -le 1) { $collected[0].Value } else { $collected.Value }
-    $formattedCurrent = if ($collected.Count -le 1) { $collected[0].Display } else { $collected | ForEach-Object { "{0} => {1}" -f $_.Path, $_.Display } }
+    $hasSingleValue = $collected.Count -eq 1
+    $currentValue = if ($hasSingleValue) { $collected[0].Value } else { @($collected | ForEach-Object { $_.Value }) }
+    $currentDisplay = if ($hasSingleValue) { $collected[0].Display } else { @($collected | ForEach-Object { $_.Display }) }
 
+    $expectedComparable = $null
     $expectedDisplay = $null
     $matchesRecommendation = $null
     if ($PSBoundParameters.ContainsKey('RecommendedValue')) {
@@ -152,19 +199,21 @@ try {
         ValueType           = $ValueType
         SupportsCustomValue = $SupportsCustomValue
         CurrentValue        = $currentValue
-        CurrentDisplay      = $formattedCurrent
+        CurrentDisplay      = $currentDisplay
         Values              = $collected
-        RecommendedValue    = $RecommendedValue
+        RecommendedValue    = $expectedComparable
         RecommendedDisplay  = $expectedDisplay
         IsRecommendedState  = $matchesRecommendation
     }
 
-    if ($collected.Count -le 1) {
-        Write-RegistryOutput ("Current value    : {0}" -f $formattedCurrent)
+    if ($hasSingleValue) {
+        Write-RegistryOutput ("Current value    : {0}" -f $currentDisplay)
     }
     else {
         Write-RegistryOutput 'Current values:'
-        $formattedCurrent | ForEach-Object { Write-RegistryOutput ("  {0}" -f $_) }
+        foreach ($entry in $collected) {
+            Write-RegistryOutput ("  {0} :: {1}" -f $entry.Path, $entry.Display)
+        }
     }
     if ($PSBoundParameters.ContainsKey('RecommendedValue')) {
         $display = if ($null -ne $expectedDisplay) { $expectedDisplay } else { $RecommendedValue }

@@ -20,10 +20,12 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 {
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
-    private readonly RegistryOptimizerService _registryService;
-    private readonly RegistryStateService _registryStateService;
+    private readonly IRegistryOptimizerService _registryService;
+    private readonly IRegistryStateService _registryStateService;
+    private readonly RegistryStateWatcher _registryStateWatcher;
     private readonly RegistryPreferenceService _registryPreferenceService;
     private readonly SynchronizationContext? _uiContext;
+    private CancellationTokenSource? _stateRefreshCts;
     private bool _isInitialized;
     private bool _isRefreshing;
 
@@ -32,14 +34,16 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     public RegistryOptimizerViewModel(
         ActivityLogService activityLogService,
         MainViewModel mainViewModel,
-        RegistryOptimizerService registryService,
-        RegistryStateService registryStateService,
+    IRegistryOptimizerService registryService,
+    IRegistryStateService registryStateService,
+        RegistryStateWatcher registryStateWatcher,
         RegistryPreferenceService registryPreferenceService)
     {
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
         _registryStateService = registryStateService ?? throw new ArgumentNullException(nameof(registryStateService));
+        _registryStateWatcher = registryStateWatcher ?? throw new ArgumentNullException(nameof(registryStateWatcher));
         _registryPreferenceService = registryPreferenceService ?? throw new ArgumentNullException(nameof(registryPreferenceService));
         _uiContext = SynchronizationContext.Current;
 
@@ -358,6 +362,8 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
     private void StartStateInitialization(bool triggeredByUser = false)
     {
+        CancelStateRefresh();
+
         if (triggeredByUser)
         {
             _isRefreshing = true;
@@ -379,64 +385,136 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             return;
         }
 
+        foreach (var tweak in Tweaks)
+        {
+            tweak.BeginStateRefresh();
+        }
+
         _mainViewModel.BeginShellLoad();
-        var snapshot = Tweaks.ToList();
+
+        var requireFreshProbe = triggeredByUser || !_isInitialized;
+        var tweakIds = Tweaks.Select(t => t.Id).ToArray();
+
+        var cts = new CancellationTokenSource();
+        _stateRefreshCts = cts;
+        var token = cts.Token;
 
         _ = Task.Run(async () =>
-        {
-            try
             {
-                foreach (var tweak in snapshot)
+                try
                 {
-                    RegistryTweakState? state = null;
-
-                    try
+                    await foreach (var update in _registryStateWatcher.WatchAsync(tweakIds, requireFreshProbe, token).ConfigureAwait(false))
                     {
-                        state = await _registryStateService.GetStateAsync(tweak.Id, forceRefresh: triggeredByUser).ConfigureAwait(false);
-                    }
-                    catch (Exception ex)
-                    {
-                        PostToUi(() => _activityLog.LogWarning("Registry", $"Failed to load registry state for '{tweak.Id}': {ex.Message}"));
-                    }
+                        if (token.IsCancellationRequested)
+                        {
+                            break;
+                        }
 
-                    if (state is null)
-                    {
-                        continue;
-                    }
+                        PostToUi(() =>
+                        {
+                            var tweak = Tweaks.FirstOrDefault(t => string.Equals(t.Id, update.TweakId, StringComparison.OrdinalIgnoreCase));
+                            if (tweak is null)
+                            {
+                                return;
+                            }
 
+                            if (update.IsSuccess && update.State is not null)
+                            {
+                                tweak.UpdateState(update.State);
+
+                                if (update.State.Errors.Length > 0)
+                                {
+                                    var summary = string.Join("; ", update.State.Errors.Where(static line => !string.IsNullOrWhiteSpace(line)).Take(3));
+                                    if (!string.IsNullOrWhiteSpace(summary))
+                                    {
+                                        _activityLog.LogWarning("Registry", $"Detection issues for '{tweak.Title}': {summary}");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                var message = string.IsNullOrWhiteSpace(update.ErrorMessage)
+                                    ? "Registry detection failed."
+                                    : update.ErrorMessage!
+                                        .Trim();
+
+                                tweak.ApplyStateFailure(message);
+                                _activityLog.LogWarning("Registry", $"Failed to load registry state for '{tweak.Title}': {message}");
+                            }
+
+                            UpdatePendingChanges();
+                            UpdateValidationState();
+                        });
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    // ignored
+                }
+                catch (Exception ex)
+                {
+                    PostToUi(() => _activityLog.LogWarning("Registry", $"Registry state refresh failed: {ex.Message}"));
+                }
+                finally
+                {
                     PostToUi(() =>
                     {
-                        tweak.UpdateState(state);
-                        UpdatePendingChanges();
-                        UpdateValidationState();
+                        var isCurrent = ReferenceEquals(_stateRefreshCts, cts);
 
-                        if (state.Errors.Length > 0)
+                        if (isCurrent)
                         {
-                            var summary = string.Join("; ", state.Errors.Where(static line => !string.IsNullOrWhiteSpace(line)).Take(3));
-                            if (!string.IsNullOrWhiteSpace(summary))
+                            foreach (var tweak in Tweaks)
                             {
-                                _activityLog.LogWarning("Registry", $"Detection issues for '{tweak.Title}': {summary}");
+                                tweak.CompleteStateRefresh();
                             }
+                        }
+
+                        if (triggeredByUser && isCurrent)
+                        {
+                            _isRefreshing = false;
+                            LastOperationSummary = $"Registry values refreshed at {DateTime.Now:t}.";
+                            _mainViewModel.SetStatusMessage("Registry values refreshed.");
+                            RefreshStateCommand.NotifyCanExecuteChanged();
+                        }
+
+                        if (isCurrent)
+                        {
+                            _mainViewModel.CompleteShellLoad();
+                        }
+
+                        if (Interlocked.CompareExchange(ref _stateRefreshCts, null, cts) == cts)
+                        {
+                            cts.Dispose();
+                        }
+                        else
+                        {
+                            cts.Dispose();
                         }
                     });
                 }
-            }
-            finally
-            {
-                PostToUi(() =>
-                {
-                    if (triggeredByUser)
-                    {
-                        _isRefreshing = false;
-                        LastOperationSummary = $"Registry values refreshed at {DateTime.Now:t}.";
-                        _mainViewModel.SetStatusMessage("Registry values refreshed.");
-                        RefreshStateCommand.NotifyCanExecuteChanged();
-                    }
+            });
+    }
 
-                    _mainViewModel.CompleteShellLoad();
-                });
-            }
-        });
+    private void CancelStateRefresh()
+    {
+        var existing = Interlocked.Exchange(ref _stateRefreshCts, null);
+        if (existing is null)
+        {
+            return;
+        }
+
+        try
+        {
+            existing.Cancel();
+        }
+        catch
+        {
+            // ignored
+        }
+        finally
+        {
+            existing.Dispose();
+        }
     }
 
     private void PostToUi(Action action)
@@ -550,6 +628,10 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     private bool _customValueInitialized;
     private string? _pendingPersistedCustomValue;
     private DateTimeOffset _lastObservedAt;
+    private readonly ObservableCollection<string> _currentValueLines;
+    private readonly ReadOnlyObservableCollection<string> _currentValueLinesView;
+    private readonly ObservableCollection<RegistrySnapshotDisplay> _snapshotEntries;
+    private readonly ReadOnlyObservableCollection<RegistrySnapshotDisplay> _snapshotEntriesView;
 
     public RegistryTweakCardViewModel(RegistryTweakDefinition definition, string title, string summary, string riskLabel, RegistryPreferenceService preferences)
     {
@@ -577,6 +659,15 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         _baselineState = _definition.DefaultState;
         _isSelected = _definition.DefaultState;
         _pendingPersistedCustomValue = _preferences.GetCustomValue(_definition.Id);
+
+        _currentValueLines = new ObservableCollection<string>();
+        _currentValueLinesView = new ReadOnlyObservableCollection<string>(_currentValueLines);
+        _snapshotEntries = new ObservableCollection<RegistrySnapshotDisplay>();
+        _snapshotEntriesView = new ReadOnlyObservableCollection<RegistrySnapshotDisplay>(_snapshotEntries);
+        _isStatePending = true;
+        _currentValueLines.Add(RegistryOptimizerStrings.ValueNotAvailable);
+        CurrentValue = RegistryOptimizerStrings.ValueNotAvailable;
+        RecommendedValue = RegistryOptimizerStrings.ValueRecommendationUnavailable;
     }
 
     public string Id { get; }
@@ -643,6 +734,24 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasValidationError))]
     private bool _supportsCustomValue;
 
+    public ReadOnlyObservableCollection<string> CurrentValueLines => _currentValueLinesView;
+
+    public ReadOnlyObservableCollection<RegistrySnapshotDisplay> SnapshotEntries => _snapshotEntriesView;
+
+    public bool HasSnapshots => SnapshotEntries.Count > 0;
+
+    public bool IsStateLoaded => !IsStatePending && _lastObservedAt != default;
+
+    public bool HasStateError => !string.IsNullOrWhiteSpace(StateError);
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsStateLoaded))]
+    private bool _isStatePending;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasStateError))]
+    private string? _stateError;
+
     public void SetSelection(bool value)
     {
         IsSelected = value;
@@ -675,6 +784,32 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         }
     }
 
+    public void BeginStateRefresh()
+    {
+        IsStatePending = true;
+        StateError = null;
+    }
+
+    public void CompleteStateRefresh()
+    {
+        if (IsStatePending)
+        {
+            IsStatePending = false;
+        }
+    }
+
+    public void ApplyStateFailure(string message)
+    {
+        IsStatePending = false;
+        StateError = string.IsNullOrWhiteSpace(message) ? RegistryOptimizerStrings.ValueNotAvailable : message;
+
+        if (_currentValueLines.Count == 0)
+        {
+            _currentValueLines.Add(RegistryOptimizerStrings.ValueNotAvailable);
+            CurrentValue = _currentValueLines[0];
+        }
+    }
+
     public void UpdateState(RegistryTweakState state)
     {
         if (state is null)
@@ -682,40 +817,22 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
             throw new ArgumentNullException(nameof(state));
         }
 
-        // Avoid regressions when an older probe completes after a newer refresh.
         if (state.ObservedAt < _lastObservedAt)
         {
             return;
         }
 
         _lastObservedAt = state.ObservedAt;
+        IsStatePending = false;
 
         var values = state.Values;
         var primaryValue = values.FirstOrDefault(v => v.SupportsCustomValue) ?? values.FirstOrDefault();
+        var detectionError = ResolveDetectionError(state, primaryValue);
 
-        var displayValue = primaryValue is null
-            ? null
-            : FormatDisplayValue(primaryValue.CurrentDisplay, primaryValue.CurrentValue);
-
-        if (string.IsNullOrWhiteSpace(displayValue) && primaryValue is not null)
-        {
-            displayValue = ResolveSnapshotDisplay(primaryValue);
-        }
-
-        if (string.IsNullOrWhiteSpace(displayValue))
-        {
-            var detectionError = ResolveDetectionError(state, primaryValue);
-            if (!string.IsNullOrWhiteSpace(detectionError))
-            {
-                displayValue = $"Detection error: {detectionError}";
-            }
-        }
-
-        CurrentValue = string.IsNullOrWhiteSpace(displayValue) ? null : displayValue;
-
-        RecommendedValue = primaryValue is null
-            ? null
-            : FormatRecommended(primaryValue);
+        PopulateCurrentValueLines(primaryValue, detectionError);
+        RecommendedValue = ResolveRecommendedValueText(primaryValue);
+        UpdateSnapshotEntries(primaryValue);
+        StateError = string.IsNullOrWhiteSpace(detectionError) ? null : detectionError;
 
         var supportsCustom = (_definition.Constraints is not null) || values.Any(v => v.SupportsCustomValue);
         SupportsCustomValue = supportsCustom && ResolveCustomParameterName() is not null;
@@ -753,6 +870,98 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(CustomValueInfoText));
+    }
+
+    private void PopulateCurrentValueLines(RegistryValueState? primaryValue, string? detectionError)
+    {
+        _currentValueLines.Clear();
+
+        if (primaryValue is not null)
+        {
+            foreach (var line in primaryValue.CurrentDisplay)
+            {
+                var trimmed = line?.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed))
+                {
+                    _currentValueLines.Add(trimmed);
+                }
+            }
+
+            if (_currentValueLines.Count == 0 && primaryValue.CurrentValue is not null)
+            {
+                var formatted = FormatValue(primaryValue.CurrentValue);
+                if (!string.IsNullOrWhiteSpace(formatted))
+                {
+                    _currentValueLines.Add(formatted);
+                }
+            }
+
+            if (_currentValueLines.Count == 0)
+            {
+                var snapshotDisplay = ResolveSnapshotDisplay(primaryValue);
+                if (!string.IsNullOrWhiteSpace(snapshotDisplay))
+                {
+                    _currentValueLines.Add(snapshotDisplay);
+                }
+            }
+        }
+
+        if (_currentValueLines.Count == 0 && !string.IsNullOrWhiteSpace(detectionError))
+        {
+            _currentValueLines.Add(detectionError);
+        }
+
+        if (_currentValueLines.Count == 0)
+        {
+            _currentValueLines.Add(RegistryOptimizerStrings.ValueNotAvailable);
+        }
+
+        CurrentValue = _currentValueLines[0];
+    }
+
+    private string ResolveRecommendedValueText(RegistryValueState? primaryValue)
+    {
+        if (primaryValue is null)
+        {
+            return RegistryOptimizerStrings.ValueRecommendationUnavailable;
+        }
+
+        var recommended = FormatRecommended(primaryValue);
+        return string.IsNullOrWhiteSpace(recommended)
+            ? RegistryOptimizerStrings.ValueRecommendationUnavailable
+            : recommended!;
+    }
+
+    private void UpdateSnapshotEntries(RegistryValueState? primaryValue)
+    {
+        _snapshotEntries.Clear();
+
+        if (primaryValue is not null)
+        {
+            foreach (var snapshot in primaryValue.Snapshots)
+            {
+                var path = string.IsNullOrWhiteSpace(snapshot.Path)
+                    ? primaryValue.RegistryPathPattern
+                    : snapshot.Path!.Trim();
+
+                var display = string.IsNullOrWhiteSpace(snapshot.Display)
+                    ? FormatValue(snapshot.Value)
+                    : snapshot.Display.Trim();
+
+                if (string.IsNullOrWhiteSpace(display))
+                {
+                    continue;
+                }
+
+                var resolvedPath = string.IsNullOrWhiteSpace(path)
+                    ? primaryValue.RegistryPathPattern
+                    : path;
+
+                _snapshotEntries.Add(new RegistrySnapshotDisplay(resolvedPath ?? string.Empty, display));
+            }
+        }
+
+        OnPropertyChanged(nameof(HasSnapshots));
     }
 
     public IReadOnlyDictionary<string, object?>? GetTargetParameterOverrides()
@@ -1155,6 +1364,8 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         return string.Equals(Convert.ToString(left, CultureInfo.InvariantCulture), Convert.ToString(right, CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
     }
 }
+
+public sealed record RegistrySnapshotDisplay(string Path, string Display);
 
 public sealed class RegistryPresetViewModel
 {

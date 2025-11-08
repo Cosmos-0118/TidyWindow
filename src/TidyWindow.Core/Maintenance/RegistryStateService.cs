@@ -7,6 +7,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Security.Principal;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,7 +19,7 @@ namespace TidyWindow.Core.Maintenance;
 /// Provides cached registry state information for configured tweaks, using PowerShell automation
 /// to collect the current value and compare it to the recommended baseline.
 /// </summary>
-public sealed class RegistryStateService
+public sealed class RegistryStateService : IRegistryStateService
 {
     private const string DetectionScriptRelativePath = "automation/registry/get-registry-state.ps1";
     private const string DetectionScriptOverrideEnvironmentVariable = "TIDYWINDOW_REGISTRY_STATE_SCRIPT";
@@ -29,12 +30,14 @@ public sealed class RegistryStateService
         ReadCommentHandling = JsonCommentHandling.Skip
     };
 
+    private static readonly Lazy<string?> OriginalUserSid = new(ResolveOriginalUserSid, LazyThreadSafetyMode.ExecutionAndPublication);
+
     private readonly PowerShellInvoker _powerShellInvoker;
-    private readonly RegistryOptimizerService _registryOptimizerService;
+    private readonly IRegistryOptimizerService _registryOptimizerService;
     private readonly ConcurrentDictionary<string, RegistryTweakState> _stateCache;
     private readonly Lazy<string> _detectionScriptPath;
 
-    public RegistryStateService(PowerShellInvoker powerShellInvoker, RegistryOptimizerService registryOptimizerService)
+    public RegistryStateService(PowerShellInvoker powerShellInvoker, IRegistryOptimizerService registryOptimizerService)
     {
         _powerShellInvoker = powerShellInvoker ?? throw new ArgumentNullException(nameof(powerShellInvoker));
         _registryOptimizerService = registryOptimizerService ?? throw new ArgumentNullException(nameof(registryOptimizerService));
@@ -216,7 +219,7 @@ public sealed class RegistryStateService
                 .ToImmutableArray();
 
         var currentValue = ResolveCurrentValue(model.CurrentValue, snapshots);
-        var currentDisplay = EnsureDisplay(ExtractDisplayLines(model.CurrentDisplay), currentValue, snapshots);
+        var currentDisplay = ResolveCurrentDisplay(ExtractDisplayLines(model.CurrentDisplay), currentValue, snapshots);
 
         var recommendedValue = model.RecommendedValue.HasValue
             ? ConvertJsonValue(model.RecommendedValue.Value)
@@ -266,19 +269,19 @@ public sealed class RegistryStateService
         return null;
     }
 
-    private static ImmutableArray<string> EnsureDisplay(ImmutableArray<string> display, object? fallbackValue, ImmutableArray<RegistryValueSnapshot> snapshots)
+    private static ImmutableArray<string> ResolveCurrentDisplay(ImmutableArray<string> display, object? currentValue, ImmutableArray<RegistryValueSnapshot> snapshots)
     {
         if (HasDisplayContent(display))
         {
             return display;
         }
 
-        if (fallbackValue is not null)
+        if (currentValue is not null)
         {
-            var formattedFallback = FormatRegistryValueForDisplay(fallbackValue);
-            if (!string.IsNullOrWhiteSpace(formattedFallback))
+            var formatted = FormatRegistryValueForDisplay(currentValue);
+            if (!string.IsNullOrWhiteSpace(formatted))
             {
-                return ImmutableArray.Create(formattedFallback);
+                return ImmutableArray.Create(formatted);
             }
         }
 
@@ -306,6 +309,19 @@ public sealed class RegistryStateService
     {
         if (HasDisplayContent(display))
         {
+            if (fallbackValue is not null)
+            {
+                var fallbackText = FormatRegistryValueForDisplay(fallbackValue);
+                if (!string.IsNullOrWhiteSpace(fallbackText))
+                {
+                    var displayText = GetFirstDisplayLine(display);
+                    if (ShouldOverrideDisplayWithFallback(displayText, fallbackText))
+                    {
+                        return ImmutableArray.Create(fallbackText);
+                    }
+                }
+            }
+
             return display;
         }
 
@@ -401,6 +417,32 @@ public sealed class RegistryStateService
         }
 
         return null;
+    }
+
+    private static bool ShouldOverrideDisplayWithFallback(string? displayText, string fallbackText)
+    {
+        if (string.IsNullOrWhiteSpace(fallbackText))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(displayText))
+        {
+            return true;
+        }
+
+        if (TryParseNumeric(displayText, out var displayNumber) && TryParseNumeric(fallbackText, out var fallbackNumber))
+        {
+            return Math.Abs(displayNumber - fallbackNumber) > 0.0000001d;
+        }
+
+        return false;
+    }
+
+    private static bool TryParseNumeric(string text, out double value)
+    {
+        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value)
+            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out value);
     }
 
     private static bool? AreValuesEquivalent(object? left, object? right)
@@ -535,6 +577,15 @@ public sealed class RegistryStateService
         if (!string.IsNullOrWhiteSpace(detection.LookupValueName))
         {
             parameters["LookupValueName"] = detection.LookupValueName;
+        }
+
+        if (string.Equals(detection.Hive, "HKCU", StringComparison.OrdinalIgnoreCase))
+        {
+            var sid = OriginalUserSid.Value;
+            if (!string.IsNullOrWhiteSpace(sid))
+            {
+                parameters["UserSid"] = sid;
+            }
         }
 
         return parameters;
@@ -809,6 +860,30 @@ public sealed class RegistryStateService
         }
 
         throw new FileNotFoundException($"Unable to locate registry detection script at '{DetectionScriptRelativePath}'.", DetectionScriptRelativePath);
+    }
+
+    private static string? ResolveOriginalUserSid()
+    {
+        var sid = Environment.GetEnvironmentVariable(RegistryUserContext.OriginalUserSidEnvironmentVariable);
+        if (!string.IsNullOrWhiteSpace(sid))
+        {
+            return sid;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return null;
+        }
+
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            return identity?.User?.Value;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private sealed class RegistryProbeModel

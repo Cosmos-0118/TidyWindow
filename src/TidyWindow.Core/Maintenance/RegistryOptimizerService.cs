@@ -13,7 +13,7 @@ namespace TidyWindow.Core.Maintenance;
 /// <summary>
 /// Provides presets, metadata, and execution helpers for registry optimizer tweaks.
 /// </summary>
-public sealed class RegistryOptimizerService
+public sealed class RegistryOptimizerService : IRegistryOptimizerService
 {
     private const string ConfigurationRelativePath = "data/cleanup/registry-defaults.json";
     private const int MaxRestorePoints = 10;

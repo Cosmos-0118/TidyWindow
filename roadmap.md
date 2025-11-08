@@ -136,8 +136,9 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 [x] Step 10.5: Refresh `RegistryOptimizerViewModel` and `RegistryTweakCardViewModel` to load the cached state, expose `CurrentValue`, `RecommendedValue`, and a bindable `CustomValue` with validation derived from `RegistryTweakConstraints`.
 [x] Step 10.6: Redesign `Views/RegistryOptimizerPage.xaml` (and supporting resource dictionary) to align with the Maintenance page layout, showing three columns for current/recommended/custom values, an inline info button explaining the impact of higher/lower inputs, and responsive behaviour for narrow screens.
 [x] Step 10.7: Persist user-specified custom values per tweak (e.g., via `RegistryStateService` or `Settings/Registry` storage) so subsequent app launches restore the choice instead of falling back to defaults.
-[ ] Step 10.8: Add unit coverage in `tests/TidyWindow.Core.Tests/Maintenance` for detection caching and custom parameter plumbing, plus MVVM tests in `tests/TidyWindow.App.Tests/RegistryOptimizer` validating validation states and command availability.
-[ ] Step 10.9: Document the new registry flow in `docs/registry/README.md` (covering detection, custom values, and restore points) and include manual QA steps in `docs/automation.md`.
+[x] Step 10.10: Stand up a `RegistryStateWatcher` abstraction that wraps `RegistryStateService` and streams incremental probe updates (success + failure) so the UI subscribes instead of polling and the default `ValueNotAvailable` copy disappears as soon as a payload lands.
+[x] Step 10.11: Refactor `RegistryTweakCardViewModel`/`RegistryOptimizerPage.xaml` to bind to the streamed state (showing a pending spinner, live current value rows, and multi-path snapshots) and delete the hardcoded fallback strings once the observable pushes data.
+[ ] Step 10.12: Add regression coverage: (a) service-level tests that inject synthetic registry payloads and assert the watcher broadcasts them, (b) UI harness tests that assert a detected value replaces the fallback text, and (c) a smoke test covering refresh-after-apply to guard against stale cache issues.
 
 **Build & Run Checkpoint**
 

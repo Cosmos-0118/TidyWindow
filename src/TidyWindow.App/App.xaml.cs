@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Security.Principal;
 using System.Windows;
 using WpfApplication = System.Windows.Application;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +27,8 @@ public partial class App : WpfApplication
 
     protected override async void OnStartup(StartupEventArgs e)
     {
+        CaptureOriginalUserSid(e);
+
         _crashLogs = new CrashLogService();
         _crashLogs.Attach(this);
 
@@ -57,9 +60,10 @@ public partial class App : WpfApplication
                 services.AddSingleton<DriverUpdateService>();
                 services.AddSingleton<EssentialsTaskCatalog>();
                 services.AddSingleton<EssentialsTaskQueue>();
-                services.AddSingleton<RegistryOptimizerService>();
+                services.AddSingleton<IRegistryOptimizerService, RegistryOptimizerService>();
                 services.AddSingleton<RegistryPreferenceService>();
-                services.AddSingleton<RegistryStateService>();
+                services.AddSingleton<IRegistryStateService, RegistryStateService>();
+                services.AddSingleton<RegistryStateWatcher>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -137,6 +141,46 @@ public partial class App : WpfApplication
         _crashLogs?.Dispose();
 
         base.OnExit(e);
+    }
+
+    private static void CaptureOriginalUserSid(StartupEventArgs e)
+    {
+        string? sid = null;
+
+        if (e?.Args is { Length: > 0 })
+        {
+            foreach (var argument in e.Args)
+            {
+                if (argument is null)
+                {
+                    continue;
+                }
+
+                if (argument.StartsWith(RegistryUserContext.OriginalUserSidArgumentPrefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    sid = argument.Substring(RegistryUserContext.OriginalUserSidArgumentPrefix.Length).Trim('"');
+                    break;
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(sid))
+        {
+            try
+            {
+                using var identity = WindowsIdentity.GetCurrent();
+                sid = identity?.User?.Value;
+            }
+            catch
+            {
+                sid = null;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(sid))
+        {
+            Environment.SetEnvironmentVariable(RegistryUserContext.OriginalUserSidEnvironmentVariable, sid);
+        }
     }
 }
 
