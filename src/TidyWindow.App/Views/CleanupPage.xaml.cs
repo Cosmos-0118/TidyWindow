@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -22,6 +23,7 @@ public partial class CleanupPage : Page
 
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Unloaded += CleanupPage_Unloaded;
         IsVisibleChanged += OnIsVisibleChanged;
         Loaded += OnPageLoaded;
@@ -63,6 +65,7 @@ public partial class CleanupPage : Page
 
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
         _viewModel.ConfirmElevation = null;
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         Unloaded -= CleanupPage_Unloaded;
         Loaded -= OnPageLoaded;
         DetachScrollHandlers();
@@ -81,6 +84,7 @@ public partial class CleanupPage : Page
     {
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         Unloaded += CleanupPage_Unloaded;
         Loaded += OnPageLoaded;
         _disposed = false;
@@ -204,5 +208,20 @@ public partial class CleanupPage : Page
         }
 
         return null;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!string.Equals(e.PropertyName, nameof(CleanupViewModel.IsCelebrationPhase), StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!_viewModel.IsCelebrationPhase)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(new Action(() => CelebrationView?.RestartAnimation()));
     }
 }

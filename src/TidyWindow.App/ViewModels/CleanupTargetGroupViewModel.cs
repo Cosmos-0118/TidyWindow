@@ -90,6 +90,49 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
             }
 
             OnPropertyChanged(nameof(IsFullySelected));
+            OnPropertyChanged(nameof(SelectionToggleState));
+        }
+    }
+
+    public bool? SelectionToggleState
+    {
+        get
+        {
+            if (Items.Count == 0)
+            {
+                return false;
+            }
+
+            bool allSelected = Items.All(static item => item.IsSelected);
+            if (allSelected)
+            {
+                return true;
+            }
+
+            bool anySelected = Items.Any(static item => item.IsSelected);
+            return anySelected ? (bool?)null : false;
+        }
+        set
+        {
+            if (Items.Count == 0)
+            {
+                return;
+            }
+
+            bool desiredState = value ?? false;
+            if (Items.All(item => item.IsSelected == desiredState))
+            {
+                return;
+            }
+
+            using var scope = BeginSelectionUpdate();
+            foreach (var item in Items)
+            {
+                item.IsSelected = desiredState;
+            }
+
+            OnPropertyChanged(nameof(IsFullySelected));
+            OnPropertyChanged(nameof(SelectionToggleState));
         }
     }
 
@@ -120,6 +163,7 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
         OnPropertyChanged(nameof(SelectedSizeBytes));
         OnPropertyChanged(nameof(SelectedSizeMegabytes));
         OnPropertyChanged(nameof(IsFullySelected));
+        OnPropertyChanged(nameof(SelectionToggleState));
     }
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -146,6 +190,7 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
         OnPropertyChanged(nameof(SelectedSizeBytes));
         OnPropertyChanged(nameof(SelectedSizeMegabytes));
         OnPropertyChanged(nameof(IsFullySelected));
+        OnPropertyChanged(nameof(SelectionToggleState));
     }
 
     public IDisposable BeginSelectionUpdate()

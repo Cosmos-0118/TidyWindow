@@ -4,14 +4,25 @@
             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
-      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
-            xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+        xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+        xmlns:controls="clr-namespace:TidyWindow.App.Views"
       mc:Ignorable="d"
       Title="Cleanup"
       Background="Transparent">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    <LinearGradientBrush x:Key="CleanupProgressBrush"
+                  StartPoint="0,0"
+                  EndPoint="1,0">
+        <GradientStop Color="#38BDF8"
+              Offset="0"/>
+        <GradientStop Color="#22D3EE"
+              Offset="0.55"/>
+        <GradientStop Color="#6366F1"
+              Offset="1"/>
+    </LinearGradientBrush>
         <ControlTemplate x:Key="ComboToggleButtonTemplate"
                          TargetType="ToggleButton">
             <Grid>
@@ -218,6 +229,310 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Storyboard x:Key="PhaseEnterStoryboard"
+                    x:Shared="False">
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0"
+                                        Value="{x:Static Visibility.Visible}"/>
+            </ObjectAnimationUsingKeyFrames>
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                         Value="True"/>
+            </BooleanAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.28">
+                <DoubleAnimation.EasingFunction>
+                    <QuarticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                             To="0"
+                             Duration="0:0:0.28">
+                <DoubleAnimation.EasingFunction>
+                    <QuarticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+        <Storyboard x:Key="PhaseExitStoryboard"
+                    x:Shared="False">
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                         Value="False"/>
+            </BooleanAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="0"
+                             Duration="0:0:0.22">
+                <DoubleAnimation.EasingFunction>
+                    <QuarticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                             To="-12"
+                             Duration="0:0:0.22">
+                <DoubleAnimation.EasingFunction>
+                    <QuarticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0.22"
+                                        Value="{x:Static Visibility.Collapsed}"/>
+            </ObjectAnimationUsingKeyFrames>
+        </Storyboard>
+        <Storyboard x:Key="OverlayEnterStoryboard"
+                    x:Shared="False">
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0"
+                                        Value="{x:Static Visibility.Visible}"/>
+            </ObjectAnimationUsingKeyFrames>
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                         Value="True"/>
+            </BooleanAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.22">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+        <Storyboard x:Key="OverlayExitStoryboard"
+                    x:Shared="False">
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                         Value="False"/>
+            </BooleanAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="0"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0.2"
+                                        Value="{x:Static Visibility.Collapsed}"/>
+            </ObjectAnimationUsingKeyFrames>
+        </Storyboard>
+        <Storyboard x:Key="InlineToastEnterStoryboard"
+                    x:Shared="False">
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0"
+                                        Value="{x:Static Visibility.Visible}"/>
+            </ObjectAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.22">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                             To="0"
+                             Duration="0:0:0.22">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+        <Storyboard x:Key="InlineToastExitStoryboard"
+                    x:Shared="False">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="0"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                             To="-10"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0.2"
+                                        Value="{x:Static Visibility.Collapsed}"/>
+            </ObjectAnimationUsingKeyFrames>
+        </Storyboard>
+        <Style x:Key="PhaseContainerBaseStyle"
+               TargetType="Border">
+            <Setter Property="Visibility"
+                    Value="Collapsed"/>
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="IsHitTestVisible"
+                    Value="False"/>
+            <Setter Property="RenderTransformOrigin"
+                    Value="0.5,0"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="16"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SetupPhaseContainerStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource PhaseContainerBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentPhase}"
+                             Value="{x:Static viewModels:CleanupPhase.Setup}">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard Storyboard="{StaticResource PhaseEnterStoryboard}"/>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard Storyboard="{StaticResource PhaseExitStoryboard}"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PreviewPhaseContainerStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource PhaseContainerBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentPhase}"
+                             Value="{x:Static viewModels:CleanupPhase.Preview}">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard Storyboard="{StaticResource PhaseEnterStoryboard}"/>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard Storyboard="{StaticResource PhaseExitStoryboard}"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CelebrationPhaseContainerStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource PhaseContainerBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding CurrentPhase}"
+                             Value="{x:Static viewModels:CleanupPhase.Celebration}">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard Storyboard="{StaticResource PhaseEnterStoryboard}"/>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard Storyboard="{StaticResource PhaseExitStoryboard}"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CelebrationOverlayStyle"
+               TargetType="Border">
+            <Setter Property="Visibility"
+                    Value="Collapsed"/>
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="IsHitTestVisible"
+                    Value="False"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsCelebrationPhase}"
+                             Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard Storyboard="{StaticResource OverlayEnterStoryboard}"/>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard Storyboard="{StaticResource OverlayExitStoryboard}"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="InlineToastStyle"
+               TargetType="Border">
+            <Setter Property="Visibility"
+                    Value="Collapsed"/>
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="RenderTransformOrigin"
+                    Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="12"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsRefreshToastVisible}"
+                             Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard Storyboard="{StaticResource InlineToastEnterStoryboard}"/>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard Storyboard="{StaticResource InlineToastExitStoryboard}"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="CategoryBadgeStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="#1E293B"/>
+            <Setter Property="BorderBrush"
+                    Value="#24354C"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="6"/>
+            <Setter Property="Padding"
+                    Value="8,3"/>
+            <Setter Property="Margin"
+                    Value="0,0,12,0"/>
+            <Setter Property="RenderTransformOrigin"
+                    Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="1"
+                                    ScaleY="1"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
+                             Value="True">
+                    <Setter Property="BorderBrush"
+                            Value="#38BDF8"/>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                                 To="1.05"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                 To="1.05"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard FillBehavior="Stop">
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                                 To="1"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                 To="1"
+                                                 Duration="0:0:0.18">
+                                    <DoubleAnimation.EasingFunction>
+                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
     </Page.Resources>
     <Grid>
         <ScrollViewer x:Name="RootScrollViewer"
@@ -227,13 +542,13 @@
                       CanContentScroll="False"
                       PanningMode="VerticalOnly">
         <StackPanel MinWidth="760">
-            <Border Background="#0B1629"
-                    BorderBrush="#1E293B"
-                    BorderThickness="1"
-                    CornerRadius="16"
-                    Padding="24"
-            Margin="0,0,0,24"
-            Visibility="{Binding IsSetupPhase, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border Background="#0B1629"
+            BorderBrush="#1E293B"
+            BorderThickness="1"
+            CornerRadius="16"
+            Padding="24"
+        Margin="0,0,0,24"
+            Style="{StaticResource SetupPhaseContainerStyle}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -282,13 +597,13 @@
                 </Grid>
             </Border>
 
-            <Border Background="#111827"
-                    BorderBrush="#1E293B"
-                    BorderThickness="1"
-                    CornerRadius="14"
-                    Padding="24"
-            Margin="0,0,0,28"
-            Visibility="{Binding IsSetupPhase, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border Background="#111827"
+            BorderBrush="#1E293B"
+            BorderThickness="1"
+            CornerRadius="14"
+            Padding="24"
+        Margin="0,0,0,28"
+            Style="{StaticResource SetupPhaseContainerStyle}">
                 <StackPanel>
                     <TextBlock Text="Setup checklist"
                                FontSize="16"
@@ -525,7 +840,7 @@
                                         <Run Text="{Binding PreviewCountMaximum}"/>
                                     </TextBlock>
                                 </StackPanel>
-                                <StackPanel Orientation="Horizontal">
+                                <WrapPanel>
                                     <Button Style="{StaticResource ChipButtonStyle}"
                                             Content="25"
                                             Command="{Binding ApplyPreviewPresetCommand}">
@@ -547,7 +862,28 @@
                                             <sys:Int32>100</sys:Int32>
                                         </Button.CommandParameter>
                                     </Button>
-                                </StackPanel>
+                                    <Button Style="{StaticResource ChipButtonStyle}"
+                                            Content="1,000"
+                                            Command="{Binding ApplyPreviewPresetCommand}">
+                                        <Button.CommandParameter>
+                                            <sys:Int32>1000</sys:Int32>
+                                        </Button.CommandParameter>
+                                    </Button>
+                                    <Button Style="{StaticResource ChipButtonStyle}"
+                                            Content="10,000"
+                                            Command="{Binding ApplyPreviewPresetCommand}">
+                                        <Button.CommandParameter>
+                                            <sys:Int32>10000</sys:Int32>
+                                        </Button.CommandParameter>
+                                    </Button>
+                                    <Button Style="{StaticResource ChipButtonStyle}"
+                                            Content="100,000"
+                                            Command="{Binding ApplyPreviewPresetCommand}">
+                                        <Button.CommandParameter>
+                                            <sys:Int32>100000</sys:Int32>
+                                        </Button.CommandParameter>
+                                    </Button>
+                                </WrapPanel>
                             </StackPanel>
                         </Border>
                     </WrapPanel>
@@ -806,21 +1142,22 @@
                 </StackPanel>
             </Border>
 
-            <Border Background="#0F172A"
-                    BorderBrush="#1E293B"
-                    BorderThickness="1"
-                    CornerRadius="14"
-            Padding="0"
-            Visibility="{Binding IsPreviewPhase, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border Background="#0F172A"
+            BorderBrush="#1E293B"
+            BorderThickness="1"
+            CornerRadius="14"
+        Padding="0"
+            Style="{StaticResource PreviewPhaseContainerStyle}">
                 <Grid>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
             <DockPanel Grid.Row="0"
-                   Margin="24,20,24,16">
+                   Margin="24,20,24,12">
             <StackPanel DockPanel.Dock="Left">
                             <TextBlock Text="Phase 2 — Preview results"
                                        FontSize="14"
@@ -832,11 +1169,6 @@
             <StackPanel DockPanel.Dock="Right"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right">
-                <ProgressBar Width="120"
-                     Height="6"
-                     Margin="0,0,12,0"
-                     IsIndeterminate="True"
-                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                 <Button Content="Back to setup"
                     Command="{Binding NavigateToSetupCommand}"
                     Style="{StaticResource FlatButtonStyle}"
@@ -846,8 +1178,123 @@
             </StackPanel>
                     </DockPanel>
 
-                    <StackPanel Grid.Row="1"
+                    <Border Grid.Row="1"
+                            Margin="24,0,24,16"
+                            Padding="18"
+                            Background="#111C33"
+                            CornerRadius="14"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Row="0"
+                                    Grid.Column="0"
+                                    Width="40"
+                                    Height="40"
+                                    CornerRadius="20"
+                                    Background="#17223C"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                                <TextBlock Text="⚙️"
+                                           FontSize="20"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+
+                            <Grid Grid.Row="0"
+                                  Grid.Column="1"
+                                  Margin="14,0,0,0">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="0"
+                                           Text="{Binding ActiveOperationStatus}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#E2E8F0"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Grid.Row="0"
+                                           Grid.Column="1"
+                                           Text="{Binding ActiveOperationPercentDisplay}"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#38BDF8"
+                                           Margin="12,0,0,0"
+                                           Visibility="{Binding HasActiveOperationPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <TextBlock Grid.Row="1"
+                                           Grid.Column="0"
+                                           Grid.ColumnSpan="2"
+                                           Text="{Binding ActiveOperationDetail}"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="0,4,0,0"/>
+                            </Grid>
+
+                <Border Grid.Row="1"
+                    Grid.Column="0"
+                    Grid.ColumnSpan="2"
+                    Margin="0,16,0,0"
+                    Background="#101B30"
+                    CornerRadius="10"
+                    ClipToBounds="True">
+                                <ProgressBar Height="18"
+                                             Minimum="0"
+                                             Maximum="{Binding ActiveOperationProgressMaximum, Mode=OneWay}"
+                                             Value="{Binding ActiveOperationProgressValue, Mode=OneWay}"
+                                             IsIndeterminate="{Binding IsActiveOperationIndeterminate}"
+                                             Foreground="{StaticResource CleanupProgressBrush}"
+                                             Background="#14203A"
+                                             BorderThickness="0"/>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Row="2"
                                 Margin="24,0,24,12">
+            <Border Style="{StaticResource InlineToastStyle}"
+                Background="#10233C"
+                BorderBrush="#38BDF8"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="12"
+                Margin="0,0,0,16">
+                <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Center">
+                <TextBlock Text="🆕"
+                       FontSize="14"
+                       Margin="0,0,8,0"
+                       VerticalAlignment="Center"/>
+                <TextBlock Text="{Binding RefreshToastText}"
+                       FontSize="12"
+                       Foreground="#E2E8F0"
+                       TextWrapping="Wrap"
+                       VerticalAlignment="Center"
+                       MaxWidth="360"/>
+                <Button Content="Dismiss"
+                    Command="{Binding DismissRefreshToastCommand}"
+                    Style="{StaticResource ChipButtonStyle}"
+                    Margin="16,0,0,0"
+                    Padding="12,4"/>
+                </StackPanel>
+            </Border>
                         <WrapPanel Margin="0,0,0,8">
                             <TextBlock Text="Selected"
                                        FontSize="12"
@@ -1005,7 +1452,7 @@
                         </WrapPanel>
                     </StackPanel>
 
-                    <Grid Grid.Row="2"
+              <Grid Grid.Row="3"
                           Margin="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="2*"/>
@@ -1047,7 +1494,13 @@
                                                     <Border x:Name="Outer"
                                                             Background="{TemplateBinding Background}"
                                                             CornerRadius="8"
-                                                            Padding="{TemplateBinding Padding}">
+                                                            Padding="{TemplateBinding Padding}"
+                                                            Opacity="0.94"
+                                                            RenderTransformOrigin="0.5,0.5">
+                                                        <Border.RenderTransform>
+                                                            <ScaleTransform ScaleX="1"
+                                                                            ScaleY="1"/>
+                                                        </Border.RenderTransform>
                                                         <GridViewRowPresenter Margin="0"
                                                                               Content="{TemplateBinding Content}"
                                                                               Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
@@ -1058,6 +1511,66 @@
                                                             <Setter TargetName="Outer"
                                                                     Property="Background"
                                                                     Value="#1F2937"/>
+                                                            <Trigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard>
+                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
+                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                         To="1"
+                                                                                         Duration="0:0:0.18">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <QuadraticEase EasingMode="EaseOut"/>
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
+                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                                                                         To="1.04"
+                                                                                         Duration="0:0:0.18">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <QuadraticEase EasingMode="EaseOut"/>
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
+                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                                         To="1.04"
+                                                                                         Duration="0:0:0.18">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <QuadraticEase EasingMode="EaseOut"/>
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </Trigger.EnterActions>
+                                                            <Trigger.ExitActions>
+                                                                <BeginStoryboard>
+                                                                    <Storyboard FillBehavior="Stop">
+                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
+                                                                                         Storyboard.TargetProperty="Opacity"
+                                                                                         To="0.94"
+                                                                                         Duration="0:0:0.18">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <QuadraticEase EasingMode="EaseInOut"/>
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
+                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                                                                         To="1"
+                                                                                         Duration="0:0:0.18">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <QuadraticEase EasingMode="EaseInOut"/>
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
+                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                                         To="1"
+                                                                                         Duration="0:0:0.18">
+                                                                            <DoubleAnimation.EasingFunction>
+                                                                                <QuadraticEase EasingMode="EaseInOut"/>
+                                                                            </DoubleAnimation.EasingFunction>
+                                                                        </DoubleAnimation>
+                                                                    </Storyboard>
+                                                                </BeginStoryboard>
+                                                            </Trigger.ExitActions>
                                                         </Trigger>
                                                         <Trigger Property="IsMouseOver"
                                                                  Value="True">
@@ -1102,11 +1615,15 @@
                                             <GridViewColumn.CellTemplate>
                                                 <DataTemplate>
                                                     <StackPanel Orientation="Horizontal">
-                                                        <Border Background="#1E293B"
-                                                                CornerRadius="6"
-                                                                Padding="8,3"
-                                                                Margin="0,0,12,0"
-                                                                VerticalAlignment="Center">
+                                                        <CheckBox IsChecked="{Binding SelectionToggleState, Mode=TwoWay}"
+                                                                  IsThreeState="True"
+                                                                  VerticalAlignment="Center"
+                                                                  Margin="0,0,8,0"
+                                                                  FocusVisualStyle="{x:Null}"
+                                                                  Foreground="#E2E8F0"
+                                                                  ToolTip="Select or clear this entire category."/>
+                                <Border Style="{StaticResource CategoryBadgeStyle}"
+                                    VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Classification}"
                                                                        Foreground="#38BDF8"
                                                                        FontSize="11"
@@ -1236,7 +1753,13 @@
                                                             <Border x:Name="Inner"
                                                                     Background="{TemplateBinding Background}"
                                                                     CornerRadius="8"
-                                                                    Padding="{TemplateBinding Padding}">
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    Opacity="0.92"
+                                                                    RenderTransformOrigin="0.5,0.5">
+                                                                <Border.RenderTransform>
+                                                                    <ScaleTransform ScaleX="1"
+                                                                                    ScaleY="1"/>
+                                                                </Border.RenderTransform>
                                                                 <GridViewRowPresenter Margin="0"
                                                                                       Content="{TemplateBinding Content}"
                                                                                       Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
@@ -1248,6 +1771,72 @@
                                                                             Property="Background"
                                                                             Value="#1B2942"/>
                                                                 </Trigger>
+                                                                <DataTrigger Binding="{Binding IsSelected}"
+                                                                             Value="True">
+                                                                    <Setter TargetName="Inner"
+                                                                            Property="Background"
+                                                                            Value="#1E3355"/>
+                                                                    <DataTrigger.EnterActions>
+                                                                        <BeginStoryboard>
+                                                                            <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
+                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                 To="1"
+                                                                                                 Duration="0:0:0.18">
+                                                                                    <DoubleAnimation.EasingFunction>
+                                                                                        <QuadraticEase EasingMode="EaseOut"/>
+                                                                                    </DoubleAnimation.EasingFunction>
+                                                                                </DoubleAnimation>
+                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
+                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                                                                                 To="1.03"
+                                                                                                 Duration="0:0:0.18">
+                                                                                    <DoubleAnimation.EasingFunction>
+                                                                                        <QuadraticEase EasingMode="EaseOut"/>
+                                                                                    </DoubleAnimation.EasingFunction>
+                                                                                </DoubleAnimation>
+                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
+                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                                                 To="1.03"
+                                                                                                 Duration="0:0:0.18">
+                                                                                    <DoubleAnimation.EasingFunction>
+                                                                                        <QuadraticEase EasingMode="EaseOut"/>
+                                                                                    </DoubleAnimation.EasingFunction>
+                                                                                </DoubleAnimation>
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </DataTrigger.EnterActions>
+                                                                    <DataTrigger.ExitActions>
+                                                                        <BeginStoryboard>
+                                                                            <Storyboard FillBehavior="Stop">
+                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
+                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                 To="0.92"
+                                                                                                 Duration="0:0:0.18">
+                                                                                    <DoubleAnimation.EasingFunction>
+                                                                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                                                                    </DoubleAnimation.EasingFunction>
+                                                                                </DoubleAnimation>
+                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
+                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
+                                                                                                 To="1"
+                                                                                                 Duration="0:0:0.18">
+                                                                                    <DoubleAnimation.EasingFunction>
+                                                                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                                                                    </DoubleAnimation.EasingFunction>
+                                                                                </DoubleAnimation>
+                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
+                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
+                                                                                                 To="1"
+                                                                                                 Duration="0:0:0.18">
+                                                                                    <DoubleAnimation.EasingFunction>
+                                                                                        <QuadraticEase EasingMode="EaseInOut"/>
+                                                                                    </DoubleAnimation.EasingFunction>
+                                                                                </DoubleAnimation>
+                                                                            </Storyboard>
+                                                                        </BeginStoryboard>
+                                                                    </DataTrigger.ExitActions>
+                                                                </DataTrigger>
                                                             </ControlTemplate.Triggers>
                                                         </ControlTemplate>
                                                     </Setter.Value>
@@ -1451,10 +2040,11 @@
         </StackPanel>
     </ScrollViewer>
 
-        <Border Background="#AA020B1F"
-                Visibility="{Binding IsConfirmationSheetVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
-                HorizontalAlignment="Stretch"
-                VerticalAlignment="Stretch">
+    <Border Background="#AA020B1F"
+        Visibility="{Binding IsConfirmationSheetVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        Panel.ZIndex="2">
             <Border HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Background="#0B1624"
@@ -1671,6 +2261,233 @@
                     </StackPanel>
                 </StackPanel>
             </Border>
+        </Border>
+    <Border Background="#D9081425"
+        HorizontalAlignment="Stretch"
+        VerticalAlignment="Stretch"
+        Panel.ZIndex="3"
+        Style="{StaticResource CelebrationOverlayStyle}">
+            <Grid HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  Margin="32"
+                  MaxWidth="980">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Border Background="#091523"
+                        BorderBrush="#1E293B"
+                        BorderThickness="1"
+                        CornerRadius="24"
+                        Padding="32"
+            Margin="0,0,24,0"
+            Style="{StaticResource CelebrationPhaseContainerStyle}">
+                    <controls:CleanupCelebrationView x:Name="CelebrationView"
+                                                     Width="340"
+                                                     Height="220"/>
+                </Border>
+                <Border Grid.Column="1"
+                        Background="#0B1624"
+                        BorderBrush="#1E293B"
+                        BorderThickness="1"
+                        CornerRadius="20"
+                        Padding="28"
+                        Width="440"
+            MaxWidth="480"
+            Style="{StaticResource CelebrationPhaseContainerStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Phase 4 — Cleanup feedback"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#38BDF8"/>
+                        <TextBlock Text="{Binding CelebrationHeadline}"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   Foreground="#F8FAFC"
+                                   Margin="0,6,0,4"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="{Binding CelebrationDetails}"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,16"/>
+                        <WrapPanel Margin="0,0,0,12">
+                            <Border Style="{StaticResource SheetCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Space reclaimed"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                    <TextBlock Text="{Binding CelebrationReclaimedDisplay}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SheetCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Items removed"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                    <TextBlock Text="{Binding CelebrationItemsDeleted, StringFormat={}{0:N0}}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SheetCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Categories"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                    <TextBlock Text="{Binding CelebrationCategoryCount, StringFormat={}{0:N0}}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SheetCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Time saved"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                    <TextBlock Text="{Binding CelebrationTimeSavedDisplay}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                        <TextBlock FontSize="12"
+                                   Foreground="#64748B"
+                                   Margin="0,0,0,12">
+                            <Run Text="Execution time · "/>
+                            <Run Text="{Binding CelebrationDurationDisplay}"/>
+                            <Run Text="   "/>
+                            <Run Text="Skipped · "/>
+                            <Run Text="{Binding CelebrationItemsSkipped, StringFormat={}{0:N0}}"/>
+                            <Run Text="   "/>
+                            <Run Text="Failed · "/>
+                            <Run Text="{Binding CelebrationItemsFailed, StringFormat={}{0:N0}}"/>
+                        </TextBlock>
+                        <StackPanel Margin="0,0,0,16">
+                            <TextBlock Text="Categories touched"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"/>
+                            <TextBlock Text="{Binding CelebrationCategoryListDisplay}"
+                                       FontSize="12"
+                                       Foreground="#E2E8F0"
+                                       TextWrapping="Wrap"
+                                       Margin="0,4,0,0"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="Failures"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"/>
+                            <ItemsControl ItemsSource="{Binding CelebrationFailures}"
+                                          Margin="0,6,0,0">
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCelebrationFailures}" Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#111C33"
+                                                BorderBrush="#1E293B"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="12"
+                                                Margin="0,0,0,8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#F8FAFC"/>
+                                                    <TextBlock Text="{Binding Reason}"
+                                                               FontSize="12"
+                                                               Foreground="#94A3B8"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,4,0,0"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="1"
+                                                        Content="Retry"
+                                                        Command="{Binding DataContext.RetryFailureAsyncCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource ChipButtonStyle}"
+                                                        Padding="14,6"
+                                                        Margin="12,0,0,0">
+                                                    <Button.IsEnabled>
+                                                        <Binding Path="IsRetrying" Converter="{StaticResource InverseBooleanConverter}"/>
+                                                    </Button.IsEnabled>
+                                                </Button>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="All items were removed successfully. Great job!"
+                                       FontSize="12"
+                                       Foreground="#64748B"
+                                       Margin="0,4,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCelebrationFailures}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,24,0,0"
+                                    HorizontalAlignment="Right">
+                            <Button Content="Review report"
+                                    Command="{Binding ReviewCelebrationReportCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"
+                                    IsEnabled="{Binding CanReviewCelebrationReport}"
+                                    Margin="0,0,12,0"/>
+                            <Button Content="Share summary"
+                                    Command="{Binding ShareCelebrationSummaryCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"
+                                    Margin="0,0,12,0"/>
+                            <Button Content="Schedule recurring scan"
+                                    Command="{Binding ScheduleRecurringScanCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"
+                                    Margin="0,0,12,0"/>
+                <Button Content="Back to dashboard"
+                    Command="{Binding CancelCommand}"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Background="#111C33"
+                    Margin="0,0,12,0"/>
+                            <Button Content="Close"
+                                    Command="{Binding CloseCelebrationCommand}"
+                                    Background="#22C55E"
+                                    Foreground="#06111D"
+                                    FontWeight="SemiBold"
+                                    Padding="18,10"
+                                    BorderThickness="0"
+                                    Cursor="Hand"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Border>
     </Grid>
 </Page>

@@ -1,0 +1,246 @@
+<UserControl x:Class="TidyWindow.App.Views.CleanupCelebrationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="240"
+             d:DesignWidth="360"
+             Loaded="OnControlLoaded">
+    <UserControl.Resources>
+        <Storyboard x:Key="CelebrateStoryboard">
+            <DoubleAnimation Storyboard.TargetName="ParticleATranslate"
+                             Storyboard.TargetProperty="X"
+                             From="-140"
+                             To="0"
+                             Duration="0:0:1.5">
+                <DoubleAnimation.EasingFunction>
+                    <PowerEase Power="4"
+                               EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="ParticleATranslate"
+                             Storyboard.TargetProperty="Y"
+                             From="-20"
+                             To="-60"
+                             Duration="0:0:1.5">
+                <DoubleAnimation.EasingFunction>
+                    <PowerEase Power="4"
+                               EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="ParticleA"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.95"
+                             To="0"
+                             BeginTime="0:0:0.6"
+                             Duration="0:0:0.8"/>
+
+            <DoubleAnimation Storyboard.TargetName="ParticleBTranslate"
+                             Storyboard.TargetProperty="X"
+                             From="160"
+                             To="0"
+                             Duration="0:0:1.5">
+                <DoubleAnimation.EasingFunction>
+                    <PowerEase Power="4"
+                               EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="ParticleBTranslate"
+                             Storyboard.TargetProperty="Y"
+                             From="30"
+                             To="-20"
+                             Duration="0:0:1.5">
+                <DoubleAnimation.EasingFunction>
+                    <PowerEase Power="4"
+                               EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="ParticleB"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.95"
+                             To="0"
+                             BeginTime="0:0:0.8"
+                             Duration="0:0:0.7"/>
+
+            <DoubleAnimation Storyboard.TargetName="ParticleCTranslate"
+                             Storyboard.TargetProperty="X"
+                             From="-100"
+                             To="0"
+                             BeginTime="0:0:0.2"
+                             Duration="0:0:1.5">
+                <DoubleAnimation.EasingFunction>
+                    <PowerEase Power="4"
+                               EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="ParticleCTranslate"
+                             Storyboard.TargetProperty="Y"
+                             From="80"
+                             To="-10"
+                             BeginTime="0:0:0.2"
+                             Duration="0:0:1.5">
+                <DoubleAnimation.EasingFunction>
+                    <PowerEase Power="4"
+                               EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="ParticleC"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.9"
+                             To="0"
+                             BeginTime="0:0:0.9"
+                             Duration="0:0:0.6"/>
+
+            <DoubleAnimation Storyboard.TargetName="GlowEllipse"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.0"
+                             To="0.55"
+                             Duration="0:0:0.6"/>
+            <DoubleAnimation Storyboard.TargetName="GlowEllipse"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.55"
+                             To="0.25"
+                             BeginTime="0:0:0.6"
+                             Duration="0:0:0.8"/>
+
+            <DoubleAnimation Storyboard.TargetName="RecycleScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="0.85"
+                             To="1.0"
+                             Duration="0:0:0.6">
+                <DoubleAnimation.EasingFunction>
+                    <BackEase Amplitude="0.6"
+                              EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="RecycleScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="0.85"
+                             To="1.0"
+                             Duration="0:0:0.6">
+                <DoubleAnimation.EasingFunction>
+                    <BackEase Amplitude="0.6"
+                              EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="RecycleGlow"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0"
+                             To="0.6"
+                             Duration="0:0:0.5"/>
+            <DoubleAnimation Storyboard.TargetName="RecycleGlow"
+                             Storyboard.TargetProperty="Opacity"
+                             From="0.6"
+                             To="0"
+                             BeginTime="0:0:1.0"
+                             Duration="0:0:0.5"/>
+        </Storyboard>
+    </UserControl.Resources>
+    <Grid Background="Transparent">
+        <Grid>
+            <Ellipse x:Name="GlowEllipse"
+                     Width="220"
+                     Height="220"
+                     Fill="#17304F"
+                     Opacity="0.0"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
+            <Ellipse x:Name="RecycleGlow"
+                     Width="140"
+                     Height="140"
+                     Stroke="#38BDF8"
+                     StrokeThickness="2"
+                     Opacity="0"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center"/>
+            <Border Background="#10243E"
+                    CornerRadius="22"
+                    Width="140"
+                    Height="140"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="12">
+                <Border.RenderTransform>
+                    <ScaleTransform x:Name="RecycleScale"
+                                    CenterX="0.5"
+                                    CenterY="0.5"/>
+                </Border.RenderTransform>
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="♻️"
+                               FontSize="56"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Text="Cleanup complete"
+                               FontSize="12"
+                               Foreground="#94A3B8"
+                               HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+            <Border x:Name="ParticleA"
+                    Width="96"
+                    Height="56"
+                    Background="#132f4c"
+                    CornerRadius="14"
+                    Opacity="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="10,6">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="ParticleATranslate"/>
+                </Border.RenderTransform>
+                <StackPanel>
+                    <TextBlock Text="Temp files"
+                               FontSize="12"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="812 MB"
+                               FontSize="10"
+                               Foreground="#38BDF8"/>
+                </StackPanel>
+            </Border>
+            <Border x:Name="ParticleB"
+                    Width="88"
+                    Height="52"
+                    Background="#133047"
+                    CornerRadius="14"
+                    Opacity="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="10,6">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="ParticleBTranslate"/>
+                </Border.RenderTransform>
+                <StackPanel>
+                    <TextBlock Text="Preview cache"
+                               FontSize="11"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="432 files"
+                               FontSize="10"
+                               Foreground="#A5B4FC"/>
+                </StackPanel>
+            </Border>
+            <Border x:Name="ParticleC"
+                    Width="92"
+                    Height="54"
+                    Background="#123050"
+                    CornerRadius="14"
+                    Opacity="0"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Padding="10,6">
+                <Border.RenderTransform>
+                    <TranslateTransform x:Name="ParticleCTranslate"/>
+                </Border.RenderTransform>
+                <StackPanel>
+                    <TextBlock Text="Crash logs"
+                               FontSize="11"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="6 items"
+                               FontSize="10"
+                               Foreground="#FBBF24"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</UserControl>

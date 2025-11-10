@@ -4,7 +4,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.VisualBasic.FileIO;
 
 namespace TidyWindow.Core.Cleanup;
 
@@ -234,24 +233,12 @@ public sealed class CleanupService
     {
         failure = null;
 
-        try
+        if (CleanupNativeMethods.TrySendToRecycleBin(path, out failure))
         {
-            if (isDirectory)
-            {
-                FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-            }
-            else
-            {
-                FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
-            }
-
             return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
-        {
-            failure = ex;
-            return false;
-        }
+
+        return false;
     }
 
     private static bool IsInUseError(Exception? exception)

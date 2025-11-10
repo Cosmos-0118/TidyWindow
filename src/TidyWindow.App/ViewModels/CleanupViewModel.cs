@@ -2,14 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Cleanup;
+using WindowsClipboard = System.Windows.Clipboard;
 
 namespace TidyWindow.App.ViewModels;
 
@@ -50,7 +53,8 @@ public sealed record CleanupPreviewSortOption(CleanupPreviewSortMode Mode, strin
 public enum CleanupPhase
 {
     Setup,
-    Preview
+    Preview,
+    Celebration
 }
 
 public enum CleanupDeletionRiskSeverity
@@ -62,6 +66,36 @@ public enum CleanupDeletionRiskSeverity
 
 public sealed record CleanupDeletionRiskViewModel(string Title, string Description, CleanupDeletionRiskSeverity Severity);
 
+public sealed partial class CleanupCelebrationFailureViewModel : ObservableObject
+{
+    public CleanupCelebrationFailureViewModel(
+        CleanupTargetGroupViewModel group,
+        CleanupPreviewItemViewModel item,
+        CleanupDeletionEntry entry)
+    {
+        Group = group ?? throw new ArgumentNullException(nameof(group));
+        Item = item ?? throw new ArgumentNullException(nameof(item));
+        Entry = entry ?? throw new ArgumentNullException(nameof(entry));
+    }
+
+    public CleanupTargetGroupViewModel Group { get; }
+
+    public CleanupPreviewItemViewModel Item { get; }
+
+    public CleanupDeletionEntry Entry { get; }
+
+    public string DisplayName => string.IsNullOrWhiteSpace(Item.Name) ? Item.FullName : Item.Name;
+
+    public string Category => Group.Category;
+
+    public CleanupDeletionDisposition Disposition => Entry.Disposition;
+
+    public string Reason => Entry.EffectiveReason;
+
+    [ObservableProperty]
+    private bool _isRetrying;
+}
+
 public sealed partial class CleanupViewModel : ViewModelBase
 {
     private readonly CleanupService _cleanupService;
@@ -69,13 +103,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly IPrivilegeService _privilegeService;
 
     private const int PreviewCountMinimumValue = 10;
-    private const int PreviewCountMaximumValue = 500;
+    private const int PreviewCountMaximumValue = 100_000;
     private const int DefaultPreviewCount = 50;
 
     private readonly HashSet<string> _activeExtensions = new(StringComparer.OrdinalIgnoreCase);
     private int _previewCount = DefaultPreviewCount;
     private static readonly string[] _sensitiveRoots = BuildSensitiveRoots();
     private List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>? _pendingDeletionItems;
+    private int _lastPreviewTotalItemCount;
+    private bool _hasCompletedPreview;
+    private CancellationTokenSource? _refreshToastCancellation;
 
     public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService)
     {
@@ -116,6 +153,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
         RebuildExtensionCache();
+        CelebrationFailures.CollectionChanged += OnCelebrationFailuresCollectionChanged;
     }
 
     [ObservableProperty]
@@ -155,6 +193,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private string _deletionStatusMessage = "Ready to delete selected items.";
 
     [ObservableProperty]
+    private string _busyStatusMessage = "Working…";
+
+    [ObservableProperty]
+    private string _busyStatusDetail = string.Empty;
+
+    [ObservableProperty]
     private bool _isConfirmationSheetVisible;
 
     [ObservableProperty]
@@ -178,11 +222,55 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private CleanupPhase _currentPhase = CleanupPhase.Setup;
 
+    [ObservableProperty]
+    private string _celebrationHeadline = "Cleanup complete";
+
+    [ObservableProperty]
+    private string _celebrationDetails = string.Empty;
+
+    [ObservableProperty]
+    private double _celebrationReclaimedMegabytes;
+
+    [ObservableProperty]
+    private int _celebrationItemsDeleted;
+
+    [ObservableProperty]
+    private int _celebrationItemsSkipped;
+
+    [ObservableProperty]
+    private int _celebrationItemsFailed;
+
+    [ObservableProperty]
+    private int _celebrationCategoryCount;
+
+    [ObservableProperty]
+    private string _celebrationCategoryList = string.Empty;
+
+    [ObservableProperty]
+    private string _celebrationTimeSavedDisplay = string.Empty;
+
+    [ObservableProperty]
+    private string _celebrationDurationDisplay = string.Empty;
+
+    [ObservableProperty]
+    private string _celebrationShareSummary = string.Empty;
+
+    [ObservableProperty]
+    private string? _celebrationReportPath;
+
+    [ObservableProperty]
+    private bool _isRefreshToastVisible;
+
+    [ObservableProperty]
+    private string _refreshToastText = string.Empty;
+
     public ObservableCollection<CleanupTargetGroupViewModel> Targets { get; } = new();
 
     public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
 
     public ObservableCollection<CleanupDeletionRiskViewModel> PendingDeletionRisks { get; } = new();
+
+    public ObservableCollection<CleanupCelebrationFailureViewModel> CelebrationFailures { get; } = new();
 
     // Paging state for preview
     private int _currentPage = 1;
@@ -278,7 +366,17 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public bool IsPreviewPhase => CurrentPhase == CleanupPhase.Preview;
 
+    public bool IsCelebrationPhase => CurrentPhase == CleanupPhase.Celebration;
+
     public bool IsExtensionSelectorEnabled => SelectedExtensionFilterMode != CleanupExtensionFilterMode.None;
+
+    public bool HasCelebrationFailures => CelebrationFailures.Count > 0;
+
+    public bool CanReviewCelebrationReport => !string.IsNullOrWhiteSpace(CelebrationReportPath) && File.Exists(CelebrationReportPath);
+
+    public string CelebrationReclaimedDisplay => FormatSize(CelebrationReclaimedMegabytes);
+
+    public string CelebrationCategoryListDisplay => string.IsNullOrWhiteSpace(CelebrationCategoryList) ? "—" : CelebrationCategoryList;
 
     public string ExtensionStatusText
     {
@@ -377,6 +475,52 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
     }
 
+    public string ActiveOperationStatus => IsDeleting ? DeletionStatusMessage : BusyStatusMessage;
+
+    public string ActiveOperationDetail
+    {
+        get
+        {
+            if (IsDeleting)
+            {
+                if (DeletionProgressTotal > 0)
+                {
+                    return $"{DeletionProgressCurrent:N0} of {DeletionProgressTotal:N0} items";
+                }
+
+                return string.IsNullOrWhiteSpace(DeletionStatusMessage)
+                    ? "Preparing deletion plan…"
+                    : DeletionStatusMessage;
+            }
+
+            return string.IsNullOrWhiteSpace(BusyStatusDetail)
+                ? "Hold tight, this step only takes a moment."
+                : BusyStatusDetail;
+        }
+    }
+
+    public int ActiveOperationProgressValue => IsDeleting ? Math.Min(DeletionProgressCurrent, DeletionProgressTotal) : 0;
+
+    public int ActiveOperationProgressMaximum => IsDeleting && DeletionProgressTotal > 0 ? DeletionProgressTotal : 100;
+
+    public bool IsActiveOperationIndeterminate => !IsDeleting || DeletionProgressTotal <= 0;
+
+    public string ActiveOperationPercentDisplay
+    {
+        get
+        {
+            if (!IsDeleting || DeletionProgressTotal <= 0)
+            {
+                return string.Empty;
+            }
+
+            var percent = (double)Math.Min(DeletionProgressCurrent, DeletionProgressTotal) / DeletionProgressTotal;
+            return percent >= 1d ? "100%" : percent.ToString("P0");
+        }
+    }
+
+    public bool HasActiveOperationPercent => IsDeleting && DeletionProgressTotal > 0;
+
     public bool HasPendingDeletion => PendingDeletionItemCount > 0;
 
     public string PendingDeletionSizeDisplay => FormatSize(PendingDeletionTotalSizeMegabytes);
@@ -406,10 +550,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            BusyStatusMessage = "Analyzing cleanup targets…";
+            BusyStatusDetail = $"Reviewing up to {PreviewCount:N0} top items";
             ClearTargets();
             CurrentPage = 1;
 
             var report = await _cleanupService.PreviewAsync(IncludeDownloads, PreviewCount, SelectedItemKind);
+            var totalItems = report.TotalItemCount;
+            var newItems = _hasCompletedPreview ? Math.Max(0, totalItems - _lastPreviewTotalItemCount) : 0;
+            _lastPreviewTotalItemCount = totalItems;
             foreach (var target in report.Targets.OrderByDescending(t => t.TotalSizeBytes))
             {
                 AddTargetGroup(new CleanupTargetGroupViewModel(target));
@@ -421,6 +570,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
 
             CurrentPhase = CleanupPhase.Preview;
+            HandleRefreshToast(newItems, totalItems);
 
             var status = Targets.Count == 0
                 ? "No cleanup targets detected."
@@ -439,9 +589,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
         catch (Exception ex)
         {
             _mainViewModel.SetStatusMessage($"Cleanup preview failed: {ex.Message}");
+            HideRefreshToast();
         }
         finally
         {
+            BusyStatusMessage = "Working…";
+            BusyStatusDetail = string.Empty;
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(SelectionSummaryText));
@@ -481,6 +634,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     {
         ClearPendingDeletionState();
         CurrentPhase = CleanupPhase.Setup;
+        HideRefreshToast();
     }
 
     private bool CanConfirmCleanup() => !IsBusy && _pendingDeletionItems is { Count: > 0 } && IsConfirmationSheetVisible;
@@ -638,7 +792,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private async Task ExecuteDeletionAsync(
         IReadOnlyList<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> itemsToDelete,
         CleanupDeletionOptions deletionOptions,
-        bool generateReport)
+        bool generateReport,
+        bool showCelebration = true)
     {
         var totalSizeMb = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
 
@@ -695,11 +850,82 @@ public sealed partial class CleanupViewModel : ViewModelBase
                     : $"Deleting {report.Completed}/{report.Total}: {report.CurrentPath}";
             });
 
+            var stopwatch = Stopwatch.StartNew();
             var deletionResult = await _cleanupService.DeleteAsync(models, progress, deletionOptions);
+            stopwatch.Stop();
 
-            foreach (var (group, item) in itemsToDelete)
+            var entryLookup = deletionResult.Entries
+                .GroupBy(static entry => entry.Path, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(static group => group.Key, static group => group.Last(), StringComparer.OrdinalIgnoreCase);
+
+            var removalCandidates = new List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>();
+            var categoriesTouched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var failureItems = new List<CleanupCelebrationFailureViewModel>();
+
+            foreach (var tuple in itemsToDelete)
             {
-                group.Items.Remove(item);
+                var path = tuple.item.Model.FullName;
+                if (!entryLookup.TryGetValue(path, out var entry))
+                {
+                    removalCandidates.Add(tuple);
+                    if (!string.IsNullOrWhiteSpace(tuple.group.Category))
+                    {
+                        categoriesTouched.Add(tuple.group.Category);
+                    }
+
+                    continue;
+                }
+
+                switch (entry.Disposition)
+                {
+                    case CleanupDeletionDisposition.Deleted:
+                        removalCandidates.Add(tuple);
+                        if (!string.IsNullOrWhiteSpace(tuple.group.Category))
+                        {
+                            categoriesTouched.Add(tuple.group.Category);
+                        }
+
+                        break;
+
+                    case CleanupDeletionDisposition.Skipped:
+                        if (ShouldKeepSkippedEntry(entry))
+                        {
+                            tuple.item.IsSelected = false;
+                            failureItems.Add(new CleanupCelebrationFailureViewModel(tuple.group, tuple.item, entry));
+                            if (!string.IsNullOrWhiteSpace(tuple.group.Category))
+                            {
+                                categoriesTouched.Add(tuple.group.Category);
+                            }
+                        }
+                        else
+                        {
+                            removalCandidates.Add(tuple);
+                            if (!string.IsNullOrWhiteSpace(tuple.group.Category))
+                            {
+                                categoriesTouched.Add(tuple.group.Category);
+                            }
+                        }
+
+                        break;
+
+                    case CleanupDeletionDisposition.Failed:
+                        tuple.item.IsSelected = false;
+                        failureItems.Add(new CleanupCelebrationFailureViewModel(tuple.group, tuple.item, entry));
+                        if (!string.IsNullOrWhiteSpace(tuple.group.Category))
+                        {
+                            categoriesTouched.Add(tuple.group.Category);
+                        }
+                        break;
+                }
+            }
+
+            var removed = new HashSet<CleanupPreviewItemViewModel>();
+            foreach (var (group, item) in removalCandidates)
+            {
+                if (removed.Add(item))
+                {
+                    group.Items.Remove(item);
+                }
             }
 
             foreach (var emptyGroup in Targets.Where(static group => group.RemainingItemCount == 0).ToList())
@@ -716,9 +942,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
             OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
 
             var deletionSummary = deletionResult.ToStatusMessage();
+            string? reportPath = null;
+            string? reportError = null;
             if (generateReport)
             {
-                var reportPath = TryGenerateCleanupReport(deletionResult, out var reportError);
+                reportPath = TryGenerateCleanupReport(deletionResult, out reportError);
                 if (!string.IsNullOrWhiteSpace(reportPath))
                 {
                     deletionSummary += $" • Report saved to {reportPath}";
@@ -739,6 +967,19 @@ public sealed partial class CleanupViewModel : ViewModelBase
             {
                 DeletionStatusMessage = deletionSummary;
             }
+
+            if (showCelebration)
+            {
+                ShowCleanupCelebration(deletionResult, categoriesTouched, failureItems, stopwatch.Elapsed, reportPath, deletionSummary);
+            }
+            else
+            {
+                CelebrationFailures.Clear();
+                foreach (var failure in failureItems)
+                {
+                    CelebrationFailures.Add(failure);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -747,6 +988,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
         finally
         {
+            BusyStatusMessage = "Working…";
+            BusyStatusDetail = string.Empty;
             IsDeleting = false;
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
@@ -798,42 +1041,220 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
     }
 
+    private void ShowCleanupCelebration(
+        CleanupDeletionResult deletionResult,
+        IReadOnlyCollection<string> categoriesTouched,
+        IReadOnlyList<CleanupCelebrationFailureViewModel> failureItems,
+        TimeSpan executionDuration,
+        string? reportPath,
+        string deletionSummary)
+    {
+        var reclaimedMegabytes = deletionResult.TotalBytesDeleted / 1_048_576d;
+        CelebrationItemsDeleted = deletionResult.DeletedCount;
+        CelebrationItemsSkipped = deletionResult.SkippedCount;
+        CelebrationItemsFailed = deletionResult.FailedCount;
+        CelebrationReclaimedMegabytes = reclaimedMegabytes;
+        CelebrationCategoryCount = categoriesTouched?.Count ?? 0;
+        var categoryList = BuildCategoryListText(categoriesTouched);
+        CelebrationCategoryList = categoryList;
+
+        CelebrationHeadline = reclaimedMegabytes > 0
+            ? $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed"
+            : deletionResult.DeletedCount > 0
+                ? "Cleanup complete"
+                : "No items removed";
+
+        CelebrationDetails = BuildCelebrationDetails(deletionResult, CelebrationCategoryCount, reclaimedMegabytes);
+        CelebrationDurationDisplay = FormatDuration(executionDuration);
+        var estimatedTimeSaved = EstimateTimeSaved(deletionResult.DeletedCount, deletionResult.TotalBytesDeleted, executionDuration);
+        CelebrationTimeSavedDisplay = FormatDuration(estimatedTimeSaved);
+
+        CelebrationFailures.Clear();
+        foreach (var failure in failureItems)
+        {
+            CelebrationFailures.Add(failure);
+        }
+
+        CelebrationReportPath = !string.IsNullOrWhiteSpace(reportPath) && File.Exists(reportPath)
+            ? reportPath
+            : null;
+
+        var shareCategories = CelebrationCategoryListDisplay;
+        CelebrationShareSummary = BuildCelebrationShareSummary(
+            CelebrationHeadline,
+            deletionResult,
+            CelebrationCategoryCount,
+            shareCategories,
+            CelebrationTimeSavedDisplay,
+            CelebrationReportPath);
+
+        if (deletionResult.DeletedCount == 0 && deletionResult.TotalBytesDeleted == 0 && failureItems.Count > 0)
+        {
+            DeletionStatusMessage = deletionSummary;
+        }
+
+        if (IsConfirmationSheetVisible)
+        {
+            IsConfirmationSheetVisible = false;
+        }
+
+        CurrentPhase = CleanupPhase.Celebration;
+    }
+
+    private static bool ShouldKeepSkippedEntry(CleanupDeletionEntry entry)
+    {
+        if (entry is null)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(entry.Reason))
+        {
+            return true;
+        }
+
+        return entry.Reason.IndexOf("not found", StringComparison.OrdinalIgnoreCase) < 0;
+    }
+
+    private static string BuildCategoryListText(IReadOnlyCollection<string>? categories)
+    {
+        if (categories is null || categories.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var distinct = categories
+            .Where(static category => !string.IsNullOrWhiteSpace(category))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (distinct.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        if (distinct.Count <= 4)
+        {
+            return string.Join(", ", distinct);
+        }
+
+        return string.Join(", ", distinct.Take(4)) + ", ...";
+    }
+
+    private static string BuildCelebrationDetails(CleanupDeletionResult result, int categoryCount, double reclaimedMegabytes)
+    {
+        var parts = new List<string>();
+
+        if (result.DeletedCount > 0)
+        {
+            parts.Add($"{result.DeletedCount:N0} item(s) removed");
+        }
+
+        if (categoryCount > 0)
+        {
+            parts.Add($"{categoryCount:N0} categories affected");
+        }
+
+        if (reclaimedMegabytes > 0)
+        {
+            parts.Add($"{FormatSize(reclaimedMegabytes)} reclaimed");
+        }
+
+        if (result.SkippedCount > 0)
+        {
+            parts.Add($"{result.SkippedCount:N0} skipped");
+        }
+
+        if (result.FailedCount > 0)
+        {
+            parts.Add($"{result.FailedCount:N0} failed");
+        }
+
+        return parts.Count == 0 ? "No files required cleanup." : string.Join(" • ", parts);
+    }
+
+    private static string BuildCelebrationShareSummary(
+        string headline,
+        CleanupDeletionResult result,
+        int categoryCount,
+        string categoriesDisplay,
+        string timeSavedDisplay,
+        string? reportPath)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(headline);
+        builder.AppendLine($"Items removed: {result.DeletedCount:N0}");
+        builder.AppendLine($"Space reclaimed: {FormatSize(result.TotalBytesDeleted / 1_048_576d)}");
+        if (categoryCount > 0 && !string.IsNullOrWhiteSpace(categoriesDisplay) && categoriesDisplay != "—")
+        {
+            builder.AppendLine($"Categories touched: {categoriesDisplay}");
+        }
+
+        builder.AppendLine($"Estimated time saved: {timeSavedDisplay}");
+
+        if (result.FailedCount > 0)
+        {
+            builder.AppendLine($"Attention needed: {result.FailedCount:N0} item(s) require follow-up.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(reportPath))
+        {
+            builder.AppendLine($"Detailed report: {reportPath}");
+        }
+
+        return builder.ToString();
+    }
+
+    private static TimeSpan EstimateTimeSaved(int deletedCount, long totalBytesDeleted, TimeSpan executionDuration)
+    {
+        if (deletedCount <= 0 && totalBytesDeleted <= 0)
+        {
+            return executionDuration;
+        }
+
+        var perItemSeconds = Math.Max(0, deletedCount) * 6d;
+        var sizeBonusSeconds = Math.Max(0d, totalBytesDeleted / 1_073_741_824d) * 60d;
+        var estimateSeconds = Math.Max(30d, perItemSeconds + sizeBonusSeconds);
+
+        var estimate = TimeSpan.FromSeconds(estimateSeconds);
+        if (estimate < executionDuration + TimeSpan.FromSeconds(15))
+        {
+            estimate = executionDuration + TimeSpan.FromSeconds(15);
+        }
+
+        return estimate;
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalHours >= 1)
+        {
+            return $"{duration.TotalHours:F1} hr";
+        }
+
+        if (duration.TotalMinutes >= 1)
+        {
+            return $"{duration.TotalMinutes:F1} min";
+        }
+
+        return $"{duration.TotalSeconds:F0} sec";
+    }
+
     [RelayCommand(CanExecute = nameof(CanSelectAllCurrent))]
     private void SelectAllCurrent()
     {
-        var target = SelectedTarget;
-        if (target is null || FilteredItems.Count == 0)
-        {
-            return;
-        }
-
-        using (target.BeginSelectionUpdate())
-        {
-            foreach (var item in FilteredItems)
-            {
-                item.IsSelected = true;
-            }
-        }
+        ApplySelectionAcrossTargets(true);
     }
 
-    private bool CanSelectAllCurrent() => FilteredItems.Count > 0;
+    private bool CanSelectAllCurrent()
+    {
+        return HasFilteredItemsAcrossTargets();
+    }
 
     [RelayCommand(CanExecute = nameof(CanSelectAcrossPages))]
     private void SelectAllPages()
     {
-        var target = SelectedTarget;
-        if (target is null)
-        {
-            return;
-        }
-
-        using (target.BeginSelectionUpdate())
-        {
-            foreach (var item in target.Items.Where(MatchesFilters))
-            {
-                item.IsSelected = true;
-            }
-        }
+        ApplySelectionToCurrentTarget(true);
     }
 
     [RelayCommand(CanExecute = nameof(CanSelectAcrossPages))]
@@ -897,22 +1318,74 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanClearCurrentSelection))]
     private void ClearCurrentSelection()
     {
-        var target = SelectedTarget;
-        if (target is null || FilteredItems.Count == 0)
+        ApplySelectionToCurrentTarget(false, currentPageOnly: true);
+    }
+
+    private bool CanClearCurrentSelection() => FilteredItems.Any(static item => item.IsSelected);
+
+    private void ApplySelectionAcrossTargets(bool isSelected)
+    {
+        if (Targets.Count == 0)
         {
             return;
         }
 
-        using (target.BeginSelectionUpdate())
+        foreach (var group in Targets)
         {
-            foreach (var item in FilteredItems)
+            ApplySelectionToGroup(group, isSelected);
+        }
+    }
+
+    private void ApplySelectionToCurrentTarget(bool isSelected, bool currentPageOnly = false)
+    {
+        var target = SelectedTarget;
+        if (target is null)
+        {
+            return;
+        }
+
+        ApplySelectionToGroup(target, isSelected, currentPageOnly);
+    }
+
+    private void ApplySelectionToGroup(CleanupTargetGroupViewModel group, bool isSelected, bool currentPageOnly = false)
+    {
+        IEnumerable<CleanupPreviewItemViewModel> items;
+
+        if (currentPageOnly)
+        {
+            if (!ReferenceEquals(group, SelectedTarget))
             {
-                item.IsSelected = false;
+                return;
+            }
+
+            items = FilteredItems;
+        }
+        else
+        {
+            items = group.Items.Where(MatchesFilters);
+        }
+
+        using (group.BeginSelectionUpdate())
+        {
+            foreach (var item in items)
+            {
+                item.IsSelected = isSelected;
             }
         }
     }
 
-    private bool CanClearCurrentSelection() => FilteredItems.Any(static item => item.IsSelected);
+    private bool HasFilteredItemsAcrossTargets()
+    {
+        foreach (var group in Targets)
+        {
+            if (group.Items.Any(MatchesFilters))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
 
     [RelayCommand]
     private void ResetFilters()
@@ -954,25 +1427,158 @@ public sealed partial class CleanupViewModel : ViewModelBase
         PreviewSortMode = mode;
     }
 
+    [RelayCommand]
+    private void CloseCelebration()
+    {
+        CelebrationFailures.Clear();
+        var nextPhase = Targets.Count > 0 ? CleanupPhase.Preview : CleanupPhase.Setup;
+        CurrentPhase = nextPhase;
+        _mainViewModel.SetStatusMessage("Cleanup summary dismissed. Ready for the next scan.");
+    }
+
+    [RelayCommand]
+    private void ShareCelebrationSummary()
+    {
+        if (string.IsNullOrWhiteSpace(CelebrationShareSummary))
+        {
+            _mainViewModel.SetStatusMessage("Cleanup summary is not available yet.");
+            return;
+        }
+
+        try
+        {
+            WindowsClipboard.SetText(CelebrationShareSummary);
+            _mainViewModel.SetStatusMessage("Cleanup summary copied to clipboard.");
+        }
+        catch
+        {
+            _mainViewModel.SetStatusMessage("Unable to access clipboard for sharing.");
+        }
+    }
+
+    [RelayCommand]
+    private void ReviewCelebrationReport()
+    {
+        var path = CelebrationReportPath;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            _mainViewModel.SetStatusMessage("Cleanup report is not available.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(path)
+            {
+                UseShellExecute = true
+            });
+            _mainViewModel.SetStatusMessage("Opening cleanup report...");
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.SetStatusMessage($"Unable to open report: {ex.Message}");
+        }
+    }
+
+    [RelayCommand]
+    private void ScheduleRecurringScan()
+    {
+        _mainViewModel.SetStatusMessage("Recurring cleanup scheduling will arrive soon. In the meantime, set reminders from Settings when available.");
+    }
+
+    [RelayCommand]
+    private void DismissRefreshToast()
+    {
+        HideRefreshToast();
+    }
+
+    [RelayCommand]
+    private async Task RetryFailureAsync(CleanupCelebrationFailureViewModel? failure)
+    {
+        if (failure is null || IsBusy)
+        {
+            return;
+        }
+
+        if (!failure.Group.Items.Contains(failure.Item))
+        {
+            CelebrationFailures.Remove(failure);
+            _mainViewModel.SetStatusMessage("Item already removed — nothing left to retry.");
+            return;
+        }
+
+        try
+        {
+            failure.IsRetrying = true;
+            await ExecuteDeletionAsync(
+                new[] { (failure.Group, failure.Item) },
+                new CleanupDeletionOptions
+                {
+                    PreferRecycleBin = UseRecycleBin,
+                    AllowPermanentDeleteFallback = true
+                },
+                generateReport: false);
+        }
+        finally
+        {
+            failure.IsRetrying = false;
+        }
+    }
+
     partial void OnIsBusyChanged(bool value)
     {
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnBusyStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationStatus));
+        OnPropertyChanged(nameof(ActiveOperationDetail));
+    }
+
+    partial void OnBusyStatusDetailChanged(string value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationDetail));
+    }
+
+    partial void OnIsDeletingChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationStatus));
+        OnPropertyChanged(nameof(ActiveOperationDetail));
+        OnPropertyChanged(nameof(ActiveOperationProgressValue));
+        OnPropertyChanged(nameof(ActiveOperationProgressMaximum));
+        OnPropertyChanged(nameof(IsActiveOperationIndeterminate));
+        OnPropertyChanged(nameof(ActiveOperationPercentDisplay));
+        OnPropertyChanged(nameof(HasActiveOperationPercent));
+    }
+
+    partial void OnDeletionStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationStatus));
+        OnPropertyChanged(nameof(ActiveOperationDetail));
+    }
+
+    partial void OnDeletionProgressCurrentChanged(int value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationDetail));
+        OnPropertyChanged(nameof(ActiveOperationProgressValue));
+        OnPropertyChanged(nameof(IsActiveOperationIndeterminate));
+        OnPropertyChanged(nameof(ActiveOperationPercentDisplay));
+        OnPropertyChanged(nameof(HasActiveOperationPercent));
+    }
+
+    partial void OnDeletionProgressTotalChanged(int value)
+    {
+        OnPropertyChanged(nameof(ActiveOperationDetail));
+        OnPropertyChanged(nameof(ActiveOperationProgressMaximum));
+        OnPropertyChanged(nameof(IsActiveOperationIndeterminate));
+        OnPropertyChanged(nameof(ActiveOperationPercentDisplay));
+        OnPropertyChanged(nameof(HasActiveOperationPercent));
+    }
+
     partial void OnSelectedTargetChanged(CleanupTargetGroupViewModel? oldValue, CleanupTargetGroupViewModel? newValue)
     {
-        if (oldValue is not null)
-        {
-            using (oldValue.BeginSelectionUpdate())
-            {
-                foreach (var item in oldValue.Items)
-                {
-                    item.IsSelected = false;
-                }
-            }
-        }
-
         if (newValue is null || newValue.Items.Count == 0)
         {
             RefreshFilteredItems();
@@ -1018,6 +1624,21 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(PendingDeletionCategoryListDisplay));
     }
 
+    partial void OnCelebrationReclaimedMegabytesChanged(double value)
+    {
+        OnPropertyChanged(nameof(CelebrationReclaimedDisplay));
+    }
+
+    partial void OnCelebrationCategoryListChanged(string value)
+    {
+        OnPropertyChanged(nameof(CelebrationCategoryListDisplay));
+    }
+
+    partial void OnCelebrationReportPathChanged(string? value)
+    {
+        OnPropertyChanged(nameof(CanReviewCelebrationReport));
+    }
+
     partial void OnIsConfirmationSheetVisibleChanged(bool value)
     {
         DeleteSelectedCommand.NotifyCanExecuteChanged();
@@ -1028,6 +1649,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
     {
         OnPropertyChanged(nameof(IsSetupPhase));
         OnPropertyChanged(nameof(IsPreviewPhase));
+        OnPropertyChanged(nameof(IsCelebrationPhase));
+        if (value == CleanupPhase.Setup)
+        {
+            HideRefreshToast();
+        }
     }
 
     partial void OnSelectedExtensionFilterModeChanged(CleanupExtensionFilterMode value)
@@ -1086,6 +1712,102 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
+    private void OnCelebrationFailuresCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasCelebrationFailures));
+    }
+
+    private void HandleRefreshToast(int newItems, int totalItems)
+    {
+        if (_hasCompletedPreview)
+        {
+            if (newItems > 0)
+            {
+                var message = newItems == 1
+                    ? "1 new item surfaced since your last preview."
+                    : $"{newItems:N0} new items surfaced since your last preview.";
+                ShowRefreshToast(message);
+            }
+            else
+            {
+                HideRefreshToast();
+            }
+        }
+
+        _hasCompletedPreview = true;
+
+        if (totalItems == 0)
+        {
+            HideRefreshToast();
+        }
+    }
+
+    private void ShowRefreshToast(string message, TimeSpan? duration = null)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        RefreshToastText = message;
+        IsRefreshToastVisible = true;
+
+        _refreshToastCancellation?.Cancel();
+        var cts = new CancellationTokenSource();
+        _refreshToastCancellation = cts;
+
+        var delay = duration ?? TimeSpan.FromSeconds(5);
+        _ = DismissRefreshToastAfterDelayAsync(delay, cts.Token);
+    }
+
+    private void HideRefreshToast()
+    {
+        _refreshToastCancellation?.Cancel();
+        _refreshToastCancellation = null;
+
+        if (IsRefreshToastVisible)
+        {
+            IsRefreshToastVisible = false;
+        }
+
+        if (!IsRefreshToastVisible)
+        {
+            RefreshToastText = string.Empty;
+        }
+    }
+
+    private async Task DismissRefreshToastAfterDelayAsync(TimeSpan delay, CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(delay, token).ConfigureAwait(false);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        if (token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            await dispatcher.InvokeAsync(() =>
+            {
+                IsRefreshToastVisible = false;
+                RefreshToastText = string.Empty;
+            });
+        }
+        else
+        {
+            IsRefreshToastVisible = false;
+            RefreshToastText = string.Empty;
+        }
+    }
+
     private void ClearTargets()
     {
         foreach (var group in Targets.ToList())
@@ -1095,6 +1817,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         SelectedTarget = null;
         FilteredItems.Clear();
+        HideRefreshToast();
         OnPropertyChanged(nameof(SelectedItemCount));
         OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
         OnPropertyChanged(nameof(HasSelection));
