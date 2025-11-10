@@ -51,12 +51,43 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: n
 Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\\{#MyAppExeName}"""; Check: IsTaskSelected('runatstartup')
 
 [Code]
+type
+  TSystemTime = record
+    Year: Word;
+    Month: Word;
+    DayOfWeek: Word;
+    Day: Word;
+    Hour: Word;
+    Minute: Word;
+    Second: Word;
+    Millisecond: Word;
+  end;
+
 const
   PrevUninstallKey = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{6F4045F0-2C7A-4D37-9A4B-9EFEAD0D8F8D}';
 
-function BuildTimestamp(): string;
+procedure GetLocalTime(var lpSystemTime: TSystemTime);
+  external 'GetLocalTime@kernel32.dll stdcall';
+
+function PadTwoDigits(const Value: Integer): string;
 begin
-  Result := GetDateTimeString('yyyymmddhhnnss', False, CurrentDateTime());
+  if Value < 10 then
+    Result := '0' + IntToStr(Value)
+  else
+    Result := IntToStr(Value);
+end;
+
+function BuildTimestamp: string;
+var
+  ST: TSystemTime;
+begin
+  GetLocalTime(ST);
+  Result := IntToStr(ST.Year)
+    + PadTwoDigits(ST.Month)
+    + PadTwoDigits(ST.Day)
+    + PadTwoDigits(ST.Hour)
+    + PadTwoDigits(ST.Minute)
+    + PadTwoDigits(ST.Second);
 end;
 
 function TryGetPreviousUninstallString(var UninstallString: string): Boolean;
