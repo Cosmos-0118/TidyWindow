@@ -64,7 +64,7 @@ end;
 
 function BuildTimestamp(): string;
 var
-  DT: TDateTime;
+  DT: Extended;
   Year, Month, Day: Word;
   Hour, Minute, Second, Millisecond: Word;
 begin
