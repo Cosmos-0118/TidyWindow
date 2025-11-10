@@ -57,7 +57,7 @@ const
 
 function BuildTimestamp(): string;
 begin
-  Result := GetDateTimeString('yyyymmddhhnnss', False, Now);
+  Result := GetDateTimeString('yyyymmddhhnnss', False);
 end;
 
 function IsPreviousInstalled(var UninstallString: string): Boolean;
