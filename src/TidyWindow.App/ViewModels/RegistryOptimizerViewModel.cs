@@ -461,6 +461,28 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         _snapshotEntriesView = new ReadOnlyObservableCollection<RegistrySnapshotDisplay>(_snapshotEntries);
         _isStatePending = true;
         RecommendedValue = RegistryOptimizerStrings.ValueRecommendationUnavailable;
+
+        var definitionRecommendation = ResolveDefinitionRecommendation();
+        if (!string.IsNullOrWhiteSpace(definitionRecommendation))
+        {
+            RecommendedValue = definitionRecommendation;
+        }
+
+        var initialCustomValue = ResolveInitialCustomValue(definitionRecommendation);
+        if (!string.IsNullOrWhiteSpace(initialCustomValue))
+        {
+            CustomValue = initialCustomValue;
+            _pendingPersistedCustomValue = null;
+        }
+
+        var supportsCustomByDefinition = DetermineSupportsCustomValueFromDefinition();
+        SupportsCustomValue = supportsCustomByDefinition && ResolveCustomParameterName() is not null;
+
+        if (SupportsCustomValue)
+        {
+            ValidateCustomValue();
+            SetBaselineToCurrentCustomValue();
+        }
     }
 
     public string Id { get; }
@@ -654,15 +676,73 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
 
     private string ResolveRecommendedValueText(RegistryValueState? primaryValue)
     {
-        if (primaryValue is null)
+        if (primaryValue is not null)
         {
-            return RegistryOptimizerStrings.ValueRecommendationUnavailable;
+            var recommended = FormatRecommended(primaryValue);
+            if (!string.IsNullOrWhiteSpace(recommended))
+            {
+                return recommended!;
+            }
         }
 
-        var recommended = FormatRecommended(primaryValue);
-        return string.IsNullOrWhiteSpace(recommended)
-            ? RegistryOptimizerStrings.ValueRecommendationUnavailable
-            : recommended!;
+        return ResolveDefinitionRecommendation() ?? RegistryOptimizerStrings.ValueRecommendationUnavailable;
+    }
+
+    private string? ResolveDefinitionRecommendation()
+    {
+        var detectionValues = _definition.Detection?.Values ?? ImmutableArray<RegistryValueDetection>.Empty;
+        if (detectionValues.IsDefaultOrEmpty)
+        {
+            return null;
+        }
+
+        var fallbackDefinition = detectionValues.FirstOrDefault(v => v.SupportsCustomValue)
+            ?? detectionValues.FirstOrDefault();
+
+        if (fallbackDefinition is null)
+        {
+            return null;
+        }
+
+        var detectionRecommended = FormatValue(fallbackDefinition.RecommendedValue);
+        return string.IsNullOrWhiteSpace(detectionRecommended) ? null : detectionRecommended;
+    }
+
+    private string? ResolveInitialCustomValue(string? definitionRecommendation)
+    {
+        if (!string.IsNullOrWhiteSpace(_pendingPersistedCustomValue))
+        {
+            return _pendingPersistedCustomValue;
+        }
+
+        if (!string.IsNullOrWhiteSpace(definitionRecommendation))
+        {
+            return definitionRecommendation;
+        }
+
+        var constraintsDefault = _definition.Constraints?.Default;
+        if (constraintsDefault.HasValue)
+        {
+            return FormatNumeric(constraintsDefault.Value);
+        }
+
+        return null;
+    }
+
+    private bool DetermineSupportsCustomValueFromDefinition()
+    {
+        if (_definition.Constraints is not null)
+        {
+            return true;
+        }
+
+        var detectionValues = _definition.Detection?.Values ?? ImmutableArray<RegistryValueDetection>.Empty;
+        if (!detectionValues.IsDefaultOrEmpty && detectionValues.Any(v => v.SupportsCustomValue))
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private void UpdateSnapshotEntries(RegistryValueState? primaryValue)
@@ -761,7 +841,20 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         else
         {
             _pendingPersistedCustomValue ??= _preferences.GetCustomValue(_definition.Id);
-            ValidateCustomValue();
+            if (!string.IsNullOrWhiteSpace(CustomValue))
+            {
+                ValidateCustomValue();
+            }
+            else if (!string.IsNullOrWhiteSpace(_pendingPersistedCustomValue))
+            {
+                CustomValue = _pendingPersistedCustomValue;
+                _pendingPersistedCustomValue = null;
+            }
+            else
+            {
+                CustomValueIsValid = true;
+                CustomValueError = null;
+            }
             OnPropertyChanged(nameof(CustomValueInfoText));
         }
     }
