@@ -119,6 +119,15 @@ $null = $stateTask.Wait()
 $state = $stateTask.Result
 $card.UpdateState($state)
 
+$currentLines = @()
+foreach ($line in $card.CurrentValueLines)
+{
+    if (-not [string]::IsNullOrWhiteSpace($line))
+    {
+        $currentLines += $line
+    }
+}
+
 [pscustomobject]@{
     Id = $card.Id
     CurrentValue = $card.CurrentValue
@@ -127,4 +136,6 @@ $card.UpdateState($state)
     SupportsCustom = $card.SupportsCustomValue
     CurrentDisplayRaw = ($state.Values | Select-Object -First 1).CurrentDisplay
     CurrentValueRaw = ($state.Values | Select-Object -First 1).CurrentValue
+    CurrentValueLines = $currentLines
+    StateError = $card.StateError
 }

@@ -4,11 +4,12 @@ $ErrorActionPreference = 'Stop'
 if (-not (Get-Module -Name 'TidyWindow.Automation')) {
     $modulePath = Join-Path -Path $PSScriptRoot -ChildPath '..\modules\TidyWindow.Automation.psm1'
     $modulePath = [System.IO.Path]::GetFullPath($modulePath)
-    if (-not (Test-Path -Path $modulePath)) {
+
+    if (-not (Test-Path -LiteralPath $modulePath)) {
         throw "Automation module not found at path '$modulePath'."
     }
 
-    Import-Module $modulePath -Force
+    Import-Module -Name $modulePath -Force
 }
 
 $script:RegistryCmdlet = $null
@@ -18,6 +19,67 @@ $script:RegistryOutputLines = $null
 $script:RegistryErrorLines = $null
 $script:RegistrySucceeded = $true
 $script:RegistrySummaryWritten = $false
+$script:RegistryUserSid = $null
+
+function Get-RegistryOriginalUserSid {
+    param()
+
+    $sid = [System.Environment]::GetEnvironmentVariable('TIDYWINDOW_ORIGINAL_USER_SID')
+    if ([string]::IsNullOrWhiteSpace($sid)) {
+        return $null
+    }
+
+    $trimmed = $sid.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed)) {
+        return $null
+    }
+
+    return $trimmed
+}
+
+function Resolve-RegistryUserPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Path,
+        [string] $UserSid
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $Path
+    }
+
+    $effectiveSid = if (-not [string]::IsNullOrWhiteSpace($UserSid)) { $UserSid.Trim() } else { $script:RegistryUserSid }
+    if ([string]::IsNullOrWhiteSpace($effectiveSid)) {
+        return $Path
+    }
+
+    $prefixes = @(
+        'HKCU:\',
+        'HKCU:',
+        'HKCU\',
+        'HKEY_CURRENT_USER\',
+        'HKEY_CURRENT_USER:',
+        'Registry::HKCU\',
+        'Registry::HKCU:',
+        'Registry::HKEY_CURRENT_USER\',
+        'Registry::HKEY_CURRENT_USER:'
+    )
+
+    foreach ($prefix in $prefixes) {
+        if ($Path.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $remainder = $Path.Substring($prefix.Length).TrimStart([char]'\')
+            $basePath = Join-Path -Path 'Registry::HKEY_USERS' -ChildPath $effectiveSid
+
+            if ([string]::IsNullOrWhiteSpace($remainder)) {
+                return $basePath
+            }
+
+            return Join-Path -Path $basePath -ChildPath $remainder
+        }
+    }
+
+    return $Path
+}
 
 function Initialize-RegistryScript {
     param(
@@ -33,6 +95,7 @@ function Initialize-RegistryScript {
     $script:RegistryErrorLines = [System.Collections.Generic.List[string]]::new()
     $script:RegistrySucceeded = $true
     $script:RegistrySummaryWritten = $false
+    $script:RegistryUserSid = Get-RegistryOriginalUserSid
 
     if ([string]::IsNullOrWhiteSpace($ResultPath)) {
         $script:RegistryResultPath = $null
@@ -84,10 +147,16 @@ function Write-RegistryError {
 }
 
 function Format-RegistryValue {
-    param([object] $Value)
+    param(
+        [object] $Value
+    )
 
     if ($null -eq $Value) {
         return '<not set>'
+    }
+
+    if ($Value -is [byte[]]) {
+        return ($Value | ForEach-Object { '0x{0:X2}' -f $_ }) -join ' '
     }
 
     if ($Value -is [System.Array]) {
@@ -109,9 +178,11 @@ function Set-RegistryValue {
         [string] $Type = 'String'
     )
 
+    $effectivePath = Resolve-RegistryUserPath -Path $Path
+
     $oldValue = $null
     try {
-        $existing = Get-ItemProperty -LiteralPath $Path -Name $Name -ErrorAction Stop
+        $existing = Get-ItemProperty -LiteralPath $effectivePath -Name $Name -ErrorAction Stop
         $oldValue = $existing.$Name
     }
     catch {
@@ -119,40 +190,48 @@ function Set-RegistryValue {
     }
 
     switch ($Type) {
-        'String' { $coercedValue = [string]$Value }
+        'String'       { $coercedValue = [string]$Value }
         'ExpandString' { $coercedValue = [string]$Value }
-        'DWord' { $coercedValue = [int]$Value }
-        'QWord' { $coercedValue = [long]$Value }
-        'Binary' { $coercedValue = [byte[]]$Value }
-        'MultiString' {
-            if ($Value -is [System.Array]) {
-                $coercedValue = @()
-                foreach ($item in $Value) {
-                    $coercedValue += [string]$item
-                }
+        'DWord'        { $coercedValue = [uint32]$Value }
+        'QWord'        { $coercedValue = [uint64]$Value }
+        'Binary' {
+            if ($Value -is [byte[]]) {
+                $coercedValue = $Value
+            }
+            elseif ($Value -is [System.Array]) {
+                $coercedValue = [byte[]]$Value
             }
             else {
-                $coercedValue = @([string]$Value)
+                $coercedValue = [byte[]]@([byte]$Value)
+            }
+        }
+        'MultiString' {
+            if ($Value -is [System.Array]) {
+                $coercedValue = [string[]]$Value
+            }
+            else {
+                $coercedValue = ,([string]$Value)
             }
         }
         default { $coercedValue = $Value }
     }
 
-    if ($script:RegistryCmdlet.ShouldProcess("$Path::$Name", "Set to $coercedValue")) {
-        if (-not (Test-Path -LiteralPath $Path)) {
-            New-Item -Path $Path -Force | Out-Null
+    $displayValue = Format-RegistryValue $coercedValue
+    if ($script:RegistryCmdlet.ShouldProcess("$effectivePath::$Name", "Set to $displayValue")) {
+        if (-not (Test-Path -LiteralPath $effectivePath)) {
+            New-Item -Path $effectivePath -Force | Out-Null
         }
 
         if ($null -ne $oldValue) {
-            Set-ItemProperty -LiteralPath $Path -Name $Name -Value $coercedValue -ErrorAction Stop | Out-Null
+            Set-ItemProperty -LiteralPath $effectivePath -Name $Name -Value $coercedValue -ErrorAction Stop | Out-Null
         }
         else {
-            New-ItemProperty -LiteralPath $Path -Name $Name -Value $coercedValue -PropertyType $Type -Force -ErrorAction Stop | Out-Null
+            New-ItemProperty -LiteralPath $effectivePath -Name $Name -Value $coercedValue -PropertyType $Type -Force -ErrorAction Stop | Out-Null
         }
     }
 
     return [pscustomobject]@{
-        Path      = $Path
+        Path      = $effectivePath
         Name      = $Name
         OldValue  = $oldValue
         NewValue  = $coercedValue
@@ -168,14 +247,16 @@ function Remove-RegistryValue {
         [string] $Name
     )
 
+    $effectivePath = Resolve-RegistryUserPath -Path $Path
+
     $oldValue = $null
     try {
-        $existing = Get-ItemProperty -LiteralPath $Path -Name $Name -ErrorAction Stop
+        $existing = Get-ItemProperty -LiteralPath $effectivePath -Name $Name -ErrorAction Stop
         $oldValue = $existing.$Name
     }
     catch {
         return [pscustomobject]@{
-            Path      = $Path
+            Path      = $effectivePath
             Name      = $Name
             OldValue  = $null
             NewValue  = $null
@@ -183,12 +264,12 @@ function Remove-RegistryValue {
         }
     }
 
-    if ($script:RegistryCmdlet.ShouldProcess("$Path::$Name", 'Remove value')) {
-        Remove-ItemProperty -LiteralPath $Path -Name $Name -ErrorAction Stop
+    if ($script:RegistryCmdlet.ShouldProcess("$effectivePath::$Name", 'Remove value')) {
+        Remove-ItemProperty -LiteralPath $effectivePath -Name $Name -ErrorAction Stop
     }
 
     return [pscustomobject]@{
-        Path      = $Path
+        Path      = $effectivePath
         Name      = $Name
         OldValue  = $oldValue
         NewValue  = $null

@@ -1,13 +1,11 @@
 using System;
-using System.Collections;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Security.Principal;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -16,8 +14,7 @@ using TidyWindow.Core.Automation;
 namespace TidyWindow.Core.Maintenance;
 
 /// <summary>
-/// Provides cached registry state information for configured tweaks, using PowerShell automation
-/// to collect the current value and compare it to the recommended baseline.
+/// Simplifies how registry current values are surfaced by reading the JSON output emitted by the detection script.
 /// </summary>
 public sealed class RegistryStateService : IRegistryStateService
 {
@@ -34,57 +31,36 @@ public sealed class RegistryStateService : IRegistryStateService
 
     private readonly PowerShellInvoker _powerShellInvoker;
     private readonly IRegistryOptimizerService _registryOptimizerService;
-    private readonly ConcurrentDictionary<string, RegistryTweakState> _stateCache;
     private readonly Lazy<string> _detectionScriptPath;
+    private readonly Lazy<string> _cacheDirectory;
 
     public RegistryStateService(PowerShellInvoker powerShellInvoker, IRegistryOptimizerService registryOptimizerService)
     {
         _powerShellInvoker = powerShellInvoker ?? throw new ArgumentNullException(nameof(powerShellInvoker));
         _registryOptimizerService = registryOptimizerService ?? throw new ArgumentNullException(nameof(registryOptimizerService));
-        _stateCache = new ConcurrentDictionary<string, RegistryTweakState>(StringComparer.OrdinalIgnoreCase);
         _detectionScriptPath = new Lazy<string>(ResolveDetectionScriptPath, LazyThreadSafetyMode.ExecutionAndPublication);
+        _cacheDirectory = new Lazy<string>(() => ResolveCacheDirectory(), LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
-    /// <summary>
-    /// Retrieves the cached registry state for the specified tweak, refreshing if necessary.
-    /// </summary>
     public Task<RegistryTweakState> GetStateAsync(string tweakId, CancellationToken cancellationToken = default)
     {
         return GetStateAsync(tweakId, forceRefresh: false, cancellationToken);
     }
 
-    /// <summary>
-    /// Retrieves the registry state, optionally forcing a fresh probe to bypass the session cache.
-    /// </summary>
-    public async Task<RegistryTweakState> GetStateAsync(string tweakId, bool forceRefresh, CancellationToken cancellationToken = default)
+    public Task<RegistryTweakState> GetStateAsync(string tweakId, bool forceRefresh, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(tweakId))
         {
             throw new ArgumentException("Tweak identifier must be provided.", nameof(tweakId));
         }
 
-        if (!forceRefresh && _stateCache.TryGetValue(tweakId, out var cached))
-        {
-            return cached;
-        }
-
-        var state = await EvaluateStateAsync(tweakId, cancellationToken).ConfigureAwait(false);
-        _stateCache.AddOrUpdate(tweakId, state, (_, _) => state);
-        return state;
+        _ = forceRefresh; // no cache retained, always probe fresh
+        return EvaluateStateAsync(tweakId, cancellationToken);
     }
 
-    /// <summary>
-    /// Clears the cached state for the specified tweak or all tweaks when <paramref name="tweakId"/> is null.
-    /// </summary>
     public void Invalidate(string? tweakId = null)
     {
-        if (string.IsNullOrWhiteSpace(tweakId))
-        {
-            _stateCache.Clear();
-            return;
-        }
-
-        _stateCache.TryRemove(tweakId, out _);
+        _ = tweakId; // retained for interface compatibility, nothing to clear
     }
 
     private async Task<RegistryTweakState> EvaluateStateAsync(string tweakId, CancellationToken cancellationToken)
@@ -92,96 +68,71 @@ public sealed class RegistryStateService : IRegistryStateService
         var definition = _registryOptimizerService.GetTweak(tweakId);
         if (definition.Detection is null || definition.Detection.Values.IsDefaultOrEmpty)
         {
-            return new RegistryTweakState(
-                TweakId: tweakId,
-                HasDetection: false,
-                MatchesRecommendation: null,
-                Values: ImmutableArray<RegistryValueState>.Empty,
-                Errors: ImmutableArray<string>.Empty,
-                ObservedAt: DateTimeOffset.UtcNow);
+            return new RegistryTweakState(tweakId, false, null, ImmutableArray<RegistryValueState>.Empty, ImmutableArray<string>.Empty, DateTimeOffset.UtcNow);
         }
 
         var values = ImmutableArray.CreateBuilder<RegistryValueState>();
-        var aggregatedErrors = ImmutableArray.CreateBuilder<string>();
-        bool? matchesRecommendation = null;
+        var errors = ImmutableArray.CreateBuilder<string>();
 
-        foreach (var valueDefinition in definition.Detection.Values)
+        for (var index = 0; index < definition.Detection.Values.Length; index++)
         {
-            var valueState = await ProbeValueAsync(valueDefinition, cancellationToken).ConfigureAwait(false);
-            values.Add(valueState);
+            var valueDefinition = definition.Detection.Values[index];
+            var state = await ProbeValueAsync(tweakId, valueDefinition, index, cancellationToken).ConfigureAwait(false);
+            values.Add(state);
 
-            if (valueState.Errors.Length > 0)
+            if (!state.Errors.IsDefaultOrEmpty)
             {
-                aggregatedErrors.AddRange(valueState.Errors);
+                errors.AddRange(state.Errors);
             }
-
-            if (valueState.IsRecommended is null || valueState.Errors.Length > 0)
-            {
-                continue;
-            }
-
-            matchesRecommendation = matchesRecommendation is null
-                ? valueState.IsRecommended
-                : matchesRecommendation.Value && valueState.IsRecommended.Value;
         }
 
-        return new RegistryTweakState(
-            TweakId: tweakId,
-            HasDetection: true,
-            MatchesRecommendation: matchesRecommendation,
-            Values: values.ToImmutable(),
-            Errors: aggregatedErrors.ToImmutable(),
-            ObservedAt: DateTimeOffset.UtcNow);
+        bool? matchesRecommendation = values
+            .Select(v => v.IsRecommended)
+            .Where(flag => flag.HasValue)
+            .Aggregate((bool?)null, static (current, flag) => current is null ? flag : current.Value && flag!.Value);
+
+        var observedAt = DateTimeOffset.UtcNow;
+        var stateResult = new RegistryTweakState(tweakId, true, matchesRecommendation, values.ToImmutable(), errors.ToImmutable(), observedAt);
+        await WriteAggregatedStateAsync(stateResult, cancellationToken).ConfigureAwait(false);
+        return stateResult;
     }
 
-    private async Task<RegistryValueState> ProbeValueAsync(RegistryValueDetection detection, CancellationToken cancellationToken)
+    private async Task<RegistryValueState> ProbeValueAsync(string tweakId, RegistryValueDetection detection, int index, CancellationToken cancellationToken)
     {
-        var scriptPath = _detectionScriptPath.Value;
         var parameters = BuildParameters(detection);
 
         try
         {
+            var scriptPath = _detectionScriptPath.Value;
             var result = await _powerShellInvoker.InvokeScriptAsync(scriptPath, parameters, cancellationToken).ConfigureAwait(false);
-            var normalizedErrors = NormalizeErrors(result.Errors);
-            var payload = ExtractJsonPayload(result.Output);
 
-            if (string.IsNullOrWhiteSpace(payload))
-            {
-                var errors = EnsureFallbackMessage(AppendError(normalizedErrors, "Registry detection script returned no data."));
-                return BuildFailureState(detection, errors);
-            }
-
-            RegistryProbeModel? model;
-            try
-            {
-                model = JsonSerializer.Deserialize<RegistryProbeModel>(payload, JsonOptions);
-            }
-            catch (JsonException ex)
-            {
-                var errors = EnsureFallbackMessage(AppendError(normalizedErrors, "Failed to parse registry detection payload: " + ex.Message));
-                return BuildFailureState(detection, errors);
-            }
+            var model = ParseProbeModel(result.Output);
+            var scriptErrors = NormalizeErrors(result.Errors);
 
             if (model is null)
             {
-                var errors = EnsureFallbackMessage(AppendError(normalizedErrors, "Registry detection payload was empty."));
+                var errors = scriptErrors.IsDefaultOrEmpty
+                    ? ImmutableArray.Create("Registry detection script did not produce JSON output.")
+                    : scriptErrors;
+
                 return BuildFailureState(detection, errors);
             }
 
-            var valueState = MapToValueState(detection, model);
+            await WriteProbeModelAsync(tweakId, detection, index, model, cancellationToken).ConfigureAwait(false);
 
-            var combinedErrors = normalizedErrors;
-            if (!result.IsSuccess)
+            var mapped = MapToValueState(detection, model);
+
+            if (!scriptErrors.IsDefaultOrEmpty)
             {
-                combinedErrors = AppendError(combinedErrors, "Registry detection completed with errors.");
+                mapped = mapped with { Errors = scriptErrors };
             }
 
-            if (!combinedErrors.IsDefaultOrEmpty)
+            if (!result.IsSuccess && scriptErrors.IsDefaultOrEmpty)
             {
-                valueState = valueState with { Errors = combinedErrors };
+                mapped = mapped with { Errors = ImmutableArray.Create("Registry detection script completed with errors.") };
             }
 
-            return valueState;
+            return mapped;
         }
         catch (OperationCanceledException)
         {
@@ -191,6 +142,157 @@ public sealed class RegistryStateService : IRegistryStateService
         {
             return BuildFailureState(detection, ImmutableArray.Create(ex.Message));
         }
+    }
+
+    private static RegistryProbeModel? ParseProbeModel(IReadOnlyList<string> rawOutput)
+    {
+        if (rawOutput is null || rawOutput.Count == 0)
+        {
+            return null;
+        }
+
+        for (var index = rawOutput.Count - 1; index >= 0; index--)
+        {
+            var line = rawOutput[index];
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            var trimmed = line.TrimStart('\uFEFF').TrimStart();
+            if (!LooksLikeJsonPayload(trimmed))
+            {
+                continue;
+            }
+
+            if (TryDeserialize(trimmed, out var directModel))
+            {
+                return directModel;
+            }
+
+            var builder = new System.Text.StringBuilder();
+            for (var cursor = index; cursor < rawOutput.Count; cursor++)
+            {
+                var segment = rawOutput[cursor];
+                if (segment is null)
+                {
+                    continue;
+                }
+
+                if (builder.Length > 0)
+                {
+                    builder.AppendLine();
+                }
+
+                builder.Append(segment.TrimStart('\uFEFF'));
+                var payload = builder.ToString().Trim();
+
+                if (!LooksLikeJsonPayload(payload))
+                {
+                    continue;
+                }
+
+                if (TryDeserialize(payload, out var model))
+                {
+                    return model;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static bool LooksLikeJsonPayload(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        foreach (var ch in value)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                continue;
+            }
+
+            return ch == '{' || ch == '[';
+        }
+
+        return false;
+    }
+
+    private static bool TryDeserialize(string payload, out RegistryProbeModel? model)
+    {
+        try
+        {
+            model = JsonSerializer.Deserialize<RegistryProbeModel>(payload, JsonOptions);
+            return model is not null;
+        }
+        catch
+        {
+            model = null;
+            return false;
+        }
+    }
+
+    private static RegistryValueState MapToValueState(RegistryValueDetection detection, RegistryProbeModel model)
+    {
+        var snapshots = model.Values is null
+            ? ImmutableArray<RegistryValueSnapshot>.Empty
+            : model.Values.Select(entry => new RegistryValueSnapshot(
+                    entry.Path ?? ComposeRegistryPath(detection.Hive, detection.Key),
+                    entry.Value is null ? null : ConvertJsonValue(entry.Value.Value),
+                    entry.Display ?? string.Empty))
+                .ToImmutableArray();
+
+        var currentDisplay = ToDisplayList(model.CurrentDisplay);
+        var currentValue = model.CurrentValue is null ? null : ConvertJsonValue(model.CurrentValue.Value);
+
+        var recommendedValue = model.RecommendedValue is null
+            ? detection.RecommendedValue
+            : ConvertJsonValue(model.RecommendedValue.Value);
+
+        var recommendedDisplay = !string.IsNullOrWhiteSpace(model.RecommendedDisplay)
+            ? model.RecommendedDisplay
+            : FormatValue(recommendedValue);
+
+        return new RegistryValueState(
+            RegistryPathPattern: model.Path ?? ComposeRegistryPath(detection.Hive, detection.Key),
+            ValueName: model.ValueName ?? detection.ValueName,
+            LookupValueName: model.LookupValueName ?? detection.LookupValueName,
+            ValueType: model.ValueType ?? detection.ValueType,
+            SupportsCustomValue: model.SupportsCustomValue || detection.SupportsCustomValue,
+            CurrentValue: currentValue,
+            CurrentDisplay: currentDisplay,
+            RecommendedValue: recommendedValue,
+            RecommendedDisplay: recommendedDisplay,
+            IsRecommended: model.IsRecommendedState,
+            Snapshots: snapshots,
+            Errors: ImmutableArray<string>.Empty);
+    }
+
+    private static ImmutableArray<string> ToDisplayList(JsonElement? element)
+    {
+        if (element is null || element.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+        {
+            return ImmutableArray<string>.Empty;
+        }
+
+        if (element.Value.ValueKind == JsonValueKind.Array)
+        {
+            return element.Value
+                .EnumerateArray()
+                .Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString())
+                .Where(text => !string.IsNullOrWhiteSpace(text))
+                .Select(text => text!.Trim())
+                .ToImmutableArray();
+        }
+
+        var single = element.Value.ValueKind == JsonValueKind.String ? element.Value.GetString() : element.Value.ToString();
+        return string.IsNullOrWhiteSpace(single)
+            ? ImmutableArray<string>.Empty
+            : ImmutableArray.Create(single!.Trim());
     }
 
     private static RegistryValueState BuildFailureState(RegistryValueDetection detection, ImmutableArray<string> errors)
@@ -204,547 +306,10 @@ public sealed class RegistryStateService : IRegistryStateService
             CurrentValue: null,
             CurrentDisplay: ImmutableArray<string>.Empty,
             RecommendedValue: detection.RecommendedValue,
-            RecommendedDisplay: null,
+            RecommendedDisplay: FormatValue(detection.RecommendedValue),
             IsRecommended: null,
             Snapshots: ImmutableArray<RegistryValueSnapshot>.Empty,
             Errors: errors);
-    }
-
-    private static RegistryValueState MapToValueState(RegistryValueDetection detection, RegistryProbeModel model)
-    {
-        var snapshots = model.Values is null
-            ? ImmutableArray<RegistryValueSnapshot>.Empty
-            : model.Values
-                .Select(entry => new RegistryValueSnapshot(entry.Path ?? ComposeRegistryPath(detection.Hive, detection.Key), ConvertJsonValue(entry.Value), entry.Display ?? string.Empty))
-                .ToImmutableArray();
-
-        var currentValue = ResolveCurrentValue(model.CurrentValue, snapshots);
-        var currentDisplay = ResolveCurrentDisplay(ExtractDisplayLines(model.CurrentDisplay), currentValue, snapshots);
-
-        var recommendedValue = model.RecommendedValue.HasValue
-            ? ConvertJsonValue(model.RecommendedValue.Value)
-            : detection.RecommendedValue;
-
-        var recommendedDisplay = EnsureDisplay(model.RecommendedDisplay, recommendedValue);
-
-        var supportsCustomValue = model.SupportsCustomValue || detection.SupportsCustomValue;
-
-        var isRecommended = DetermineRecommendationState(
-            model.IsRecommendedState,
-            currentDisplay,
-            recommendedDisplay,
-            currentValue,
-            recommendedValue);
-
-        return new RegistryValueState(
-            RegistryPathPattern: model.Path ?? ComposeRegistryPath(detection.Hive, detection.Key),
-            ValueName: model.ValueName ?? detection.ValueName,
-            LookupValueName: model.LookupValueName ?? detection.LookupValueName,
-            ValueType: model.ValueType ?? detection.ValueType,
-            SupportsCustomValue: supportsCustomValue,
-            CurrentValue: currentValue,
-            CurrentDisplay: currentDisplay,
-            RecommendedValue: recommendedValue,
-            RecommendedDisplay: recommendedDisplay,
-            IsRecommended: isRecommended,
-            Snapshots: snapshots,
-            Errors: ImmutableArray<string>.Empty);
-    }
-
-    private static object? ResolveCurrentValue(JsonElement? currentValueElement, ImmutableArray<RegistryValueSnapshot> snapshots)
-    {
-        if (currentValueElement.HasValue)
-        {
-            return ConvertJsonValue(currentValueElement.Value);
-        }
-
-        foreach (var snapshot in snapshots)
-        {
-            if (snapshot.Value is not null)
-            {
-                return snapshot.Value;
-            }
-        }
-
-        return null;
-    }
-
-    private static ImmutableArray<string> ResolveCurrentDisplay(ImmutableArray<string> display, object? currentValue, ImmutableArray<RegistryValueSnapshot> snapshots)
-    {
-        if (HasDisplayContent(display))
-        {
-            return display;
-        }
-
-        if (currentValue is not null)
-        {
-            var formatted = FormatRegistryValueForDisplay(currentValue);
-            if (!string.IsNullOrWhiteSpace(formatted))
-            {
-                return ImmutableArray.Create(formatted);
-            }
-        }
-
-        foreach (var snapshot in snapshots)
-        {
-            if (!string.IsNullOrWhiteSpace(snapshot.Display))
-            {
-                return ImmutableArray.Create(snapshot.Display.Trim());
-            }
-
-            if (snapshot.Value is not null)
-            {
-                var formatted = FormatRegistryValueForDisplay(snapshot.Value);
-                if (!string.IsNullOrWhiteSpace(formatted))
-                {
-                    return ImmutableArray.Create(formatted);
-                }
-            }
-        }
-
-        return ImmutableArray<string>.Empty;
-    }
-
-    private static ImmutableArray<string> EnsureDisplay(ImmutableArray<string> display, object? fallbackValue)
-    {
-        if (HasDisplayContent(display))
-        {
-            if (fallbackValue is not null)
-            {
-                var fallbackText = FormatRegistryValueForDisplay(fallbackValue);
-                if (!string.IsNullOrWhiteSpace(fallbackText))
-                {
-                    var displayText = GetFirstDisplayLine(display);
-                    if (ShouldOverrideDisplayWithFallback(displayText, fallbackText))
-                    {
-                        return ImmutableArray.Create(fallbackText);
-                    }
-                }
-            }
-
-            return display;
-        }
-
-        if (fallbackValue is null)
-        {
-            return ImmutableArray<string>.Empty;
-        }
-
-        var formatted = FormatRegistryValueForDisplay(fallbackValue);
-        return string.IsNullOrWhiteSpace(formatted)
-            ? ImmutableArray<string>.Empty
-            : ImmutableArray.Create(formatted);
-    }
-
-    private static string? EnsureDisplay(string? display, object? fallbackValue)
-    {
-        if (!string.IsNullOrWhiteSpace(display))
-        {
-            return display;
-        }
-
-        var formatted = FormatRegistryValueForDisplay(fallbackValue);
-        return string.IsNullOrWhiteSpace(formatted) ? null : formatted;
-    }
-
-    private static bool? DetermineRecommendationState(
-        bool? scriptState,
-        ImmutableArray<string> currentDisplay,
-        string? recommendedDisplay,
-        object? currentValue,
-        object? recommendedValue)
-    {
-        var computed = ComputeRecommendation(currentDisplay, recommendedDisplay, currentValue, recommendedValue);
-        return computed ?? scriptState;
-    }
-
-    private static bool? ComputeRecommendation(
-        ImmutableArray<string> currentDisplay,
-        string? recommendedDisplay,
-        object? currentValue,
-        object? recommendedValue)
-    {
-        if (recommendedValue is null && string.IsNullOrWhiteSpace(recommendedDisplay))
-        {
-            return null;
-        }
-
-        if (recommendedValue is not null)
-        {
-            var structural = AreValuesEquivalent(currentValue, recommendedValue);
-            if (structural.HasValue)
-            {
-                return structural;
-            }
-        }
-
-        var currentText = GetFirstDisplayLine(currentDisplay);
-        if (string.IsNullOrWhiteSpace(currentText))
-        {
-            currentText = FormatRegistryValueForDisplay(currentValue);
-        }
-
-        var expectedText = !string.IsNullOrWhiteSpace(recommendedDisplay)
-            ? recommendedDisplay
-            : FormatRegistryValueForDisplay(recommendedValue);
-
-        if (string.IsNullOrWhiteSpace(expectedText))
-        {
-            return null;
-        }
-
-        if (string.IsNullOrWhiteSpace(currentText))
-        {
-            return recommendedValue is null ? true : false;
-        }
-
-        return string.Equals(currentText, expectedText, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string? GetFirstDisplayLine(ImmutableArray<string> display)
-    {
-        if (display.IsDefaultOrEmpty)
-        {
-            return null;
-        }
-
-        foreach (var line in display)
-        {
-            if (!string.IsNullOrWhiteSpace(line))
-            {
-                return line.Trim();
-            }
-        }
-
-        return null;
-    }
-
-    private static bool ShouldOverrideDisplayWithFallback(string? displayText, string fallbackText)
-    {
-        if (string.IsNullOrWhiteSpace(fallbackText))
-        {
-            return false;
-        }
-
-        if (string.IsNullOrWhiteSpace(displayText))
-        {
-            return true;
-        }
-
-        if (TryParseNumeric(displayText, out var displayNumber) && TryParseNumeric(fallbackText, out var fallbackNumber))
-        {
-            return Math.Abs(displayNumber - fallbackNumber) > 0.0000001d;
-        }
-
-        return false;
-    }
-
-    private static bool TryParseNumeric(string text, out double value)
-    {
-        return double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.InvariantCulture, out value)
-            || double.TryParse(text, NumberStyles.Float | NumberStyles.AllowThousands, CultureInfo.CurrentCulture, out value);
-    }
-
-    private static bool? AreValuesEquivalent(object? left, object? right)
-    {
-        if (left is null && right is null)
-        {
-            return true;
-        }
-
-        if (left is null || right is null)
-        {
-            return false;
-        }
-
-        if (left is IEnumerable leftEnumerable && left is not string && right is IEnumerable rightEnumerable && right is not string)
-        {
-            var leftList = leftEnumerable.Cast<object?>().ToList();
-            var rightList = rightEnumerable.Cast<object?>().ToList();
-
-            if (leftList.Count != rightList.Count)
-            {
-                return false;
-            }
-
-            for (var index = 0; index < leftList.Count; index++)
-            {
-                var nested = AreValuesEquivalent(leftList[index], rightList[index]);
-                if (nested != true)
-                {
-                    return nested;
-                }
-            }
-
-            return true;
-        }
-
-        var leftScalar = NormalizeComparableString(left);
-        var rightScalar = NormalizeComparableString(right);
-
-        if (leftScalar is null || rightScalar is null)
-        {
-            return null;
-        }
-
-        return string.Equals(leftScalar, rightScalar, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string? NormalizeComparableString(object? value)
-    {
-        return value switch
-        {
-            null => null,
-            string s => string.IsNullOrWhiteSpace(s) ? string.Empty : s.Trim(),
-            bool b => b ? "True" : "False",
-            sbyte or byte or short or ushort or int or uint or long or ulong or float or double or decimal => Convert.ToString(value, CultureInfo.InvariantCulture),
-            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-            _ => value.ToString()?.Trim()
-        };
-    }
-
-    private static string? FormatRegistryValueForDisplay(object? value)
-    {
-        if (value is null)
-        {
-            return null;
-        }
-
-        if (value is string s)
-        {
-            return s;
-        }
-
-        if (value is bool b)
-        {
-            return b ? "True" : "False";
-        }
-
-        if (value is IEnumerable enumerable && value is not string)
-        {
-            var parts = new List<string>();
-            foreach (var item in enumerable)
-            {
-                if (item is null)
-                {
-                    parts.Add("<null>");
-                    continue;
-                }
-
-                var formatted = FormatRegistryValueForDisplay(item);
-                parts.Add(string.IsNullOrWhiteSpace(formatted) ? item.ToString() ?? string.Empty : formatted);
-            }
-
-            return parts.Count == 0 ? string.Empty : string.Join(", ", parts);
-        }
-
-        return Convert.ToString(value, CultureInfo.CurrentCulture);
-    }
-
-    private static bool HasDisplayContent(ImmutableArray<string> display)
-    {
-        if (display.IsDefaultOrEmpty)
-        {
-            return false;
-        }
-
-        foreach (var line in display)
-        {
-            if (!string.IsNullOrWhiteSpace(line))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static Dictionary<string, object?> BuildParameters(RegistryValueDetection detection)
-    {
-        var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["RegistryPath"] = ComposeRegistryPath(detection.Hive, detection.Key),
-            ["ValueName"] = detection.ValueName,
-            ["ValueType"] = detection.ValueType,
-            ["SupportsCustomValue"] = detection.SupportsCustomValue
-        };
-
-        if (detection.RecommendedValue is not null)
-        {
-            parameters["RecommendedValue"] = SerializeRecommendedValue(detection.RecommendedValue);
-        }
-
-        if (!string.IsNullOrWhiteSpace(detection.LookupValueName))
-        {
-            parameters["LookupValueName"] = detection.LookupValueName;
-        }
-
-        if (string.Equals(detection.Hive, "HKCU", StringComparison.OrdinalIgnoreCase))
-        {
-            var sid = OriginalUserSid.Value;
-            if (!string.IsNullOrWhiteSpace(sid))
-            {
-                parameters["UserSid"] = sid;
-            }
-        }
-
-        return parameters;
-    }
-
-    private static ImmutableArray<string> ExtractDisplayLines(JsonElement? element)
-    {
-        if (element is null || element.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
-        {
-            return ImmutableArray<string>.Empty;
-        }
-
-        var value = element.Value;
-        if (value.ValueKind == JsonValueKind.Array)
-        {
-            var builder = ImmutableArray.CreateBuilder<string>();
-            foreach (var entry in value.EnumerateArray())
-            {
-                var text = FormatDisplayElement(entry);
-                if (!string.IsNullOrWhiteSpace(text))
-                {
-                    builder.Add(text);
-                }
-            }
-
-            return builder.Count == 0 ? ImmutableArray<string>.Empty : builder.ToImmutable();
-        }
-
-        var single = FormatDisplayElement(value);
-        return string.IsNullOrWhiteSpace(single)
-            ? ImmutableArray<string>.Empty
-            : ImmutableArray.Create(single);
-    }
-
-    private static string FormatDisplayElement(JsonElement element)
-    {
-        return element.ValueKind switch
-        {
-            JsonValueKind.Null => string.Empty,
-            JsonValueKind.Undefined => string.Empty,
-            JsonValueKind.String => element.GetString() ?? string.Empty,
-            _ => element.ToString()
-        } ?? string.Empty;
-    }
-
-    private static string ComposeRegistryPath(string hive, string key)
-    {
-        var trimmedKey = (key ?? string.Empty).TrimStart('\\');
-        return string.IsNullOrWhiteSpace(trimmedKey)
-            ? $"{hive}:\\"
-            : $"{hive}:\\{trimmedKey}";
-    }
-
-    private static string SerializeRecommendedValue(object value)
-    {
-        return value switch
-        {
-            string s => s,
-            bool b => b ? "1" : "0",
-            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
-            IEnumerable enumerable when value is not string => string.Join(',', enumerable.Cast<object?>().Where(static item => item is not null).Select(static item => Convert.ToString(item, CultureInfo.InvariantCulture))),
-            _ => value.ToString() ?? string.Empty
-        };
-    }
-
-    private static string? ExtractJsonPayload(IReadOnlyList<string> output)
-    {
-        if (output is null || output.Count == 0)
-        {
-            return null;
-        }
-
-        for (var index = output.Count - 1; index >= 0; index--)
-        {
-            var candidate = output[index];
-            if (string.IsNullOrWhiteSpace(candidate))
-            {
-                continue;
-            }
-
-            var trimmedCandidate = candidate.TrimStart('\uFEFF');
-            var leadingTrimmed = trimmedCandidate.TrimStart();
-            if (!StartsJsonEnvelope(leadingTrimmed))
-            {
-                continue;
-            }
-
-            var normalizedCandidate = trimmedCandidate.Trim();
-            if (TryNormalizeJson(normalizedCandidate, out var payload))
-            {
-                return payload;
-            }
-
-            var builder = new StringBuilder();
-            for (var cursor = index; cursor < output.Count; cursor++)
-            {
-                var segment = output[cursor];
-                if (segment is null)
-                {
-                    continue;
-                }
-
-                if (builder.Length > 0)
-                {
-                    builder.AppendLine();
-                }
-
-                builder.Append(segment.TrimStart('\uFEFF'));
-
-                var combined = builder.ToString().Trim();
-                if (!StartsJsonEnvelope(combined))
-                {
-                    continue;
-                }
-
-                if (TryNormalizeJson(combined, out payload))
-                {
-                    return payload;
-                }
-            }
-        }
-
-        return null;
-    }
-
-    private static bool StartsJsonEnvelope(string value)
-    {
-        if (string.IsNullOrEmpty(value))
-        {
-            return false;
-        }
-
-        var first = value[0];
-        return first == '{' || first == '[';
-    }
-
-    private static bool TryNormalizeJson(string value, out string normalized)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            normalized = string.Empty;
-            return false;
-        }
-
-        try
-        {
-            using var doc = JsonDocument.Parse(value, new JsonDocumentOptions
-            {
-                CommentHandling = JsonCommentHandling.Skip,
-                AllowTrailingCommas = true
-            });
-            normalized = value.Trim();
-            return true;
-        }
-        catch (JsonException)
-        {
-            normalized = string.Empty;
-            return false;
-        }
     }
 
     private static ImmutableArray<string> NormalizeErrors(IReadOnlyList<string>? errors)
@@ -764,10 +329,7 @@ public sealed class RegistryStateService : IRegistryStateService
                 continue;
             }
 
-            // Strip common ANSI escape sequences that may appear when scripts log colourized messages.
-            var trimmed = System.Text.RegularExpressions.Regex.Replace(entry, @"\x1B\[[0-9;?]*[ -/]*[@-~]", string.Empty);
-            trimmed = System.Text.RegularExpressions.Regex.Replace(trimmed, @"\x1B", string.Empty);
-            trimmed = trimmed.Trim();
+            var trimmed = entry.Trim();
             if (trimmed.Length == 0)
             {
                 continue;
@@ -782,34 +344,173 @@ public sealed class RegistryStateService : IRegistryStateService
         return builder.ToImmutable();
     }
 
-    private static ImmutableArray<string> AppendError(ImmutableArray<string> errors, string? message)
+    private static Dictionary<string, object?> BuildParameters(RegistryValueDetection detection)
     {
-        if (string.IsNullOrWhiteSpace(message))
+        var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
         {
-            return errors.IsDefault ? ImmutableArray<string>.Empty : errors;
+            ["RegistryPath"] = ComposeRegistryPath(detection.Hive, detection.Key),
+            ["ValueName"] = detection.ValueName,
+            ["ValueType"] = detection.ValueType,
+            ["SupportsCustomValue"] = detection.SupportsCustomValue
+        };
+
+        if (detection.RecommendedValue is not null)
+        {
+            parameters["RecommendedValue"] = FormatValue(detection.RecommendedValue);
         }
 
-        var trimmed = message.Trim();
-        if (errors.IsDefaultOrEmpty)
+        if (!string.IsNullOrWhiteSpace(detection.LookupValueName))
         {
-            return ImmutableArray.Create(trimmed);
+            parameters["LookupValueName"] = detection.LookupValueName;
         }
 
-        if (errors.Any(line => string.Equals(line, trimmed, StringComparison.OrdinalIgnoreCase)))
+        if (string.Equals(detection.Hive, "HKCU", StringComparison.OrdinalIgnoreCase))
         {
-            return errors;
+            var sid = OriginalUserSid.Value;
+            if (!string.IsNullOrWhiteSpace(sid))
+            {
+                parameters["UserSid"] = sid;
+            }
         }
 
-        var builder = errors.ToBuilder();
-        builder.Add(trimmed);
-        return builder.ToImmutable();
+        return parameters;
     }
 
-    private static ImmutableArray<string> EnsureFallbackMessage(ImmutableArray<string> errors)
+    private static string SanitizePathSegment(string? value)
     {
-        return errors.IsDefaultOrEmpty
-            ? ImmutableArray.Create("Registry detection failed without diagnostics.")
-            : errors;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "value";
+        }
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var ch in value)
+        {
+            if (Array.IndexOf(invalid, ch) >= 0 || ch == Path.DirectorySeparatorChar || ch == Path.AltDirectorySeparatorChar)
+            {
+                builder.Append('_');
+            }
+            else if (char.IsWhiteSpace(ch))
+            {
+                builder.Append('_');
+            }
+            else
+            {
+                builder.Append(ch);
+            }
+        }
+
+        var sanitized = builder.ToString().Trim('_');
+        return sanitized.Length == 0 ? "value" : sanitized;
+    }
+
+    private async Task WriteProbeModelAsync(string tweakId, RegistryValueDetection detection, int index, RegistryProbeModel model, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tweakDirectory = Path.Combine(_cacheDirectory.Value, SanitizePathSegment(tweakId));
+            Directory.CreateDirectory(tweakDirectory);
+
+            var baseName = SanitizePathSegment(model.ValueName ?? detection.ValueName ?? $"value-{index}");
+            var fileName = $"{baseName}-{index}.json";
+            var destination = Path.Combine(tweakDirectory, fileName);
+
+            await using var stream = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
+            await JsonSerializer.SerializeAsync(stream, model, JsonOptions, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Cache persistence is best-effort.
+        }
+    }
+
+    private async Task WriteAggregatedStateAsync(RegistryTweakState state, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var tweakDirectory = Path.Combine(_cacheDirectory.Value, SanitizePathSegment(state.TweakId));
+            Directory.CreateDirectory(tweakDirectory);
+
+            var model = new RegistryStateCacheModel
+            {
+                TweakId = state.TweakId,
+                ObservedAt = state.ObservedAt,
+                MatchesRecommendation = state.MatchesRecommendation,
+                Errors = state.Errors.Where(static e => !string.IsNullOrWhiteSpace(e)).Select(static e => e.Trim()).ToList(),
+                Values = state.Values.Select(static v => new RegistryValueCacheModel
+                {
+                    RegistryPathPattern = v.RegistryPathPattern,
+                    ValueName = v.ValueName,
+                    LookupValueName = v.LookupValueName,
+                    ValueType = v.ValueType,
+                    SupportsCustomValue = v.SupportsCustomValue,
+                    CurrentValue = v.CurrentValue,
+                    CurrentDisplay = v.CurrentDisplay.IsDefaultOrEmpty ? new List<string>() : v.CurrentDisplay.Where(static line => !string.IsNullOrWhiteSpace(line)).Select(static line => line.Trim()).ToList(),
+                    RecommendedValue = v.RecommendedValue,
+                    RecommendedDisplay = v.RecommendedDisplay,
+                    IsRecommended = v.IsRecommended,
+                    Snapshots = v.Snapshots.Select(static snapshot => new RegistrySnapshotCacheModel
+                    {
+                        Path = snapshot.Path,
+                        Value = snapshot.Value,
+                        Display = snapshot.Display
+                    }).ToList(),
+                    Errors = v.Errors.IsDefaultOrEmpty ? new List<string>() : v.Errors.Where(static e => !string.IsNullOrWhiteSpace(e)).Select(static e => e.Trim()).ToList()
+                }).ToList()
+            };
+
+            var destination = Path.Combine(tweakDirectory, "current-values.json");
+            await using var stream = new FileStream(destination, FileMode.Create, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
+            await JsonSerializer.SerializeAsync(stream, model, JsonOptions, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            // Cache hydration is best-effort.
+        }
+    }
+
+    private string ResolveCacheDirectory()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        var directory = new DirectoryInfo(baseDirectory);
+
+        while (directory is not null)
+        {
+            var candidate = Path.Combine(directory.FullName, "data", "cache", "registry");
+            if (Directory.Exists(candidate))
+            {
+                Directory.CreateDirectory(candidate);
+                return candidate;
+            }
+
+            directory = directory.Parent;
+        }
+
+        var fallback = Path.Combine(baseDirectory, "data", "cache", "registry");
+        Directory.CreateDirectory(fallback);
+        return fallback;
+    }
+
+    private static string ComposeRegistryPath(string hive, string key)
+    {
+        var trimmedKey = (key ?? string.Empty).TrimStart('\\');
+        return string.IsNullOrWhiteSpace(trimmedKey)
+            ? $"{hive}:\\"
+            : $"{hive}:\\{trimmedKey}";
+    }
+
+    private static string? FormatValue(object? value)
+    {
+        return value switch
+        {
+            null => null,
+            string s => s,
+            bool b => b ? "1" : "0",
+            IFormattable formattable => formattable.ToString(null, CultureInfo.InvariantCulture),
+            _ => value?.ToString()
+        };
     }
 
     private static object? ConvertJsonValue(JsonElement element)
@@ -886,6 +587,55 @@ public sealed class RegistryStateService : IRegistryStateService
         }
     }
 
+    private sealed class RegistryStateCacheModel
+    {
+        public string TweakId { get; set; } = string.Empty;
+
+        public DateTimeOffset ObservedAt { get; set; }
+
+        public bool? MatchesRecommendation { get; set; }
+
+        public List<string> Errors { get; set; } = new();
+
+        public List<RegistryValueCacheModel> Values { get; set; } = new();
+    }
+
+    private sealed class RegistryValueCacheModel
+    {
+        public string RegistryPathPattern { get; set; } = string.Empty;
+
+        public string ValueName { get; set; } = string.Empty;
+
+        public string? LookupValueName { get; set; }
+
+        public string ValueType { get; set; } = string.Empty;
+
+        public bool SupportsCustomValue { get; set; }
+
+        public object? CurrentValue { get; set; }
+
+        public List<string> CurrentDisplay { get; set; } = new();
+
+        public object? RecommendedValue { get; set; }
+
+        public string? RecommendedDisplay { get; set; }
+
+        public bool? IsRecommended { get; set; }
+
+        public List<RegistrySnapshotCacheModel> Snapshots { get; set; } = new();
+
+        public List<string> Errors { get; set; } = new();
+    }
+
+    private sealed class RegistrySnapshotCacheModel
+    {
+        public string Path { get; set; } = string.Empty;
+
+        public object? Value { get; set; }
+
+        public string Display { get; set; } = string.Empty;
+    }
+
     private sealed class RegistryProbeModel
     {
         public string? Path { get; set; }
@@ -915,7 +665,7 @@ public sealed class RegistryStateService : IRegistryStateService
     {
         public string? Path { get; set; }
 
-        public JsonElement Value { get; set; }
+        public JsonElement? Value { get; set; }
 
         public string? Display { get; set; }
     }

@@ -1,6 +1,7 @@
 bin/
 obj/
 .vs/
+data/cache/registry/
 *.user
 *.suo
 *.userprefs

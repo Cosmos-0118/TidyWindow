@@ -21,31 +21,21 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
     private readonly IRegistryOptimizerService _registryService;
-    private readonly IRegistryStateService _registryStateService;
-    private readonly RegistryStateWatcher _registryStateWatcher;
     private readonly RegistryPreferenceService _registryPreferenceService;
-    private readonly SynchronizationContext? _uiContext;
-    private CancellationTokenSource? _stateRefreshCts;
     private bool _isInitialized;
-    private bool _isRefreshing;
 
     public event EventHandler<RegistryRestorePointCreatedEventArgs>? RestorePointCreated;
 
     public RegistryOptimizerViewModel(
         ActivityLogService activityLogService,
         MainViewModel mainViewModel,
-    IRegistryOptimizerService registryService,
-    IRegistryStateService registryStateService,
-        RegistryStateWatcher registryStateWatcher,
+        IRegistryOptimizerService registryService,
         RegistryPreferenceService registryPreferenceService)
     {
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
-        _registryStateService = registryStateService ?? throw new ArgumentNullException(nameof(registryStateService));
-        _registryStateWatcher = registryStateWatcher ?? throw new ArgumentNullException(nameof(registryStateWatcher));
         _registryPreferenceService = registryPreferenceService ?? throw new ArgumentNullException(nameof(registryPreferenceService));
-        _uiContext = SynchronizationContext.Current;
 
         Tweaks = new ObservableCollection<RegistryTweakCardViewModel>();
         Presets = new ObservableCollection<RegistryPresetViewModel>();
@@ -61,7 +51,6 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         UpdatePendingChanges();
         UpdateRestorePointState(_registryService.TryGetLatestRestorePoint());
         UpdateValidationState();
-        StartStateInitialization();
         _isInitialized = true;
     }
 
@@ -162,7 +151,6 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
 
         IsBusy = true;
-        var refreshAfterApply = false;
         try
         {
             var result = await _registryService.ApplyAsync(plan);
@@ -180,7 +168,6 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             foreach (var tweak in pendingTweaks)
             {
                 tweak.CommitSelection();
-                _registryStateService.Invalidate(tweak.Id);
             }
 
             UpdatePendingChanges();
@@ -190,7 +177,6 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             LastOperationSummary = summary;
             _activityLog.LogSuccess("Registry", summary, result.Executions.SelectMany(exec => exec.Output));
             _mainViewModel.SetStatusMessage("Registry tweaks applied.");
-            refreshAfterApply = true;
 
             try
             {
@@ -211,10 +197,6 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
-            if (refreshAfterApply)
-            {
-                StartStateInitialization(triggeredByUser: true);
-            }
         }
     }
 
@@ -233,24 +215,15 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         _mainViewModel.SetStatusMessage("Registry selections reset.");
     }
 
-    [RelayCommand(CanExecute = nameof(CanRefreshState))]
-    private void RefreshState()
-    {
-        StartStateInitialization(triggeredByUser: true);
-    }
-
     private bool CanApply() => HasPendingChanges && !IsBusy && !HasValidationErrors;
 
     private bool CanRevertChanges() => HasPendingChanges && !IsBusy;
-
-    private bool CanRefreshState() => !IsBusy && !_isRefreshing;
 
     partial void OnIsBusyChanged(bool oldValue, bool newValue)
     {
         ApplyCommand.NotifyCanExecuteChanged();
         RevertChangesCommand.NotifyCanExecuteChanged();
         RestoreLastSnapshotCommand.NotifyCanExecuteChanged();
-        RefreshStateCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnHasPendingChangesChanged(bool oldValue, bool newValue)
@@ -357,180 +330,6 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         if (HasValidationErrors != hasErrors)
         {
             HasValidationErrors = hasErrors;
-        }
-    }
-
-    private void StartStateInitialization(bool triggeredByUser = false)
-    {
-        CancelStateRefresh();
-
-        if (triggeredByUser)
-        {
-            _isRefreshing = true;
-            _mainViewModel.SetStatusMessage("Refreshing registry values...");
-            RefreshStateCommand.NotifyCanExecuteChanged();
-        }
-
-        if (Tweaks.Count == 0)
-        {
-            if (triggeredByUser)
-            {
-                _isRefreshing = false;
-                RefreshStateCommand.NotifyCanExecuteChanged();
-                _mainViewModel.SetStatusMessage("No registry tweaks to refresh.");
-                LastOperationSummary = $"Registry values refreshed at {DateTime.Now:t}.";
-            }
-
-            _mainViewModel.CompleteShellLoad();
-            return;
-        }
-
-        foreach (var tweak in Tweaks)
-        {
-            tweak.BeginStateRefresh();
-        }
-
-        _mainViewModel.BeginShellLoad();
-
-        var requireFreshProbe = triggeredByUser || !_isInitialized;
-        var tweakIds = Tweaks.Select(t => t.Id).ToArray();
-
-        var cts = new CancellationTokenSource();
-        _stateRefreshCts = cts;
-        var token = cts.Token;
-
-        _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await foreach (var update in _registryStateWatcher.WatchAsync(tweakIds, requireFreshProbe, token).ConfigureAwait(false))
-                    {
-                        if (token.IsCancellationRequested)
-                        {
-                            break;
-                        }
-
-                        PostToUi(() =>
-                        {
-                            var tweak = Tweaks.FirstOrDefault(t => string.Equals(t.Id, update.TweakId, StringComparison.OrdinalIgnoreCase));
-                            if (tweak is null)
-                            {
-                                return;
-                            }
-
-                            if (update.IsSuccess && update.State is not null)
-                            {
-                                tweak.UpdateState(update.State);
-
-                                if (update.State.Errors.Length > 0)
-                                {
-                                    var summary = string.Join("; ", update.State.Errors.Where(static line => !string.IsNullOrWhiteSpace(line)).Take(3));
-                                    if (!string.IsNullOrWhiteSpace(summary))
-                                    {
-                                        _activityLog.LogWarning("Registry", $"Detection issues for '{tweak.Title}': {summary}");
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                var message = string.IsNullOrWhiteSpace(update.ErrorMessage)
-                                    ? "Registry detection failed."
-                                    : update.ErrorMessage!
-                                        .Trim();
-
-                                tweak.ApplyStateFailure(message);
-                                _activityLog.LogWarning("Registry", $"Failed to load registry state for '{tweak.Title}': {message}");
-                            }
-
-                            UpdatePendingChanges();
-                            UpdateValidationState();
-                        });
-                    }
-                }
-                catch (OperationCanceledException)
-                {
-                    // ignored
-                }
-                catch (Exception ex)
-                {
-                    PostToUi(() => _activityLog.LogWarning("Registry", $"Registry state refresh failed: {ex.Message}"));
-                }
-                finally
-                {
-                    PostToUi(() =>
-                    {
-                        var isCurrent = ReferenceEquals(_stateRefreshCts, cts);
-
-                        if (isCurrent)
-                        {
-                            foreach (var tweak in Tweaks)
-                            {
-                                tweak.CompleteStateRefresh();
-                            }
-                        }
-
-                        if (triggeredByUser && isCurrent)
-                        {
-                            _isRefreshing = false;
-                            LastOperationSummary = $"Registry values refreshed at {DateTime.Now:t}.";
-                            _mainViewModel.SetStatusMessage("Registry values refreshed.");
-                            RefreshStateCommand.NotifyCanExecuteChanged();
-                        }
-
-                        if (isCurrent)
-                        {
-                            _mainViewModel.CompleteShellLoad();
-                        }
-
-                        if (Interlocked.CompareExchange(ref _stateRefreshCts, null, cts) == cts)
-                        {
-                            cts.Dispose();
-                        }
-                        else
-                        {
-                            cts.Dispose();
-                        }
-                    });
-                }
-            });
-    }
-
-    private void CancelStateRefresh()
-    {
-        var existing = Interlocked.Exchange(ref _stateRefreshCts, null);
-        if (existing is null)
-        {
-            return;
-        }
-
-        try
-        {
-            existing.Cancel();
-        }
-        catch
-        {
-            // ignored
-        }
-        finally
-        {
-            existing.Dispose();
-        }
-    }
-
-    private void PostToUi(Action action)
-    {
-        if (action is null)
-        {
-            return;
-        }
-
-        if (_uiContext is not null)
-        {
-            _uiContext.Post(_ => action(), null);
-        }
-        else
-        {
-            action();
         }
     }
 

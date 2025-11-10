@@ -33,44 +33,6 @@ param(
 
 . "$PSScriptRoot\registry-common.ps1"
 
-function Resolve-UserRegistryPath {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string] $Path,
-
-        [Parameter(Mandatory = $false)]
-        [string] $UserSid
-    )
-
-    if ([string]::IsNullOrWhiteSpace($Path)) {
-        return $Path
-    }
-
-    if ([string]::IsNullOrWhiteSpace($UserSid)) {
-        return $Path
-    }
-
-    $normalizedSid = $UserSid.Trim()
-    if ([string]::IsNullOrWhiteSpace($normalizedSid)) {
-        return $Path
-    }
-
-    $prefixes = @('HKCU:\\', 'HKCU:', 'HKCU\\', 'HKEY_CURRENT_USER\\', 'HKEY_CURRENT_USER:')
-    foreach ($prefix in $prefixes) {
-        if ($Path.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $remainder = $Path.Substring($prefix.Length)
-            $remainder = $remainder.TrimStart('\\')
-                if ([string]::IsNullOrWhiteSpace($remainder)) {
-                    return "Registry::HKEY_USERS\{0}" -f $normalizedSid
-                }
-
-                return "Registry::HKEY_USERS\{0}\{1}" -f $normalizedSid, $remainder
-        }
-    }
-
-    return $Path
-}
-
     function Resolve-ComparableValue {
         param(
             [Parameter(Mandatory = $false)]
@@ -100,7 +62,7 @@ function Resolve-UserRegistryPath {
 Initialize-RegistryScript -Cmdlet $PSCmdlet -ResultPath $ResultPath -OperationName 'Registry state discovery'
 
 try {
-    $resolvedPath = Resolve-UserRegistryPath -Path $RegistryPath -UserSid $UserSid
+    $resolvedPath = Resolve-RegistryUserPath -Path $RegistryPath -UserSid $UserSid
 
     $itemPath = if ($resolvedPath.StartsWith('HK', [System.StringComparison]::OrdinalIgnoreCase) -or $resolvedPath.StartsWith('Registry::', [System.StringComparison]::OrdinalIgnoreCase)) {
         $resolvedPath

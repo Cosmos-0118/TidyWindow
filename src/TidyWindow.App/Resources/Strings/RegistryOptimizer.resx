@@ -243,6 +243,12 @@
   <data name="ValueRecommendationUnavailable" xml:space="preserve">
     <value>No recommendation</value>
   </data>
+  <data name="ValueObservedAtFormat" xml:space="preserve">
+    <value>Observed {0}</value>
+  </data>
+  <data name="ValueObservedAtUnavailable" xml:space="preserve">
+    <value>Observation pending</value>
+  </data>
   <data name="CustomValueNotSupported" xml:space="preserve">
     <value>Managed by the scripted toggle.</value>
   </data>
