@@ -246,9 +246,6 @@ public sealed class RegistryStateService : IRegistryStateService
                     entry.Display ?? string.Empty))
                 .ToImmutableArray();
 
-        var currentDisplay = ToDisplayList(model.CurrentDisplay);
-        var currentValue = model.CurrentValue is null ? null : ConvertJsonValue(model.CurrentValue.Value);
-
         var recommendedValue = model.RecommendedValue is null
             ? detection.RecommendedValue
             : ConvertJsonValue(model.RecommendedValue.Value);
@@ -263,36 +260,11 @@ public sealed class RegistryStateService : IRegistryStateService
             LookupValueName: model.LookupValueName ?? detection.LookupValueName,
             ValueType: model.ValueType ?? detection.ValueType,
             SupportsCustomValue: model.SupportsCustomValue || detection.SupportsCustomValue,
-            CurrentValue: currentValue,
-            CurrentDisplay: currentDisplay,
             RecommendedValue: recommendedValue,
             RecommendedDisplay: recommendedDisplay,
             IsRecommended: model.IsRecommendedState,
             Snapshots: snapshots,
             Errors: ImmutableArray<string>.Empty);
-    }
-
-    private static ImmutableArray<string> ToDisplayList(JsonElement? element)
-    {
-        if (element is null || element.Value.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
-        {
-            return ImmutableArray<string>.Empty;
-        }
-
-        if (element.Value.ValueKind == JsonValueKind.Array)
-        {
-            return element.Value
-                .EnumerateArray()
-                .Select(item => item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString())
-                .Where(text => !string.IsNullOrWhiteSpace(text))
-                .Select(text => text!.Trim())
-                .ToImmutableArray();
-        }
-
-        var single = element.Value.ValueKind == JsonValueKind.String ? element.Value.GetString() : element.Value.ToString();
-        return string.IsNullOrWhiteSpace(single)
-            ? ImmutableArray<string>.Empty
-            : ImmutableArray.Create(single!.Trim());
     }
 
     private static RegistryValueState BuildFailureState(RegistryValueDetection detection, ImmutableArray<string> errors)
@@ -303,8 +275,6 @@ public sealed class RegistryStateService : IRegistryStateService
             LookupValueName: detection.LookupValueName,
             ValueType: detection.ValueType,
             SupportsCustomValue: detection.SupportsCustomValue,
-            CurrentValue: null,
-            CurrentDisplay: ImmutableArray<string>.Empty,
             RecommendedValue: detection.RecommendedValue,
             RecommendedDisplay: FormatValue(detection.RecommendedValue),
             IsRecommended: null,
@@ -446,8 +416,6 @@ public sealed class RegistryStateService : IRegistryStateService
                     LookupValueName = v.LookupValueName,
                     ValueType = v.ValueType,
                     SupportsCustomValue = v.SupportsCustomValue,
-                    CurrentValue = v.CurrentValue,
-                    CurrentDisplay = v.CurrentDisplay.IsDefaultOrEmpty ? new List<string>() : v.CurrentDisplay.Where(static line => !string.IsNullOrWhiteSpace(line)).Select(static line => line.Trim()).ToList(),
                     RecommendedValue = v.RecommendedValue,
                     RecommendedDisplay = v.RecommendedDisplay,
                     IsRecommended = v.IsRecommended,
@@ -612,10 +580,6 @@ public sealed class RegistryStateService : IRegistryStateService
 
         public bool SupportsCustomValue { get; set; }
 
-        public object? CurrentValue { get; set; }
-
-        public List<string> CurrentDisplay { get; set; } = new();
-
         public object? RecommendedValue { get; set; }
 
         public string? RecommendedDisplay { get; set; }
@@ -647,10 +611,6 @@ public sealed class RegistryStateService : IRegistryStateService
         public string? ValueType { get; set; }
 
         public bool SupportsCustomValue { get; set; }
-
-        public JsonElement? CurrentValue { get; set; }
-
-        public JsonElement? CurrentDisplay { get; set; }
 
         public JsonElement? RecommendedValue { get; set; }
 
@@ -685,8 +645,6 @@ public sealed record RegistryValueState(
     string? LookupValueName,
     string ValueType,
     bool SupportsCustomValue,
-    object? CurrentValue,
-    ImmutableArray<string> CurrentDisplay,
     object? RecommendedValue,
     string? RecommendedDisplay,
     bool? IsRecommended,

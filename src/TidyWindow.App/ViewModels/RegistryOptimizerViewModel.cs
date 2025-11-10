@@ -427,8 +427,6 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     private bool _customValueInitialized;
     private string? _pendingPersistedCustomValue;
     private DateTimeOffset _lastObservedAt;
-    private readonly ObservableCollection<string> _currentValueLines;
-    private readonly ReadOnlyObservableCollection<string> _currentValueLinesView;
     private readonly ObservableCollection<RegistrySnapshotDisplay> _snapshotEntries;
     private readonly ReadOnlyObservableCollection<RegistrySnapshotDisplay> _snapshotEntriesView;
 
@@ -459,13 +457,9 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         _isSelected = _definition.DefaultState;
         _pendingPersistedCustomValue = _preferences.GetCustomValue(_definition.Id);
 
-        _currentValueLines = new ObservableCollection<string>();
-        _currentValueLinesView = new ReadOnlyObservableCollection<string>(_currentValueLines);
         _snapshotEntries = new ObservableCollection<RegistrySnapshotDisplay>();
         _snapshotEntriesView = new ReadOnlyObservableCollection<RegistrySnapshotDisplay>(_snapshotEntries);
         _isStatePending = true;
-        _currentValueLines.Add(RegistryOptimizerStrings.ValueNotAvailable);
-        CurrentValue = RegistryOptimizerStrings.ValueNotAvailable;
         RecommendedValue = RegistryOptimizerStrings.ValueRecommendationUnavailable;
     }
 
@@ -508,9 +502,6 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     private bool _isSelected;
 
     [ObservableProperty]
-    private string? _currentValue;
-
-    [ObservableProperty]
     private string? _recommendedValue;
 
     [ObservableProperty]
@@ -532,8 +523,6 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(IsCustomValueBaseline))]
     [NotifyPropertyChangedFor(nameof(HasValidationError))]
     private bool _supportsCustomValue;
-
-    public ReadOnlyObservableCollection<string> CurrentValueLines => _currentValueLinesView;
 
     public ReadOnlyObservableCollection<RegistrySnapshotDisplay> SnapshotEntries => _snapshotEntriesView;
 
@@ -601,12 +590,6 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     {
         IsStatePending = false;
         StateError = string.IsNullOrWhiteSpace(message) ? RegistryOptimizerStrings.ValueNotAvailable : message;
-
-        if (_currentValueLines.Count == 0)
-        {
-            _currentValueLines.Add(RegistryOptimizerStrings.ValueNotAvailable);
-            CurrentValue = _currentValueLines[0];
-        }
     }
 
     public void UpdateState(RegistryTweakState state)
@@ -627,8 +610,6 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         var values = state.Values;
         var primaryValue = values.FirstOrDefault(v => v.SupportsCustomValue) ?? values.FirstOrDefault();
         var detectionError = ResolveDetectionError(state, primaryValue);
-
-        PopulateCurrentValueLines(primaryValue, detectionError);
         RecommendedValue = ResolveRecommendedValueText(primaryValue);
         UpdateSnapshotEntries(primaryValue);
         StateError = string.IsNullOrWhiteSpace(detectionError) ? null : detectionError;
@@ -669,53 +650,6 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(CustomValueInfoText));
-    }
-
-    private void PopulateCurrentValueLines(RegistryValueState? primaryValue, string? detectionError)
-    {
-        _currentValueLines.Clear();
-
-        if (primaryValue is not null)
-        {
-            foreach (var line in primaryValue.CurrentDisplay)
-            {
-                var trimmed = line?.Trim();
-                if (!string.IsNullOrWhiteSpace(trimmed))
-                {
-                    _currentValueLines.Add(trimmed);
-                }
-            }
-
-            if (_currentValueLines.Count == 0 && primaryValue.CurrentValue is not null)
-            {
-                var formatted = FormatValue(primaryValue.CurrentValue);
-                if (!string.IsNullOrWhiteSpace(formatted))
-                {
-                    _currentValueLines.Add(formatted);
-                }
-            }
-
-            if (_currentValueLines.Count == 0)
-            {
-                var snapshotDisplay = ResolveSnapshotDisplay(primaryValue);
-                if (!string.IsNullOrWhiteSpace(snapshotDisplay))
-                {
-                    _currentValueLines.Add(snapshotDisplay);
-                }
-            }
-        }
-
-        if (_currentValueLines.Count == 0 && !string.IsNullOrWhiteSpace(detectionError))
-        {
-            _currentValueLines.Add(detectionError);
-        }
-
-        if (_currentValueLines.Count == 0)
-        {
-            _currentValueLines.Add(RegistryOptimizerStrings.ValueNotAvailable);
-        }
-
-        CurrentValue = _currentValueLines[0];
     }
 
     private string ResolveRecommendedValueText(RegistryValueState? primaryValue)
@@ -974,9 +908,9 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     {
         if (state is not null)
         {
-            if (state.CurrentValue is not null)
+            if (!string.IsNullOrWhiteSpace(state.RecommendedDisplay))
             {
-                return FormatEditableValue(state.CurrentValue);
+                return state.RecommendedDisplay;
             }
 
             if (state.RecommendedValue is not null)
@@ -1015,20 +949,6 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
 
         var stateError = state.Errors.FirstOrDefault(static e => !string.IsNullOrWhiteSpace(e));
         return string.IsNullOrWhiteSpace(stateError) ? null : stateError;
-    }
-
-    private static string? FormatDisplayValue(ImmutableArray<string> display, object? fallback)
-    {
-        if (!display.IsDefaultOrEmpty)
-        {
-            var candidate = display.FirstOrDefault(static line => !string.IsNullOrWhiteSpace(line));
-            if (!string.IsNullOrWhiteSpace(candidate))
-            {
-                return candidate.Trim();
-            }
-        }
-
-        return FormatValue(fallback);
     }
 
     private static string? FormatRecommended(RegistryValueState state)
@@ -1075,7 +995,7 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
             }
         }
 
-        var fallback = FormatValue(value.CurrentValue) ?? FormatValue(value.RecommendedValue);
+        var fallback = FormatValue(value.RecommendedValue);
         return string.IsNullOrWhiteSpace(fallback) ? null : fallback.Trim();
     }
 
