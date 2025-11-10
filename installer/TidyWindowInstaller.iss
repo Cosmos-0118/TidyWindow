@@ -55,6 +55,30 @@ Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueTy
 const
   PrevUninstallKey = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{6F4045F0-2C7A-4D37-9A4B-9EFEAD0D8F8D}';
 
+function PadZero(const Value: Integer; const Width: Integer): string;
+begin
+  Result := IntToStr(Value);
+  while Length(Result) < Width do
+    Result := '0' + Result;
+end;
+
+function BuildTimestamp(): string;
+var
+  DT: TDateTime;
+  Year, Month, Day: Word;
+  Hour, Minute, Second, Millisecond: Word;
+begin
+  DT := Now;
+  DecodeDate(DT, Year, Month, Day);
+  DecodeTime(DT, Hour, Minute, Second, Millisecond);
+  Result := IntToStr(Year)
+    + PadZero(Month, 2)
+    + PadZero(Day, 2)
+    + PadZero(Hour, 2)
+    + PadZero(Minute, 2)
+    + PadZero(Second, 2);
+end;
+
 function IsPreviousInstalled(var UninstallString: string): Boolean;
 var
   s: string;
@@ -106,7 +130,7 @@ begin
     exit;
   end;
 
-  TimeStamp := FormatDateTime('yyyymmddhhnnss', Now);
+  TimeStamp := BuildTimestamp();
   Dest := ExpandConstant('{tmp}\\{#MyAppName}_Backup_' + TimeStamp);
   if not DirExists(Dest) then
     ForceDirectories(Dest);
