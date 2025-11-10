@@ -49,7 +49,7 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: n
 
 [Registry]
 ; If the user selects the "runatstartup" task, create a Run registry value so the app starts with Windows
-Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: '"{app}\\{#MyAppExeName}"'; Check: IsTaskSelected('runatstartup')
+Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\\{#MyAppExeName}"""; Check: IsTaskSelected('runatstartup')
 
 [Code]
 const
@@ -167,8 +167,6 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-var
-  rc: Integer;
 begin
   { After installation finishes, if the user selected startup run, we leave the registry entry created by [Registry] }
   if CurStep = ssPostInstall then
