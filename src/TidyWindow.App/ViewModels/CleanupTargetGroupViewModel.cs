@@ -67,6 +67,32 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
 
     public IEnumerable<CleanupPreviewItemViewModel> SelectedItems => Items.Where(static item => item.IsSelected);
 
+    public bool IsFullySelected
+    {
+        get => Items.Count > 0 && Items.All(static item => item.IsSelected);
+        set
+        {
+            if (Items.Count == 0)
+            {
+                return;
+            }
+
+            var targetState = value;
+            if (IsFullySelected == targetState)
+            {
+                return;
+            }
+
+            using var scope = BeginSelectionUpdate();
+            foreach (var item in Items)
+            {
+                item.IsSelected = targetState;
+            }
+
+            OnPropertyChanged(nameof(IsFullySelected));
+        }
+    }
+
     private void OnItemsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.OldItems is not null)
@@ -93,6 +119,7 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectedSizeBytes));
         OnPropertyChanged(nameof(SelectedSizeMegabytes));
+        OnPropertyChanged(nameof(IsFullySelected));
     }
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -118,6 +145,7 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
         OnPropertyChanged(nameof(SelectedCount));
         OnPropertyChanged(nameof(SelectedSizeBytes));
         OnPropertyChanged(nameof(SelectedSizeMegabytes));
+        OnPropertyChanged(nameof(IsFullySelected));
     }
 
     public IDisposable BeginSelectionUpdate()

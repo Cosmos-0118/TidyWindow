@@ -4,7 +4,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using TidyWindow.App.ViewModels;
-using MessageBox = System.Windows.MessageBox;
 using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.Views;
@@ -21,7 +20,6 @@ public partial class CleanupPage : Page
         _viewModel = viewModel;
         DataContext = _viewModel;
 
-        _viewModel.ConfirmDeletion = ConfirmDeletion;
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
         Unloaded += CleanupPage_Unloaded;
@@ -35,26 +33,13 @@ public partial class CleanupPage : Page
         EnsureScrollHandlers();
     }
 
-    private bool ConfirmDeletion(CleanupDeletionConfirmation context)
-    {
-        var sizeText = context.TotalSizeMegabytes > 0
-            ? $"{context.TotalSizeMegabytes:F2} MB"
-            : "0 MB";
-
-        var message = $"You're about to permanently delete {context.ItemCount:N0} item(s) totaling {sizeText}.\n\n" +
-                      "This action cannot be undone. Do you want to continue?";
-
-        var result = MessageBox.Show(message, "Confirm permanent deletion", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
-        return result == MessageBoxResult.Yes;
-    }
-
     private bool ConfirmElevation(string message)
     {
         var warning = string.IsNullOrWhiteSpace(message)
             ? "These items may be protected. Restart as administrator to continue?"
             : message;
 
-        var result = MessageBox.Show(warning, "Administrator privileges needed", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.Yes);
+        var result = System.Windows.MessageBox.Show(warning, "Administrator privileges needed", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.Yes);
         return result == MessageBoxResult.Yes;
     }
 
@@ -77,7 +62,6 @@ public partial class CleanupPage : Page
         }
 
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
-        _viewModel.ConfirmDeletion = null;
         _viewModel.ConfirmElevation = null;
         Unloaded -= CleanupPage_Unloaded;
         Loaded -= OnPageLoaded;
@@ -95,7 +79,6 @@ public partial class CleanupPage : Page
 
     private void RestoreViewModelBindings()
     {
-        _viewModel.ConfirmDeletion = ConfirmDeletion;
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
         Unloaded += CleanupPage_Unloaded;

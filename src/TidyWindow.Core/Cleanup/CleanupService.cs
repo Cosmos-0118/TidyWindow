@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualBasic.FileIO;
 
 namespace TidyWindow.Core.Cleanup;
 
@@ -175,6 +176,22 @@ public sealed class CleanupService
     private static bool TryDeletePath(string path, bool isDirectory, CleanupDeletionOptions options, CancellationToken cancellationToken, out Exception? failure)
     {
         failure = null;
+
+        if (options.PreferRecycleBin)
+        {
+            if (TrySendToRecycleBin(path, isDirectory, out failure))
+            {
+                return true;
+            }
+
+            if (!options.AllowPermanentDeleteFallback)
+            {
+                return false;
+            }
+
+            failure = null;
+        }
+
         var maxAttempts = Math.Max(0, options.MaxRetryCount) + 1;
 
         for (var attempt = 0; attempt < maxAttempts; attempt++)
@@ -211,6 +228,30 @@ public sealed class CleanupService
         }
 
         return false;
+    }
+
+    private static bool TrySendToRecycleBin(string path, bool isDirectory, out Exception? failure)
+    {
+        failure = null;
+
+        try
+        {
+            if (isDirectory)
+            {
+                FileSystem.DeleteDirectory(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+            }
+            else
+            {
+                FileSystem.DeleteFile(path, UIOption.OnlyErrorDialogs, RecycleOption.SendToRecycleBin);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or InvalidOperationException)
+        {
+            failure = ex;
+            return false;
+        }
     }
 
     private static bool IsInUseError(Exception? exception)

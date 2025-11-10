@@ -39,6 +39,16 @@ public sealed record CleanupDeletionOptions
     /// </summary>
     public TimeSpan RetryDelay { get; init; } = TimeSpan.FromMilliseconds(150);
 
+    /// <summary>
+    /// Attempts to move items to the recycle bin instead of deleting permanently when possible.
+    /// </summary>
+    public bool PreferRecycleBin { get; init; }
+
+    /// <summary>
+    /// Falls back to permanent deletion if moving to the recycle bin fails.
+    /// </summary>
+    public bool AllowPermanentDeleteFallback { get; init; } = true;
+
     internal CleanupDeletionOptions Sanitize()
     {
         var retryCount = MaxRetryCount < 0 ? 0 : MaxRetryCount;

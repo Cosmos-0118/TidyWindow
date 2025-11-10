@@ -1,0 +1,67 @@
+Cleanup page overhaul
+====================
+
+Observed friction
+-----------------
+- Single-page layout crams filter setup, preview, pagination, selection utilities, and destructive actions into one surface; cognitive load is high and important actions compete for attention.
+- Category and item lists are dense and visually similar, so users lose the sense of process (configure → review → clean).
+- Deletion feedback is limited to a text status bar, so the experience feels opaque and lacks a satisfying conclusion.
+
+Guiding principles
+------------------
+- Treat cleanup as a guided flow with clear phases: configure scan → review preview → confirm cleanup → celebrate results.
+- Keep the existing visual language (deep blues, soft corners, neon accents) but introduce more hierarchy, white space, and motion to establish rhythm.
+- Surface actionable insights (space impact, file counts, warnings) at each phase so users feel informed and in control.
+
+Phase 1 — Configure scan (done)
+------------------------
+- Present a dedicated “Setup” surface with the hero icon, title, and a concise checklist that mirrors key bindings: include downloads, item kind, extension mode/profile, custom list, top items count.
+- Group related controls in cards (e.g., “Scope”, “Filter by type”, “Extensions”) with subtle elevation and inline helper text. Default disabled states should describe why the control is unavailable.
+- Replace the raw number entry for “Top items” with a slider + numeric input to clarify bounds; add presets (25, 50, 100) as quick chips.
+- Add a collapsible “Advanced” panel for page range selection, extension profiles, and custom extension input so novice users see only essentials.
+- Primary CTA: `Run preview`. Secondary: `Cancel` (returns to dashboard) and `Reset filters`.
+
+Phase 2 — Preview results (done)
+-------------------------
+- Transition from Phase 1 with a slide/fade; show a stepper (1 Setup → 2 Review → 3 Cleanup) pinned at the top to reinforce progress.
+- Recompose the preview as a split view:
+	- Left: category list styled as pills with badges (count, MB), sorted by estimated impact; include quick filters (largest first, newest, risk score).
+	- Right: item grid with increased row spacing, optional thumbnail/icon column, and sticky column headers. Inline “Select all in category” toggle sits above the grid to reduce button clutter.
+- Pull selection commands into a floating action bar at the bottom-right (Clear, Select all, Select page range) that appears when selection count > 0.
+- Display aggregate stats in the header (`Selected: 120 files · 3.4 GB`) with color-coded deltas when toggling selections.
+- Empty states: keep the friendly guidance but add icons and CTA buttons (e.g., “Adjust filters”).
+
+Phase 3 — Confirm cleanup (done)
+-------------------------------
+- When `Delete selected` is pressed, open a confirmation sheet instead of running in-place. Sheet content:
+	- Summary cards: total items, space reclaimed, categories affected.
+	- Risk callouts: items newer than X days, system directories, locked files.
+	- Option to “Send to Recycle Bin when possible” (default on) and “Generate cleanup report”.
+- Confirmation buttons: `Run cleanup` (primary, accent color) and `Back to review`.
+
+Phase 4 — Cleanup feedback & celebration
+---------------------------------------
+- On confirmation, dim the background and run a custom animation that visualizes deletion: selected items thumbnails fade into particles that flow toward a glowing recycler icon; duration ≈ 1.5s with easing (quart-out) so it feels smooth but snappy.
+- Run the animation on a dedicated overlay so the preview lists can update off-screen without jank.
+- Complement the visual with a succinct status card: “Cleanup complete — 3.4 GB reclaimed”. Include details: items deleted, categories affected, failures (with retry links), and time saved.
+- Provide follow-up actions: `Review report`, `Share summary`, `Schedule recurring scan`, `Close`.
+
+Motion & micro-interactions
+---------------------------
+- Use subtle crossfade/slide transitions between phases; avoid abrupt content swaps while keeping responsiveness.
+- Highlight row selection with a grow/fade effect rather than instant color flip; show an inline toast when new items arrive after refresh.
+- When hovering over category chips, gently scale the badge (1.05) and lighten the border to convey interactiveness.
+
+Technical considerations
+------------------------
+- Maintain MVVM separation: introduce a `CleanupWizardState` enum and binding-friendly stepper so navigation is state-driven.
+- Lazy-load preview data; on Phase 1 completion, kick off the scan and show a compact loading indicator in Phase 2 header.
+- For the animation overlay, encapsulate it in a reusable UserControl (e.g., `CleanupCelebrationView`) with storyboard-based transitions for minimal code-behind.
+- Keep accessibility in mind: provide keyboard stepper navigation, focus scopes per phase, and announce phase changes via automation peers.
+
+Next actions
+------------
+- Prototype the multi-phase layout in XAML (separate views per phase or `ContentControl` with `DataTemplateSelector`).
+- Define storyboard resources for entry/exit transitions and the deletion celebration.
+- Extend the view model to track wizard state, aggregate stats, and cleanup results summary.
+- Update tests to cover new state transitions and ensure cleanup commands respect the confirmation step.

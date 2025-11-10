@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -34,7 +35,32 @@ public sealed record CleanupExtensionProfile(string Name, string Description, IR
     public override string ToString() => Name;
 }
 
-public readonly record struct CleanupDeletionConfirmation(int ItemCount, double TotalSizeMegabytes);
+public enum CleanupPreviewSortMode
+{
+    Impact,
+    Newest,
+    Risk
+}
+
+public sealed record CleanupPreviewSortOption(CleanupPreviewSortMode Mode, string Label, string Description)
+{
+    public override string ToString() => Label;
+}
+
+public enum CleanupPhase
+{
+    Setup,
+    Preview
+}
+
+public enum CleanupDeletionRiskSeverity
+{
+    Info,
+    Caution,
+    Danger
+}
+
+public sealed record CleanupDeletionRiskViewModel(string Title, string Description, CleanupDeletionRiskSeverity Severity);
 
 public sealed partial class CleanupViewModel : ViewModelBase
 {
@@ -42,9 +68,14 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly MainViewModel _mainViewModel;
     private readonly IPrivilegeService _privilegeService;
 
+    private const int PreviewCountMinimumValue = 10;
+    private const int PreviewCountMaximumValue = 500;
+    private const int DefaultPreviewCount = 50;
+
     private readonly HashSet<string> _activeExtensions = new(StringComparer.OrdinalIgnoreCase);
-    private int _previewCount = 10;
+    private int _previewCount = DefaultPreviewCount;
     private static readonly string[] _sensitiveRoots = BuildSensitiveRoots();
+    private List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>? _pendingDeletionItems;
 
     public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService)
     {
@@ -74,6 +105,13 @@ public sealed partial class CleanupViewModel : ViewModelBase
             new("Media", "Audio and video clips", new[] { ".mp3", ".wav", ".mp4", ".mov", ".mkv" }),
             new("Archives", "Compressed archives", new[] { ".zip", ".rar", ".7z", ".tar", ".gz" }),
             new("Logs", "Plain-text logs", new[] { ".log" })
+        };
+
+        SortOptions = new List<CleanupPreviewSortOption>
+        {
+            new(CleanupPreviewSortMode.Impact, "Largest first", "Sort by total size so high-impact files stay on top."),
+            new(CleanupPreviewSortMode.Newest, "Newest", "Show most recently modified items first."),
+            new(CleanupPreviewSortMode.Risk, "Risk score", "Review items with lower confidence signals before deleting.")
         };
 
         SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
@@ -116,9 +154,35 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private string _deletionStatusMessage = "Ready to delete selected items.";
 
+    [ObservableProperty]
+    private bool _isConfirmationSheetVisible;
+
+    [ObservableProperty]
+    private int _pendingDeletionItemCount;
+
+    [ObservableProperty]
+    private double _pendingDeletionTotalSizeMegabytes;
+
+    [ObservableProperty]
+    private int _pendingDeletionCategoryCount;
+
+    [ObservableProperty]
+    private string _pendingDeletionCategoryList = string.Empty;
+
+    [ObservableProperty]
+    private bool _useRecycleBin = true;
+
+    [ObservableProperty]
+    private bool _generateCleanupReport;
+
+    [ObservableProperty]
+    private CleanupPhase _currentPhase = CleanupPhase.Setup;
+
     public ObservableCollection<CleanupTargetGroupViewModel> Targets { get; } = new();
 
     public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
+
+    public ObservableCollection<CleanupDeletionRiskViewModel> PendingDeletionRisks { get; } = new();
 
     // Paging state for preview
     private int _currentPage = 1;
@@ -172,6 +236,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private int _selectRangeEndPage = 1;
 
+    [ObservableProperty]
+    private CleanupPreviewSortMode _previewSortMode = CleanupPreviewSortMode.Impact;
+
     [RelayCommand]
     private void NextPage()
     {
@@ -186,21 +253,30 @@ public sealed partial class CleanupViewModel : ViewModelBase
             CurrentPage--;
     }
 
+    partial void OnPreviewSortModeChanged(CleanupPreviewSortMode value)
+    {
+        RefreshFilteredItems();
+    }
+
     public IReadOnlyList<CleanupItemKindOption> ItemKindOptions { get; }
 
     public IReadOnlyList<CleanupExtensionFilterOption> ExtensionFilterOptions { get; }
 
     public IReadOnlyList<CleanupExtensionProfile> ExtensionProfiles { get; }
 
-    public event EventHandler? AdministratorRestartRequested;
+    public IReadOnlyList<CleanupPreviewSortOption> SortOptions { get; }
 
-    public Func<CleanupDeletionConfirmation, bool>? ConfirmDeletion { get; set; }
+    public event EventHandler? AdministratorRestartRequested;
 
     public Func<string, bool>? ConfirmElevation { get; set; }
 
     public bool HasResults => Targets.Count > 0;
 
     public bool HasFilteredResults => FilteredItems.Count > 0;
+
+    public bool IsSetupPhase => CurrentPhase == CleanupPhase.Setup;
+
+    public bool IsPreviewPhase => CurrentPhase == CleanupPhase.Preview;
 
     public bool IsExtensionSelectorEnabled => SelectedExtensionFilterMode != CleanupExtensionFilterMode.None;
 
@@ -229,7 +305,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
         get => _previewCount;
         set
         {
-            var sanitized = value < 0 ? 0 : value;
+            var sanitized = value;
+            if (sanitized < PreviewCountMinimumValue)
+            {
+                sanitized = PreviewCountMinimumValue;
+            }
+            else if (sanitized > PreviewCountMaximumValue)
+            {
+                sanitized = PreviewCountMaximumValue;
+            }
             SetProperty(ref _previewCount, sanitized);
         }
     }
@@ -255,6 +339,62 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public bool HasSelection => SelectedItemCount > 0;
 
+    public int PreviewCountMinimum
+    {
+        get => PreviewCountMinimumValue;
+        set
+        {
+            // Some slider styles attempt to push values back; ignore to keep bounds immutable.
+            _ = value;
+        }
+    }
+
+    public int PreviewCountMaximum
+    {
+        get => PreviewCountMaximumValue;
+        set
+        {
+            _ = value;
+        }
+    }
+
+    public string SelectionSummaryText => HasSelection
+        ? $"Selected: {SelectedItemCount:N0} files · {FormatSize(SelectedItemSizeMegabytes)}"
+        : "Selected: none";
+
+    public bool IsCurrentCategoryFullySelected
+    {
+        get => SelectedTarget?.IsFullySelected ?? false;
+        set
+        {
+            if (SelectedTarget is null)
+            {
+                return;
+            }
+
+            SelectedTarget.IsFullySelected = value;
+            OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
+        }
+    }
+
+    public bool HasPendingDeletion => PendingDeletionItemCount > 0;
+
+    public string PendingDeletionSizeDisplay => FormatSize(PendingDeletionTotalSizeMegabytes);
+
+    public string PendingDeletionItemSummary => PendingDeletionItemCount == 1
+        ? "1 item"
+        : $"{PendingDeletionItemCount:N0} items";
+
+    public string PendingDeletionCategorySummary => PendingDeletionCategoryCount == 1
+        ? "1 category"
+        : $"{PendingDeletionCategoryCount:N0} categories";
+
+    public string PendingDeletionCategoryListDisplay => string.IsNullOrWhiteSpace(PendingDeletionCategoryList)
+        ? "—"
+        : PendingDeletionCategoryList;
+
+    public bool HasPendingDeletionRisks => PendingDeletionRisks.Count > 0;
+
     [RelayCommand]
     private async Task RunPreviewAsync()
     {
@@ -267,6 +407,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             IsBusy = true;
             ClearTargets();
+            CurrentPage = 1;
 
             var report = await _cleanupService.PreviewAsync(IncludeDownloads, PreviewCount, SelectedItemKind);
             foreach (var target in report.Targets.OrderByDescending(t => t.TotalSizeBytes))
@@ -278,6 +419,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
             {
                 SelectedTarget = Targets[0];
             }
+
+            CurrentPhase = CleanupPhase.Preview;
 
             var status = Targets.Count == 0
                 ? "No cleanup targets detected."
@@ -301,15 +444,17 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(SelectionSummaryText));
+            OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         }
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
-    private async Task DeleteSelectedAsync()
+    private Task DeleteSelectedAsync()
     {
         if (IsBusy)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         var itemsToDelete = Targets
@@ -318,20 +463,184 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         if (itemsToDelete.Count == 0)
         {
+            return Task.CompletedTask;
+        }
+
+        PrepareDeletionConfirmation(itemsToDelete);
+        return Task.CompletedTask;
+    }
+
+    [RelayCommand]
+    private void DismissDeletionConfirmation()
+    {
+        ClearPendingDeletionState();
+    }
+
+    [RelayCommand]
+    private void NavigateToSetup()
+    {
+        ClearPendingDeletionState();
+        CurrentPhase = CleanupPhase.Setup;
+    }
+
+    private bool CanConfirmCleanup() => !IsBusy && _pendingDeletionItems is { Count: > 0 } && IsConfirmationSheetVisible;
+
+    [RelayCommand(CanExecute = nameof(CanConfirmCleanup))]
+    private async Task ConfirmCleanupAsync()
+    {
+        if (_pendingDeletionItems is null || _pendingDeletionItems.Count == 0)
+        {
+            ClearPendingDeletionState();
             return;
         }
 
-        var totalSizeMb = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
+        var snapshot = _pendingDeletionItems
+            .Where(static tuple => tuple.group.Items.Contains(tuple.item))
+            .ToList();
 
-        if (ConfirmDeletion is not null)
+        var useRecycleBin = UseRecycleBin;
+        var generateReport = GenerateCleanupReport;
+
+        ClearPendingDeletionState();
+
+        if (snapshot.Count == 0)
         {
-            var confirmation = new CleanupDeletionConfirmation(itemsToDelete.Count, totalSizeMb);
-            if (!ConfirmDeletion.Invoke(confirmation))
-            {
-                _mainViewModel.SetStatusMessage("Deletion cancelled by user.");
-                return;
-            }
+            _mainViewModel.SetStatusMessage("Deletion cancelled — no items remain selected.");
+            return;
         }
+
+        var deletionOptions = new CleanupDeletionOptions
+        {
+            PreferRecycleBin = useRecycleBin,
+            AllowPermanentDeleteFallback = true
+        };
+
+        await ExecuteDeletionAsync(snapshot, deletionOptions, generateReport);
+    }
+
+    private bool CanDeleteSelected() => !IsBusy && HasSelection && !IsConfirmationSheetVisible;
+
+    private void PrepareDeletionConfirmation(List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> itemsToDelete)
+    {
+        _pendingDeletionItems = itemsToDelete;
+        PendingDeletionItemCount = itemsToDelete.Count;
+        PendingDeletionTotalSizeMegabytes = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
+
+        var categoryNames = itemsToDelete
+            .Select(static tuple => tuple.group.Category)
+            .Where(static category => !string.IsNullOrWhiteSpace(category))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        PendingDeletionCategoryCount = categoryNames.Count;
+
+        var displayCategories = categoryNames.Count <= 4
+            ? categoryNames
+            : categoryNames.Take(4).Concat(new[] { "..." }).ToList();
+
+        PendingDeletionCategoryList = displayCategories.Count == 0
+            ? string.Empty
+            : string.Join(", ", displayCategories);
+
+        UseRecycleBin = true;
+        GenerateCleanupReport = false;
+
+        BuildPendingDeletionRisks(itemsToDelete);
+
+        IsConfirmationSheetVisible = true;
+        ConfirmCleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    private void ClearPendingDeletionState()
+    {
+        _pendingDeletionItems = null;
+        if (IsConfirmationSheetVisible)
+        {
+            IsConfirmationSheetVisible = false;
+        }
+
+        PendingDeletionRisks.Clear();
+        PendingDeletionItemCount = 0;
+        PendingDeletionTotalSizeMegabytes = 0;
+        PendingDeletionCategoryCount = 0;
+        PendingDeletionCategoryList = string.Empty;
+        OnPropertyChanged(nameof(HasPendingDeletionRisks));
+        ConfirmCleanupCommand.NotifyCanExecuteChanged();
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+    }
+
+    private void BuildPendingDeletionRisks(IEnumerable<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> items)
+    {
+        PendingDeletionRisks.Clear();
+
+        var materialized = items.ToList();
+        if (materialized.Count == 0)
+        {
+            OnPropertyChanged(nameof(HasPendingDeletionRisks));
+            return;
+        }
+
+        var recentThresholdUtc = DateTime.UtcNow - TimeSpan.FromDays(3);
+        var recentItems = materialized.Count(tuple =>
+        {
+            var lastModified = tuple.item.Model.LastModifiedUtc;
+            if (lastModified == DateTime.MinValue)
+            {
+                return tuple.item.Model.WasModifiedRecently;
+            }
+
+            return lastModified >= recentThresholdUtc;
+        });
+
+        if (recentItems > 0)
+        {
+            PendingDeletionRisks.Add(new CleanupDeletionRiskViewModel(
+                "Recently modified files",
+                $"{recentItems:N0} item(s) were updated within the last 3 days.",
+                CleanupDeletionRiskSeverity.Caution));
+        }
+
+        var systemItems = materialized.Count(tuple =>
+        {
+            if (tuple.item.IsSystem)
+            {
+                return true;
+            }
+
+            var path = tuple.item.Model.FullName;
+            return IsElevationLikelyRequired(path);
+        });
+
+        if (systemItems > 0)
+        {
+            PendingDeletionRisks.Add(new CleanupDeletionRiskViewModel(
+                "Protected locations",
+                $"{systemItems:N0} item(s) live in system or protected directories. Administrator rights may be required.",
+                CleanupDeletionRiskSeverity.Danger));
+        }
+
+        var lockedItems = materialized.Count(tuple =>
+            tuple.item.Signals.Any(static signal =>
+                signal.IndexOf("handle", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                signal.IndexOf("in use", StringComparison.OrdinalIgnoreCase) >= 0));
+
+        if (lockedItems > 0)
+        {
+            PendingDeletionRisks.Add(new CleanupDeletionRiskViewModel(
+                "Items in use",
+                $"{lockedItems:N0} item(s) appear locked by other processes; they will be skipped automatically if busy.",
+                CleanupDeletionRiskSeverity.Caution));
+        }
+
+        OnPropertyChanged(nameof(HasPendingDeletionRisks));
+    }
+
+    private async Task ExecuteDeletionAsync(
+        IReadOnlyList<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> itemsToDelete,
+        CleanupDeletionOptions deletionOptions,
+        bool generateReport)
+    {
+        var totalSizeMb = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
 
         var requiresElevation = itemsToDelete.Any(static tuple => IsElevationLikelyRequired(tuple.item.Model.FullName));
         if (requiresElevation && _privilegeService.CurrentMode != PrivilegeMode.Administrator)
@@ -360,15 +669,22 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
         }
 
+        var models = itemsToDelete.Select(static tuple => tuple.item.Model).ToList();
+        if (models.Count == 0)
+        {
+            _mainViewModel.SetStatusMessage("Cleanup cancelled — nothing remains selected.");
+            return;
+        }
+
         try
         {
             IsDeleting = true;
             IsBusy = true;
-            DeletionProgressTotal = itemsToDelete.Count;
+            DeletionProgressTotal = models.Count;
             DeletionProgressCurrent = 0;
             DeletionStatusMessage = totalSizeMb > 0
-                ? $"Removing {itemsToDelete.Count:N0} item(s) • {totalSizeMb:F2} MB"
-                : $"Removing {itemsToDelete.Count:N0} item(s)";
+                ? $"Removing {models.Count:N0} item(s) • {totalSizeMb:F2} MB"
+                : $"Removing {models.Count:N0} item(s)";
 
             var progress = new Progress<CleanupDeletionProgress>(report =>
             {
@@ -379,7 +695,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
                     : $"Deleting {report.Completed}/{report.Total}: {report.CurrentPath}";
             });
 
-            var deletionResult = await _cleanupService.DeleteAsync(itemsToDelete.Select(tuple => tuple.item.Model), progress);
+            var deletionResult = await _cleanupService.DeleteAsync(models, progress, deletionOptions);
 
             foreach (var (group, item) in itemsToDelete)
             {
@@ -396,7 +712,23 @@ public sealed partial class CleanupViewModel : ViewModelBase
             OnPropertyChanged(nameof(SelectedItemCount));
             OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
             OnPropertyChanged(nameof(HasSelection));
+            OnPropertyChanged(nameof(SelectionSummaryText));
+            OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
+
             var deletionSummary = deletionResult.ToStatusMessage();
+            if (generateReport)
+            {
+                var reportPath = TryGenerateCleanupReport(deletionResult, out var reportError);
+                if (!string.IsNullOrWhiteSpace(reportPath))
+                {
+                    deletionSummary += $" • Report saved to {reportPath}";
+                }
+                else if (!string.IsNullOrWhiteSpace(reportError))
+                {
+                    deletionSummary += $" • Report failed: {reportError}";
+                }
+            }
+
             _mainViewModel.SetStatusMessage(deletionSummary);
 
             if (deletionResult.HasErrors && deletionResult.Errors.Count > 0)
@@ -418,10 +750,53 @@ public sealed partial class CleanupViewModel : ViewModelBase
             IsDeleting = false;
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
+            ConfirmCleanupCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(SelectionSummaryText));
+            OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         }
     }
 
-    private bool CanDeleteSelected() => !IsBusy && HasSelection;
+    private string? TryGenerateCleanupReport(CleanupDeletionResult result, out string? error)
+    {
+        error = null;
+        try
+        {
+            var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "TidyWindow", "Reports");
+            Directory.CreateDirectory(root);
+
+            var fileName = $"cleanup-{DateTime.Now:yyyyMMdd-HHmmss}.txt";
+            var filePath = Path.Combine(root, fileName);
+
+            var builder = new StringBuilder();
+            builder.AppendLine("TidyWindow cleanup report");
+            builder.AppendLine($"Generated: {DateTime.Now:G}");
+            builder.AppendLine();
+            builder.AppendLine("Summary");
+            builder.AppendLine($"  Deleted: {result.DeletedCount:N0}");
+            builder.AppendLine($"  Skipped: {result.SkippedCount:N0}");
+            builder.AppendLine($"  Failed : {result.FailedCount:N0}");
+            builder.AppendLine($"  Space reclaimed: {FormatSize(result.TotalBytesDeleted / 1_048_576d)}");
+            builder.AppendLine();
+
+            foreach (var entry in result.Entries)
+            {
+                builder.AppendLine($"{entry.Disposition}: {entry.Path}");
+                if (!string.IsNullOrWhiteSpace(entry.Reason))
+                {
+                    builder.AppendLine("  " + entry.Reason);
+                }
+                builder.AppendLine();
+            }
+
+            File.WriteAllText(filePath, builder.ToString());
+            return filePath;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return null;
+        }
+    }
 
     [RelayCommand(CanExecute = nameof(CanSelectAllCurrent))]
     private void SelectAllCurrent()
@@ -539,9 +914,50 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     private bool CanClearCurrentSelection() => FilteredItems.Any(static item => item.IsSelected);
 
+    [RelayCommand]
+    private void ResetFilters()
+    {
+        IncludeDownloads = true;
+        SelectedItemKind = CleanupItemKind.Both;
+        SelectedExtensionFilterMode = CleanupExtensionFilterMode.None;
+        SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
+        CustomExtensionInput = string.Empty;
+        PreviewCount = DefaultPreviewCount;
+        SelectRangeStartPage = 1;
+        SelectRangeEndPage = 1;
+        PreviewSortMode = CleanupPreviewSortMode.Impact;
+        _mainViewModel.SetStatusMessage("Cleanup filters reset to defaults.");
+        RefreshFilteredItems();
+    }
+
+    [RelayCommand]
+    private void Cancel()
+    {
+        var destination = _mainViewModel.NavigationItems.FirstOrDefault();
+        if (destination is not null)
+        {
+            _mainViewModel.NavigateTo(destination.PageType);
+        }
+
+        _mainViewModel.SetStatusMessage("Cleanup setup cancelled. Returning to dashboard.");
+    }
+
+    [RelayCommand]
+    private void ApplyPreviewPreset(int value)
+    {
+        PreviewCount = value;
+    }
+
+    [RelayCommand]
+    private void SetPreviewSortMode(CleanupPreviewSortMode mode)
+    {
+        PreviewSortMode = mode;
+    }
+
     partial void OnIsBusyChanged(bool value)
     {
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+        ConfirmCleanupCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnSelectedTargetChanged(CleanupTargetGroupViewModel? oldValue, CleanupTargetGroupViewModel? newValue)
@@ -580,6 +996,40 @@ public sealed partial class CleanupViewModel : ViewModelBase
         RefreshFilteredItems();
     }
 
+    partial void OnPendingDeletionItemCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(PendingDeletionItemSummary));
+        OnPropertyChanged(nameof(HasPendingDeletion));
+        ConfirmCleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnPendingDeletionTotalSizeMegabytesChanged(double value)
+    {
+        OnPropertyChanged(nameof(PendingDeletionSizeDisplay));
+    }
+
+    partial void OnPendingDeletionCategoryCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(PendingDeletionCategorySummary));
+    }
+
+    partial void OnPendingDeletionCategoryListChanged(string value)
+    {
+        OnPropertyChanged(nameof(PendingDeletionCategoryListDisplay));
+    }
+
+    partial void OnIsConfirmationSheetVisibleChanged(bool value)
+    {
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+        ConfirmCleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnCurrentPhaseChanged(CleanupPhase value)
+    {
+        OnPropertyChanged(nameof(IsSetupPhase));
+        OnPropertyChanged(nameof(IsPreviewPhase));
+    }
+
     partial void OnSelectedExtensionFilterModeChanged(CleanupExtensionFilterMode value)
     {
         RebuildExtensionCache();
@@ -614,6 +1064,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedItemCount));
         OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
         OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectionSummaryText));
+        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
@@ -625,6 +1077,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SummaryText));
         OnPropertyChanged(nameof(HasResults));
         OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectionSummaryText));
+        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
@@ -644,6 +1098,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedItemCount));
         OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
         OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectionSummaryText));
+        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         OnPropertyChanged(nameof(HasFilteredResults));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
@@ -659,6 +1115,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         Targets.Add(group);
         OnPropertyChanged(nameof(HasResults));
         OnPropertyChanged(nameof(SummaryText));
+        OnPropertyChanged(nameof(SelectionSummaryText));
+        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         SelectAllPagesCommand.NotifyCanExecuteChanged();
@@ -679,6 +1137,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         RefreshFilteredItems();
         OnPropertyChanged(nameof(HasResults));
         OnPropertyChanged(nameof(SummaryText));
+        OnPropertyChanged(nameof(SelectionSummaryText));
+        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         SelectAllPagesCommand.NotifyCanExecuteChanged();
@@ -704,7 +1164,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
             return;
         }
         // Get all filtered items, but only show current page
-        var filtered = SelectedTarget.Items.Where(MatchesFilters).ToList();
+        var filteredQuery = SelectedTarget.Items.Where(MatchesFilters);
+        filteredQuery = PreviewSortMode switch
+        {
+            CleanupPreviewSortMode.Impact => filteredQuery.OrderByDescending(static item => item.SizeBytes),
+            CleanupPreviewSortMode.Newest => filteredQuery.OrderByDescending(static item => item.LastModifiedLocal),
+            CleanupPreviewSortMode.Risk => filteredQuery.OrderBy(static item => item.Confidence),
+            _ => filteredQuery
+        };
+
+        var filtered = filteredQuery.ToList();
         _totalFilteredItems = filtered.Count;
         int skip = (CurrentPage - 1) * PageSize;
         foreach (var item in filtered.Skip(skip).Take(PageSize))
@@ -717,6 +1186,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(TotalPages));
         OnPropertyChanged(nameof(CanGoToPreviousPage));
         OnPropertyChanged(nameof(CanGoToNextPage));
+        OnPropertyChanged(nameof(SelectionSummaryText));
+        OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         SelectAllPagesCommand.NotifyCanExecuteChanged();
@@ -791,6 +1262,21 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 _activeExtensions.Add(normalized);
             }
         }
+    }
+
+    private static string FormatSize(double megabytes)
+    {
+        if (megabytes >= 1024d)
+        {
+            return $"{megabytes / 1024d:F2} GB";
+        }
+
+        if (megabytes >= 1d)
+        {
+            return $"{megabytes:F2} MB";
+        }
+
+        return $"{megabytes * 1024d:F0} KB";
     }
 
     private static IEnumerable<string> ParseExtensions(string? value)

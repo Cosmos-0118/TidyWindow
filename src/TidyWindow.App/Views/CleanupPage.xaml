@@ -1,9 +1,11 @@
 <Page x:Class="TidyWindow.App.Views.CleanupPage"
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+            xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib"
       xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+            xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
       mc:Ignorable="d"
       Title="Cleanup"
       Background="Transparent">
@@ -82,345 +84,771 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="SetupCardStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="#0F172A"/>
+            <Setter Property="BorderBrush"
+                    Value="#1E293B"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="16"/>
+            <Setter Property="Margin"
+                    Value="0,0,16,16"/>
+            <Setter Property="MinWidth"
+                    Value="220"/>
+        </Style>
+    <Style x:Key="SheetCardStyle"
+           TargetType="Border">
+        <Setter Property="Background"
+            Value="#101C33"/>
+        <Setter Property="BorderBrush"
+            Value="#1E293B"/>
+        <Setter Property="BorderThickness"
+            Value="1"/>
+        <Setter Property="CornerRadius"
+            Value="12"/>
+        <Setter Property="Padding"
+            Value="16"/>
+        <Setter Property="Margin"
+            Value="0,0,16,16"/>
+        <Setter Property="MinWidth"
+            Value="180"/>
+    </Style>
+        <Style x:Key="AdvancedCardStyle"
+               TargetType="Border"
+               BasedOn="{StaticResource SetupCardStyle}">
+            <Setter Property="Background"
+                    Value="#0B1324"/>
+            <Setter Property="Margin"
+                    Value="0,12,0,0"/>
+        </Style>
+        <Style x:Key="ChipButtonStyle"
+               TargetType="Button">
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Background"
+                    Value="#1E293B"/>
+            <Setter Property="Foreground"
+                    Value="#E2E8F0"/>
+            <Setter Property="FontSize"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="12,4"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Margin"
+                    Value="0,0,8,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ChipBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="16"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="ChipBorder"
+                                        Property="Background"
+                                        Value="#24324C"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="ChipBorder"
+                                        Property="Background"
+                                        Value="#1E3A8A"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="ChipBorder"
+                                        Property="Opacity"
+                                        Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="FlatButtonStyle"
+               TargetType="Button">
+            <Setter Property="Cursor"
+                    Value="Hand"/>
+            <Setter Property="Foreground"
+                    Value="#E2E8F0"/>
+            <Setter Property="Background"
+                    Value="#1E293B"/>
+            <Setter Property="Padding"
+                    Value="16,8"/>
+            <Setter Property="BorderThickness"
+                    Value="0"/>
+            <Setter Property="Margin"
+                    Value="0,0,12,0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Background"
+                                        Value="#24324C"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter TargetName="ButtonBorder"
+                                        Property="Opacity"
+                                        Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Page.Resources>
-    <ScrollViewer x:Name="RootScrollViewer"
-                  Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False"
-                  PanningMode="VerticalOnly">
-        <Grid MinWidth="720">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+    <Grid>
+        <ScrollViewer x:Name="RootScrollViewer"
+                      Margin="32"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      CanContentScroll="False"
+                      PanningMode="VerticalOnly">
+        <StackPanel MinWidth="760">
+            <Border Background="#0B1629"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1"
+                    CornerRadius="16"
+                    Padding="24"
+            Margin="0,0,0,24"
+            Visibility="{Binding IsSetupPhase, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Width="64"
+                            Height="64"
+                            Background="#1E2237"
+                            CornerRadius="18"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="🧹"
+                                   FontSize="28"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <StackPanel Grid.Column="1"
+                                Margin="20,0,0,0">
+                        <TextBlock Text="Phase 1 — Configure scan"
+                                   Foreground="#38BDF8"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"/>
+                        <TextBlock Text="Shape your cleanup preview"
+                                   FontSize="26"
+                                   FontWeight="Bold"
+                                   Foreground="#F8FAFC"
+                                   Margin="0,6,0,4"/>
+                        <TextBlock Text="Dial in scope, types, and filters before moving on to review."
+                                   Foreground="#94A3B8"
+                                   FontSize="14"
+                                   TextWrapping="Wrap"
+                                   Margin="0,0,0,8"/>
+                        <ItemsControl Margin="0,12,0,0">
+                            <ItemsControl.Items>
+                                <TextBlock Text="- Toggle downloads, item kinds, and extensions from one surface."
+                                           Foreground="#64748B"
+                                           FontSize="12"/>
+                                <TextBlock Text="- Use presets or precision input to cap the top items."
+                                           Foreground="#64748B"
+                                           FontSize="12"/>
+                                <TextBlock Text="- Reveal advanced filters only when you need deeper control."
+                                           Foreground="#64748B"
+                                           FontSize="12"/>
+                            </ItemsControl.Items>
+                        </ItemsControl>
+                    </StackPanel>
+                </Grid>
+            </Border>
 
-            <StackPanel Orientation="Horizontal">
-                <Border Width="48"
-                        Height="48"
-                        CornerRadius="12"
-                        Background="#1E293B"
-                        Margin="0,0,12,0">
-                    <TextBlock Text="🧹"
-                               FontSize="24"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                </Border>
+            <Border Background="#111827"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Padding="24"
+            Margin="0,0,0,28"
+            Visibility="{Binding IsSetupPhase, Converter={StaticResource BooleanToVisibilityConverter}}">
                 <StackPanel>
-                    <TextBlock Text="System clean-up"
-                               FontSize="26"
-                               FontWeight="Bold"
-                               Foreground="#F8FAFC"/>
-                    <TextBlock Text="Preview large files and clutter before removing them"
-                               FontSize="14"
-                               Foreground="#94A3B8"/>
-                </StackPanel>
-            </StackPanel>
-
-            <Border Grid.Row="1"
-                    Margin="0,24,0,20"
-                    Padding="16"
-                    Background="#111827"
-                    CornerRadius="12">
-                <StackPanel>
-                    <TextBlock Text="Preview options"
-                               FontSize="14"
+                    <TextBlock Text="Setup checklist"
+                               FontSize="16"
+                               FontWeight="SemiBold"
                                Foreground="#CBD5F5"/>
-                    <TextBlock Text="Adjust scope before running a dry-run scan"
+                    <TextBlock Text="Confirm what the preview should include before you run it."
                                FontSize="12"
                                Foreground="#64748B"
-                               Margin="0,2,0,12"/>
+                               Margin="0,2,0,20"/>
 
                     <WrapPanel>
-                        <StackPanel Margin="0,0,16,12"
-                                    MinWidth="180">
-                            <TextBlock Text="Scope"
-                                       Foreground="#94A3B8"/>
-                            <CheckBox Margin="0,6,0,0"
-                                      Content="Include Downloads"
-                                      FontSize="13"
-                                      Foreground="#F8FAFC"
-                                      IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
-                        </StackPanel>
-                        <StackPanel Margin="0,0,16,12"
-                                    MinWidth="160">
-                            <TextBlock Text="Top items"
-                                       Foreground="#94A3B8"/>
-                            <TextBox Margin="0,6,0,0"
-                                     Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     FontSize="13"
-                                     Foreground="#F8FAFC"
-                                     Width="80"
-                                     Background="#1F2937"
-                                     BorderBrush="#374151"
-                                     BorderThickness="1"
-                                     HorizontalContentAlignment="Center"/>
-                        </StackPanel>
+                        <Border Style="{StaticResource SetupCardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Scope"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
+                                <TextBlock Text="Include Downloads to mirror the quick toggle (D)."
+                                           FontSize="12"
+                                           Foreground="#64748B"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,8"/>
+                                <CheckBox Content="Include Downloads"
+                                          FontSize="13"
+                                          Foreground="#F8FAFC"
+                                          IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SetupCardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Filter by type"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
+                                <TextBlock Text="Choose whether to scan files, folders, or both (F)."
+                                           FontSize="12"
+                                           Foreground="#64748B"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,8"/>
+                                <ComboBox ItemsSource="{Binding ItemKindOptions}"
+                                          SelectedValuePath="Kind"
+                                          SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
+                                          DisplayMemberPath="Label"
+                                          Background="Transparent"
+                                          Foreground="#E2E8F0"
+                                          BorderThickness="0"
+                                          Padding="0">
+                                    <ComboBox.Template>
+                                        <ControlTemplate TargetType="ComboBox">
+                                            <Grid>
+                                                <ToggleButton x:Name="ToggleButton"
+                                                              Template="{StaticResource ComboToggleButtonTemplate}"
+                                                              Grid.ColumnSpan="2"
+                                                              Focusable="False"
+                                                              IsHitTestVisible="True"
+                                                              ClickMode="Press"
+                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                                <ContentPresenter x:Name="ContentSite"
+                                                                  Margin="14,4,36,4"
+                                                                  VerticalAlignment="Center"
+                                                                  HorizontalAlignment="Left"
+                                                                  RecognizesAccessKey="True"
+                                                                  Content="{TemplateBinding SelectionBoxItem}"/>
+                                                <Popup x:Name="Popup"
+                                                       Placement="Bottom"
+                                                       AllowsTransparency="True"
+                                                       Focusable="False"
+                                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                       PopupAnimation="Slide">
+                                                    <Border x:Name="PopupBorder"
+                                                            Background="#0F172A"
+                                                            BorderBrush="#1E293B"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="4">
+                                                        <ScrollViewer Margin="0"
+                                                                      SnapsToDevicePixels="True">
+                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="HasItems"
+                                                         Value="False">
+                                                    <Setter TargetName="PopupBorder"
+                                                            Property="MinHeight"
+                                                            Value="24"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled"
+                                                         Value="False">
+                                                    <Setter Property="Foreground"
+                                                            Value="#64748B"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ComboBox.Template>
+                                    <ComboBox.ItemContainerStyle>
+                                        <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
+                                    </ComboBox.ItemContainerStyle>
+                                </ComboBox>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SetupCardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Extensions"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
+                                <TextBlock Text="Enable filtering (E) to include or exclude extensions."
+                                           FontSize="12"
+                                           Foreground="#64748B"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,8"/>
+                                <ComboBox ItemsSource="{Binding ExtensionFilterOptions}"
+                                          SelectedValuePath="Mode"
+                                          SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
+                                          Background="Transparent"
+                                          Foreground="#E2E8F0"
+                                          BorderThickness="0"
+                                          Padding="0"
+                                          ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
+                                    <ComboBox.Template>
+                                        <ControlTemplate TargetType="ComboBox">
+                                            <Grid>
+                                                <ToggleButton x:Name="ToggleButton"
+                                                              Template="{StaticResource ComboToggleButtonTemplate}"
+                                                              Grid.ColumnSpan="2"
+                                                              Focusable="False"
+                                                              IsHitTestVisible="True"
+                                                              ClickMode="Press"
+                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                                <ContentPresenter x:Name="ContentSite"
+                                                                  Margin="14,4,36,4"
+                                                                  VerticalAlignment="Center"
+                                                                  HorizontalAlignment="Left"
+                                                                  RecognizesAccessKey="True"
+                                                                  Content="{TemplateBinding SelectionBoxItem}"/>
+                                                <Popup x:Name="Popup"
+                                                       Placement="Bottom"
+                                                       AllowsTransparency="True"
+                                                       Focusable="False"
+                                                       IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                       PopupAnimation="Slide">
+                                                    <Border x:Name="PopupBorder"
+                                                            Background="#0F172A"
+                                                            BorderBrush="#1E293B"
+                                                            BorderThickness="1"
+                                                            CornerRadius="6"
+                                                            Padding="4">
+                                                        <ScrollViewer Margin="0"
+                                                                      SnapsToDevicePixels="True">
+                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                        </ScrollViewer>
+                                                    </Border>
+                                                </Popup>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="HasItems"
+                                                         Value="False">
+                                                    <Setter TargetName="PopupBorder"
+                                                            Property="MinHeight"
+                                                            Value="24"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled"
+                                                         Value="False">
+                                                    <Setter Property="Foreground"
+                                                            Value="#64748B"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </ComboBox.Template>
+                                    <ComboBox.ItemContainerStyle>
+                                        <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
+                                    </ComboBox.ItemContainerStyle>
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Label}"
+                                                           Foreground="#E2E8F0"/>
+                                                <TextBlock Text="{Binding Description}"
+                                                           Foreground="#64748B"
+                                                           FontSize="11"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                                <TextBlock Text="{Binding ExtensionStatusText}"
+                                           FontSize="12"
+                                           Foreground="#CBD5F5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource SetupCardStyle}"
+                                MinWidth="300">
+                            <StackPanel>
+                                <TextBlock Text="Top items"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
+                                <TextBlock Text="Use the slider or presets to keep previews manageable (T)."
+                                           FontSize="12"
+                                           Foreground="#64748B"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,8"/>
+                <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
+                    Maximum="{Binding PreviewCountMaximum, Mode=OneWay}"
+                                        Value="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        TickFrequency="5"
+                                        IsSnapToTickEnabled="True"
+                                        Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal"
+                                            VerticalAlignment="Center"
+                                            Margin="0,0,0,8">
+                                    <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="64"
+                                             Background="#0F172A"
+                                             Foreground="#E2E8F0"
+                                             BorderBrush="#1E293B"
+                                             BorderThickness="1"
+                                             Padding="6,4"
+                                             HorizontalContentAlignment="Center"
+                                             Margin="0,0,12,0"/>
+                                    <TextBlock FontSize="12"
+                                               Foreground="#64748B"
+                                               VerticalAlignment="Center">
+                                        <Run Text="Range: "/>
+                                        <Run Text="{Binding PreviewCountMinimum}"/>
+                                        <Run Text=" - "/>
+                                        <Run Text="{Binding PreviewCountMaximum}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Style="{StaticResource ChipButtonStyle}"
+                                            Content="25"
+                                            Command="{Binding ApplyPreviewPresetCommand}">
+                                        <Button.CommandParameter>
+                                            <sys:Int32>25</sys:Int32>
+                                        </Button.CommandParameter>
+                                    </Button>
+                                    <Button Style="{StaticResource ChipButtonStyle}"
+                                            Content="50"
+                                            Command="{Binding ApplyPreviewPresetCommand}">
+                                        <Button.CommandParameter>
+                                            <sys:Int32>50</sys:Int32>
+                                        </Button.CommandParameter>
+                                    </Button>
+                                    <Button Style="{StaticResource ChipButtonStyle}"
+                                            Content="100"
+                                            Command="{Binding ApplyPreviewPresetCommand}">
+                                        <Button.CommandParameter>
+                                            <sys:Int32>100</sys:Int32>
+                                        </Button.CommandParameter>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
                     </WrapPanel>
 
-                    <WrapPanel>
-                        <StackPanel Margin="0,0,16,12"
-                                    MinWidth="220">
-                            <TextBlock Text="Item kind"
-                                       Foreground="#94A3B8"/>
-                            <ComboBox Margin="0,6,0,0"
-                                      ItemsSource="{Binding ItemKindOptions}"
-                                      SelectedValuePath="Kind"
-                                      SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
-                                      DisplayMemberPath="Label"
-                                      Background="Transparent"
-                                      Foreground="#E2E8F0"
-                                      BorderThickness="0"
-                                      Padding="0">
-                                <ComboBox.Template>
-                                    <ControlTemplate TargetType="ComboBox">
-                                        <Grid>
-                                            <ToggleButton x:Name="ToggleButton"
-                                                          Template="{StaticResource ComboToggleButtonTemplate}"
-                                                          Grid.ColumnSpan="2"
-                                                          Focusable="False"
-                                                          IsHitTestVisible="True"
-                                                          ClickMode="Press"
-                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                            <ContentPresenter x:Name="ContentSite"
-                                                              Margin="14,4,36,4"
-                                                              VerticalAlignment="Center"
-                                                              HorizontalAlignment="Left"
-                                                              RecognizesAccessKey="True"
-                                                              Content="{TemplateBinding SelectionBoxItem}"/>
-                                            <Popup x:Name="Popup"
-                                                   Placement="Bottom"
-                                                   AllowsTransparency="True"
-                                                   Focusable="False"
-                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                   PopupAnimation="Slide">
-                                                <Border x:Name="PopupBorder"
-                                                        Background="#0F172A"
-                                                        BorderBrush="#1E293B"
-                                                        BorderThickness="1"
-                                                        CornerRadius="6"
-                                                        Padding="4">
-                                                    <ScrollViewer Margin="0"
-                                                                  SnapsToDevicePixels="True">
-                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Popup>
-                                        </Grid>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="HasItems"
-                                                     Value="False">
-                                                <Setter TargetName="PopupBorder"
-                                                        Property="MinHeight"
-                                                        Value="24"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled"
-                                                     Value="False">
+                    <Expander Header="Advanced options"
+                              Background="Transparent"
+                              Foreground="#CBD5F5"
+                              Margin="0,12,0,0">
+                        <StackPanel Margin="0,12,0,0">
+                            <Border Style="{StaticResource AdvancedCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Extension profile"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock FontSize="12"
+                                               Margin="0,4,0,8">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground"
                                                         Value="#64748B"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ComboBox.Template>
-                                <ComboBox.ItemContainerStyle>
-                                    <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                                </ComboBox.ItemContainerStyle>
-                            </ComboBox>
+                                                <Setter Property="Text"
+                                                        Value="Apply a preset list of extensions for quick filtering."/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsExtensionSelectorEnabled}"
+                                                                 Value="False">
+                                                        <Setter Property="Foreground"
+                                                                Value="#475569"/>
+                                                        <Setter Property="Text"
+                                                                Value="Enable extension filtering above to choose a preset."/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <ComboBox ItemsSource="{Binding ExtensionProfiles}"
+                                              SelectedItem="{Binding SelectedExtensionProfile, Mode=TwoWay}"
+                                              DisplayMemberPath="Name"
+                                              Background="Transparent"
+                                              Foreground="#E2E8F0"
+                                              BorderThickness="0"
+                                              Padding="0"
+                                              IsEnabled="{Binding IsExtensionSelectorEnabled}">
+                                        <ComboBox.Template>
+                                            <ControlTemplate TargetType="ComboBox">
+                                                <Grid>
+                                                    <ToggleButton x:Name="ToggleButton"
+                                                                  Template="{StaticResource ComboToggleButtonTemplate}"
+                                                                  Grid.ColumnSpan="2"
+                                                                  Focusable="False"
+                                                                  IsHitTestVisible="True"
+                                                                  ClickMode="Press"
+                                                                  IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                                    <ContentPresenter x:Name="ContentSite"
+                                                                      Margin="14,4,36,4"
+                                                                      VerticalAlignment="Center"
+                                                                      HorizontalAlignment="Left"
+                                                                      RecognizesAccessKey="True"
+                                                                      Content="{TemplateBinding SelectionBoxItem}"/>
+                                                    <Popup x:Name="Popup"
+                                                           Placement="Bottom"
+                                                           AllowsTransparency="True"
+                                                           Focusable="False"
+                                                           IsOpen="{TemplateBinding IsDropDownOpen}"
+                                                           PopupAnimation="Slide">
+                                                        <Border x:Name="PopupBorder"
+                                                                Background="#0F172A"
+                                                                BorderBrush="#1E293B"
+                                                                BorderThickness="1"
+                                                                CornerRadius="6"
+                                                                Padding="4">
+                                                            <ScrollViewer Margin="0"
+                                                                          SnapsToDevicePixels="True">
+                                                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                            </ScrollViewer>
+                                                        </Border>
+                                                    </Popup>
+                                                </Grid>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="HasItems"
+                                                             Value="False">
+                                                        <Setter TargetName="PopupBorder"
+                                                                Property="MinHeight"
+                                                                Value="24"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled"
+                                                             Value="False">
+                                                        <Setter Property="Foreground"
+                                                                Value="#64748B"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </ComboBox.Template>
+                                        <ComboBox.ItemContainerStyle>
+                                            <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
+                                        </ComboBox.ItemContainerStyle>
+                                    </ComboBox>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource AdvancedCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Custom extensions"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="Separate values with commas, spaces, or semicolons."
+                                               FontSize="12"
+                                               Foreground="#64748B"
+                                               Margin="0,4,0,8"/>
+                                    <TextBox Text="{Binding CustomExtensionInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Background="#0F172A"
+                                             Foreground="#E2E8F0"
+                                             BorderBrush="#1E293B"
+                                             BorderThickness="1"
+                                             Padding="6"
+                                             IsEnabled="{Binding IsExtensionSelectorEnabled}"
+                                             ToolTip="Separate extensions with commas, spaces, or semicolons."/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource AdvancedCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Page range selection"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="Apply range selects after categories load; useful for deep dives."
+                                               FontSize="12"
+                                               Foreground="#64748B"
+                                               Margin="0,4,0,8"
+                                               TextWrapping="Wrap"/>
+                                    <StackPanel Orientation="Horizontal"
+                                                Margin="0,0,0,8"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Pages"
+                                                   Foreground="#94A3B8"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,8,0"/>
+                                        <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="48"
+                                                 Background="#0F172A"
+                                                 Foreground="#E2E8F0"
+                                                 BorderBrush="#1E293B"
+                                                 BorderThickness="1"
+                                                 Padding="6,4"
+                                                 HorizontalContentAlignment="Center"
+                                                 Margin="0,0,6,0"/>
+                                        <TextBlock Text="-"
+                                                   Foreground="#94A3B8"
+                                                   VerticalAlignment="Center"
+                                                   Margin="0,0,6,0"/>
+                                        <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="48"
+                                                 Background="#0F172A"
+                                                 Foreground="#E2E8F0"
+                                                 BorderBrush="#1E293B"
+                                                 BorderThickness="1"
+                                                 Padding="6,4"
+                                                 HorizontalContentAlignment="Center"
+                                                 Margin="0,0,8,0"/>
+                                        <Button Content="Select range"
+                                                Command="{Binding SelectPageRangeCommand}"
+                                                Background="#1E293B"
+                                                Foreground="#E2E8F0"
+                                                Padding="14,6"
+                                                Cursor="Hand"
+                                                BorderThickness="0"
+                                                Margin="0"
+                                                ToolTip="Select every filtered item within the inclusive page range.">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border x:Name="SelectRangeBorder"
+                                                            Background="{TemplateBinding Background}"
+                                                            CornerRadius="8"
+                                                            Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                    </Border>
+                                                    <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsEnabled"
+                                                                 Value="False">
+                                                            <Setter TargetName="SelectRangeBorder"
+                                                                    Property="Opacity"
+                                                                    Value="0.5"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsMouseOver"
+                                                                 Value="True">
+                                                            <Setter TargetName="SelectRangeBorder"
+                                                                    Property="Background"
+                                                                    Value="#24324C"/>
+                                                        </Trigger>
+                                                    </ControlTemplate.Triggers>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </StackPanel>
+                                    <TextBlock Text="For all filtered items, use Select all pages below."
+                                               FontSize="11"
+                                               Foreground="#475569"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
+                    </Expander>
 
-                        <StackPanel Margin="0,0,16,12"
-                                    MinWidth="240">
-                            <TextBlock Text="Extension mode"
-                                       Foreground="#94A3B8"/>
-                            <ComboBox Margin="0,6,0,0"
-                                      ItemsSource="{Binding ExtensionFilterOptions}"
-                                      SelectedValuePath="Mode"
-                                      SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
-                                      Background="Transparent"
-                                      Foreground="#E2E8F0"
-                                      BorderThickness="0"
-                                      Padding="0"
-                                      ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
-                                <ComboBox.Template>
-                                    <ControlTemplate TargetType="ComboBox">
-                                        <Grid>
-                                            <ToggleButton x:Name="ToggleButton"
-                                                          Template="{StaticResource ComboToggleButtonTemplate}"
-                                                          Grid.ColumnSpan="2"
-                                                          Focusable="False"
-                                                          IsHitTestVisible="True"
-                                                          ClickMode="Press"
-                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                            <ContentPresenter x:Name="ContentSite"
-                                                              Margin="14,4,36,4"
-                                                              VerticalAlignment="Center"
-                                                              HorizontalAlignment="Left"
-                                                              RecognizesAccessKey="True"
-                                                              Content="{TemplateBinding SelectionBoxItem}"/>
-                                            <Popup x:Name="Popup"
-                                                   Placement="Bottom"
-                                                   AllowsTransparency="True"
-                                                   Focusable="False"
-                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                   PopupAnimation="Slide">
-                                                <Border x:Name="PopupBorder"
-                                                        Background="#0F172A"
-                                                        BorderBrush="#1E293B"
-                                                        BorderThickness="1"
-                                                        CornerRadius="6"
-                                                        Padding="4">
-                                                    <ScrollViewer Margin="0"
-                                                                  SnapsToDevicePixels="True">
-                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Popup>
-                                        </Grid>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="HasItems"
-                                                     Value="False">
-                                                <Setter TargetName="PopupBorder"
-                                                        Property="MinHeight"
-                                                        Value="24"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled"
-                                                     Value="False">
-                                                <Setter Property="Foreground"
-                                                        Value="#64748B"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ComboBox.Template>
-                                <ComboBox.ItemContainerStyle>
-                                    <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                                </ComboBox.ItemContainerStyle>
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding Label}"
-                                                       Foreground="#E2E8F0"/>
-                                            <TextBlock Text="{Binding Description}"
-                                                       Foreground="#64748B"
-                                                       FontSize="11"/>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                        </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,24,0,0">
+                        <Button Content="Cancel"
+                                Command="{Binding CancelCommand}"
+                                Style="{StaticResource FlatButtonStyle}"/>
+                        <Button Content="Reset filters"
+                                Command="{Binding ResetFiltersCommand}"
+                                Style="{StaticResource FlatButtonStyle}"
+                                Background="#0F172A"/>
+                        <Button Content="Run preview"
+                                Background="#22C55E"
+                                Foreground="#06111D"
+                                FontWeight="Semibold"
+                                Padding="16,8"
+                                Cursor="Hand"
+                                BorderThickness="0"
+                                Command="{Binding RunPreviewCommand}"
+                                Margin="0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="RunBorder"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="8"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled"
+                                                 Value="False">
+                                            <Setter TargetName="RunBorder"
+                                                    Property="Opacity"
+                                                    Value="0.6"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter TargetName="RunBorder"
+                                                    Property="Background"
+                                                    Value="#16A34A"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Button.IsEnabled>
+                                <Binding Path="IsBusy"
+                                         Converter="{StaticResource InverseBooleanConverter}"/>
+                            </Button.IsEnabled>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
 
-                        <StackPanel Margin="0,0,16,12"
-                                    MinWidth="220">
-                            <TextBlock Text="Profile"
-                                       Foreground="#94A3B8"/>
-                            <ComboBox Margin="0,6,0,0"
-                                      ItemsSource="{Binding ExtensionProfiles}"
-                                      SelectedItem="{Binding SelectedExtensionProfile, Mode=TwoWay}"
-                                      DisplayMemberPath="Name"
-                                      Background="Transparent"
-                                      Foreground="#E2E8F0"
-                                      BorderThickness="0"
-                                      Padding="0"
-                                      IsEnabled="{Binding IsExtensionSelectorEnabled}">
-                                <ComboBox.Template>
-                                    <ControlTemplate TargetType="ComboBox">
-                                        <Grid>
-                                            <ToggleButton x:Name="ToggleButton"
-                                                          Template="{StaticResource ComboToggleButtonTemplate}"
-                                                          Grid.ColumnSpan="2"
-                                                          Focusable="False"
-                                                          IsHitTestVisible="True"
-                                                          ClickMode="Press"
-                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                            <ContentPresenter x:Name="ContentSite"
-                                                              Margin="14,4,36,4"
-                                                              VerticalAlignment="Center"
-                                                              HorizontalAlignment="Left"
-                                                              RecognizesAccessKey="True"
-                                                              Content="{TemplateBinding SelectionBoxItem}"/>
-                                            <Popup x:Name="Popup"
-                                                   Placement="Bottom"
-                                                   AllowsTransparency="True"
-                                                   Focusable="False"
-                                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                   PopupAnimation="Slide">
-                                                <Border x:Name="PopupBorder"
-                                                        Background="#0F172A"
-                                                        BorderBrush="#1E293B"
-                                                        BorderThickness="1"
-                                                        CornerRadius="6"
-                                                        Padding="4">
-                                                    <ScrollViewer Margin="0"
-                                                                  SnapsToDevicePixels="True">
-                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                    </ScrollViewer>
-                                                </Border>
-                                            </Popup>
-                                        </Grid>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="HasItems"
-                                                     Value="False">
-                                                <Setter TargetName="PopupBorder"
-                                                        Property="MinHeight"
-                                                        Value="24"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled"
-                                                     Value="False">
-                                                <Setter Property="Foreground"
-                                                        Value="#64748B"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ComboBox.Template>
-                                <ComboBox.ItemContainerStyle>
-                                    <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                                </ComboBox.ItemContainerStyle>
-                            </ComboBox>
-                        </StackPanel>
+            <Border Background="#0F172A"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1"
+                    CornerRadius="14"
+            Padding="0"
+            Visibility="{Binding IsPreviewPhase, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
 
-                        <StackPanel Margin="0,0,0,12"
-                                    MinWidth="260">
-                            <TextBlock Text="Custom list"
-                                       Foreground="#94A3B8"/>
-                            <TextBox Margin="0,6,0,0"
-                                     Text="{Binding CustomExtensionInput, UpdateSourceTrigger=PropertyChanged}"
-                                     Background="#0F172A"
-                                     Foreground="#E2E8F0"
-                                     BorderBrush="#1E293B"
-                                     BorderThickness="1"
-                                     Padding="6"
-                                     IsEnabled="{Binding IsExtensionSelectorEnabled}"
-                                     ToolTip="Separate extensions with commas, spaces, or semicolons."/>
-                        </StackPanel>
-                    </WrapPanel>
-
-                    <TextBlock Text="{Binding ExtensionStatusText}"
-                               FontSize="12"
-                               Foreground="#64748B"
-                               Margin="0,0,0,12"/>
-
-                    <StackPanel>
-                        <StackPanel Orientation="Vertical"
-                                    Margin="0,0,0,12"
-                                    Visibility="{Binding IsDeleting, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="Deleting items..."
+            <DockPanel Grid.Row="0"
+                   Margin="24,20,24,16">
+            <StackPanel DockPanel.Dock="Left">
+                            <TextBlock Text="Phase 2 — Preview results"
+                                       FontSize="14"
+                                       Foreground="#CBD5F5"/>
+                            <TextBlock Text="{Binding SummaryText}"
                                        FontSize="12"
-                                       Foreground="#FACC15"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding DeletionStatusMessage}"
-                                       FontSize="11"
-                                       Foreground="#94A3B8"
-                                       TextTrimming="CharacterEllipsis"
-                                       Margin="0,2,0,6"/>
-                            <ProgressBar Height="6"
-                                         Minimum="0"
-                                         Maximum="{Binding DeletionProgressTotal}"
-                                         Value="{Binding DeletionProgressCurrent}"
-                                         Background="#1E293B"
-                                         Foreground="#FACC15"/>
+                                       Foreground="#64748B"/>
                         </StackPanel>
+            <StackPanel DockPanel.Dock="Right"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+                <ProgressBar Width="120"
+                     Height="6"
+                     Margin="0,0,12,0"
+                     IsIndeterminate="True"
+                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                <Button Content="Back to setup"
+                    Command="{Binding NavigateToSetupCommand}"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Background="#111C33"
+                    Margin="0"
+                    VerticalAlignment="Center"/>
+            </StackPanel>
+                    </DockPanel>
 
-                        <WrapPanel Margin="0,0,0,12">
+                    <StackPanel Grid.Row="1"
+                                Margin="24,0,24,12">
+                        <WrapPanel Margin="0,0,0,8">
                             <TextBlock Text="Selected"
                                        FontSize="12"
                                        Foreground="#94A3B8"
@@ -434,8 +862,7 @@
                                        Foreground="#E2E8F0"
                                        Margin="0,0,0,8"/>
                         </WrapPanel>
-
-                        <WrapPanel Margin="0,0,0,12">
+                        <WrapPanel>
                             <Button Content="Clear selection"
                                     Command="{Binding ClearCurrentSelectionCommand}"
                                     Padding="14,8"
@@ -539,70 +966,6 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <StackPanel Orientation="Horizontal"
-                                        Margin="0,0,8,8"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="Pages"
-                                           Foreground="#94A3B8"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,6,0"/>
-                                <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="48"
-                                         Background="#0F172A"
-                                         Foreground="#E2E8F0"
-                                         BorderBrush="#1E293B"
-                                         BorderThickness="1"
-                                         Padding="6,4"
-                                         HorizontalContentAlignment="Center"
-                                         Margin="0,0,6,0"/>
-                                <TextBlock Text="–"
-                                           Foreground="#94A3B8"
-                                           VerticalAlignment="Center"
-                                           Margin="0,0,6,0"/>
-                                <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         Width="48"
-                                         Background="#0F172A"
-                                         Foreground="#E2E8F0"
-                                         BorderBrush="#1E293B"
-                                         BorderThickness="1"
-                                         Padding="6,4"
-                                         HorizontalContentAlignment="Center"
-                                         Margin="0,0,6,0"/>
-                                <Button Content="Select range"
-                                        Command="{Binding SelectPageRangeCommand}"
-                                        Padding="12,6"
-                                        Cursor="Hand"
-                                        BorderThickness="0"
-                                        Background="#1E293B"
-                                        Foreground="#E2E8F0"
-                                        ToolTip="Select every filtered item within the inclusive page range.">
-                                    <Button.Template>
-                                        <ControlTemplate TargetType="Button">
-                                            <Border x:Name="SelectRangeBorder"
-                                                    Background="{TemplateBinding Background}"
-                                                    CornerRadius="8"
-                                                    Padding="{TemplateBinding Padding}">
-                                                <ContentPresenter HorizontalAlignment="Center"
-                                                                  VerticalAlignment="Center"/>
-                                            </Border>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="IsEnabled"
-                                                         Value="False">
-                                                    <Setter TargetName="SelectRangeBorder"
-                                                            Property="Opacity"
-                                                            Value="0.5"/>
-                                                </Trigger>
-                                                <Trigger Property="IsMouseOver"
-                                                         Value="True">
-                                                    <Setter TargetName="SelectRangeBorder"
-                                                            Property="Background"
-                                                            Value="#24324C"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </Button.Template>
-                                </Button>
-                            </StackPanel>
                             <Button Content="Delete selected"
                                     Command="{Binding DeleteSelectedCommand}"
                                     Background="#EF4444"
@@ -612,7 +975,7 @@
                                     Cursor="Hand"
                                     BorderThickness="0"
                                     Margin="0,0,8,8"
-                                    ToolTip="Permanently removes the selected items without using the Recycle Bin.">
+                    ToolTip="Open confirmation to review and run cleanup for the selected items.">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="ActionBorder"
@@ -639,79 +1002,10 @@
                                     </ControlTemplate>
                                 </Button.Template>
                             </Button>
-                            <Button Content="Run preview"
-                                    Background="#22C55E"
-                                    Foreground="#06111D"
-                                    FontWeight="Semibold"
-                                    Padding="16,8"
-                                    Cursor="Hand"
-                                    BorderThickness="0"
-                                    Command="{Binding RunPreviewCommand}"
-                                    Margin="0,0,8,8">
-                                <Button.Template>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border x:Name="RunBorder"
-                                                Background="{TemplateBinding Background}"
-                                                CornerRadius="8"
-                                                Padding="{TemplateBinding Padding}">
-                                            <ContentPresenter HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"/>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsEnabled"
-                                                     Value="False">
-                                                <Setter TargetName="RunBorder"
-                                                        Property="Opacity"
-                                                        Value="0.6"/>
-                                            </Trigger>
-                                            <Trigger Property="IsMouseOver"
-                                                     Value="True">
-                                                <Setter TargetName="RunBorder"
-                                                        Property="Background"
-                                                        Value="#16A34A"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </Button.Template>
-                                <Button.IsEnabled>
-                                    <Binding Path="IsBusy"
-                                             Converter="{StaticResource InverseBooleanConverter}"/>
-                                </Button.IsEnabled>
-                            </Button>
                         </WrapPanel>
                     </StackPanel>
-                </StackPanel>
-            </Border>
 
-            <Border Grid.Row="2"
-                    Background="#111827"
-                    CornerRadius="12"
-                    Padding="0">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-
-                    <DockPanel Grid.Row="0"
-                               Margin="20,16,20,12">
-                        <StackPanel DockPanel.Dock="Left">
-                            <TextBlock Text="Preview results"
-                                       FontSize="14"
-                                       Foreground="#CBD5F5"/>
-                            <TextBlock Text="{Binding SummaryText}"
-                                       FontSize="12"
-                                       Foreground="#64748B"/>
-                        </StackPanel>
-                        <ProgressBar DockPanel.Dock="Right"
-                                     Width="120"
-                                     Height="6"
-                                     Margin="12,0,0,0"
-                                     IsIndeterminate="True"
-                                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    </DockPanel>
-
-                    <Grid Grid.Row="1"
+                    <Grid Grid.Row="2"
                           Margin="16">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="2*"/>
@@ -1154,6 +1448,229 @@
                     </Grid>
                 </Grid>
             </Border>
-        </Grid>
+        </StackPanel>
     </ScrollViewer>
+
+        <Border Background="#AA020B1F"
+                Visibility="{Binding IsConfirmationSheetVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                HorizontalAlignment="Stretch"
+                VerticalAlignment="Stretch">
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="#0B1624"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1"
+                    CornerRadius="18"
+                    Padding="28"
+                    Width="680"
+                    MaxWidth="760">
+                <StackPanel>
+                    <TextBlock Text="Phase 3 — Confirm cleanup"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="Review the impact before running cleanup."
+                               FontSize="12"
+                               Foreground="#94A3B8"
+                               Margin="0,4,0,16"/>
+                    <WrapPanel Margin="0,0,0,8">
+                        <Border Style="{StaticResource SheetCardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Items"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"/>
+                                <TextBlock Text="{Binding PendingDeletionItemSummary}"
+                                           FontSize="22"
+                                           FontWeight="Semibold"
+                                           Foreground="#F8FAFC"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource SheetCardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Space impact"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"/>
+                                <TextBlock Text="{Binding PendingDeletionSizeDisplay}"
+                                           FontSize="22"
+                                           FontWeight="Semibold"
+                                           Foreground="#F8FAFC"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource SheetCardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Categories"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"/>
+                                <TextBlock Text="{Binding PendingDeletionCategorySummary}"
+                                           FontSize="22"
+                                           FontWeight="Semibold"
+                                           Foreground="#F8FAFC"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                    <StackPanel Margin="0,0,0,12">
+                        <TextBlock Text="Categories selected"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"/>
+                        <TextBlock Text="{Binding PendingDeletionCategoryListDisplay}"
+                                   FontSize="12"
+                                   Foreground="#E2E8F0"
+                                   TextWrapping="Wrap"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <StackPanel Margin="0,8,0,0">
+                        <TextBlock Text="Risk callouts"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="#CBD5F5"/>
+                        <ItemsControl ItemsSource="{Binding PendingDeletionRisks}"
+                                      Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border CornerRadius="10"
+                                            Padding="12"
+                                            Margin="0,0,0,8"
+                                            BorderThickness="1">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background"
+                                                        Value="#111C33"/>
+                                                <Setter Property="BorderBrush"
+                                                        Value="#1E3A8A"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Severity}"
+                                                                 Value="{x:Static viewModels:CleanupDeletionRiskSeverity.Caution}">
+                                                        <Setter Property="Background"
+                                                                Value="#1B2238"/>
+                                                        <Setter Property="BorderBrush"
+                                                                Value="#FBBF24"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Severity}"
+                                                                 Value="{x:Static viewModels:CleanupDeletionRiskSeverity.Danger}">
+                                                        <Setter Property="Background"
+                                                                Value="#1F1B2D"/>
+                                                        <Setter Property="BorderBrush"
+                                                                Value="#F87171"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F8FAFC"/>
+                                            <TextBlock Text="{Binding Description}"
+                                                       FontSize="12"
+                                                       Foreground="#94A3B8"
+                                                       Margin="0,4,0,0"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="No additional risks detected. You're good to go."
+                                   FontSize="12"
+                                   Foreground="#64748B"
+                                   Margin="0,0,0,12">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasPendingDeletionRisks}"
+                                                     Value="False">
+                                            <Setter Property="Visibility"
+                                                    Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Margin="0,8,0,0">
+                        <CheckBox Content="Send to Recycle Bin when possible"
+                                  IsChecked="{Binding UseRecycleBin, Mode=TwoWay}"
+                                  Foreground="#E2E8F0"
+                                  FontSize="13"
+                                  Margin="0,0,0,8"/>
+                        <CheckBox Content="Generate cleanup report"
+                                  IsChecked="{Binding GenerateCleanupReport, Mode=TwoWay}"
+                                  Foreground="#E2E8F0"
+                                  FontSize="13"/>
+                        <TextBlock Text="Reports save under Documents\TidyWindow\Reports."
+                                   FontSize="11"
+                                   Foreground="#64748B"
+                                   Margin="24,4,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding GenerateCleanupReport}"
+                                                     Value="True">
+                                            <Setter Property="Visibility"
+                                                    Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,24,0,0">
+            <Button Content="Back to review"
+                Command="{Binding DismissDeletionConfirmationCommand}"
+                Style="{StaticResource FlatButtonStyle}"
+                Background="#111C33"
+                Margin="0"/>
+                        <Button Content="Run cleanup"
+                                Command="{Binding ConfirmCleanupCommand}"
+                                Background="#22C55E"
+                                Foreground="#06111D"
+                                FontWeight="Semibold"
+                                Padding="18,10"
+                                Cursor="Hand"
+                                BorderThickness="0"
+                                Margin="12,0,0,0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="ConfirmRunBorder"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="8"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled"
+                                                 Value="False">
+                                            <Setter TargetName="ConfirmRunBorder"
+                                                    Property="Opacity"
+                                                    Value="0.6"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter TargetName="ConfirmRunBorder"
+                                                    Property="Background"
+                                                    Value="#16A34A"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Button.IsEnabled>
+                                <Binding Path="IsBusy"
+                                         Converter="{StaticResource InverseBooleanConverter}"/>
+                            </Button.IsEnabled>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
 </Page>

@@ -812,20 +812,81 @@
                 </WrapPanel>
             </StackPanel>
         </DataTemplate>
+
+        <LinearGradientBrush x:Key="MaintenanceOverlayBackdropBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#B0101F33" Offset="0"/>
+            <GradientStop Color="#E6243654" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="MaintenanceOverlayPanelBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#111F36" Offset="0"/>
+            <GradientStop Color="#081423" Offset="1"/>
+        </LinearGradientBrush>
+
+        <RadialGradientBrush x:Key="MaintenanceOverlayPulseBrush" GradientOrigin="0.5,0.35" Center="0.5,0.5" RadiusX="0.9" RadiusY="0.9">
+            <GradientStop Color="#6638D5FF" Offset="0"/>
+            <GradientStop Color="#06213C" Offset="1"/>
+        </RadialGradientBrush>
+
+        <DropShadowEffect x:Key="MaintenanceOverlayShadowEffect"
+                          Color="#000000"
+                          ShadowDepth="0"
+                          BlurRadius="36"
+                          Opacity="0.7"/>
+
+        <SolidColorBrush x:Key="MaintenanceOverlayAccentBrush" Color="#22D3EE"/>
+        <SolidColorBrush x:Key="MaintenanceOverlayWarmAccentBrush" Color="#F97316"/>
+
+        <CubicEase x:Key="MaintenanceOverlayEaseIn" EasingMode="EaseInOut"/>
+        <CubicEase x:Key="MaintenanceOverlayEaseOut" EasingMode="EaseOut"/>
     </Page.Resources>
 
-    <ScrollViewer x:Name="ContentScrollViewer"
-            Margin="32"
-            VerticalScrollBarVisibility="Auto"
-            HorizontalScrollBarVisibility="Disabled"
-            HorizontalContentAlignment="Stretch"
-            CanContentScroll="False"
-            PanningMode="VerticalOnly"
-            SizeChanged="ContentScrollViewer_SizeChanged">
-      <Grid x:Name="PageContentGrid"
-          MinWidth="0"
-          MaxWidth="1360"
-          HorizontalAlignment="Center">
+    <Grid>
+        <Grid x:Name="MainContentHost">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity" Value="1"/>
+                    <Setter Property="IsHitTestVisible" Value="True"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="IsHitTestVisible" Value="False"/>
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="0.3"
+                                                         Duration="0:0:0.35"
+                                                         EasingFunction="{StaticResource MaintenanceOverlayEaseIn}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.4"
+                                                         EasingFunction="{StaticResource MaintenanceOverlayEaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <ScrollViewer x:Name="ContentScrollViewer"
+                          Margin="32"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          HorizontalContentAlignment="Stretch"
+                          CanContentScroll="False"
+                          PanningMode="VerticalOnly"
+                          SizeChanged="ContentScrollViewer_SizeChanged">
+                <Grid x:Name="PageContentGrid"
+                      MinWidth="0"
+                      MaxWidth="1360"
+                      HorizontalAlignment="Center">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -1738,4 +1799,273 @@
             </Grid>
         </Grid>
     </ScrollViewer>
+        </Grid>
+
+        <ContentControl x:Name="MaintenanceLoadingOverlay"
+                        Panel.ZIndex="15"
+                        Focusable="False"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+            <ContentControl.Template>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid x:Name="OverlayRoot"
+                          Background="Transparent"
+                          Visibility="Collapsed"
+                          Opacity="0"
+                          IsHitTestVisible="False">
+                        <Grid Background="{StaticResource MaintenanceOverlayBackdropBrush}">
+                            <Border HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Padding="38,32"
+                                    CornerRadius="32"
+                                    Background="{StaticResource MaintenanceOverlayPanelBrush}"
+                                    BorderBrush="#203555"
+                                    BorderThickness="1.5"
+                                    Effect="{StaticResource MaintenanceOverlayShadowEffect}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="240"/>
+                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Grid Grid.Column="0"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center">
+                                        <Grid Width="220"
+                                              Height="220">
+                                            <Ellipse Fill="#0C1B33"
+                                                     Stroke="#1C2F4D"
+                                                     StrokeThickness="1.5"/>
+                                            <Polygon Points="110,8 198,60 198,160 110,212 22,160 22,60"
+                                                     Stroke="#244E7A"
+                                                     StrokeThickness="2"
+                                                     Fill="#111F34"
+                                                     Opacity="0.9"
+                                                     RenderTransformOrigin="0.5,0.5">
+                                                <Polygon.RenderTransform>
+                                                    <RotateTransform x:Name="OuterHexagonRotate" Angle="0"/>
+                                                </Polygon.RenderTransform>
+                                            </Polygon>
+                                            <Polygon Points="110,36 174,74 174,146 110,184 46,146 46,74"
+                                                     Stroke="#22D3EE"
+                                                     StrokeDashArray="8 10"
+                                                     StrokeThickness="1.5"
+                                                     Fill="#0B253E"
+                                                     Opacity="0.7"
+                                                     RenderTransformOrigin="0.5,0.5">
+                                                <Polygon.RenderTransform>
+                                                    <RotateTransform x:Name="InnerHexagonRotate" Angle="0"/>
+                                                </Polygon.RenderTransform>
+                                            </Polygon>
+                                            <Ellipse Width="84"
+                                                     Height="84"
+                                                     Fill="{StaticResource MaintenanceOverlayPulseBrush}"
+                                                     Opacity="0.5"
+                                                     RenderTransformOrigin="0.5,0.5">
+                                                <Ellipse.RenderTransform>
+                                                    <ScaleTransform x:Name="MaintenancePulseScaleTransform"
+                                                                    ScaleX="1"
+                                                                    ScaleY="1"/>
+                                                </Ellipse.RenderTransform>
+                                            </Ellipse>
+                                            <Path Data="M110,30 L110,190"
+                                                  Stroke="#1F3D62"
+                                                  StrokeThickness="1"
+                                                  StrokeDashArray="4 8"
+                                                  Opacity="0.6"/>
+                                            <Path Data="M56,80 L164,80"
+                                                  Stroke="#1F3D62"
+                                                  StrokeThickness="1"
+                                                  StrokeDashArray="4 8"
+                                                  Opacity="0.6"/>
+                                            <Grid RenderTransformOrigin="0.5,0.5">
+                                                <Grid.RenderTransform>
+                                                    <RotateTransform x:Name="MaintenanceOrbitalRotate" Angle="0"/>
+                                                </Grid.RenderTransform>
+                                                <Border Width="14"
+                                                        Height="14"
+                                                        CornerRadius="7"
+                                                        Background="{StaticResource MaintenanceOverlayAccentBrush}"
+                                                        BorderBrush="#0F233B"
+                                                        BorderThickness="1"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Top"
+                                                        Margin="0,-6,0,0"/>
+                                                <Border Width="20"
+                                                        Height="20"
+                                                        CornerRadius="10"
+                                                        Background="{StaticResource MaintenanceOverlayWarmAccentBrush}"
+                                                        BorderBrush="#1F2F46"
+                                                        BorderThickness="1"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,-10,0"/>
+                                                <Border Width="12"
+                                                        Height="12"
+                                                        CornerRadius="6"
+                                                        Background="#22C55E"
+                                                        BorderBrush="#143524"
+                                                        BorderThickness="1"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Bottom"
+                                                        Margin="0,0,0,-8"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Grid>
+
+                                    <Rectangle Grid.Column="1"
+                                               Width="1"
+                                               RadiusX="0.5"
+                                               RadiusY="0.5"
+                                               Fill="#213A5A"
+                                               Opacity="0.45"/>
+
+                                    <StackPanel Grid.Column="2"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Running maintenance sweep"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Auditing installed packages and preparing remediation steps..."
+                                                   FontSize="13"
+                                                   Foreground="#94A3B8"
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel Margin="0,18,0,0">
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="{StaticResource MaintenanceOverlayAccentBrush}"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Capturing upgrade and downgrade opportunities"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="{StaticResource MaintenanceOverlayWarmAccentBrush}"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Checking pinned versions for drift"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="#22C55E"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Verifying uninstall remediations"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Border Height="6"
+                                                CornerRadius="3"
+                                                Background="#172840"
+                                                Margin="0,22,0,0">
+                                            <Grid ClipToBounds="True">
+                                                <Rectangle x:Name="MaintenanceProgressPulse"
+                                                           Width="180"
+                                                           Height="6"
+                                                           Fill="{StaticResource MaintenanceOverlayAccentBrush}">
+                                                    <Rectangle.RenderTransform>
+                                                        <TranslateTransform x:Name="MaintenanceProgressTranslate"
+                                                                            X="-180"/>
+                                                    </Rectangle.RenderTransform>
+                                                </Rectangle>
+                                            </Grid>
+                                        </Border>
+
+                                        <TextBlock Text="Hold tight—tasks queue automatically when analysis finishes."
+                                                   FontSize="12"
+                                                   Foreground="#64748B"
+                                                   Margin="0,14,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter TargetName="OverlayRoot" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="OverlayRoot" Property="IsHitTestVisible" Value="True"/>
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="MaintenanceOverlayFadeInStoryboard">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="OverlayRoot"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.45"
+                                                         EasingFunction="{StaticResource MaintenanceOverlayEaseIn}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                                <BeginStoryboard x:Name="MaintenanceOverlayMotionStoryboard">
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetName="OuterHexagonRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0"
+                                                         To="360"
+                                                         Duration="0:0:7"/>
+                                        <DoubleAnimation Storyboard.TargetName="InnerHexagonRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="360"
+                                                         To="0"
+                                                         Duration="0:0:4.5"/>
+                                        <DoubleAnimation Storyboard.TargetName="MaintenanceOrbitalRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0"
+                                                         To="360"
+                                                         Duration="0:0:3.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="MaintenancePulseScaleTransform"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         From="1"
+                                                         To="1.3"
+                                                         Duration="0:0:1.1"
+                                                         AutoReverse="True"/>
+                                        <DoubleAnimation Storyboard.TargetName="MaintenancePulseScaleTransform"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         From="1"
+                                                         To="1.3"
+                                                         Duration="0:0:1.1"
+                                                         AutoReverse="True"/>
+                                        <DoubleAnimation Storyboard.TargetName="MaintenanceProgressTranslate"
+                                                         Storyboard.TargetProperty="X"
+                                                         From="-180"
+                                                         To="180"
+                                                         Duration="0:0:1.9"
+                                                         AutoReverse="True"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="MaintenanceOverlayMotionStoryboard"/>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="OverlayRoot"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.4"
+                                                         EasingFunction="{StaticResource MaintenanceOverlayEaseOut}"/>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="OverlayRoot"
+                                                                       Storyboard.TargetProperty="Visibility">
+                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.4"
+                                                                    Value="{x:Static Visibility.Collapsed}"/>
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </ContentControl.Template>
+        </ContentControl>
+    </Grid>
 </Page>

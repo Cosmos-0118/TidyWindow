@@ -61,162 +61,222 @@
             <Setter Property="Padding" Value="8,2"/>
             <Setter Property="Margin" Value="12,0,0,0"/>
         </Style>
+
+        <LinearGradientBrush x:Key="DriverOverlayBackdropBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#C0101B2D" Offset="0"/>
+            <GradientStop Color="#E6182644" Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="DriverOverlayPanelBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#14253F" Offset="0"/>
+            <GradientStop Color="#091729" Offset="1"/>
+        </LinearGradientBrush>
+
+        <RadialGradientBrush x:Key="DriverOverlayPulseBrush" GradientOrigin="0.5,0.35" Center="0.5,0.5" RadiusX="0.85" RadiusY="0.85">
+            <GradientStop Color="#5538BDF8" Offset="0"/>
+            <GradientStop Color="#073852" Offset="1"/>
+        </RadialGradientBrush>
+
+        <DropShadowEffect x:Key="DriverOverlayShadowEffect"
+                          Color="#000000"
+                          ShadowDepth="0"
+                          BlurRadius="34"
+                          Opacity="0.7"/>
+
+        <SolidColorBrush x:Key="DriverOverlayAccentBrush" Color="#38BDF8"/>
+
+        <CubicEase x:Key="DriverOverlayEaseIn" EasingMode="EaseInOut"/>
+        <CubicEase x:Key="DriverOverlayEaseOut" EasingMode="EaseOut"/>
     </Page.Resources>
 
-    <ScrollViewer Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  HorizontalContentAlignment="Stretch"
-                  CanContentScroll="False"
-                  PanningMode="VerticalOnly"
-                  x:Name="RootScrollViewer">
-        <StackPanel Orientation="Vertical"
-                    MaxWidth="1280"
-                    HorizontalAlignment="Center"
-                    d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
-            <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                <Border Width="48"
-                        Height="48"
-                        CornerRadius="12"
-                        Background="#1E293B"
-                        Margin="0,0,12,0"
-                        VerticalAlignment="Center">
-                    <TextBlock Text="🧩"
-                               FontSize="24"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                </Border>
-                <StackPanel>
-                    <TextBlock Text="Driver update insights"
-                               FontSize="26"
-                               FontWeight="Bold"
-                               Foreground="#F8FAFC"/>
-                    <TextBlock Text="Detect pending driver updates and compare versions."
-                               FontSize="14"
-                               Foreground="#94A3B8"/>
-                </StackPanel>
-            </StackPanel>
+    <Grid>
+        <Grid x:Name="MainContentHost">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity" Value="1"/>
+                    <Setter Property="IsHitTestVisible" Value="True"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="IsHitTestVisible" Value="False"/>
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="0.25"
+                                                         Duration="0:0:0.35"
+                                                         EasingFunction="{StaticResource DriverOverlayEaseIn}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.4"
+                                                         EasingFunction="{StaticResource DriverOverlayEaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
 
-            <Border Background="#12263F"
-                    BorderBrush="#1F365B"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Padding="20"
-                    Margin="0,0,0,24"
-                    Effect="{StaticResource CardShadowEffect}">
-                <StackPanel>
-                    <TextBlock Text="Driver intelligence that sticks"
-                               FontSize="18"
-                               FontWeight="SemiBold"
-                               Foreground="#F8FAFC"/>
-                    <TextBlock Text="Driver scan insights are now cached just like Maintenance results. When you return, we restore the last scan instantly while you decide whether to refresh. Double-click any driver entry to jump straight to its driver package location for quick disable or removal."
-                               Margin="0,8,0,0"
-                               FontSize="13"
-                               Foreground="#A5B4FC"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
-            </Border>
-
-            <Border Background="{StaticResource SummaryBackgroundBrush}"
-                    BorderBrush="#1E293B"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Padding="24"
-                    Margin="0,0,0,20"
-                    Effect="{StaticResource CardShadowEffect}">
-                <StackPanel>
-                    <TextBlock Text="{Binding Summary}"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#E2E8F0"/>
-                    <TextBlock Text="{Binding LastCheckedDisplay}"
-                               Margin="0,6,0,0"
-                               FontSize="12"
-                               Foreground="#94A3B8"/>
-                    <TextBlock Text="{Binding InstalledDriversSummary}"
-                               Margin="0,6,0,0"
-                               FontSize="12"
-                               Foreground="#94A3B8"
-                               Visibility="{Binding HasInstalledDrivers, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <TextBlock Text="{Binding ActiveFiltersSummary}"
-                               Margin="0,6,0,0"
-                               FontSize="12"
-                               Foreground="#38BDF8"
-                               Visibility="{Binding HasActiveFilters, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                    <TextBlock Text="Scanning for driver updates..."
-                               Margin="0,10,0,0"
-                               FontSize="12"
-                               Foreground="#38BDF8"
-                               Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                </StackPanel>
-            </Border>
-
-            <Border Background="#1E293B"
-                    BorderBrush="#334155"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12"
-                    Margin="0,0,0,20"
-                    Visibility="{Binding HasSkipDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                        <TextBlock Text="ℹ"
-                                   FontSize="14"
-                                   Margin="0,0,6,0"
-                                   Foreground="#38BDF8"/>
-                        <TextBlock Text="Filtered updates"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"
-                                   Foreground="#F8FAFC"/>
+            <ScrollViewer Margin="32"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          HorizontalContentAlignment="Stretch"
+                          CanContentScroll="False"
+                          PanningMode="VerticalOnly"
+                          x:Name="RootScrollViewer">
+                <StackPanel Orientation="Vertical"
+                            MaxWidth="1280"
+                            HorizontalAlignment="Center"
+                            d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
+                        <Border Width="48"
+                                Height="48"
+                                CornerRadius="12"
+                                Background="#1E293B"
+                                Margin="0,0,12,0"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="🧩"
+                                       FontSize="24"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel>
+                            <TextBlock Text="Driver update insights"
+                                       FontSize="26"
+                                       FontWeight="Bold"
+                                       Foreground="#F8FAFC"/>
+                            <TextBlock Text="Detect pending driver updates and compare versions."
+                                       FontSize="14"
+                                       Foreground="#94A3B8"/>
+                        </StackPanel>
                     </StackPanel>
-                    <ItemsControl ItemsSource="{Binding SkipDetails}">
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,2,0,2"
+
+                    <Border Background="#12263F"
+                            BorderBrush="#1F365B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="20"
+                            Margin="0,0,0,24"
+                            Effect="{StaticResource CardShadowEffect}">
+                        <StackPanel>
+                            <TextBlock Text="Driver intelligence that sticks"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="#F8FAFC"/>
+                            <TextBlock Text="Driver scan insights are now cached just like Maintenance results. When you return, we restore the last scan instantly while you decide whether to refresh. Double-click any driver entry to jump straight to its driver package location for quick disable or removal."
+                                       Margin="0,8,0,0"
+                                       FontSize="13"
+                                       Foreground="#A5B4FC"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="{StaticResource SummaryBackgroundBrush}"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="24"
+                            Margin="0,0,0,20"
+                            Effect="{StaticResource CardShadowEffect}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding Summary}"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       Foreground="#E2E8F0"/>
+                            <TextBlock Text="{Binding LastCheckedDisplay}"
+                                       Margin="0,6,0,0"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"/>
+                            <TextBlock Text="{Binding InstalledDriversSummary}"
+                                       Margin="0,6,0,0"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"
+                                       Visibility="{Binding HasInstalledDrivers, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Text="{Binding ActiveFiltersSummary}"
+                                       Margin="0,6,0,0"
+                                       FontSize="12"
+                                       Foreground="#38BDF8"
+                                       Visibility="{Binding HasActiveFilters, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <TextBlock Text="Scanning for driver updates..."
+                                       Margin="0,10,0,0"
+                                       FontSize="12"
+                                       Foreground="#38BDF8"
+                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Background="#1E293B"
+                            BorderBrush="#334155"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="12"
+                            Margin="0,0,0,20"
+                            Visibility="{Binding HasSkipDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                <TextBlock Text="ℹ"
+                                           FontSize="14"
+                                           Margin="0,0,6,0"
+                                           Foreground="#38BDF8"/>
+                                <TextBlock Text="Filtered updates"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
                                            Foreground="#F8FAFC"/>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </StackPanel>
-            </Border>
+                            </StackPanel>
+                            <ItemsControl ItemsSource="{Binding SkipDetails}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,2,0,2"
+                                                   Foreground="#F8FAFC"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
 
-            <TextBlock Text="Run a scan to populate driver update insights."
-                       FontSize="14"
-                       Foreground="#94A3B8"
-                       Margin="0,40,0,0"
-                       HorizontalAlignment="Center"
-                       d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
-                <TextBlock.Style>
-                    <Style TargetType="TextBlock">
-                        <Setter Property="Visibility" Value="Visible"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding HasResults}" Value="True">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </TextBlock.Style>
-            </TextBlock>
+                    <TextBlock Text="Run a scan to populate driver update insights."
+                               FontSize="14"
+                               Foreground="#94A3B8"
+                               Margin="0,40,0,0"
+                               HorizontalAlignment="Center"
+                               d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasResults}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
 
-            <ListView x:Name="UpdatesList"
-                      ItemsSource="{Binding Updates}"
-                      Visibility="{Binding HasResults, Converter={StaticResource BooleanToVisibilityConverter}}"
-                      Background="Transparent"
-                      BorderThickness="0"
-                      Foreground="#E2E8F0"
-                      Margin="0,0,0,16"
-                      AlternationCount="2"
-                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                      ScrollViewer.CanContentScroll="True"
-                      ScrollViewer.IsDeferredScrollingEnabled="False"
-                      ScrollViewer.PanningMode="VerticalOnly"
-                      VirtualizingPanel.IsVirtualizing="True"
-                      VirtualizingPanel.VirtualizationMode="Recycling"
-                      VirtualizingStackPanel.ScrollUnit="Pixel"
-                      MaxHeight="520">
+                    <ListView x:Name="UpdatesList"
+                              ItemsSource="{Binding Updates}"
+                              Visibility="{Binding HasResults, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Background="Transparent"
+                              BorderThickness="0"
+                              Foreground="#E2E8F0"
+                              Margin="0,0,0,16"
+                              AlternationCount="2"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.CanContentScroll="True"
+                              ScrollViewer.IsDeferredScrollingEnabled="False"
+                              ScrollViewer.PanningMode="VerticalOnly"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"
+                              VirtualizingStackPanel.ScrollUnit="Pixel"
+                              MaxHeight="520">
                 <ListView.ItemContainerStyle>
                     <Style TargetType="ListViewItem">
                         <Setter Property="Padding" Value="0"/>
@@ -433,44 +493,44 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <Border Background="#0F172A"
-                    BorderBrush="#1E293B"
-                    BorderThickness="1"
-                    CornerRadius="12"
-                    Padding="20"
-                    Margin="0,32,0,0"
-                    Visibility="{Binding HasInstalledDrivers, Converter={StaticResource BooleanToVisibilityConverter}}">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                Margin="0,0,0,12">
-                        <TextBlock Text="Installed drivers"
-                                   FontSize="18"
-                                   FontWeight="SemiBold"
-                                   Foreground="#F8FAFC"/>
-                        <Border Style="{StaticResource StatusTagStyle}" Margin="12,0,0,0">
-                            <TextBlock Text="{Binding InstalledDrivers.Count}"
-                                       FontSize="12"
-                                       Foreground="#94A3B8"/>
-                        </Border>
-                    </StackPanel>
+                    <Border Background="#0F172A"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="20"
+                            Margin="0,32,0,0"
+                            Visibility="{Binding HasInstalledDrivers, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,0,12">
+                                <TextBlock Text="Installed drivers"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
+                                <Border Style="{StaticResource StatusTagStyle}" Margin="12,0,0,0">
+                                    <TextBlock Text="{Binding InstalledDrivers.Count}"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"/>
+                                </Border>
+                            </StackPanel>
 
-                    <ListView x:Name="InstalledDriversList"
-                              ItemsSource="{Binding InstalledDrivers}"
-                              Background="Transparent"
-                              BorderThickness="0"
-                              Foreground="#E2E8F0"
-                              Margin="0,12,0,0"
-                              AlternationCount="2"
-                              ScrollViewer.VerticalScrollBarVisibility="Auto"
-                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                              ScrollViewer.CanContentScroll="True"
-                              ScrollViewer.IsDeferredScrollingEnabled="False"
-                              ScrollViewer.PanningMode="VerticalOnly"
-                              VirtualizingPanel.IsVirtualizing="True"
-                              VirtualizingPanel.VirtualizationMode="Recycling"
-                              VirtualizingStackPanel.ScrollUnit="Pixel"
-                              MaxHeight="360">
+                            <ListView x:Name="InstalledDriversList"
+                                      ItemsSource="{Binding InstalledDrivers}"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Foreground="#E2E8F0"
+                                      Margin="0,12,0,0"
+                                      AlternationCount="2"
+                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                      ScrollViewer.CanContentScroll="True"
+                                      ScrollViewer.IsDeferredScrollingEnabled="False"
+                                      ScrollViewer.PanningMode="VerticalOnly"
+                                      VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling"
+                                      VirtualizingStackPanel.ScrollUnit="Pixel"
+                                      MaxHeight="360">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="Foreground" Value="#E2E8F0"/>
@@ -531,9 +591,258 @@
                                 <GridViewColumn Header="Signed" DisplayMemberBinding="{Binding SignedDisplay}" Width="90"/>
                             </GridView>
                         </ListView.View>
-                    </ListView>
+                            </ListView>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
-            </Border>
-        </StackPanel>
-    </ScrollViewer>
+            </ScrollViewer>
+        </Grid>
+
+        <ContentControl x:Name="DriverLoadingOverlay"
+                        Panel.ZIndex="10"
+                        Focusable="False"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
+            <ContentControl.Template>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid x:Name="OverlayRoot"
+                          Background="Transparent"
+                          Visibility="Collapsed"
+                          Opacity="0"
+                          IsHitTestVisible="False">
+                        <Grid Background="{StaticResource DriverOverlayBackdropBrush}">
+                            <Border HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Padding="36,30"
+                                    CornerRadius="28"
+                                    Background="{StaticResource DriverOverlayPanelBrush}"
+                                    BorderBrush="#1F365B"
+                                    BorderThickness="1.5"
+                                    Effect="{StaticResource DriverOverlayShadowEffect}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="220"/>
+                                        <ColumnDefinition Width="24"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Grid Grid.Column="0"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center">
+                                        <Grid Width="200"
+                                              Height="200">
+                                            <Ellipse Fill="#101D33"
+                                                     Stroke="#1F3452"
+                                                     StrokeThickness="1.5"/>
+                                            <Ellipse Width="164"
+                                                     Height="164"
+                                                     Stroke="#27496D"
+                                                     StrokeThickness="1.5"
+                                                     StrokeDashArray="12 16"
+                                                     Opacity="0.65"
+                                                     RenderTransformOrigin="0.5,0.5">
+                                                <Ellipse.RenderTransform>
+                                                    <RotateTransform x:Name="OuterRingRotate" Angle="0"/>
+                                                </Ellipse.RenderTransform>
+                                            </Ellipse>
+                                            <Grid Width="132"
+                                                  Height="132"
+                                                  RenderTransformOrigin="0.5,0.5">
+                                                <Grid.RenderTransform>
+                                                    <RotateTransform x:Name="InnerRingRotate" Angle="0"/>
+                                                </Grid.RenderTransform>
+                                                <Ellipse Stroke="#38BDF8"
+                                                         StrokeThickness="2"
+                                                         StrokeDashArray="6 10"
+                                                         Opacity="0.75"/>
+                                            </Grid>
+                                            <Ellipse Width="88"
+                                                     Height="88"
+                                                     Stroke="#1F83F7"
+                                                     StrokeThickness="1"
+                                                     Opacity="0.35"/>
+                                            <Ellipse Width="40"
+                                                     Height="40"
+                                                     Fill="{StaticResource DriverOverlayPulseBrush}"
+                                                     Opacity="0.45"
+                                                     RenderTransformOrigin="0.5,0.5">
+                                                <Ellipse.RenderTransform>
+                                                    <ScaleTransform x:Name="PulseScaleTransform"
+                                                                    ScaleX="1"
+                                                                    ScaleY="1"/>
+                                                </Ellipse.RenderTransform>
+                                            </Ellipse>
+
+                                            <Grid RenderTransformOrigin="0.5,0.5">
+                                                <Grid.RenderTransform>
+                                                    <RotateTransform x:Name="OrbitalSpinnerRotate" Angle="0"/>
+                                                </Grid.RenderTransform>
+                                                <Ellipse Width="16"
+                                                         Height="16"
+                                                         Fill="{StaticResource DriverOverlayAccentBrush}"
+                                                         Stroke="#112A44"
+                                                         StrokeThickness="1"
+                                                         HorizontalAlignment="Center"
+                                                         VerticalAlignment="Top"
+                                                         Margin="0,-4,0,0"/>
+                                                <Ellipse Width="10"
+                                                         Height="10"
+                                                         Fill="#FACC15"
+                                                         Stroke="#1F365B"
+                                                         StrokeThickness="1"
+                                                         HorizontalAlignment="Right"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,-2,0"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Grid>
+
+                                    <Rectangle Grid.Column="1"
+                                               Width="1"
+                                               RadiusX="0.5"
+                                               RadiusY="0.5"
+                                               Fill="#1F365B"
+                                               Opacity="0.45"/>
+
+                                    <StackPanel Grid.Column="2"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Analyzing driver inventory"
+                                                   FontSize="22"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Pulling vendor metadata and comparing versions..."
+                                                   FontSize="13"
+                                                   Foreground="#94A3B8"
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel Margin="0,16,0,0">
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="{StaticResource DriverOverlayAccentBrush}"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cataloging matched devices"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="#FACC15"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Detecting optional and critical updates"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="#22C55E"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Tuning recommendations for your policy"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <Border Height="6"
+                                                CornerRadius="3"
+                                                Background="#172840"
+                                                Margin="0,20,0,0">
+                                            <Grid ClipToBounds="True">
+                                                <Rectangle x:Name="OverlayProgressPulse"
+                                                           Width="160"
+                                                           Height="6"
+                                                           Fill="{StaticResource DriverOverlayAccentBrush}">
+                                                    <Rectangle.RenderTransform>
+                                                        <TranslateTransform x:Name="OverlayProgressTranslate"
+                                                                            X="-160"/>
+                                                    </Rectangle.RenderTransform>
+                                                </Rectangle>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter TargetName="OverlayRoot" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="OverlayRoot" Property="IsHitTestVisible" Value="True"/>
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="DriverOverlayFadeInStoryboard">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="OverlayRoot"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.45"
+                                                         EasingFunction="{StaticResource DriverOverlayEaseIn}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                                <BeginStoryboard x:Name="DriverOverlayMotionStoryboard">
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetName="OuterRingRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0"
+                                                         To="360"
+                                                         Duration="0:0:8"/>
+                                        <DoubleAnimation Storyboard.TargetName="InnerRingRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="360"
+                                                         To="0"
+                                                         Duration="0:0:5"/>
+                                        <DoubleAnimation Storyboard.TargetName="OrbitalSpinnerRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0"
+                                                         To="360"
+                                                         Duration="0:0:3.5"/>
+                                        <DoubleAnimation Storyboard.TargetName="PulseScaleTransform"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         From="1"
+                                                         To="1.25"
+                                                         Duration="0:0:1"
+                                                         AutoReverse="True"/>
+                                        <DoubleAnimation Storyboard.TargetName="PulseScaleTransform"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         From="1"
+                                                         To="1.25"
+                                                         Duration="0:0:1"
+                                                         AutoReverse="True"/>
+                                        <DoubleAnimation Storyboard.TargetName="OverlayProgressTranslate"
+                                                         Storyboard.TargetProperty="X"
+                                                         From="-160"
+                                                         To="160"
+                                                         Duration="0:0:1.8"
+                                                         AutoReverse="True"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="DriverOverlayMotionStoryboard"/>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="OverlayRoot"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.4"
+                                                         EasingFunction="{StaticResource DriverOverlayEaseOut}"/>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="OverlayRoot"
+                                                                       Storyboard.TargetProperty="Visibility">
+                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.4"
+                                                                    Value="{x:Static Visibility.Collapsed}"/>
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </ContentControl.Template>
+        </ContentControl>
+    </Grid>
 </Page>

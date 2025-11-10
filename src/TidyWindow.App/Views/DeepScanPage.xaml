@@ -115,13 +115,112 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+    <LinearGradientBrush x:Key="DeepScanOverlayBackdropBrush"
+                  StartPoint="0,0"
+                  EndPoint="1,1">
+        <GradientStop Color="#C51B2440"
+               Offset="0"/>
+        <GradientStop Color="#E6233552"
+               Offset="0.5"/>
+        <GradientStop Color="#90223335"
+               Offset="1"/>
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="DeepScanOverlayPanelBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+        <GradientStop Color="#132238"
+               Offset="0"/>
+        <GradientStop Color="#0B182C"
+               Offset="1"/>
+        </LinearGradientBrush>
+
+        <RadialGradientBrush x:Key="DeepScanOverlayPulseBrush"
+                              GradientOrigin="0.5,0.35"
+                              Center="0.5,0.5"
+                              RadiusX="0.95"
+                              RadiusY="0.95">
+        <GradientStop Color="#8838BDF8"
+               Offset="0"/>
+        <GradientStop Color="#08182C"
+               Offset="1"/>
+        </RadialGradientBrush>
+
+    <RadialGradientBrush x:Key="DeepScanOverlayAuraBrush"
+                  GradientOrigin="0.5,0.5"
+                  Center="0.5,0.5"
+                  RadiusX="1.1"
+                  RadiusY="1.1">
+        <GradientStop Color="#5538BDF8"
+               Offset="0"/>
+            <GradientStop Color="#2245D4FF"
+               Offset="0.55"/>
+        <GradientStop Color="#00000000"
+               Offset="1"/>
+    </RadialGradientBrush>
+
+        <SolidColorBrush x:Key="DeepScanOverlayAccentBrush"
+                         Color="#38BDF8"/>
+        <SolidColorBrush x:Key="DeepScanOverlaySecondaryBrush"
+                         Color="#34D399"/>
+        <SolidColorBrush x:Key="DeepScanOverlayWarmBrush"
+                         Color="#F97316"/>
+
+        <DropShadowEffect x:Key="DeepScanOverlayShadowEffect"
+                          Color="#000000"
+                          BlurRadius="32"
+                          ShadowDepth="0"
+                          Opacity="0.7"/>
+
+        <CubicEase x:Key="DeepScanOverlayEaseIn"
+                   EasingMode="EaseInOut"/>
+        <CubicEase x:Key="DeepScanOverlayEaseOut"
+                   EasingMode="EaseOut"/>
     </Page.Resources>
-    <ScrollViewer x:Name="RootScrollViewer"
-                  Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False"
-                  PanningMode="VerticalOnly">
+    <Grid>
+        <Grid x:Name="MainContentHost">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity"
+                            Value="1"/>
+                    <Setter Property="IsHitTestVisible"
+                            Value="True"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}"
+                                     Value="True">
+                            <Setter Property="IsHitTestVisible"
+                                    Value="False"/>
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="0.35"
+                                                         Duration="0:0:0.3"
+                                                         EasingFunction="{StaticResource DeepScanOverlayEaseIn}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.3"
+                                                         EasingFunction="{StaticResource DeepScanOverlayEaseOut}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <ScrollViewer x:Name="RootScrollViewer"
+                          Margin="32"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled"
+                          CanContentScroll="False"
+                          PanningMode="VerticalOnly">
         <Grid MinWidth="720">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -176,11 +275,6 @@
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
-                        <ProgressBar Width="120"
-                                     Height="6"
-                                     Margin="0,0,12,0"
-                                     IsIndeterminate="True"
-                                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         <Button Content="Run scan"
                                 Command="{Binding RefreshCommand}"
                                 Padding="16,8"
@@ -778,5 +872,352 @@
                 </Grid>
             </Border>
         </Grid>
-    </ScrollViewer>
+            </ScrollViewer>
+        </Grid>
+
+    <ContentControl x:Name="DeepScanOverlay"
+                    Panel.ZIndex="20"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Stretch"
+                    Focusable="False"
+                    IsEnabled="{Binding IsBusy}">
+        <ContentControl.Template>
+            <ControlTemplate TargetType="ContentControl">
+                <Grid x:Name="DeepScanOverlayRoot"
+                      Background="Transparent"
+                      Opacity="0"
+                      Visibility="Collapsed"
+                      IsHitTestVisible="False"
+                      DataContext="{Binding DataContext, RelativeSource={RelativeSource TemplatedParent}}">
+                    <Grid Background="{StaticResource DeepScanOverlayBackdropBrush}">
+                        <Border HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Padding="36,32"
+                                CornerRadius="28"
+                                Background="{StaticResource DeepScanOverlayPanelBrush}"
+                                BorderBrush="#1C2E45"
+                                BorderThickness="1.5"
+                                Effect="{StaticResource DeepScanOverlayShadowEffect}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="240"/>
+                                    <ColumnDefinition Width="24"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Grid Grid.Column="0"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center">
+                                    <Grid Width="220"
+                                          Height="220">
+                                        <Ellipse Fill="#0B1828"
+                                                 Stroke="#1A2B41"
+                                                 StrokeThickness="1.5"/>
+                                        <Ellipse x:Name="ScannerAuraEllipse"
+                                                 Width="220"
+                                                 Height="220"
+                                                 Fill="{StaticResource DeepScanOverlayAuraBrush}"
+                                                 Opacity="0.32"
+                                                 RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <ScaleTransform x:Name="ScannerAuraScale"
+                                                                ScaleX="1"
+                                                                ScaleY="1"/>
+                                            </Ellipse.RenderTransform>
+                                        </Ellipse>
+                                        <Ellipse Width="164"
+                                                 Height="164"
+                                                 Stroke="{StaticResource DeepScanOverlayAccentBrush}"
+                                                 StrokeThickness="2"
+                                                 StrokeDashArray="12 8"
+                                                 Opacity="0.8"
+                                                 RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <RotateTransform x:Name="ScannerRingRotate"
+                                                                 Angle="0"/>
+                                            </Ellipse.RenderTransform>
+                                        </Ellipse>
+                                        <Ellipse Width="132"
+                                                 Height="132"
+                                                 Fill="#132036"
+                                                 Opacity="0.7"/>
+                                        <Ellipse Width="92"
+                                                 Height="92"
+                                                 Fill="{StaticResource DeepScanOverlayPulseBrush}"
+                                                 Opacity="0.55"
+                                                 RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <ScaleTransform x:Name="ScannerPulseScale"
+                                                                ScaleX="1"
+                                                                ScaleY="1"/>
+                                            </Ellipse.RenderTransform>
+                                        </Ellipse>
+                                        <Ellipse Width="52"
+                                                 Height="52"
+                                                 StrokeThickness="2"
+                                                 Stroke="{StaticResource DeepScanOverlaySecondaryBrush}"
+                                                 StrokeDashArray="6 6"
+                                                 Opacity="0.7"
+                                                 RenderTransformOrigin="0.5,0.5">
+                                            <Ellipse.RenderTransform>
+                                                <RotateTransform x:Name="ScannerInnerOrbitRotate"
+                                                                 Angle="0"/>
+                                            </Ellipse.RenderTransform>
+                                        </Ellipse>
+                                        <Grid Width="200"
+                                              Height="200"
+                                              RenderTransformOrigin="0.5,0.5">
+                                            <Grid.RenderTransform>
+                                                <RotateTransform x:Name="ScannerOrbitsRotate"
+                                                                 Angle="0"/>
+                                            </Grid.RenderTransform>
+                                            <Border Width="16"
+                                                    Height="16"
+                                                    CornerRadius="8"
+                                                    Background="{StaticResource DeepScanOverlayAccentBrush}"
+                                                    BorderBrush="#0D2538"
+                                                    BorderThickness="1"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Top"
+                                                    Margin="0,-6,0,0"/>
+                                            <Border Width="18"
+                                                    Height="18"
+                                                    CornerRadius="9"
+                                                    Background="{StaticResource DeepScanOverlaySecondaryBrush}"
+                                                    BorderBrush="#0F2A1F"
+                                                    BorderThickness="1"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Margin="0,0,-8,0"/>
+                                            <Border Width="12"
+                                                    Height="12"
+                                                    CornerRadius="6"
+                                                    Background="{StaticResource DeepScanOverlayWarmBrush}"
+                                                    BorderBrush="#2A1808"
+                                                    BorderThickness="1"
+                                                    HorizontalAlignment="Center"
+                                                    VerticalAlignment="Bottom"
+                                                    Margin="0,0,0,-10"/>
+                                        </Grid>
+                                    </Grid>
+                                </Grid>
+
+                                <Rectangle Grid.Column="1"
+                                           Width="1"
+                                           Fill="#1F324B"
+                                           Opacity="0.45"/>
+
+                                <StackPanel Grid.Column="2"
+                                            VerticalAlignment="Center">
+                                    <TextBlock Text="Deep scan in progress"
+                                               FontSize="22"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="We are combing through the target path to surface the largest items."
+                                               FontSize="13"
+                                               Foreground="#94A3B8"
+                                               Margin="0,6,0,0"
+                                               TextWrapping="Wrap"/>
+                                    <Border Margin="0,18,0,0"
+                                            Background="#122034"
+                                            CornerRadius="10"
+                                            Padding="14,10">
+                                        <StackPanel>
+                                            <TextBlock Text="Live summary"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#38BDF8"/>
+                                            <TextBlock Text="{Binding Summary}"
+                                                       FontSize="12"
+                                                       Foreground="#CBD5F5"
+                                                       Margin="0,4,0,0"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <StackPanel Margin="0,18,0,0">
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,4,0,0"
+                                                    VerticalAlignment="Center">
+                                            <Ellipse Width="6"
+                                                     Height="6"
+                                                     Fill="{StaticResource DeepScanOverlayAccentBrush}"/>
+                                            <TextBlock Text="Gathering size information for each candidate"
+                                                       Margin="10,0,0,0"
+                                                       Foreground="#CBD5F5"
+                                                       FontSize="12"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,4,0,0"
+                                                    VerticalAlignment="Center">
+                                            <Ellipse Width="6"
+                                                     Height="6"
+                                                     Fill="{StaticResource DeepScanOverlaySecondaryBrush}"/>
+                                            <TextBlock Text="Filtering based on your minimum size and options"
+                                                       Margin="10,0,0,0"
+                                                       Foreground="#CBD5F5"
+                                                       FontSize="12"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,4,0,0"
+                                                    VerticalAlignment="Center">
+                                            <Ellipse Width="6"
+                                                     Height="6"
+                                                     Fill="{StaticResource DeepScanOverlayWarmBrush}"/>
+                                            <TextBlock Text="Ranking items to showcase the heaviest findings first"
+                                                       Margin="10,0,0,0"
+                                                       Foreground="#CBD5F5"
+                                                       FontSize="12"/>
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <StackPanel Margin="0,18,0,0">
+                                        <TextBlock Text="{Binding TargetPath, StringFormat=Location: {0}}"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Text="{Binding MinimumSizeMb, StringFormat=Minimum size: {0} MB}"
+                                                   Foreground="#64748B"
+                                                   FontSize="11"
+                                                   Margin="0,6,0,0"/>
+                                        <TextBlock Text="{Binding MaxItems, StringFormat=Top results limit: {0}}"
+                                                   Foreground="#64748B"
+                                                   FontSize="11"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+
+                                    <Border Height="6"
+                                            CornerRadius="3"
+                                            Background="#172840"
+                                            Margin="0,22,0,0">
+                                        <Grid ClipToBounds="True">
+                                            <Rectangle Width="180"
+                                                       Height="6"
+                                                       Fill="{StaticResource DeepScanOverlayAccentBrush}"
+                                                       Opacity="0.7"
+                                                       RenderTransformOrigin="0.5,0.5">
+                                                <Rectangle.RenderTransform>
+                                                    <TranslateTransform x:Name="ScannerSweepTranslate"
+                                                                        X="-220"/>
+                                                </Rectangle.RenderTransform>
+                                            </Rectangle>
+                                        </Grid>
+                                    </Border>
+
+                                    <TextBlock Text="You can keep an eye here; results refresh as soon as the scan completes."
+                                               FontSize="12"
+                                               Foreground="#64748B"
+                                               Margin="0,14,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsEnabled" Value="True">
+                        <Setter Property="IsHitTestVisible" Value="True"/>
+                        <Setter TargetName="DeepScanOverlayRoot" Property="IsHitTestVisible" Value="True"/>
+                        <Setter TargetName="DeepScanOverlayRoot" Property="Visibility" Value="Visible"/>
+                        <Setter TargetName="DeepScanOverlayRoot" Property="Opacity" Value="1"/>
+                        <Trigger.EnterActions>
+                            <BeginStoryboard x:Name="DeepScanOverlayFadeInStoryboard">
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetName="DeepScanOverlayRoot"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.35"
+                                                     EasingFunction="{StaticResource DeepScanOverlayEaseIn}"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                            <BeginStoryboard x:Name="DeepScanOverlayMotionStoryboard">
+                                <Storyboard RepeatBehavior="Forever">
+                                    <DoubleAnimation Storyboard.TargetName="ScannerRingRotate"
+                                                     Storyboard.TargetProperty="Angle"
+                                                     From="0"
+                                                     To="360"
+                                                     Duration="0:0:5.5"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerOrbitsRotate"
+                                                     Storyboard.TargetProperty="Angle"
+                                                     From="0"
+                                                     To="360"
+                                                     Duration="0:0:3.2"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerPulseScale"
+                                                     Storyboard.TargetProperty="ScaleX"
+                                                     From="1"
+                                                     To="1.2"
+                                                     Duration="0:0:1.5"
+                                                     AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerPulseScale"
+                                                     Storyboard.TargetProperty="ScaleY"
+                                                     From="1"
+                                                     To="1.2"
+                                                     Duration="0:0:1.5"
+                                                     AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerAuraScale"
+                                                     Storyboard.TargetProperty="ScaleX"
+                                                     From="1"
+                                                     To="1.08"
+                                                     Duration="0:0:2.4"
+                                                     AutoReverse="True"
+                                                     EasingFunction="{StaticResource DeepScanOverlayEaseIn}"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerAuraScale"
+                                                     Storyboard.TargetProperty="ScaleY"
+                                                     From="1"
+                                                     To="1.08"
+                                                     Duration="0:0:2.4"
+                                                     AutoReverse="True"
+                                                     EasingFunction="{StaticResource DeepScanOverlayEaseIn}"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerAuraEllipse"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     From="0.2"
+                                                     To="0.45"
+                                                     Duration="0:0:3"
+                                                     AutoReverse="True"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerInnerOrbitRotate"
+                                                     Storyboard.TargetProperty="Angle"
+                                                     From="0"
+                                                     To="-360"
+                                                     Duration="0:0:4.2"/>
+                                    <DoubleAnimation Storyboard.TargetName="ScannerSweepTranslate"
+                                                     Storyboard.TargetProperty="X"
+                                                     From="-220"
+                                                     To="220"
+                                                     Duration="0:0:2"
+                                                     AutoReverse="True"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </Trigger.EnterActions>
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter Property="IsHitTestVisible" Value="False"/>
+                        <Setter TargetName="DeepScanOverlayRoot" Property="IsHitTestVisible" Value="False"/>
+                        <Setter TargetName="DeepScanOverlayRoot" Property="Opacity" Value="0"/>
+                        <Trigger.EnterActions>
+                            <StopStoryboard BeginStoryboardName="DeepScanOverlayMotionStoryboard"/>
+                            <BeginStoryboard>
+                                <Storyboard FillBehavior="Stop">
+                                    <DoubleAnimation Storyboard.TargetName="DeepScanOverlayRoot"
+                                                     Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.3"
+                                                     EasingFunction="{StaticResource DeepScanOverlayEaseOut}"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetName="DeepScanOverlayRoot"
+                                                                   Storyboard.TargetProperty="Visibility">
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.3"
+                                                                Value="{x:Static Visibility.Collapsed}"/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </Trigger.EnterActions>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </ContentControl.Template>
+    </ContentControl>
+    </Grid>
 </Page>
