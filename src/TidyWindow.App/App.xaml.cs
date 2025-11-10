@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Security.Principal;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media.Animation;
 using WpfApplication = System.Windows.Application;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -38,7 +40,16 @@ public partial class App : WpfApplication
             return;
         }
 
+        ShutdownMode = ShutdownMode.OnExplicitShutdown; // Keep the process alive while the splash screen owns the dispatcher.
+
         base.OnStartup(e);
+
+        var splash = new SplashScreenWindow();
+        splash.Show();
+        splash.UpdateStatus("Initializing system context...");
+
+        await Task.Delay(200);
+        splash.UpdateStatus("Configuring cockpit services...");
 
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
@@ -92,10 +103,28 @@ public partial class App : WpfApplication
             })
             .Build();
 
+        splash.UpdateStatus("Starting background services...");
         await _host.StartAsync();
 
+        splash.UpdateStatus("Preparing interface...");
+
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+        Current.MainWindow = mainWindow;
+        mainWindow.Opacity = 0;
+        mainWindow.WindowState = WindowState.Maximized;
         mainWindow.Show();
+        mainWindow.Activate();
+
+        splash.UpdateStatus("Launching cockpit...");
+        await splash.CloseWithFadeAsync(TimeSpan.FromMilliseconds(1600));
+
+        var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(280))
+        {
+            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+        };
+        mainWindow.BeginAnimation(Window.OpacityProperty, fadeIn);
+
+        ShutdownMode = ShutdownMode.OnMainWindowClose;
     }
 
     private static bool EnsureElevated()

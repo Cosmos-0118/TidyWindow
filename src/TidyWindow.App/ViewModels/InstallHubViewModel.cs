@@ -31,6 +31,8 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private Task? _initializationTask;
     private bool _catalogInitialized;
     private bool _suppressFilters;
+    private static readonly TimeSpan OverlayMinimumDuration = TimeSpan.FromMilliseconds(1200);
+    private DateTimeOffset? _overlayActivatedAt;
 
     public InstallHubViewModel(InstallCatalogService catalogService, InstallQueue installQueue, BundlePresetService presetService, MainViewModel mainViewModel, ActivityLogService activityLogService)
     {
@@ -95,63 +97,72 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             return Task.CompletedTask;
         }
 
+        EngageOverlay();
         return _initializationTask ??= LoadCatalogAsync();
     }
 
     public bool IsInitialized => _catalogInitialized;
 
+    public void EngageOverlay()
+    {
+        if (IsLoading)
+        {
+            return;
+        }
+
+        _overlayActivatedAt = DateTimeOffset.UtcNow;
+        IsLoading = true;
+    }
+
     private async Task LoadCatalogAsync()
     {
         var success = false;
         var overlayEngaged = false;
+        Exception? failure = null;
         await _loadSemaphore.WaitAsync();
 
         try
         {
-            if (_catalogInitialized)
+            if (!_catalogInitialized)
             {
-                success = true;
-                return;
-            }
+                overlayEngaged = true;
 
-            _mainViewModel.BeginShellLoad();
-            overlayEngaged = true;
-            IsLoading = true;
+                IReadOnlyList<InstallPackageDefinition> packages = Array.Empty<InstallPackageDefinition>();
+                IReadOnlyList<InstallBundleDefinition> bundles = Array.Empty<InstallBundleDefinition>();
 
-            IReadOnlyList<InstallPackageDefinition> packages = Array.Empty<InstallPackageDefinition>();
-            IReadOnlyList<InstallBundleDefinition> bundles = Array.Empty<InstallBundleDefinition>();
-            Exception? failure = null;
-
-            await Task.Run(() =>
-            {
-                try
+                await Task.Run(() =>
                 {
-                    packages = _catalogService.Packages;
-                    bundles = _catalogService.Bundles;
-                }
-                catch (Exception ex)
+                    try
+                    {
+                        packages = _catalogService.Packages;
+                        bundles = _catalogService.Bundles;
+                    }
+                    catch (Exception ex)
+                    {
+                        failure = ex;
+                    }
+                });
+
+                if (failure is not null)
                 {
-                    failure = ex;
+                    _mainViewModel.SetStatusMessage($"Install catalog failed to load: {failure.Message}");
                 }
-            });
+                else
+                {
+                    if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+                    {
+                        await dispatcher.InvokeAsync(() => ApplyCatalog(packages, bundles));
+                    }
+                    else
+                    {
+                        ApplyCatalog(packages, bundles);
+                    }
 
-            if (failure is not null)
-            {
-                _mainViewModel.SetStatusMessage($"Install catalog failed to load: {failure.Message}");
-                return;
+                    _catalogInitialized = true;
+                }
             }
 
-            if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
-            {
-                await dispatcher.InvokeAsync(() => ApplyCatalog(packages, bundles));
-            }
-            else
-            {
-                ApplyCatalog(packages, bundles);
-            }
-
-            _catalogInitialized = true;
-            success = true;
+            success = failure is null;
         }
         finally
         {
@@ -160,17 +171,35 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
                 _initializationTask = null;
             }
 
-            IsLoading = false;
-
-            if (overlayEngaged)
-            {
-                _mainViewModel.CompleteShellLoad();
-            }
-
             _loadSemaphore.Release();
         }
 
+        if (overlayEngaged)
+        {
+            await EnsureMinimumOverlayDurationAsync();
+            IsLoading = false;
+            _overlayActivatedAt = null;
+        }
+        else
+        {
+            IsLoading = false;
+        }
+
         UpdatePackageQueueStates();
+    }
+
+    private async Task EnsureMinimumOverlayDurationAsync()
+    {
+        if (_overlayActivatedAt is null)
+        {
+            return;
+        }
+
+        var elapsed = DateTimeOffset.UtcNow - _overlayActivatedAt.Value;
+        if (elapsed < OverlayMinimumDuration)
+        {
+            await Task.Delay(OverlayMinimumDuration - elapsed);
+        }
     }
 
     private void ApplyCatalog(IReadOnlyList<InstallPackageDefinition> packages, IReadOnlyList<InstallBundleDefinition> bundles)

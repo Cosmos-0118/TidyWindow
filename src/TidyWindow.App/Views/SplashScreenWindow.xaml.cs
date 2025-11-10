@@ -1,0 +1,95 @@
+using System;
+using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media.Animation;
+
+namespace TidyWindow.App.Views;
+
+public partial class SplashScreenWindow : Window
+{
+    private readonly TaskCompletionSource<bool> _closeCompletionSource = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private bool _closeRequested;
+
+    public static readonly DependencyProperty StatusMessageProperty = DependencyProperty.Register(
+        nameof(StatusMessage),
+        typeof(string),
+        typeof(SplashScreenWindow),
+        new PropertyMetadata("Preparing workspace..."));
+
+    public string StatusMessage
+    {
+        get => (string)GetValue(StatusMessageProperty);
+        set => SetValue(StatusMessageProperty, value);
+    }
+
+    public SplashScreenWindow()
+    {
+        InitializeComponent();
+        Closed += (_, _) => _closeCompletionSource.TrySetResult(true);
+    }
+
+    public void UpdateStatus(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return;
+        }
+
+        void SetAndAnimate()
+        {
+            StatusMessage = message;
+            if (TryFindResource("StatusMessageTransitionStoryboard") is Storyboard template)
+            {
+                var storyboard = template.Clone();
+                storyboard.Begin(this, true);
+            }
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            SetAndAnimate();
+        }
+        else
+        {
+            Dispatcher.Invoke(SetAndAnimate);
+        }
+    }
+
+    public async Task CloseWithFadeAsync(TimeSpan? delay = null)
+    {
+        if (_closeRequested)
+        {
+            await _closeCompletionSource.Task.ConfigureAwait(false);
+            return;
+        }
+
+        _closeRequested = true;
+
+        if (delay.HasValue && delay.Value > TimeSpan.Zero)
+        {
+            await Task.Delay(delay.Value).ConfigureAwait(false);
+        }
+
+        await Dispatcher.InvokeAsync(() =>
+        {
+            if (TryFindResource("SplashFadeOutStoryboard") is not Storyboard template)
+            {
+                Close();
+                return;
+            }
+
+            var storyboard = template.Clone();
+            void OnCompleted(object? _, EventArgs __)
+            {
+                storyboard.Completed -= OnCompleted;
+                storyboard.Remove(this);
+                Close();
+            }
+
+            storyboard.Completed += OnCompleted;
+            storyboard.Begin(this, true);
+        }).Task.ConfigureAwait(false);
+
+        await _closeCompletionSource.Task.ConfigureAwait(false);
+    }
+}

@@ -119,6 +119,14 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <LinearGradientBrush x:Key="InstallHubOverlayBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#B30F172A" Offset="0"/>
+            <GradientStop Color="#E61F2E48" Offset="1"/>
+        </LinearGradientBrush>
+
+        <CubicEase x:Key="InstallHubEaseIn" EasingMode="EaseInOut"/>
+        <CubicEase x:Key="InstallHubEaseOut" EasingMode="EaseOut"/>
     </Page.Resources>
 
     <Grid>
@@ -133,6 +141,40 @@
                   MinWidth="0"
                   MaxWidth="1360"
                   HorizontalAlignment="Center">
+                <Grid.Style>
+                    <Style TargetType="Grid">
+                        <Setter Property="Opacity"
+                                Value="1"/>
+                        <Setter Property="IsHitTestVisible"
+                                Value="True"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                <Setter Property="Opacity" Value="0"/>
+                                <Setter Property="IsHitTestVisible" Value="False"/>
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.45"
+                                                             EasingFunction="{StaticResource InstallHubEaseIn}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             To="1"
+                                                             Duration="0:0:0.55"
+                                                             EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Grid.Style>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -636,6 +678,166 @@
                 </Grid>
             </Grid>
         </ScrollViewer>
+
+    <ContentControl x:Name="InstallHubLoadingOverlay"
+            Panel.ZIndex="5"
+            Focusable="False"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch">
+            <ContentControl.Template>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid x:Name="OverlayRoot"
+                          Background="Transparent"
+                          Visibility="Collapsed"
+                          Opacity="0"
+                          IsHitTestVisible="False">
+                        <Grid Background="{StaticResource InstallHubOverlayBrush}">
+                            <Border HorizontalAlignment="Center"
+                                    VerticalAlignment="Center"
+                                    Padding="28"
+                                    CornerRadius="20"
+                                    Background="#0F172A"
+                                    BorderBrush="#1F2E46"
+                                    BorderThickness="1.5">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="#33000000"
+                                                      BlurRadius="26"
+                                                      ShadowDepth="0"
+                                                      Opacity="0.85"/>
+                                </Border.Effect>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+
+                                    <Grid Width="100"
+                                          Height="100"
+                                          Margin="0,0,24,0"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center">
+                                        <Ellipse x:Name="LoadingPulse"
+                                                 Width="100"
+                                                 Height="100"
+                                                 Stroke="#2238BDF8"
+                                                 StrokeThickness="3"
+                                                 Fill="#121E32"/>
+                                        <Path x:Name="LoadingArc"
+                                              Stroke="#38BDF8"
+                                              StrokeThickness="5"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              Data="M50,10 A40,40 0 1 1 49,10"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              RenderTransformOrigin="0.5,0.5">
+                                            <Path.RenderTransform>
+                                                <RotateTransform Angle="0"/>
+                                            </Path.RenderTransform>
+                                            <Path.OpacityMask>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                    <GradientStop Color="#00FFFFFF" Offset="0"/>
+                                                    <GradientStop Color="#FFFFFFFF" Offset="0.5"/>
+                                                    <GradientStop Color="#FFFFFFFF" Offset="0.85"/>
+                                                    <GradientStop Color="#00FFFFFF" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Path.OpacityMask>
+                                        </Path>
+                                    </Grid>
+
+                                    <StackPanel Grid.Column="1"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Preparing install hub"
+                                                   FontSize="20"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F8FAFC"/>
+                                        <TextBlock Text="Fetching catalog entries and queue status..."
+                                                   FontSize="13"
+                                                   Foreground="#94A3B8"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,6,0,0"/>
+                                        <Border Height="6"
+                                                CornerRadius="3"
+                                                Background="#19263C"
+                                                Margin="0,6,0,0">
+                                            <Grid ClipToBounds="True">
+                                                <Rectangle x:Name="LoadingBar"
+                                                           Width="160"
+                                                           Height="6"
+                                                           Fill="#38BDF8">
+                                                    <Rectangle.RenderTransform>
+                                                        <TranslateTransform X="-160"/>
+                                                    </Rectangle.RenderTransform>
+                                                </Rectangle>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <ControlTemplate.Triggers>
+                        <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                            <Setter TargetName="OverlayRoot" Property="Visibility" Value="Visible"/>
+                            <Setter TargetName="OverlayRoot" Property="IsHitTestVisible" Value="True"/>
+                            <DataTrigger.EnterActions>
+                                <BeginStoryboard x:Name="OverlayFadeInStoryboard">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="OverlayRoot"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.55"
+                                                         EasingFunction="{StaticResource InstallHubEaseIn}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                                <BeginStoryboard x:Name="SpinnerStoryboard">
+                                    <Storyboard RepeatBehavior="Forever">
+                                        <DoubleAnimation Storyboard.TargetName="LoadingArc"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                         From="0"
+                                                         To="360"
+                                                         Duration="0:0:1.4"/>
+                                        <DoubleAnimation Storyboard.TargetName="LoadingPulse"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0.1"
+                                                         To="0.45"
+                                                         AutoReverse="True"
+                                                         Duration="0:0:1.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="LoadingBar"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                         From="-160"
+                                                         To="160"
+                                                         Duration="0:0:1.6"
+                                                         AutoReverse="True"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.EnterActions>
+                            <DataTrigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="SpinnerStoryboard"/>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="OverlayRoot"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.55"
+                                                         EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="OverlayRoot"
+                                                                       Storyboard.TargetProperty="Visibility">
+                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.55"
+                                                                    Value="{x:Static Visibility.Collapsed}"/>
+                                        </ObjectAnimationUsingKeyFrames>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </DataTrigger.ExitActions>
+                        </DataTrigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </ContentControl.Template>
+        </ContentControl>
 
     </Grid>
 </Page>
