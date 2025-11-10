@@ -48,7 +48,6 @@ Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: 
 Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Registry]
-; If the user selects the "runatstartup" task, create a Run registry value so the app starts with Windows
 Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\\{#MyAppExeName}"""; Check: IsTaskSelected('runatstartup')
 
 [Code]
@@ -57,126 +56,125 @@ const
 
 function BuildTimestamp(): string;
 begin
-  Result := GetDateTimeString('yyyymmddhhnnss', False);
+  Result := GetDateTimeString('yyyymmddhhnnss', False, CurrentDateTime());
 end;
 
-function IsPreviousInstalled(var UninstallString: string): Boolean;
-var
-  s: string;
+function TryGetPreviousUninstallString(var UninstallString: string): Boolean;
 begin
-  Result := False;
   UninstallString := '';
-  { Check HKLM 64-bit }
-  if RegQueryStringValue(HKLM64, PrevUninstallKey, 'UninstallString', s) then
-  begin
-    UninstallString := s;
-    Result := True;
-    exit;
-  end;
-  { Check HKCU }
-  if RegQueryStringValue(HKCU, PrevUninstallKey, 'UninstallString', s) then
-  begin
-    UninstallString := s;
-    Result := True;
-    exit;
-  end;
+
+  if RegQueryStringValue(HKLM64, PrevUninstallKey, 'UninstallString', UninstallString) then
+    Result := True
+  else if RegQueryStringValue(HKCU, PrevUninstallKey, 'UninstallString', UninstallString) then
+    Result := True
+  else
+    Result := False;
 end;
 
-function RunUninstallerSilently(UninstallString: string): Boolean;
+function RunUninstallerSilently(const UninstallString: string): Boolean;
 var
   CmdLine: string;
-  rc: Integer;
+  ExitCode: Integer;
 begin
   Result := False;
-  if UninstallString = '' then Exit;
+  if UninstallString = '' then
+    Exit;
 
-  { Many uninstallers are quoted; ensure we pass the proper arguments for silent uninstall }
   CmdLine := UninstallString + ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART';
   Log('Running previous uninstaller: ' + CmdLine);
-  if Exec(ExpandConstant('{cmd}'), '/C ' + CmdLine, '', SW_HIDE, ewWaitUntilTerminated, rc) then
-  begin
-    Result := (rc = 0);
-  end;
+
+  if Exec(ExpandConstant('{cmd}'), '/C ' + CmdLine, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+    Result := (ExitCode = 0)
+  else
+    Log('Failed to start previous uninstaller.');
 end;
 
-procedure BackupUserData();
+procedure BackupUserData;
 var
-  Src, Dest, TimeStamp, Cmd: string;
-  rc: Integer;
+  SourceDir: string;
+  TargetDir: string;
+  Timestamp: string;
+  ExitCode: Integer;
+  Cmd: string;
 begin
-  Src := ExpandConstant('{userappdata}\\{#MyAppName}');
-  if not DirExists(Src) then
+  SourceDir := ExpandConstant('{userappdata}\\{#MyAppName}');
+  if not DirExists(SourceDir) then
   begin
-    Log('No user data to backup from: ' + Src);
-    exit;
+    Log('No user data directory found at: ' + SourceDir);
+    Exit;
   end;
 
-  TimeStamp := BuildTimestamp();
-  Dest := ExpandConstant('{tmp}\\{#MyAppName}_Backup_' + TimeStamp);
-  if not DirExists(Dest) then
-    ForceDirectories(Dest);
-
-  { Use robocopy when available (more reliable), otherwise fall back to xcopy }
-  if Exec('robocopy', '"' + Src + '" "' + Dest + '" /MIR /FFT /Z /NFL /NDL', '', SW_HIDE, ewWaitUntilTerminated, rc) then
+  Timestamp := BuildTimestamp();
+  TargetDir := ExpandConstant('{tmp}\\{#MyAppName}_Backup_' + Timestamp);
+  if not ForceDirectories(TargetDir) then
   begin
-    Log('robocopy exit code: ' + IntToStr(rc));
+    Log('Failed to create backup target directory: ' + TargetDir);
+    Exit;
+  end;
+
+  if Exec('robocopy', '"' + SourceDir + '" "' + TargetDir + '" /MIR /FFT /Z /NFL /NDL', '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+  begin
+    Log('robocopy exit code: ' + IntToStr(ExitCode));
   end
   else
   begin
-    Cmd := '/C xcopy "' + Src + '" "' + Dest + '" /E /I /Y';
-    Exec(ExpandConstant('{cmd}'), Cmd, '', SW_HIDE, ewWaitUntilTerminated, rc);
-    Log('xcopy exit code: ' + IntToStr(rc));
+    Cmd := '/C xcopy "' + SourceDir + '" "' + TargetDir + '" /E /I /Y /Q';
+    if Exec(ExpandConstant('{cmd}'), Cmd, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+      Log('xcopy exit code: ' + IntToStr(ExitCode))
+    else
+      Log('Failed to run xcopy for user data backup.');
   end;
-  Log('User data backed up to: ' + Dest);
+
+  Log('User data backup saved to: ' + TargetDir);
 end;
 
-function InitializeSetup(): Boolean;
+function TerminateRunningInstance: Boolean;
 var
-  UninstallStr: string;
-  MsgResult: Integer;
+  ExitCode: Integer;
 begin
-  Result := True; { allow setup to continue by default }
+  Result := Exec('taskkill', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+  if Result then
+    Log('taskkill exit code: ' + IntToStr(ExitCode))
+  else
+    Log('taskkill command could not be executed.');
+end;
 
-  { Check for a previous installed version and offer to uninstall it silently }
-  if IsPreviousInstalled(UninstallStr) then
+function InitializeSetup: Boolean;
+var
+  UninstallString: string;
+  Response: Integer;
+begin
+  Result := True;
+
+  if TryGetPreviousUninstallString(UninstallString) then
   begin
-    MsgResult := MsgBox('A previous installation of {#MyAppName} was detected. Do you want to automatically uninstall the previous version before continuing?'#13#10#13#10'If you choose Yes, the previous version will be removed silently.', mbConfirmation, MB_YESNO);
-    if MsgResult = IDYES then
+    Response := MsgBox('A previous installation of {#MyAppName} was detected. Do you want to remove it before continuing?',
+      mbConfirmation, MB_YESNO);
+
+    if Response = IDYES then
     begin
-      { Attempt to stop the running application first }
-      Exec('taskkill', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, MsgResult);
-      if not RunUninstallerSilently(UninstallStr) then
+      TerminateRunningInstance;
+
+      if not RunUninstallerSilently(UninstallString) then
       begin
-        MsgBox('Automatic uninstallation of the previous version failed. You can cancel setup and manually uninstall the previous version, or continue to install side-by-side.', mbError, MB_OK);
-        { Allow user to continue or cancel }
-        if MsgBox('Do you want to cancel the installation so you can uninstall the previous version manually?', mbConfirmation, MB_YESNO) = IDYES then
+        MsgBox('Automatic removal of the previous version failed. You may cancel setup to uninstall it manually or continue with a side-by-side installation.',
+          mbError, MB_OK);
+
+        if MsgBox('Do you want to cancel the installation now?', mbConfirmation, MB_YESNO) = IDYES then
         begin
           Result := False;
-          exit;
+          Exit;
         end;
-      end
-      else
-      begin
-        Log('Previous installation uninstalled successfully.');
       end;
     end;
   end;
 
-  { Backup user data if present }
-  BackupUserData();
-
-  { Ensure running application is closed to avoid locked files }
-  Exec('taskkill', '/F /IM {#MyAppExeName}', '', SW_HIDE, ewWaitUntilTerminated, MsgResult);
-
-  Result := True;
+  BackupUserData;
+  TerminateRunningInstance;
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  { After installation finishes, if the user selected startup run, we leave the registry entry created by [Registry] }
   if CurStep = ssPostInstall then
-  begin
-    { Ensure desktop/start menu shortcuts exist (Inno will create them). No-op here; placeholder for future post-install actions }
-    Log('Post-install step completed.');
-  end;
+    Log('Post-install step complete.');
 end;
