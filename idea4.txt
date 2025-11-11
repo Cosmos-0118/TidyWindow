@@ -1,0 +1,6 @@
+settings page rework.
+
+1)first we'll have run in background option.
+2) we will have automation toggle for all our pages that uses/will be useful.
+  -for example for maintainance use can set like every week, so everu week it runs and also a option like autoupdate so it automatically updates when ever possible.
+3)like cleanup also runs every week. like this.

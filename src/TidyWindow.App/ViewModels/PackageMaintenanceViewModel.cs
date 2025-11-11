@@ -217,6 +217,35 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
     }
 
+    [RelayCommand(CanExecute = nameof(CanSelectAllPackages))]
+    private void SelectAllPackages()
+    {
+        if (Packages.Count == 0)
+        {
+            return;
+        }
+
+        var newlySelected = 0;
+        foreach (var package in Packages)
+        {
+            if (!package.IsSelected)
+            {
+                package.IsSelected = true;
+                newlySelected++;
+            }
+        }
+
+        var selectedCount = Packages.Count(static package => package.IsSelected);
+        _mainViewModel.SetStatusMessage(newlySelected == 0
+            ? $"All {selectedCount} package(s) already selected."
+            : $"Selected {selectedCount} package(s).");
+    }
+
+    private bool CanSelectAllPackages()
+    {
+        return Packages.Count > 0;
+    }
+
     [RelayCommand]
     private void Remove(PackageMaintenanceItemViewModel? item)
     {
@@ -582,6 +611,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         OnPropertyChanged(nameof(HasPackages));
         OnPropertyChanged(nameof(SummaryText));
         QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
+        SelectAllPackagesCommand.NotifyCanExecuteChanged();
     }
 
     private void EnsureManagerFilters()

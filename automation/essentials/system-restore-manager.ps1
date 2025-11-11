@@ -199,6 +199,79 @@ function Remove-TidyRestorePoint {
     Invoke-CimMethod -Namespace 'root/default' -ClassName 'SystemRestore' -MethodName 'RemoveRestorePoint' -Arguments @{ SequenceNumber = $SequenceNumber } -ErrorAction Stop | Out-Null
 }
 
+function Set-TidyServiceStartupMode {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ServiceName,
+        [ValidateSet('Automatic', 'AutomaticDelayedStart', 'Manual')]
+        [string] $StartupType = 'Manual'
+    )
+
+    try {
+        $service = Get-CimInstance -ClassName Win32_Service -Filter "Name='$ServiceName'" -ErrorAction Stop
+    }
+    catch {
+        return $false
+    }
+
+    if ($null -eq $service -or [string]::IsNullOrWhiteSpace($service.StartMode)) {
+        return $false
+    }
+
+    $isDisabled = $service.StartMode -eq 'Disabled'
+    if (-not $isDisabled) {
+        return $false
+    }
+
+    Write-TidyOutput -Message ("Setting service {0} startup type to {1}." -f $ServiceName, $StartupType)
+    try {
+        Invoke-TidyCommand -Command {
+            param($name, $type)
+            Set-Service -Name $name -StartupType $type -ErrorAction Stop
+        } -Arguments @($ServiceName, $StartupType) -Description ("Configure service {0}." -f $ServiceName) | Out-Null
+        return $true
+    }
+    catch {
+        Write-TidyError -Message ("Failed to update service {0}. {1}" -f $ServiceName, $_.Exception.Message)
+    }
+
+    return $false
+}
+
+function Enable-TidyRestoreSupport {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]] $DriveLetters,
+        [switch] $RepairServices
+    )
+
+    $anyChanges = $false
+
+    if ($RepairServices) {
+        foreach ($serviceName in @('srservice', 'VSS')) {
+            if (Set-TidyServiceStartupMode -ServiceName $serviceName) {
+                $anyChanges = $true
+            }
+        }
+    }
+
+    foreach ($drive in $DriveLetters) {
+        Write-TidyOutput -Message ("Enabling System Restore on {0}" -f $drive)
+        try {
+            Invoke-TidyCommand -Command {
+                param($targetDrive)
+                Enable-ComputerRestore -Drive $targetDrive -ErrorAction Stop
+            } -Arguments @($drive) -Description ("Enable System Restore {0}" -f $drive) | Out-Null
+            $anyChanges = $true
+        }
+        catch {
+            Write-TidyError -Message ("Failed to enable System Restore on {0}. {1}" -f $drive, $_.Exception.Message)
+        }
+    }
+
+    return $anyChanges
+}
+
 $shouldCreate = $Create.IsPresent
 $shouldList = $List.IsPresent
 $shouldEnable = $EnableRestore.IsPresent
@@ -223,10 +296,7 @@ try {
     $normalizedDrives = $Drives | ForEach-Object { Normalize-TidyDrive -Drive $_ } | Sort-Object -Unique
 
     if ($shouldEnable) {
-        foreach ($drive in $normalizedDrives) {
-            Write-TidyOutput -Message ("Enabling System Restore on {0}" -f $drive)
-            Invoke-TidyCommand -Command { param($d) Enable-ComputerRestore -Drive $d } -Arguments @($drive) -Description ("Enable System Restore {0}" -f $drive)
-        }
+        Enable-TidyRestoreSupport -DriveLetters $normalizedDrives -RepairServices
     }
 
     if ($shouldDisable) {
@@ -300,20 +370,41 @@ try {
             $name = if ([string]::IsNullOrWhiteSpace($RestorePointName)) { "TidyWindow snapshot {0}" -f (Get-Date).ToString('yyyy-MM-dd HH:mm') } else { $RestorePointName }
             Write-TidyOutput -Message ("Creating restore point '{0}' ({1})." -f $name, $RestorePointType)
             $creationSucceeded = $false
+            $creationAttempt = 0
+            $autoRepairAttempted = $false
 
-            try {
-                Invoke-TidyCommand -Command {
-                    param($description, $type)
-                    Checkpoint-Computer -Description $description -RestorePointType $type -ErrorAction Stop
-                } -Arguments @($name, $RestorePointType) -Description 'Creating System Restore snapshot.' | Out-Null
-                $creationSucceeded = $true
-            }
-            catch {
-                $message = $_.Exception.Message
-                if ($message -and $message -like '*already been created within the past*') {
-                    Write-TidyOutput -Message 'System Restore rejected the request because a recent restore point already exists. Skipping new creation.'
+            while ($creationAttempt -lt 2 -and -not $creationSucceeded) {
+                $creationAttempt++
+
+                try {
+                    Invoke-TidyCommand -Command {
+                        param($description, $type)
+                        Checkpoint-Computer -Description $description -RestorePointType $type -ErrorAction Stop
+                    } -Arguments @($name, $RestorePointType) -Description 'Creating System Restore snapshot.' | Out-Null
+                    $creationSucceeded = $true
                 }
-                else {
+                catch {
+                    $message = $_.Exception.Message
+                    $normalized = if ($message) { $message.ToLowerInvariant() } else { '' }
+
+                    if ($normalized -and $normalized -match 'already been created within the past') {
+                        Write-TidyOutput -Message 'System Restore rejected the request because a recent restore point already exists. Skipping new creation.'
+                        $creationSucceeded = $false
+                        break
+                    }
+
+                    $requiresRepair = $normalized -and (
+                        $normalized -match 'service cannot be started because it is disabled' -or
+                        $normalized -match 'does not have enabled devices associated'
+                    )
+
+                    if ($requiresRepair -and -not $autoRepairAttempted) {
+                        $autoRepairAttempted = $true
+                        Write-TidyOutput -Message 'System Restore appears disabled. Attempting to enable required services and drive protection.'
+                        Enable-TidyRestoreSupport -DriveLetters $normalizedDrives -RepairServices | Out-Null
+                        continue
+                    }
+
                     throw
                 }
             }

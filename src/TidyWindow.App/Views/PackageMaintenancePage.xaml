@@ -270,28 +270,30 @@
             <Setter Property="HorizontalContentAlignment"
                     Value="Stretch"/>
             <Setter Property="Padding"
-                    Value="12,9"/>
-            <Setter Property="Margin"
-                    Value="0,4"/>
+                    Value="0"/>
+        <Setter Property="Margin"
+            Value="0,14"/>
             <Setter Property="Background"
-                    Value="#0F172A"/>
+                    Value="Transparent"/>
             <Setter Property="Foreground"
                     Value="#F8FAFC"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
                         <Border x:Name="Container"
-                                CornerRadius="10"
-                                Background="{TemplateBinding Background}"
-                                Padding="{TemplateBinding Padding}"
+                                CornerRadius="14"
+                                Background="#101B33"
+                                BorderBrush="#1E293B"
+                                BorderThickness="1"
+                                Padding="20"
                                 SnapsToDevicePixels="True"
                                 Opacity="0"
                                 RenderTransformOrigin="0.5,0.5">
                             <Border.RenderTransform>
-                                <TranslateTransform Y="14"/>
+                                <TranslateTransform Y="16"/>
                             </Border.RenderTransform>
-                            <GridViewRowPresenter Content="{TemplateBinding Content}"
-                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                            <ContentPresenter HorizontalAlignment="Stretch"
+                                              VerticalAlignment="Stretch"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <EventTrigger RoutedEvent="FrameworkElement.Loaded">
@@ -321,6 +323,9 @@
                                 <Setter TargetName="Container"
                                         Property="Background"
                                         Value="#1E3A8A"/>
+                                <Setter TargetName="Container"
+                                        Property="BorderBrush"
+                                        Value="#38BDF8"/>
                                 <Setter Property="Foreground"
                                         Value="#F8FAFC"/>
                             </Trigger>
@@ -328,7 +333,10 @@
                                      Value="True">
                                 <Setter TargetName="Container"
                                         Property="Background"
-                                        Value="#1B2942"/>
+                                        Value="#162643"/>
+                                <Setter TargetName="Container"
+                                        Property="BorderBrush"
+                                        Value="#1E3A8A"/>
                             </Trigger>
                             <Trigger Property="IsEnabled"
                                      Value="False">
@@ -1127,16 +1135,32 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0">
-                                <TextBlock Text="Installed packages"
-                                           Foreground="#E2E8F0"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock Text="Select packages to queue updates or removals"
-                                           Foreground="#64748B"
-                                           FontSize="12"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Installed packages"
+                                               Foreground="#E2E8F0"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Select packages to queue updates or removals"
+                                               Foreground="#64748B"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Button Grid.Column="1"
+                                        Content="Select all"
+                                        Command="{Binding SelectAllPackagesCommand}"
+                                        Margin="16,0,0,0"
+                                        VerticalAlignment="Top"
+                                        Style="{StaticResource SecondaryButtonStyle}">
+                                    <Button.ToolTip>Select all packages shown in the list</Button.ToolTip>
+                                </Button>
+                            </Grid>
 
                             <ItemsControl Grid.Row="1"
                                           Margin="0,12,0,0"
@@ -1191,7 +1215,6 @@
                                           VirtualizingPanel.VirtualizationMode="Recycling"
                                           VirtualizingStackPanel.ScrollUnit="Pixel"
                                           Loaded="PackagesListView_Loaded"
-                                          SizeChanged="PackagesListView_SizeChanged"
                                           ItemContainerStyle="{StaticResource AnimatedGridRowItemStyle}">
                                     <ListView.Style>
                                         <Style TargetType="ListView">
@@ -1206,279 +1229,279 @@
                                             </Style.Triggers>
                                         </Style>
                                     </ListView.Style>
-                                    <ListView.View>
-                                        <GridView x:Name="PackagesGridView"
-                                                  AllowsColumnReorder="False">
-                                            <GridView.ColumnHeaderContainerStyle>
-                                                <Style TargetType="GridViewColumnHeader">
-                                                    <Setter Property="Foreground"
-                                                            Value="#94A3B8"/>
-                                                    <Setter Property="FontSize"
-                                                            Value="12"/>
-                                                    <Setter Property="FontWeight"
-                                                            Value="SemiBold"/>
-                                                    <Setter Property="HorizontalContentAlignment"
-                                                            Value="Left"/>
-                                                    <Setter Property="Padding"
-                                                            Value="6,4"/>
-                                                    <Setter Property="Background"
-                                                            Value="Transparent"/>
-                                                </Style>
-                                            </GridView.ColumnHeaderContainerStyle>
-                                            <GridViewColumn x:Name="PackageColumn"
-                                                            Width="260">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Package"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <StackPanel>
-                                                            <StackPanel Orientation="Horizontal"
-                                                                        VerticalAlignment="Center">
-                                                                <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                          Margin="0,0,8,0"/>
-                                                                <TextBlock Text="{Binding DisplayName}"
-                                                                           FontWeight="SemiBold"
-                                                                           TextWrapping="NoWrap"
-                                                                           TextTrimming="CharacterEllipsis"/>
-                                                                <Border Background="#1F2937"
-                                                                        CornerRadius="6"
-                                                                        Padding="6,2"
-                                                                        Margin="12,0,0,0"
-                                                                        Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                    <TextBlock Text="Update"
-                                                                               Foreground="#22C55E"
-                                                                               FontSize="11"
-                                                                               FontWeight="SemiBold"/>
-                                                                </Border>
-                                                            </StackPanel>
-                                                            <TextBlock Text="{Binding Summary}"
-                                                                       Foreground="#94A3B8"
-                                                                       FontSize="12"
-                                                                       TextWrapping="Wrap"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       Margin="24,2,0,0"
-                                                                       LineStackingStrategy="BlockLineHeight"
-                                                                       LineHeight="16"
-                                                                       MaxHeight="34"/>
-                                                            <TextBlock Text="{Binding TagsDisplay}"
-                                                                       Foreground="#64748B"
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type viewModels:PackageMaintenanceItemViewModel}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <CheckBox Grid.Column="0"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          VerticalAlignment="Top"
+                                                          Margin="0,6,16,0"/>
+
+                                                <StackPanel Grid.Column="1"
+                                                            Margin="0,0,28,0"
+                                                            VerticalAlignment="Top">
+                                                    <StackPanel Orientation="Horizontal"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding DisplayName}"
+                                                                   FontWeight="SemiBold"
+                                                                   FontSize="15"
+                                                                   Foreground="#F8FAFC"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   TextWrapping="Wrap"/>
+                                                        <Border Background="#1F3A6E"
+                                                                CornerRadius="6"
+                                                                Padding="8,3"
+                                                                Margin="12,0,0,0"
+                                                                Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Update available"
+                                                                       Foreground="#22C55E"
                                                                        FontSize="11"
-                                                                       TextWrapping="NoWrap"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       Margin="24,2,0,0"
-                                                                       MaxWidth="200"/>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="ManagerColumn"
-                                                            Width="80"
-                                                            DisplayMemberBinding="{Binding ManagerDisplay}">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Manager"/>
-                                                </GridViewColumn.Header>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="SourceColumn"
-                                                            Width="80"
-                                                            DisplayMemberBinding="{Binding Source}">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Source"/>
-                                                </GridViewColumn.Header>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="VersionColumn"
-                                                            Width="86"
-                                                            DisplayMemberBinding="{Binding VersionDisplay}">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Version"/>
-                                                </GridViewColumn.Header>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="StatusColumn"
-                                                            Width="140">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Status"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <StackPanel>
-                                                            <TextBlock Text="{Binding QueueStatus}"
+                                                                       FontWeight="SemiBold"/>
+                                                        </Border>
+                                                    </StackPanel>
+
+                                                    <WrapPanel Margin="0,10,0,0">
+                                                        <Border Background="#1E293B"
+                                                                CornerRadius="6"
+                                                                Padding="8,3"
+                                                                Margin="0,0,8,8">
+                                                            <TextBlock Text="{Binding ManagerDisplay}"
                                                                        Foreground="#38BDF8"
                                                                        FontSize="11"
-                                                                       FontWeight="SemiBold"
-                                                                       Margin="0,0,0,2"
-                                                                       TextWrapping="NoWrap"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       Visibility="{Binding QueueStatus, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                            <TextBlock Text="{Binding LastOperationMessage}"
-                                                                       TextWrapping="Wrap"
-                                                                       TextTrimming="CharacterEllipsis"
-                                                                       MaxWidth="150"
-                                                                       LineStackingStrategy="BlockLineHeight"
-                                                                       LineHeight="16"
-                                                                       MaxHeight="34">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
+                                                                       FontWeight="SemiBold"/>
+                                                        </Border>
+                                                        <Border Background="#1E293B"
+                                                                CornerRadius="6"
+                                                                Padding="8,3"
+                                                                Margin="0,0,8,8"
+                                                                Visibility="{Binding Source, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="{Binding Source}"
+                                                                       Foreground="#E2E8F0"
+                                                                       FontSize="11"/>
+                                                        </Border>
+                                                        <Border Background="#0F172A"
+                                                                CornerRadius="6"
+                                                                Padding="8,3"
+                                                                Margin="0,0,8,8">
+                                                            <TextBlock Text="{Binding VersionDisplay}"
+                                                                       Foreground="#CBD5F5"
+                                                                       FontSize="11"/>
+                                                        </Border>
+                                                    </WrapPanel>
+
+                                                    <Border Background="#1E3A8A"
+                                                            CornerRadius="6"
+                                                            Padding="8,2"
+                                                            Margin="0,6,0,0"
+                                                            Visibility="{Binding QueueStatus, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="{Binding QueueStatus}"
+                                                                   Foreground="#DCE7FF"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"/>
+                                                    </Border>
+
+                                                    <TextBlock Text="{Binding Summary}"
+                                                               Foreground="#94A3B8"
+                                                               FontSize="12"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,10,0,0"
+                                                               Visibility="{Binding Summary, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                                    <ItemsControl Margin="0,10,0,0"
+                                                                  ItemsSource="{Binding Tags}"
+                                                                  Visibility="{Binding TagsDisplay, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <ItemsControl.ItemsPanel>
+                                                            <ItemsPanelTemplate>
+                                                                <WrapPanel/>
+                                                            </ItemsPanelTemplate>
+                                                        </ItemsControl.ItemsPanel>
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border Background="#1E293B"
+                                                                        CornerRadius="6"
+                                                                        Padding="8,3"
+                                                                        Margin="0,0,6,6">
+                                                                    <TextBlock Text="{Binding}"
+                                                                               Foreground="#E2E8F0"
+                                                                               FontSize="11"/>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+
+                                                    <TextBlock Text="{Binding LastOperationMessage}"
+                                                               FontSize="12"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,12,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground"
+                                                                        Value="#94A3B8"/>
+                                                                <Setter Property="Visibility"
+                                                                        Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding LastOperationMessage}"
+                                                                                 Value="">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding LastOperationMessage}"
+                                                                                 Value="{x:Null}">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding LastOperationSucceeded}"
+                                                                                 Value="True">
                                                                         <Setter Property="Foreground"
-                                                                                Value="#94A3B8"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding LastOperationSucceeded}"
-                                                                                         Value="True">
-                                                                                <Setter Property="Foreground"
-                                                                                        Value="#22C55E"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding LastOperationSucceeded}"
-                                                                                         Value="False">
-                                                                                <Setter Property="Foreground"
-                                                                                        Value="#F87171"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="TargetVersionColumn"
-                                                            Width="104">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Target version"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBox Width="90"
-                                                                 Margin="0,0,0,8"
-                                                                 Padding="8,4"
-                                                                 Background="#0F172A"
-                                                                 BorderBrush="#1E293B"
-                                                                 Foreground="#E2E8F0"
-                                                                 Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
-                                                                 ToolTip="Optional: specify the version to install."/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="ActionsColumn"
-                                                            Width="132">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Actions"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                            <Grid HorizontalAlignment="Center"
-                                  Margin="0,0,0,4">
-                                                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                <Button Grid.Column="0"
-                                    Content="Q"
-                                                                    Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                    CommandParameter="{Binding}"
-                                    Width="36"
-                                    Height="32"
-                                    Margin="0,0,6,4"
-                                    Padding="0"
-                                    HorizontalContentAlignment="Center"
-                                    VerticalContentAlignment="Center"
-                                    AutomationProperties.Name="Queue update">
-                                <Button.ToolTip>Queue update</Button.ToolTip>
-                                                                <Button.Style>
-                                                                    <Style TargetType="Button"
-                                                                           BasedOn="{StaticResource AccentButtonStyle}">
-                                    <Setter Property="FontWeight"
-                                        Value="Bold"/>
+                                                                                Value="#22C55E"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding LastOperationSucceeded}"
+                                                                                 Value="False">
+                                                                        <Setter Property="Foreground"
+                                                                                Value="#F87171"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="2"
+                                                            Margin="0,0,24,0"
+                                                            VerticalAlignment="Top"
+                                                            MinWidth="180">
+                                                    <TextBlock Text="Target version (optional)"
+                                                               Foreground="#CBD5F5"
+                                                               FontSize="11"/>
+                                                    <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
+                                                             Margin="0,6,0,0"
+                                                             Padding="10,5"
+                                                             MinWidth="180"
+                                                             MaxWidth="260"
+                                                             Background="#0F172A"
+                                                             BorderBrush="#1E293B"
+                                                             Foreground="#E2E8F0"
+                                                             ToolTip="Provide a specific version to install. Leave blank for the latest release."/>
+                                                    <TextBlock Text="Leave blank to install the latest available version."
+                                                               Foreground="#475569"
+                                                               FontSize="10"
+                                                               Margin="0,6,0,0"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="3"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Top"
+                                                            HorizontalAlignment="Right">
+                                                    <Button Content="Q"
+                                                            Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            Width="44"
+                                                            Height="38"
+                                                            Margin="0,0,8,0"
+                                                            Padding="0"
+                                                            HorizontalContentAlignment="Center"
+                                                            VerticalContentAlignment="Center"
+                                                            AutomationProperties.Name="Queue update">
+                                                        <Button.ToolTip>Queue update</Button.ToolTip>
+                                                        <Button.Style>
+                                                            <Style TargetType="Button"
+                                                                   BasedOn="{StaticResource AccentButtonStyle}">
+                                                                <Setter Property="FontWeight"
+                                                                        Value="Bold"/>
+                                                                <Setter Property="IsEnabled"
+                                                                        Value="True"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding CanUpdate}"
+                                                                                 Value="False">
                                                                         <Setter Property="IsEnabled"
-                                                                                Value="True"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding CanUpdate}"
-                                                                                         Value="False">
-                                                                                <Setter Property="IsEnabled"
-                                                                                        Value="False"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding IsBusy}"
-                                                                                         Value="True">
-                                                                                <Setter Property="IsEnabled"
-                                                                                        Value="False"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Button.Style>
-                                                            </Button>
-                                <Button Grid.Column="1"
-                                    Content="R"
-                                                                    Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                    CommandParameter="{Binding}"
-                                    Width="36"
-                                    Height="32"
-                                    Margin="0,0,6,4"
-                                    Padding="0"
-                                    HorizontalContentAlignment="Center"
-                                    VerticalContentAlignment="Center"
-                                    AutomationProperties.Name="Remove">
-                                <Button.ToolTip>Remove</Button.ToolTip>
-                                                                <Button.Style>
-                                                                    <Style TargetType="Button"
-                                                                           BasedOn="{StaticResource SecondaryButtonStyle}">
-                                    <Setter Property="FontWeight"
-                                        Value="Bold"/>
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                                 Value="True">
                                                                         <Setter Property="IsEnabled"
-                                                                                Value="True"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding CanRemove}"
-                                                                                         Value="False">
-                                                                                <Setter Property="IsEnabled"
-                                                                                        Value="False"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding IsBusy}"
-                                                                                         Value="True">
-                                                                                <Setter Property="IsEnabled"
-                                                                                        Value="False"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Button.Style>
-                                                            </Button>
-                                                            <Button Grid.Column="2"
-                                                                    Content="F"
-                                                                    Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Width="36"
-                                                                    Height="32"
-                                                                    Margin="0,0,0,4"
-                                                                    Padding="0"
-                                                                    HorizontalContentAlignment="Center"
-                                                                    VerticalContentAlignment="Center"
-                                                                    AutomationProperties.Name="Force cleanup">
-                                                                <Button.ToolTip>Force cleanup</Button.ToolTip>
-                                                                <Button.Style>
-                                                                    <Style TargetType="Button"
-                                                                           BasedOn="{StaticResource DangerButtonStyle}">
-                                                                        <Setter Property="FontWeight"
-                                                                                Value="Bold"/>
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Button Content="R"
+                                                            Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            Width="44"
+                                                            Height="38"
+                                                            Margin="0,0,8,0"
+                                                            Padding="0"
+                                                            HorizontalContentAlignment="Center"
+                                                            VerticalContentAlignment="Center"
+                                                            AutomationProperties.Name="Remove">
+                                                        <Button.ToolTip>Remove</Button.ToolTip>
+                                                        <Button.Style>
+                                                            <Style TargetType="Button"
+                                                                   BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                                <Setter Property="FontWeight"
+                                                                        Value="Bold"/>
+                                                                <Setter Property="IsEnabled"
+                                                                        Value="True"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding CanRemove}"
+                                                                                 Value="False">
                                                                         <Setter Property="IsEnabled"
-                                                                                Value="True"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding CanForceRemove}"
-                                                                                         Value="False">
-                                                                                <Setter Property="IsEnabled"
-                                                                                        Value="False"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding IsBusy}"
-                                                                                         Value="True">
-                                                                                <Setter Property="IsEnabled"
-                                                                                        Value="False"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </Button.Style>
-                                                            </Button>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                        </GridView>
-                                    </ListView.View>
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Button Content="F"
+                                                            Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            Width="44"
+                                                            Height="38"
+                                                            Padding="0"
+                                                            HorizontalContentAlignment="Center"
+                                                            VerticalContentAlignment="Center"
+                                                            AutomationProperties.Name="Force cleanup">
+                                                        <Button.ToolTip>Force cleanup</Button.ToolTip>
+                                                        <Button.Style>
+                                                            <Style TargetType="Button"
+                                                                   BasedOn="{StaticResource DangerButtonStyle}">
+                                                                <Setter Property="FontWeight"
+                                                                        Value="Bold"/>
+                                                                <Setter Property="IsEnabled"
+                                                                        Value="True"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding CanForceRemove}"
+                                                                                 Value="False">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
                                 </ListView>
 
                                 <TextBlock Text="No packages match your filter."

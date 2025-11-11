@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Navigation;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views.Dialogs;
 using TidyWindow.Core.Maintenance;
@@ -20,6 +21,8 @@ public partial class RegistryOptimizerPage : Page
     private bool _disposed;
     private bool _scrollHandlersAttached;
     private bool _rollbackPromptOpen;
+    private bool _rootScrollWheelAttached;
+    private double _scrollAnimationTarget = double.NaN;
 
     private const double MarginTighteningBuffer = 160d;
     private const double ScreenMaxWidthRatio = 0.92d;
@@ -33,6 +36,18 @@ public partial class RegistryOptimizerPage : Page
     private double _secondaryColumnDefaultMinWidth;
     private readonly double _columnSpacing;
     private readonly double _pageContentDefaultMaxWidth;
+
+    public static readonly DependencyProperty IsCompactCardsProperty = DependencyProperty.Register(
+        nameof(IsCompactCards),
+        typeof(bool),
+        typeof(RegistryOptimizerPage),
+        new PropertyMetadata(false));
+
+    private static readonly DependencyProperty AnimatedVerticalOffsetProperty = DependencyProperty.Register(
+        nameof(AnimatedVerticalOffset),
+        typeof(double),
+        typeof(RegistryOptimizerPage),
+        new PropertyMetadata(0d, OnAnimatedVerticalOffsetChanged));
 
     public RegistryOptimizerPage(RegistryOptimizerViewModel viewModel)
     {
@@ -57,6 +72,18 @@ public partial class RegistryOptimizerPage : Page
         ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
     }
 
+    public bool IsCompactCards
+    {
+        get => (bool)GetValue(IsCompactCardsProperty);
+        set => SetValue(IsCompactCardsProperty, value);
+    }
+
+    private double AnimatedVerticalOffset
+    {
+        get => (double)GetValue(AnimatedVerticalOffsetProperty);
+        set => SetValue(AnimatedVerticalOffsetProperty, value);
+    }
+
     private void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnPageLoaded;
@@ -68,6 +95,12 @@ public partial class RegistryOptimizerPage : Page
     {
         if (IsVisible)
         {
+            if (_disposed)
+            {
+                _viewModel.RestorePointCreated += OnRestorePointCreated;
+                _disposed = false;
+            }
+
             ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
             ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
             EnsureScrollHandlers();
@@ -82,10 +115,15 @@ public partial class RegistryOptimizerPage : Page
             return;
         }
 
-        Unloaded -= OnPageUnloaded;
         _viewModel.RestorePointCreated -= OnRestorePointCreated;
         ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
-        IsVisibleChanged -= OnIsVisibleChanged;
+        if (_rootScrollWheelAttached)
+        {
+            ContentScrollViewer.PreviewMouseWheel -= OnContentScrollViewerPreviewMouseWheel;
+            _rootScrollWheelAttached = false;
+        }
+        BeginAnimation(AnimatedVerticalOffsetProperty, null);
+        _scrollAnimationTarget = double.NaN;
         DetachScrollHandlers();
         _disposed = true;
     }
@@ -134,6 +172,12 @@ public partial class RegistryOptimizerPage : Page
         if (!ContentScrollViewer.Margin.Equals(desiredMargin))
         {
             ContentScrollViewer.Margin = desiredMargin;
+        }
+
+        var compactCards = stackLayout || viewportWidth < totalMinimum + MarginTighteningBuffer;
+        if (IsCompactCards != compactCards)
+        {
+            IsCompactCards = compactCards;
         }
 
         if (stackLayout)
@@ -241,12 +285,22 @@ public partial class RegistryOptimizerPage : Page
     {
         if (_scrollHandlersAttached)
         {
+            if (!_rootScrollWheelAttached)
+            {
+                ContentScrollViewer.PreviewMouseWheel -= OnContentScrollViewerPreviewMouseWheel;
+                ContentScrollViewer.PreviewMouseWheel += OnContentScrollViewerPreviewMouseWheel;
+                _rootScrollWheelAttached = true;
+            }
             return;
         }
 
         AttachScrollHandler(TweaksListView);
         AttachScrollHandler(PresetListBox);
         _scrollHandlersAttached = true;
+
+        ContentScrollViewer.PreviewMouseWheel -= OnContentScrollViewerPreviewMouseWheel;
+        ContentScrollViewer.PreviewMouseWheel += OnContentScrollViewerPreviewMouseWheel;
+        _rootScrollWheelAttached = true;
     }
 
     private void DetachScrollHandlers()
@@ -259,6 +313,12 @@ public partial class RegistryOptimizerPage : Page
         TweaksListView.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         PresetListBox.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         _scrollHandlersAttached = false;
+
+        if (_rootScrollWheelAttached)
+        {
+            ContentScrollViewer.PreviewMouseWheel -= OnContentScrollViewerPreviewMouseWheel;
+            _rootScrollWheelAttached = false;
+        }
     }
 
     private static void AttachScrollHandler(UIElement? element)
@@ -295,17 +355,8 @@ public partial class RegistryOptimizerPage : Page
 
         e.Handled = true;
 
-        var targetOffset = ContentScrollViewer.VerticalOffset - e.Delta;
-        if (targetOffset < 0)
-        {
-            targetOffset = 0;
-        }
-        else if (targetOffset > ContentScrollViewer.ScrollableHeight)
-        {
-            targetOffset = ContentScrollViewer.ScrollableHeight;
-        }
-
-        ContentScrollViewer.ScrollToVerticalOffset(targetOffset);
+        var targetOffset = ContentScrollViewer.VerticalOffset + CalculateWheelStep(e.Delta, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        BeginSmoothScroll(targetOffset);
     }
 
     private static void OnNestedPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -340,6 +391,118 @@ public partial class RegistryOptimizerPage : Page
         }
 
         return null;
+    }
+
+    private void OnContentScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (ContentScrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        var delta = CalculateWheelStep(e.Delta, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+        BeginSmoothScroll(ContentScrollViewer.VerticalOffset + delta);
+    }
+
+    private void BeginSmoothScroll(double targetOffset)
+    {
+        if (ContentScrollViewer.ScrollableHeight <= 0)
+        {
+            return;
+        }
+
+        var clampedTarget = Math.Max(0d, Math.Min(ContentScrollViewer.ScrollableHeight, targetOffset));
+        var currentAnimatedOffset = AnimatedVerticalOffset;
+        if (double.IsNaN(currentAnimatedOffset) || double.IsInfinity(currentAnimatedOffset))
+        {
+            currentAnimatedOffset = ContentScrollViewer.VerticalOffset;
+        }
+
+        var start = double.IsNaN(_scrollAnimationTarget)
+            ? ContentScrollViewer.VerticalOffset
+            : currentAnimatedOffset;
+
+        _scrollAnimationTarget = clampedTarget;
+
+        if (Math.Abs(clampedTarget - start) < 0.25)
+        {
+            ContentScrollViewer.ScrollToVerticalOffset(clampedTarget);
+            _scrollAnimationTarget = double.NaN;
+            return;
+        }
+
+        var distance = Math.Abs(clampedTarget - start);
+        var duration = TimeSpan.FromMilliseconds(Math.Max(90d, Math.Min(260d, distance * 1.15)));
+        var easing = new CubicEase
+        {
+            EasingMode = EasingMode.EaseOut
+        };
+
+        BeginAnimation(AnimatedVerticalOffsetProperty, null);
+        AnimatedVerticalOffset = start;
+
+        var animation = new DoubleAnimation(start, clampedTarget, new Duration(duration))
+        {
+            EasingFunction = easing
+        };
+
+        animation.Completed += (_, _) => _scrollAnimationTarget = double.NaN;
+
+        BeginAnimation(AnimatedVerticalOffsetProperty, animation, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    private static void OnAnimatedVerticalOffsetChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not RegistryOptimizerPage page)
+        {
+            return;
+        }
+
+        var newOffset = (double)e.NewValue;
+        if (double.IsNaN(newOffset) || double.IsInfinity(newOffset))
+        {
+            return;
+        }
+
+        page.ContentScrollViewer.ScrollToVerticalOffset(newOffset);
+    }
+
+    private double CalculateWheelStep(int wheelDelta, bool accelerate)
+    {
+        if (wheelDelta == 0)
+        {
+            return 0d;
+        }
+
+        var viewportHeight = ContentScrollViewer.ViewportHeight;
+        if (double.IsNaN(viewportHeight) || viewportHeight <= 0)
+        {
+            viewportHeight = 600d;
+        }
+
+        var direction = wheelDelta > 0 ? -1d : 1d;
+        var magnitude = Math.Max(72d, viewportHeight * 0.32);
+        var wheelIntensity = Math.Max(1d, Math.Abs(wheelDelta) / 120d);
+
+        if (accelerate)
+        {
+            magnitude *= 1.65;
+        }
+
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && !accelerate)
+        {
+            magnitude *= 0.7;
+        }
+
+        var lineMultiplier = SystemParameters.WheelScrollLines;
+        if (lineMultiplier > 0)
+        {
+            magnitude *= Math.Max(0.6, Math.Min(2.2, lineMultiplier / 3d));
+        }
+
+        return direction * magnitude * wheelIntensity;
     }
 
     private static ScrollViewer? FindChildScrollViewer(DependencyObject root)

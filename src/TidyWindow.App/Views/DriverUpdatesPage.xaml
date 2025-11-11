@@ -530,7 +530,9 @@
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                       VirtualizingStackPanel.ScrollUnit="Pixel"
-                                      MaxHeight="360">
+                                      MaxHeight="360"
+                                      Loaded="InstalledDriversList_Loaded"
+                                      SizeChanged="InstalledDriversList_SizeChanged">
                         <ListView.ItemContainerStyle>
                             <Style TargetType="ListViewItem">
                                 <Setter Property="Foreground" Value="#E2E8F0"/>
@@ -580,15 +582,63 @@
                             </Style>
                         </ListView.ItemContainerStyle>
                         <ListView.View>
-                            <GridView AllowsColumnReorder="False">
-                                <GridViewColumn Header="Device" DisplayMemberBinding="{Binding DeviceName}" Width="220"/>
-                                <GridViewColumn Header="Manufacturer" DisplayMemberBinding="{Binding Manufacturer}" Width="160"/>
-                                <GridViewColumn Header="Provider" DisplayMemberBinding="{Binding Provider}" Width="160"/>
-                                <GridViewColumn Header="Version" DisplayMemberBinding="{Binding DriverVersion}" Width="120"/>
-                                <GridViewColumn Header="Driver Date" DisplayMemberBinding="{Binding DriverDateDisplay}" Width="110"/>
-                                <GridViewColumn Header="Installed" DisplayMemberBinding="{Binding InstallDateDisplay}" Width="110"/>
-                                <GridViewColumn Header="Status" DisplayMemberBinding="{Binding Status}" Width="130"/>
-                                <GridViewColumn Header="Signed" DisplayMemberBinding="{Binding SignedDisplay}" Width="90"/>
+                            <GridView x:Name="InstalledDriversGridView" AllowsColumnReorder="False">
+                                <GridViewColumn x:Name="InstalledDeviceColumn" Header="Device" Width="260">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DeviceName}" TextTrimming="CharacterEllipsis" ToolTip="{Binding DeviceName}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="InstalledManufacturerColumn" Header="Manufacturer" Width="170">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Manufacturer}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Manufacturer}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="InstalledProviderColumn" Header="Provider" Width="170">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Provider}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Provider}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="InstalledVersionColumn" Header="Version" Width="120">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DriverVersion}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="InstalledDriverDateColumn" Header="Driver Date" Width="120">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding DriverDateDisplay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="InstalledInstalledColumn" Header="Installed" Width="120">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding InstallDateDisplay}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="InstalledStatusColumn" Header="Status" Width="140">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" ToolTip="{Binding Status}"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
+                                <GridViewColumn x:Name="InstalledSignedColumn" Header="Signed" Width="90">
+                                    <GridViewColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding SignedDisplay}" TextAlignment="Center"/>
+                                        </DataTemplate>
+                                    </GridViewColumn.CellTemplate>
+                                </GridViewColumn>
                             </GridView>
                         </ListView.View>
                             </ListView>

@@ -314,19 +314,94 @@
                                                 </Border>
 
                                                 <Grid Grid.Row="2"
-                                                      Margin="0,20,0,0"
-                                                      Grid.IsSharedSizeScope="True">
+                                                      Margin="0,20,0,0">
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                        <RowDefinition Height="Auto"/>
+                                                    </Grid.RowDefinitions>
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"
-                                                                          SharedSizeGroup="RegistryTweakDetails"/>
-                                                        <ColumnDefinition Width="170"
-                                                                          SharedSizeGroup="RegistryRecommendedColumn"/>
-                                                        <ColumnDefinition Width="220"
-                                                                          SharedSizeGroup="RegistryCustomColumn"/>
+                                                        <ColumnDefinition x:Name="ValueDetailColumn"
+                                                                          Width="*"
+                                                                          MinWidth="280">
+                                                            <ColumnDefinition.Style>
+                                                                <Style TargetType="ColumnDefinition">
+                                                                    <Setter Property="Width"
+                                                                            Value="*"/>
+                                                                    <Setter Property="MinWidth"
+                                                                            Value="280"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
+                                                                                     Value="True">
+                                                                            <Setter Property="MinWidth"
+                                                                                    Value="0"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ColumnDefinition.Style>
+                                                        </ColumnDefinition>
+                                                        <ColumnDefinition x:Name="ValueRecommendedColumn"
+                                                                          Width="Auto"
+                                                                          MinWidth="176">
+                                                            <ColumnDefinition.Style>
+                                                                <Style TargetType="ColumnDefinition">
+                                                                    <Setter Property="Width"
+                                                                            Value="Auto"/>
+                                                                    <Setter Property="MinWidth"
+                                                                            Value="176"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
+                                                                                     Value="True">
+                                                                            <Setter Property="Width"
+                                                                                    Value="0"/>
+                                                                            <Setter Property="MinWidth"
+                                                                                    Value="0"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ColumnDefinition.Style>
+                                                        </ColumnDefinition>
+                                                        <ColumnDefinition x:Name="ValueCustomColumn"
+                                                                          Width="Auto"
+                                                                          MinWidth="220">
+                                                            <ColumnDefinition.Style>
+                                                                <Style TargetType="ColumnDefinition">
+                                                                    <Setter Property="Width"
+                                                                            Value="Auto"/>
+                                                                    <Setter Property="MinWidth"
+                                                                            Value="220"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
+                                                                                     Value="True">
+                                                                            <Setter Property="Width"
+                                                                                    Value="0"/>
+                                                                            <Setter Property="MinWidth"
+                                                                                    Value="0"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ColumnDefinition.Style>
+                                                        </ColumnDefinition>
                                                     </Grid.ColumnDefinitions>
 
                                                     <Border Grid.Column="0"
-                                                            Style="{StaticResource RegistryValueChipStyle}">
+                                                            Grid.Row="0">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border"
+                                                                   BasedOn="{StaticResource RegistryValueChipStyle}">
+                                                                <Setter Property="Margin"
+                                                                        Value="0"/>
+                                                                <Setter Property="HorizontalAlignment"
+                                                                        Value="Stretch"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
+                                                                                 Value="True">
+                                                                        <Setter Property="Margin"
+                                                                                Value="0,0,0,18"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
                                                         <StackPanel>
                                                             <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderDetails}"
                                                                        Foreground="#7C8BA5"
@@ -343,8 +418,27 @@
                                                     </Border>
 
                                                     <Border Grid.Column="1"
-                                                            Style="{StaticResource RegistryValueChipStyle}"
-                                                            Margin="18,0,0,0">
+                                                            Grid.Row="0">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border"
+                                                                   BasedOn="{StaticResource RegistryValueChipStyle}">
+                                                                <Setter Property="Margin"
+                                                                        Value="18,0,0,0"/>
+                                                                <Setter Property="HorizontalAlignment"
+                                                                        Value="Stretch"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
+                                                                                 Value="True">
+                                                                        <Setter Property="Grid.Column"
+                                                                                Value="0"/>
+                                                                        <Setter Property="Grid.Row"
+                                                                                Value="1"/>
+                                                                        <Setter Property="Margin"
+                                                                                Value="0,18,0,0"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
                                                         <StackPanel>
                                                             <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.ValueHeaderRecommended}"
                                                                        Foreground="#7C8BA5"
@@ -357,8 +451,27 @@
                                                     </Border>
 
                                                     <Border Grid.Column="2"
-                                                            Style="{StaticResource RegistryValueChipStyle}"
-                                                            Margin="18,0,0,0">
+                                                            Grid.Row="0">
+                                                        <Border.Style>
+                                                            <Style TargetType="Border"
+                                                                   BasedOn="{StaticResource RegistryValueChipStyle}">
+                                                                <Setter Property="Margin"
+                                                                        Value="18,0,0,0"/>
+                                                                <Setter Property="HorizontalAlignment"
+                                                                        Value="Stretch"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
+                                                                                 Value="True">
+                                                                        <Setter Property="Grid.Column"
+                                                                                Value="0"/>
+                                                                        <Setter Property="Grid.Row"
+                                                                                Value="2"/>
+                                                                        <Setter Property="Margin"
+                                                                                Value="0,18,0,0"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
                                                         <StackPanel>
                                                             <StackPanel Orientation="Horizontal"
                                                                         VerticalAlignment="Center">
@@ -386,7 +499,9 @@
                                                             <TextBox Text="{Binding CustomValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                                      ToolTip="{Binding CustomValueInfoText}"
                                                                      AutomationProperties.HelpText="{x:Static strings:RegistryOptimizerStrings.CustomValuePlaceholder}"
-                                                                     Margin="0,10,0,0">
+                                                                     Margin="0,10,0,0"
+                                                                     HorizontalAlignment="Stretch"
+                                                                     MinWidth="0">
                                                                 <TextBox.Style>
                                                                     <Style TargetType="TextBox"
                                                                            BasedOn="{StaticResource RegistryValueTextBoxStyle}">

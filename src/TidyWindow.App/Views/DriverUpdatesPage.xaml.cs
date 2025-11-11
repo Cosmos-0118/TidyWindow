@@ -11,6 +11,7 @@ using ListViewItem = System.Windows.Controls.ListViewItem;
 using MessageBox = System.Windows.MessageBox;
 using System.Windows.Documents;
 using System.Windows.Media;
+using WpfListView = System.Windows.Controls.ListView;
 
 namespace TidyWindow.App.Views;
 
@@ -19,6 +20,50 @@ public partial class DriverUpdatesPage : Page
     private readonly DriverUpdatesViewModel _viewModel;
     private bool _disposed;
     private bool _scrollHandlersAttached;
+    private WpfListView? _installedDriversList;
+    private ScrollViewer? _installedDriversScrollViewer;
+    private GridViewColumn? _installedDeviceColumn;
+    private GridViewColumn? _installedManufacturerColumn;
+    private GridViewColumn? _installedProviderColumn;
+    private GridViewColumn? _installedVersionColumn;
+    private GridViewColumn? _installedDriverDateColumn;
+    private GridViewColumn? _installedInstalledColumn;
+    private GridViewColumn? _installedStatusColumn;
+    private GridViewColumn? _installedSignedColumn;
+
+    private const double InstalledLayoutPadding = 64d;
+
+    private const double InstalledDevicePreferredWidth = 260d;
+    private const double InstalledDeviceCompactWidth = 220d;
+    private const double InstalledDeviceMinimumWidth = 170d;
+
+    private const double InstalledManufacturerPreferredWidth = 170d;
+    private const double InstalledManufacturerCompactWidth = 140d;
+    private const double InstalledManufacturerMinimumWidth = 110d;
+
+    private const double InstalledProviderPreferredWidth = 170d;
+    private const double InstalledProviderCompactWidth = 140d;
+    private const double InstalledProviderMinimumWidth = 110d;
+
+    private const double InstalledVersionPreferredWidth = 120d;
+    private const double InstalledVersionCompactWidth = 100d;
+    private const double InstalledVersionMinimumWidth = 88d;
+
+    private const double InstalledDriverDatePreferredWidth = 120d;
+    private const double InstalledDriverDateCompactWidth = 110d;
+    private const double InstalledDriverDateMinimumWidth = 92d;
+
+    private const double InstalledInstalledPreferredWidth = 120d;
+    private const double InstalledInstalledCompactWidth = 110d;
+    private const double InstalledInstalledMinimumWidth = 92d;
+
+    private const double InstalledStatusPreferredWidth = 140d;
+    private const double InstalledStatusCompactWidth = 120d;
+    private const double InstalledStatusMinimumWidth = 96d;
+
+    private const double InstalledSignedPreferredWidth = 90d;
+    private const double InstalledSignedCompactWidth = 80d;
+    private const double InstalledSignedMinimumWidth = 68d;
 
     public DriverUpdatesPage(DriverUpdatesViewModel viewModel)
     {
@@ -131,6 +176,27 @@ public partial class DriverUpdatesPage : Page
         }
 
         ShowDriverLocationUnavailable(driver.DeviceName);
+    }
+
+    private void InstalledDriversList_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not WpfListView listView)
+        {
+            return;
+        }
+
+        _installedDriversList = listView;
+        _installedDriversScrollViewer ??= FindDescendant<ScrollViewer>(listView);
+        CacheInstalledColumns();
+        UpdateInstalledColumnWidths();
+    }
+
+    private void InstalledDriversList_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+        {
+            UpdateInstalledColumnWidths();
+        }
     }
 
     private static bool TryOpenDriverLocation(string? driverReference)
@@ -277,6 +343,8 @@ public partial class DriverUpdatesPage : Page
         AttachScrollHandler(UpdatesList);
         AttachScrollHandler(InstalledDriversList);
         _scrollHandlersAttached = true;
+
+        UpdateInstalledColumnWidths();
     }
 
     private void DetachScrollHandlers()
@@ -399,5 +467,137 @@ public partial class DriverUpdatesPage : Page
         }
 
         return null;
+    }
+
+    private void CacheInstalledColumns()
+    {
+        if (_installedDriversList?.View is not GridView gridView)
+        {
+            return;
+        }
+
+        if (gridView.Columns.Count < 8)
+        {
+            return;
+        }
+
+        _installedDeviceColumn = gridView.Columns[0];
+        _installedManufacturerColumn = gridView.Columns[1];
+        _installedProviderColumn = gridView.Columns[2];
+        _installedVersionColumn = gridView.Columns[3];
+        _installedDriverDateColumn = gridView.Columns[4];
+        _installedInstalledColumn = gridView.Columns[5];
+        _installedStatusColumn = gridView.Columns[6];
+        _installedSignedColumn = gridView.Columns[7];
+    }
+
+    private void UpdateInstalledColumnWidths()
+    {
+        if (_installedDriversList is null || _installedDeviceColumn is null)
+        {
+            return;
+        }
+
+        var availableWidth = _installedDriversList.ActualWidth;
+        if (double.IsNaN(availableWidth) || availableWidth <= 0)
+        {
+            return;
+        }
+
+        var workingWidth = Math.Max(0d, availableWidth - InstalledLayoutPadding);
+
+        if (_installedDriversScrollViewer?.ComputedVerticalScrollBarVisibility == Visibility.Visible)
+        {
+            workingWidth = Math.Max(0d, workingWidth - SystemParameters.VerticalScrollBarWidth);
+        }
+
+        var deviceWidth = InstalledDevicePreferredWidth;
+        var manufacturerWidth = InstalledManufacturerPreferredWidth;
+        var providerWidth = InstalledProviderPreferredWidth;
+        var versionWidth = InstalledVersionPreferredWidth;
+        var driverDateWidth = InstalledDriverDatePreferredWidth;
+        var installedWidth = InstalledInstalledPreferredWidth;
+        var statusWidth = InstalledStatusPreferredWidth;
+        var signedWidth = InstalledSignedPreferredWidth;
+
+        var preferredTotal = deviceWidth + manufacturerWidth + providerWidth + versionWidth + driverDateWidth + installedWidth + statusWidth + signedWidth;
+
+        if (workingWidth > preferredTotal)
+        {
+            var extra = workingWidth - preferredTotal;
+            deviceWidth += extra * 0.53;
+            manufacturerWidth += extra * 0.12;
+            providerWidth += extra * 0.1;
+            statusWidth += extra * 0.1;
+            versionWidth += extra * 0.06;
+            driverDateWidth += extra * 0.04;
+            installedWidth += extra * 0.03;
+            signedWidth += extra * 0.02;
+        }
+        else
+        {
+            var overflow = preferredTotal - workingWidth;
+
+            deviceWidth = ReduceWidth(deviceWidth, InstalledDeviceCompactWidth, ref overflow);
+            manufacturerWidth = ReduceWidth(manufacturerWidth, InstalledManufacturerCompactWidth, ref overflow);
+            providerWidth = ReduceWidth(providerWidth, InstalledProviderCompactWidth, ref overflow);
+            statusWidth = ReduceWidth(statusWidth, InstalledStatusCompactWidth, ref overflow);
+            versionWidth = ReduceWidth(versionWidth, InstalledVersionCompactWidth, ref overflow);
+            driverDateWidth = ReduceWidth(driverDateWidth, InstalledDriverDateCompactWidth, ref overflow);
+            installedWidth = ReduceWidth(installedWidth, InstalledInstalledCompactWidth, ref overflow);
+            signedWidth = ReduceWidth(signedWidth, InstalledSignedCompactWidth, ref overflow);
+
+            if (overflow > 0)
+            {
+                deviceWidth = ReduceWidth(deviceWidth, InstalledDeviceMinimumWidth, ref overflow);
+                manufacturerWidth = ReduceWidth(manufacturerWidth, InstalledManufacturerMinimumWidth, ref overflow);
+                providerWidth = ReduceWidth(providerWidth, InstalledProviderMinimumWidth, ref overflow);
+                statusWidth = ReduceWidth(statusWidth, InstalledStatusMinimumWidth, ref overflow);
+                versionWidth = ReduceWidth(versionWidth, InstalledVersionMinimumWidth, ref overflow);
+                driverDateWidth = ReduceWidth(driverDateWidth, InstalledDriverDateMinimumWidth, ref overflow);
+                installedWidth = ReduceWidth(installedWidth, InstalledInstalledMinimumWidth, ref overflow);
+                signedWidth = ReduceWidth(signedWidth, InstalledSignedMinimumWidth, ref overflow);
+            }
+        }
+
+        SetColumnWidth(_installedDeviceColumn, deviceWidth);
+        SetColumnWidth(_installedManufacturerColumn, manufacturerWidth);
+        SetColumnWidth(_installedProviderColumn, providerWidth);
+        SetColumnWidth(_installedVersionColumn, versionWidth);
+        SetColumnWidth(_installedDriverDateColumn, driverDateWidth);
+        SetColumnWidth(_installedInstalledColumn, installedWidth);
+        SetColumnWidth(_installedStatusColumn, statusWidth);
+        SetColumnWidth(_installedSignedColumn, signedWidth);
+    }
+
+    private static double ReduceWidth(double current, double minimum, ref double overflow)
+    {
+        if (overflow <= 0)
+        {
+            return current;
+        }
+
+        var reducible = current - minimum;
+        if (reducible <= 0)
+        {
+            return current;
+        }
+
+        var reduction = Math.Min(reducible, overflow);
+        overflow -= reduction;
+        return current - reduction;
+    }
+
+    private static void SetColumnWidth(GridViewColumn? column, double width)
+    {
+        if (column is null)
+        {
+            return;
+        }
+
+        if (Math.Abs(column.Width - width) > 0.1)
+        {
+            column.Width = width;
+        }
     }
 }

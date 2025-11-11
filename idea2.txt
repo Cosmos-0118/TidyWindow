@@ -1,0 +1,9 @@
+its a simple idea but very powerful:
+
+a app uninstaller page:
+
+-detects literally all apps instralled in the system even hidden ones - a proper search.
+
+- and gives a option to delete apps. literally selete everything related to app. even thing there should be no trace of app eben existed.
+
+- take inspiration form cleanup page. just to get a idea on the ui.

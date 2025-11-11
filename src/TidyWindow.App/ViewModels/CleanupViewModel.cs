@@ -154,6 +154,10 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
         RebuildExtensionCache();
         CelebrationFailures.CollectionChanged += OnCelebrationFailuresCollectionChanged;
+        PendingDeletionCategories = new ReadOnlyObservableCollection<string>(_pendingDeletionCategories);
+        CelebrationCategories = new ReadOnlyObservableCollection<string>(_celebrationCategories);
+        _pendingDeletionCategories.CollectionChanged += OnPendingDeletionCategoriesCollectionChanged;
+        _celebrationCategories.CollectionChanged += OnCelebrationCategoriesCollectionChanged;
     }
 
     [ObservableProperty]
@@ -264,6 +268,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private string _refreshToastText = string.Empty;
 
+    private readonly ObservableCollection<string> _pendingDeletionCategories = new();
+    private readonly ObservableCollection<string> _celebrationCategories = new();
+
     public ObservableCollection<CleanupTargetGroupViewModel> Targets { get; } = new();
 
     public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
@@ -271,6 +278,10 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public ObservableCollection<CleanupDeletionRiskViewModel> PendingDeletionRisks { get; } = new();
 
     public ObservableCollection<CleanupCelebrationFailureViewModel> CelebrationFailures { get; } = new();
+
+    public ReadOnlyObservableCollection<string> PendingDeletionCategories { get; }
+
+    public ReadOnlyObservableCollection<string> CelebrationCategories { get; }
 
     // Paging state for preview
     private int _currentPage = 1;
@@ -371,6 +382,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public bool IsExtensionSelectorEnabled => SelectedExtensionFilterMode != CleanupExtensionFilterMode.None;
 
     public bool HasCelebrationFailures => CelebrationFailures.Count > 0;
+
+    public bool HasCelebrationCategories => CelebrationCategories.Count > 0;
 
     public bool CanReviewCelebrationReport => !string.IsNullOrWhiteSpace(CelebrationReportPath) && File.Exists(CelebrationReportPath);
 
@@ -522,6 +535,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public bool HasActiveOperationPercent => IsDeleting && DeletionProgressTotal > 0;
 
     public bool HasPendingDeletion => PendingDeletionItemCount > 0;
+
+    public bool HasPendingDeletionCategories => PendingDeletionCategories.Count > 0;
 
     public string PendingDeletionSizeDisplay => FormatSize(PendingDeletionTotalSizeMegabytes);
 
@@ -680,21 +695,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
         PendingDeletionItemCount = itemsToDelete.Count;
         PendingDeletionTotalSizeMegabytes = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
 
-        var categoryNames = itemsToDelete
-            .Select(static tuple => tuple.group.Category)
-            .Where(static category => !string.IsNullOrWhiteSpace(category))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var categoryNames = NormalizeDistinctCategories(itemsToDelete.Select(static tuple => tuple.group.Category));
 
         PendingDeletionCategoryCount = categoryNames.Count;
+        UpdateCategoryCollection(_pendingDeletionCategories, categoryNames);
 
-        var displayCategories = categoryNames.Count <= 4
-            ? categoryNames
-            : categoryNames.Take(4).Concat(new[] { "..." }).ToList();
-
-        PendingDeletionCategoryList = displayCategories.Count == 0
-            ? string.Empty
-            : string.Join(", ", displayCategories);
+        PendingDeletionCategoryList = BuildCategoryListText(categoryNames);
 
         UseRecycleBin = true;
         GenerateCleanupReport = false;
@@ -718,6 +724,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         PendingDeletionTotalSizeMegabytes = 0;
         PendingDeletionCategoryCount = 0;
         PendingDeletionCategoryList = string.Empty;
+        _pendingDeletionCategories.Clear();
         OnPropertyChanged(nameof(HasPendingDeletionRisks));
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
@@ -1054,9 +1061,10 @@ public sealed partial class CleanupViewModel : ViewModelBase
         CelebrationItemsSkipped = deletionResult.SkippedCount;
         CelebrationItemsFailed = deletionResult.FailedCount;
         CelebrationReclaimedMegabytes = reclaimedMegabytes;
-        CelebrationCategoryCount = categoriesTouched?.Count ?? 0;
-        var categoryList = BuildCategoryListText(categoriesTouched);
-        CelebrationCategoryList = categoryList;
+        var normalizedCategories = NormalizeDistinctCategories(categoriesTouched);
+        CelebrationCategoryCount = normalizedCategories.Count;
+        UpdateCategoryCollection(_celebrationCategories, normalizedCategories);
+        CelebrationCategoryList = BuildCategoryListText(normalizedCategories);
 
         CelebrationHeadline = reclaimedMegabytes > 0
             ? $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed"
@@ -1079,7 +1087,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
             ? reportPath
             : null;
 
-        var shareCategories = CelebrationCategoryListDisplay;
+        var shareCategories = CelebrationCategories.Count == 0
+            ? CelebrationCategoryListDisplay
+            : string.Join(", ", CelebrationCategories);
         CelebrationShareSummary = BuildCelebrationShareSummary(
             CelebrationHeadline,
             deletionResult,
@@ -1116,29 +1126,60 @@ public sealed partial class CleanupViewModel : ViewModelBase
         return entry.Reason.IndexOf("not found", StringComparison.OrdinalIgnoreCase) < 0;
     }
 
-    private static string BuildCategoryListText(IReadOnlyCollection<string>? categories)
+    private static string BuildCategoryListText(IEnumerable<string>? categories)
     {
-        if (categories is null || categories.Count == 0)
+        if (categories is null)
         {
             return string.Empty;
         }
 
-        var distinct = categories
-            .Where(static category => !string.IsNullOrWhiteSpace(category))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var normalized = categories as IReadOnlyList<string> ?? NormalizeDistinctCategories(categories);
 
-        if (distinct.Count == 0)
+        if (normalized.Count == 0)
         {
             return string.Empty;
         }
 
-        if (distinct.Count <= 4)
+        if (normalized.Count <= 4)
         {
-            return string.Join(", ", distinct);
+            return string.Join(", ", normalized);
         }
 
-        return string.Join(", ", distinct.Take(4)) + ", ...";
+        return string.Join(", ", normalized.Take(4)) + ", ...";
+    }
+
+    private static IReadOnlyList<string> NormalizeDistinctCategories(IEnumerable<string>? categories)
+    {
+        if (categories is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var normalized = new List<string>();
+        foreach (var category in categories)
+        {
+            if (string.IsNullOrWhiteSpace(category))
+            {
+                continue;
+            }
+
+            if (seen.Add(category))
+            {
+                normalized.Add(category);
+            }
+        }
+
+        return normalized;
+    }
+
+    private static void UpdateCategoryCollection(ObservableCollection<string> target, IReadOnlyList<string> categories)
+    {
+        target.Clear();
+        for (var i = 0; i < categories.Count; i++)
+        {
+            target.Add(categories[i]);
+        }
     }
 
     private static string BuildCelebrationDetails(CleanupDeletionResult result, int categoryCount, double reclaimedMegabytes)
@@ -1715,6 +1756,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private void OnCelebrationFailuresCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasCelebrationFailures));
+    }
+
+    private void OnPendingDeletionCategoriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasPendingDeletionCategories));
+    }
+
+    private void OnCelebrationCategoriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasCelebrationCategories));
     }
 
     private void HandleRefreshToast(int newItems, int totalItems)
