@@ -24,15 +24,15 @@ public partial class RegistryOptimizerPage : Page
     private bool _rootScrollWheelAttached;
     private double _scrollAnimationTarget = double.NaN;
 
-    private const double CompactPrimaryMinWidth = 320d;
-    private const double CompactSecondaryMinWidth = 280d;
-    private const double WideLayoutBreakpoint = 1280d;
-    private const double CompactLayoutBreakpoint = 1120d;
+    private const double CompactPrimaryMinWidth = 300d;
+    private const double CompactSecondaryMinWidth = 260d;
+    private const double WideLayoutBreakpoint = 1320d;
+    private const double CompactLayoutBreakpoint = 1280d;
     private const double StackedLayoutBreakpoint = 960d;
-    private const double MarginTighteningBuffer = 160d;
-    private const double ScreenMaxWidthRatio = 0.92d;
+    private const double MarginTighteningBuffer = 130d;
+    private const double ScreenMaxWidthRatio = 0.9d;
     private const double ColumnShareBias = 0.55d;
-    private const double CompactCardPrimaryWidthThreshold = 780d;
+    private const double CompactCardPrimaryWidthThreshold = 640d;
 
     private Thickness _secondaryColumnDefaultMargin;
     private readonly Thickness _secondaryColumnStackedMargin = new(0, 24, 0, 0);

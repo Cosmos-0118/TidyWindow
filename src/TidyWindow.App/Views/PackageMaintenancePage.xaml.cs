@@ -354,7 +354,47 @@ public partial class PackageMaintenancePage : Page
 
     private void UpdateHeaderLayout(bool stackLayout, bool compactColumns)
     {
-        var shouldStack = stackLayout || compactColumns;
+        var pageGrid = PageContentGrid;
+        var contentScrollViewer = ContentScrollViewer;
+        var actionHost = HeaderActionHost;
+        var actionPanel = HeaderActionPanel;
+        var lastRefreshed = HeaderLastRefreshedText;
+        var headerColumn = HeaderSecondaryColumn;
+        var summaryPanel = HeaderSummaryPanel;
+
+        if (pageGrid is null || contentScrollViewer is null || actionHost is null || actionPanel is null || lastRefreshed is null || headerColumn is null)
+        {
+            return;
+        }
+
+        double headerAvailableWidth = pageGrid.ActualWidth;
+        if (double.IsNaN(headerAvailableWidth) || headerAvailableWidth <= 0)
+        {
+            headerAvailableWidth = contentScrollViewer.ViewportWidth;
+            if (double.IsNaN(headerAvailableWidth) || headerAvailableWidth <= 0)
+            {
+                headerAvailableWidth = contentScrollViewer.ActualWidth;
+            }
+        }
+
+        double headerRequiredWidth = 0d;
+
+        if (summaryPanel is not null)
+        {
+            summaryPanel.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+            headerRequiredWidth += summaryPanel.DesiredSize.Width;
+        }
+
+        actionHost.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        headerRequiredWidth += actionHost.DesiredSize.Width;
+
+        if (headerRequiredWidth > 0)
+        {
+            headerRequiredWidth += _columnSpacing;
+        }
+
+        var exceedsWidth = headerAvailableWidth > 0 && headerRequiredWidth > headerAvailableWidth;
+        var shouldStack = stackLayout || compactColumns || exceedsWidth;
 
         if (shouldStack)
         {
@@ -363,14 +403,14 @@ public partial class PackageMaintenancePage : Page
                 return;
             }
 
-            Grid.SetRow(HeaderActionHost, 1);
-            Grid.SetColumn(HeaderActionHost, 0);
-            HeaderActionHost.Margin = _headerActionStackedMargin;
-            HeaderActionHost.HorizontalAlignment = HorizontalAlignment.Stretch;
-            HeaderActionHost.VerticalAlignment = VerticalAlignment.Top;
-            HeaderActionPanel.HorizontalAlignment = HorizontalAlignment.Left;
-            HeaderLastRefreshedText.HorizontalAlignment = HorizontalAlignment.Left;
-            HeaderSecondaryColumn.Width = new GridLength(0d, GridUnitType.Pixel);
+            Grid.SetRow(actionHost, 1);
+            Grid.SetColumn(actionHost, 0);
+            actionHost.Margin = _headerActionStackedMargin;
+            actionHost.HorizontalAlignment = HorizontalAlignment.Stretch;
+            actionHost.VerticalAlignment = VerticalAlignment.Top;
+            actionPanel.HorizontalAlignment = HorizontalAlignment.Left;
+            lastRefreshed.HorizontalAlignment = HorizontalAlignment.Left;
+            headerColumn.Width = new GridLength(0d, GridUnitType.Pixel);
             _isHeaderStacked = true;
             return;
         }
@@ -380,14 +420,14 @@ public partial class PackageMaintenancePage : Page
             return;
         }
 
-        Grid.SetRow(HeaderActionHost, 0);
-        Grid.SetColumn(HeaderActionHost, 1);
-        HeaderActionHost.Margin = _headerActionDefaultMargin;
-        HeaderActionHost.HorizontalAlignment = _headerActionDefaultAlignment;
-        HeaderActionHost.VerticalAlignment = _headerActionDefaultVerticalAlignment;
-        HeaderActionPanel.HorizontalAlignment = _headerActionPanelDefaultAlignment;
-        HeaderLastRefreshedText.HorizontalAlignment = _headerLastRefreshedDefaultAlignment;
-        HeaderSecondaryColumn.Width = _headerSecondaryDefaultWidth;
+        Grid.SetRow(actionHost, 0);
+        Grid.SetColumn(actionHost, 1);
+        actionHost.Margin = _headerActionDefaultMargin;
+        actionHost.HorizontalAlignment = _headerActionDefaultAlignment;
+        actionHost.VerticalAlignment = _headerActionDefaultVerticalAlignment;
+        actionPanel.HorizontalAlignment = _headerActionPanelDefaultAlignment;
+        lastRefreshed.HorizontalAlignment = _headerLastRefreshedDefaultAlignment;
+        headerColumn.Width = _headerSecondaryDefaultWidth;
         _isHeaderStacked = false;
     }
 

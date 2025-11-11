@@ -678,7 +678,7 @@
         <Setter Property="Padding"
             Value="8,4"/>
         <Setter Property="Margin"
-            Value="0,0,8,0"/>
+            Value="0,0,8,8"/>
     </Style>
     </Page.Resources>
     <Grid>
@@ -2099,7 +2099,7 @@
                                    FontSize="12"
                                    Foreground="{StaticResource CleanupMutedTextBrush}"/>
                         <ScrollViewer Margin="0,4,0,0"
-                                      MaxHeight="220"
+                                      MaxHeight="160"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
                                       CanContentScroll="False">

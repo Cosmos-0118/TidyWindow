@@ -321,15 +321,13 @@
                                                         <RowDefinition Height="Auto"/>
                                                     </Grid.RowDefinitions>
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition x:Name="ValueDetailColumn"
-                                                                          Width="*"
-                                                                          MinWidth="280">
+                            <ColumnDefinition x:Name="ValueDetailColumn">
                                                             <ColumnDefinition.Style>
                                                                 <Style TargetType="ColumnDefinition">
-                                                                    <Setter Property="Width"
-                                                                            Value="*"/>
-                                                                    <Setter Property="MinWidth"
-                                                                            Value="280"/>
+                                    <Setter Property="Width"
+                                        Value="2.05*"/>
+                                    <Setter Property="MinWidth"
+                                        Value="200"/>
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
                                                                                      Value="True">
@@ -340,15 +338,13 @@
                                                                 </Style>
                                                             </ColumnDefinition.Style>
                                                         </ColumnDefinition>
-                                                        <ColumnDefinition x:Name="ValueRecommendedColumn"
-                                                                          Width="Auto"
-                                                                          MinWidth="176">
+                            <ColumnDefinition x:Name="ValueRecommendedColumn">
                                                             <ColumnDefinition.Style>
                                                                 <Style TargetType="ColumnDefinition">
-                                                                    <Setter Property="Width"
-                                                                            Value="Auto"/>
-                                                                    <Setter Property="MinWidth"
-                                                                            Value="176"/>
+                                    <Setter Property="Width"
+                                        Value="1.15*"/>
+                                    <Setter Property="MinWidth"
+                                        Value="140"/>
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
                                                                                      Value="True">
@@ -361,15 +357,13 @@
                                                                 </Style>
                                                             </ColumnDefinition.Style>
                                                         </ColumnDefinition>
-                                                        <ColumnDefinition x:Name="ValueCustomColumn"
-                                                                          Width="Auto"
-                                                                          MinWidth="220">
+                            <ColumnDefinition x:Name="ValueCustomColumn">
                                                             <ColumnDefinition.Style>
                                                                 <Style TargetType="ColumnDefinition">
-                                                                    <Setter Property="Width"
-                                                                            Value="Auto"/>
-                                                                    <Setter Property="MinWidth"
-                                                                            Value="220"/>
+                                    <Setter Property="Width"
+                                        Value="1.45*"/>
+                                    <Setter Property="MinWidth"
+                                        Value="180"/>
                                                                     <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
                                                                                      Value="True">
@@ -397,7 +391,7 @@
                                                                     <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=Page}, Path=IsCompactCards}"
                                                                                  Value="True">
                                                                         <Setter Property="Margin"
-                                                                                Value="0,0,0,18"/>
+                                            Value="0,0,0,18"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -409,11 +403,15 @@
                                                                        FontWeight="SemiBold"/>
                                                             <TextBlock Text="{Binding DefaultStateLabel}"
                                                                        Style="{StaticResource RegistryValueTextStyle}"
-                                                                       Margin="0,6,0,0"/>
+                                                                       Margin="0,6,0,0"
+                                                                       TextWrapping="NoWrap"
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                             <TextBlock Text="{Binding Category}"
                                                                        Foreground="#64748B"
                                                                        FontSize="11"
-                                                                       Margin="0,6,0,0"/>
+                                                                       Margin="0,6,0,0"
+                                                                       TextWrapping="NoWrap"
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
                                                     </Border>
 
@@ -434,7 +432,7 @@
                                                                         <Setter Property="Grid.Row"
                                                                                 Value="1"/>
                                                                         <Setter Property="Margin"
-                                                                                Value="0,18,0,0"/>
+                                        Value="0,18,0,0"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -446,7 +444,9 @@
                                                                        FontWeight="SemiBold"/>
                                                             <TextBlock Text="{Binding RecommendedValue}"
                                                                        Style="{StaticResource RegistryValueTextStyle}"
-                                                                       Margin="0,6,0,0"/>
+                                                                       Margin="0,6,0,0"
+                                                                       TextWrapping="NoWrap"
+                                                                       TextTrimming="CharacterEllipsis"/>
                                                         </StackPanel>
                                                     </Border>
 
@@ -467,7 +467,7 @@
                                                                         <Setter Property="Grid.Row"
                                                                                 Value="2"/>
                                                                         <Setter Property="Margin"
-                                                                                Value="0,18,0,0"/>
+                                        Value="0,18,0,0"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
