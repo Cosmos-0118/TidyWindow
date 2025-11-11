@@ -547,11 +547,13 @@
                                     <TextBlock Text="Fine-tune what the analyzer should include."
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <StackPanel Margin="0,16,0,0">
-                                        <CheckBox Content="Include hidden items"
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Include hidden items"
                                                   IsChecked="{Binding IncludeHidden}"
                                                   Foreground="#E2E8F0"
                                                   Margin="0,0,0,8"/>
-                                        <CheckBox Content="Include folders"
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Include folders"
                                                   IsChecked="{Binding IncludeDirectories}"
                                                   Foreground="#E2E8F0"/>
                                     </StackPanel>
@@ -656,7 +658,8 @@
                                             </Style>
                                         </ComboBox.ItemContainerStyle>
                                     </ComboBox>
-                                    <CheckBox Margin="0,12,0,0"
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Margin="0,12,0,0"
                                               Content="Case sensitive"
                                               IsChecked="{Binding IsCaseSensitiveMatch}"
                                               Foreground="#E2E8F0"/>

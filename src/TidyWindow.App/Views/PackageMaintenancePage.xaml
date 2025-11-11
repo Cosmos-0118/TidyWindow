@@ -1093,7 +1093,8 @@
                                         <StaticResource ResourceKey="MaintenanceComboBoxItemStyle"/>
                                     </ComboBox.ItemContainerStyle>
                                 </ComboBox>
-                                <CheckBox Content="Updates only"
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Content="Updates only"
                                           Margin="0,0,12,8"
                                           IsChecked="{Binding UpdatesOnly, Mode=TwoWay}"
                                           Foreground="#F8FAFC"
@@ -1263,7 +1264,8 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
 
-                                                <CheckBox Grid.Column="0"
+                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                          Grid.Column="0"
                                                           IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                           VerticalAlignment="Top"
                                                           Margin="0,6,16,0"/>

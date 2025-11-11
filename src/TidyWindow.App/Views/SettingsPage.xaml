@@ -123,7 +123,8 @@
                                                 <TextBlock Text="Opt in to share anonymized diagnostics so PulseGuard can spot regressions early."
                                                                    Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                                                    Margin="0,6,0,20"/>
-                                                <CheckBox Content="Enable telemetry"
+                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                          Content="Enable telemetry"
                                                                   IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}"
                                                                   FontSize="14"
                                                                   Foreground="#E2E8F0"

@@ -445,7 +445,8 @@
                                                     <StackPanel>
                                                         <StackPanel Orientation="Horizontal"
                                                                     VerticalAlignment="Center">
-                                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                       Margin="0,0,8,0"/>
                                                             <TextBlock Text="{Binding Definition.Name}"
                                                                        FontWeight="SemiBold"

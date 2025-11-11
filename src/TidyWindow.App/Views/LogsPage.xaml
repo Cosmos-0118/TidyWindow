@@ -402,7 +402,8 @@
                                             Margin="0,0,0,12">
                                     <TextBlock Text="Options"
                                                Foreground="#94A3B8"/>
-                                    <CheckBox Margin="0,6,0,0"
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Margin="0,6,0,0"
                                               Content="Auto-select latest"
                                               Foreground="#E2E8F0"
                                               IsChecked="{Binding IsAutoSelectLatest, Mode=TwoWay}"/>

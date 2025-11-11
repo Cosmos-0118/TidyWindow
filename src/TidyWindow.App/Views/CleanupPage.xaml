@@ -7,12 +7,72 @@
     xmlns:converters="clr-namespace:TidyWindow.App.Converters"
         xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
         xmlns:controls="clr-namespace:TidyWindow.App.Views"
-      mc:Ignorable="d"
-      Title="Cleanup"
-      Background="Transparent">
+            mc:Ignorable="d"
+            Title="Cleanup"
+            Background="{DynamicResource CleanupBackdropBrush}">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+                <SolidColorBrush x:Key="CleanupAccentBrush"
+                                                 Color="#67E8F9"/>
+                <SolidColorBrush x:Key="CleanupAccentBrushSecondary"
+                                                 Color="#34D399"/>
+                <SolidColorBrush x:Key="CleanupSurfaceBaseBrush"
+                                                 Color="#0A1626"/>
+                <SolidColorBrush x:Key="CleanupSurfaceBrush"
+                                                 Color="#0D1E36"/>
+                <SolidColorBrush x:Key="CleanupSurfaceElevatedBrush"
+                                                 Color="#122848"/>
+                <SolidColorBrush x:Key="CleanupSurfaceHighlightBrush"
+                                                 Color="#18345E"/>
+                <SolidColorBrush x:Key="CleanupBorderBrush"
+                                                 Color="#1F3356"/>
+                <SolidColorBrush x:Key="CleanupMutedTextBrush"
+                                                 Color="#8EA7CC"/>
+                <SolidColorBrush x:Key="CleanupSoftTextBrush"
+                                                 Color="#D7E4FF"/>
+                <SolidColorBrush x:Key="CleanupChipItemsBackgroundBrush"
+                                                 Color="#4038BDF8"/>
+                <SolidColorBrush x:Key="CleanupChipItemsBorderBrush"
+                                                 Color="#6038BDF8"/>
+                <SolidColorBrush x:Key="CleanupChipSizeBackgroundBrush"
+                                                 Color="#4034D399"/>
+                <SolidColorBrush x:Key="CleanupChipSizeBorderBrush"
+                                                 Color="#6034D399"/>
+                <SolidColorBrush x:Key="CleanupChipModifiedBackgroundBrush"
+                                                 Color="#40F59E0B"/>
+                <SolidColorBrush x:Key="CleanupChipModifiedBorderBrush"
+                                                 Color="#60F59E0B"/>
+                <SolidColorBrush x:Key="CleanupChipAccessedBackgroundBrush"
+                                                 Color="#40A855F7"/>
+                <SolidColorBrush x:Key="CleanupChipAccessedBorderBrush"
+                                                 Color="#60A855F7"/>
+                <SolidColorBrush x:Key="CleanupChipCreatedBackgroundBrush"
+                                                 Color="#40F472B6"/>
+                <SolidColorBrush x:Key="CleanupChipCreatedBorderBrush"
+                                                 Color="#60F472B6"/>
+                <LinearGradientBrush x:Key="CleanupBackdropBrush"
+                                                            StartPoint="0,0"
+                                                            EndPoint="1,1">
+                        <GradientStop Color="#060F1F"
+                                                    Offset="0"/>
+                        <GradientStop Color="#0B1A30"
+                                                    Offset="0.45"/>
+                        <GradientStop Color="#112546"
+                                                    Offset="1"/>
+                </LinearGradientBrush>
+                <DropShadowEffect x:Key="SurfaceShadowEffect"
+                                                    x:Shared="False"
+                                                    BlurRadius="28"
+                                                    ShadowDepth="0"
+                                                    Opacity="0.45"
+                                                    Color="#050A16"/>
+                <DropShadowEffect x:Key="CardShadowEffect"
+                                                    x:Shared="False"
+                                                    BlurRadius="20"
+                                                    ShadowDepth="0"
+                                                    Opacity="0.32"
+                                                    Color="#050A16"/>
     <converters:StringLengthToFontSizeConverter x:Key="CleanupTitleFontSizeConverter"
                             LargeSize="16"
                             MediumSize="14"
@@ -31,13 +91,13 @@
                          TargetType="ToggleButton">
             <Grid>
                 <Border x:Name="ToggleBorder"
-                        Background="#0F172A"
-                        BorderBrush="#1E293B"
+                        Background="{StaticResource CleanupSurfaceBrush}"
+                        BorderBrush="{StaticResource CleanupBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="6"
                         Padding="8,4"/>
                 <Path Data="M 0 0 L 5 5 L 10 0"
-                      Stroke="#38BDF8"
+                      Stroke="{StaticResource CleanupAccentBrush}"
                       StrokeThickness="1.5"
                       HorizontalAlignment="Right"
                       VerticalAlignment="Center"
@@ -48,25 +108,28 @@
                          Value="True">
                     <Setter TargetName="ToggleBorder"
                             Property="Background"
-                            Value="#17233C"/>
+                            Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
+                    <Setter TargetName="ToggleBorder"
+                            Property="BorderBrush"
+                            Value="{StaticResource CleanupAccentBrush}"/>
                 </Trigger>
                 <Trigger Property="IsChecked"
                          Value="True">
                     <Setter TargetName="ToggleBorder"
                             Property="Background"
-                            Value="#132039"/>
+                            Value="{StaticResource CleanupAccentBrush}"/>
                     <Setter TargetName="ToggleBorder"
                             Property="BorderBrush"
-                            Value="#38BDF8"/>
+                            Value="{StaticResource CleanupAccentBrush}"/>
                 </Trigger>
                 <Trigger Property="IsPressed"
                          Value="True">
                     <Setter TargetName="ToggleBorder"
                             Property="Background"
-                            Value="#132039"/>
+                            Value="{StaticResource CleanupAccentBrushSecondary}"/>
                     <Setter TargetName="ToggleBorder"
                             Property="BorderBrush"
-                            Value="#38BDF8"/>
+                            Value="{StaticResource CleanupAccentBrushSecondary}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled"
                          Value="False">
@@ -79,7 +142,7 @@
         <Style x:Key="CleanupComboBoxItemStyle"
                TargetType="ComboBoxItem">
             <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
+                    Value="{StaticResource CleanupSoftTextBrush}"/>
             <Setter Property="Background"
                     Value="Transparent"/>
             <Setter Property="Padding"
@@ -88,23 +151,23 @@
                 <Trigger Property="IsMouseOver"
                          Value="True">
                     <Setter Property="Background"
-                            Value="#1B2942"/>
+                            Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
                 </Trigger>
                 <Trigger Property="IsSelected"
                          Value="True">
                     <Setter Property="Background"
-                            Value="#1E3A8A"/>
+                            Value="{StaticResource CleanupAccentBrush}"/>
                     <Setter Property="Foreground"
-                            Value="#F8FAFC"/>
+                            Value="#041225"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="SetupCardStyle"
                TargetType="Border">
             <Setter Property="Background"
-                    Value="#0F172A"/>
+                    Value="{StaticResource CleanupSurfaceElevatedBrush}"/>
             <Setter Property="BorderBrush"
-                    Value="#1E293B"/>
+                    Value="{StaticResource CleanupBorderBrush}"/>
             <Setter Property="BorderThickness"
                     Value="1"/>
             <Setter Property="CornerRadius"
@@ -115,29 +178,33 @@
                     Value="0,0,16,16"/>
             <Setter Property="MinWidth"
                     Value="220"/>
+            <Setter Property="Effect"
+                    Value="{StaticResource CardShadowEffect}"/>
         </Style>
-    <Style x:Key="SheetCardStyle"
-           TargetType="Border">
-        <Setter Property="Background"
-            Value="#101C33"/>
-        <Setter Property="BorderBrush"
-            Value="#1E293B"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Setter Property="CornerRadius"
-            Value="12"/>
-        <Setter Property="Padding"
-            Value="16"/>
-        <Setter Property="Margin"
-            Value="0,0,16,16"/>
-        <Setter Property="MinWidth"
-            Value="180"/>
-    </Style>
+        <Style x:Key="SheetCardStyle"
+               TargetType="Border">
+            <Setter Property="Background"
+                    Value="{StaticResource CleanupSurfaceElevatedBrush}"/>
+            <Setter Property="BorderBrush"
+                    Value="{StaticResource CleanupBorderBrush}"/>
+            <Setter Property="BorderThickness"
+                    Value="1"/>
+            <Setter Property="CornerRadius"
+                    Value="12"/>
+            <Setter Property="Padding"
+                    Value="16"/>
+            <Setter Property="Margin"
+                    Value="0,0,16,16"/>
+            <Setter Property="MinWidth"
+                    Value="180"/>
+            <Setter Property="Effect"
+                    Value="{StaticResource CardShadowEffect}"/>
+        </Style>
         <Style x:Key="AdvancedCardStyle"
                TargetType="Border"
                BasedOn="{StaticResource SetupCardStyle}">
             <Setter Property="Background"
-                    Value="#0B1324"/>
+                    Value="{StaticResource CleanupSurfaceBrush}"/>
             <Setter Property="Margin"
                     Value="0,12,0,0"/>
         </Style>
@@ -146,9 +213,9 @@
             <Setter Property="Cursor"
                     Value="Hand"/>
             <Setter Property="Background"
-                    Value="#1E293B"/>
+                    Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
             <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
+                    Value="{StaticResource CleanupSoftTextBrush}"/>
             <Setter Property="FontSize"
                     Value="12"/>
             <Setter Property="Padding"
@@ -172,13 +239,15 @@
                                      Value="True">
                                 <Setter TargetName="ChipBorder"
                                         Property="Background"
-                                        Value="#24324C"/>
+                                        Value="{StaticResource CleanupAccentBrush}"/>
+                                <Setter Property="Foreground"
+                                        Value="#041225"/>
                             </Trigger>
                             <Trigger Property="IsPressed"
                                      Value="True">
                                 <Setter TargetName="ChipBorder"
                                         Property="Background"
-                                        Value="#1E3A8A"/>
+                                        Value="{StaticResource CleanupAccentBrushSecondary}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled"
                                      Value="False">
@@ -196,9 +265,9 @@
             <Setter Property="Cursor"
                     Value="Hand"/>
             <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
+                    Value="{StaticResource CleanupSoftTextBrush}"/>
             <Setter Property="Background"
-                    Value="#1E293B"/>
+                    Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
             <Setter Property="Padding"
                     Value="16,8"/>
             <Setter Property="BorderThickness"
@@ -220,7 +289,9 @@
                                      Value="True">
                                 <Setter TargetName="ButtonBorder"
                                         Property="Background"
-                                        Value="#24324C"/>
+                                        Value="{StaticResource CleanupAccentBrush}"/>
+                                <Setter Property="Foreground"
+                                        Value="#041225"/>
                             </Trigger>
                             <Trigger Property="IsEnabled"
                                      Value="False">
@@ -245,14 +316,14 @@
             </BooleanAnimationUsingKeyFrames>
             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                              To="1"
-                             Duration="0:0:0.28">
+                             Duration="0:0:0.45">
                 <DoubleAnimation.EasingFunction>
                     <QuarticEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
                              To="0"
-                             Duration="0:0:0.28">
+                             Duration="0:0:0.45">
                 <DoubleAnimation.EasingFunction>
                     <QuarticEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
@@ -266,20 +337,20 @@
             </BooleanAnimationUsingKeyFrames>
             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                              To="0"
-                             Duration="0:0:0.22">
+                             Duration="0:0:0.32">
                 <DoubleAnimation.EasingFunction>
                     <QuarticEase EasingMode="EaseInOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
                              To="-12"
-                             Duration="0:0:0.22">
+                             Duration="0:0:0.32">
                 <DoubleAnimation.EasingFunction>
                     <QuarticEase EasingMode="EaseInOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
-                <DiscreteObjectKeyFrame KeyTime="0:0:0.22"
+                <DiscreteObjectKeyFrame KeyTime="0:0:0.32"
                                         Value="{x:Static Visibility.Collapsed}"/>
             </ObjectAnimationUsingKeyFrames>
         </Storyboard>
@@ -295,7 +366,7 @@
             </BooleanAnimationUsingKeyFrames>
             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                              To="1"
-                             Duration="0:0:0.22">
+                             Duration="0:0:0.32">
                 <DoubleAnimation.EasingFunction>
                     <QuadraticEase EasingMode="EaseOut"/>
                 </DoubleAnimation.EasingFunction>
@@ -309,13 +380,13 @@
             </BooleanAnimationUsingKeyFrames>
             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                              To="0"
-                             Duration="0:0:0.2">
+                             Duration="0:0:0.28">
                 <DoubleAnimation.EasingFunction>
                     <QuadraticEase EasingMode="EaseInOut"/>
                 </DoubleAnimation.EasingFunction>
             </DoubleAnimation>
             <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
-                <DiscreteObjectKeyFrame KeyTime="0:0:0.2"
+                <DiscreteObjectKeyFrame KeyTime="0:0:0.28"
                                         Value="{x:Static Visibility.Collapsed}"/>
             </ObjectAnimationUsingKeyFrames>
         </Storyboard>
@@ -470,9 +541,9 @@
         <Style x:Key="CategoryBadgeStyle"
                TargetType="Border">
             <Setter Property="Background"
-                    Value="#1E293B"/>
+                          Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
             <Setter Property="BorderBrush"
-                    Value="#24354C"/>
+                          Value="{StaticResource CleanupBorderBrush}"/>
             <Setter Property="BorderThickness"
                     Value="1"/>
             <Setter Property="CornerRadius"
@@ -493,7 +564,7 @@
                 <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
                              Value="True">
                     <Setter Property="BorderBrush"
-                            Value="#38BDF8"/>
+                            Value="{StaticResource CleanupAccentBrush}"/>
                     <DataTrigger.EnterActions>
                         <BeginStoryboard>
                             <Storyboard>
@@ -540,9 +611,9 @@
     <Style x:Key="CategorySummaryChipStyle"
            TargetType="Border">
         <Setter Property="Background"
-            Value="#111C33"/>
+            Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
         <Setter Property="BorderBrush"
-            Value="#1E293B"/>
+            Value="{StaticResource CleanupBorderBrush}"/>
         <Setter Property="BorderThickness"
             Value="1"/>
         <Setter Property="CornerRadius"
@@ -555,9 +626,9 @@
     <Style x:Key="CleanupListCardStyle"
            TargetType="Border">
         <Setter Property="Background"
-            Value="#111C33"/>
+            Value="{StaticResource CleanupSurfaceElevatedBrush}"/>
         <Setter Property="BorderBrush"
-            Value="#1E293B"/>
+            Value="{StaticResource CleanupBorderBrush}"/>
         <Setter Property="BorderThickness"
             Value="1"/>
         <Setter Property="CornerRadius"
@@ -572,18 +643,18 @@
         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
                  Value="True">
             <Setter Property="BorderBrush"
-                Value="#38BDF8"/>
+                Value="{StaticResource CleanupAccentBrush}"/>
             <Setter Property="Background"
-                Value="#172844"/>
+                Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
             <Setter Property="Opacity"
                 Value="1"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
                  Value="True">
             <Setter Property="BorderBrush"
-                Value="#38BDF8"/>
+                Value="{StaticResource CleanupAccentBrush}"/>
             <Setter Property="Background"
-                Value="#1E3355"/>
+                Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
             <Setter Property="Opacity"
                 Value="1"/>
         </DataTrigger>
@@ -597,9 +668,9 @@
     <Style x:Key="CleanupMetaChipStyle"
            TargetType="Border">
         <Setter Property="Background"
-            Value="#13243C"/>
+            Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
         <Setter Property="BorderBrush"
-            Value="#1E293B"/>
+            Value="{StaticResource CleanupBorderBrush}"/>
         <Setter Property="BorderThickness"
             Value="1"/>
         <Setter Property="CornerRadius"
@@ -618,21 +689,22 @@
                       CanContentScroll="False"
                       PanningMode="VerticalOnly">
         <StackPanel MinWidth="760">
-        <Border Background="#0B1629"
-            BorderBrush="#1E293B"
+        <Border Background="{StaticResource CleanupSurfaceBrush}"
+            BorderBrush="{StaticResource CleanupBorderBrush}"
             BorderThickness="1"
             CornerRadius="16"
             Padding="24"
         Margin="0,0,0,24"
-            Style="{StaticResource SetupPhaseContainerStyle}">
+            Style="{StaticResource SetupPhaseContainerStyle}"
+            Effect="{StaticResource SurfaceShadowEffect}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <Border Width="64"
-                            Height="64"
-                            Background="#1E2237"
+            <Border Width="64"
+                Height="64"
+                Background="{StaticResource CleanupSurfaceHighlightBrush}"
                             CornerRadius="18"
                             VerticalAlignment="Top">
                         <TextBlock Text="🧹"
@@ -643,29 +715,29 @@
                     <StackPanel Grid.Column="1"
                                 Margin="20,0,0,0">
                         <TextBlock Text="Phase 1 — Configure scan"
-                                   Foreground="#38BDF8"
+                                   Foreground="{StaticResource CleanupAccentBrush}"
                                    FontWeight="SemiBold"
                                    FontSize="14"/>
                         <TextBlock Text="Shape your cleanup preview"
                                    FontSize="26"
                                    FontWeight="Bold"
-                                   Foreground="#F8FAFC"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                    Margin="0,6,0,4"/>
                         <TextBlock Text="Dial in scope, types, and filters before moving on to review."
-                                   Foreground="#94A3B8"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
                                    FontSize="14"
                                    TextWrapping="Wrap"
                                    Margin="0,0,0,8"/>
                         <ItemsControl Margin="0,12,0,0">
                             <ItemsControl.Items>
                                 <TextBlock Text="- Toggle downloads, item kinds, and extensions from one surface."
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            FontSize="12"/>
                                 <TextBlock Text="- Use presets or precision input to cap the top items."
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            FontSize="12"/>
                                 <TextBlock Text="- Reveal advanced filters only when you need deeper control."
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            FontSize="12"/>
                             </ItemsControl.Items>
                         </ItemsControl>
@@ -673,21 +745,22 @@
                 </Grid>
             </Border>
 
-        <Border Background="#111827"
-            BorderBrush="#1E293B"
+        <Border Background="{StaticResource CleanupSurfaceBaseBrush}"
+            BorderBrush="{StaticResource CleanupBorderBrush}"
             BorderThickness="1"
             CornerRadius="14"
             Padding="24"
         Margin="0,0,0,28"
-            Style="{StaticResource SetupPhaseContainerStyle}">
+            Style="{StaticResource SetupPhaseContainerStyle}"
+            Effect="{StaticResource SurfaceShadowEffect}">
                 <StackPanel>
                     <TextBlock Text="Setup checklist"
                                FontSize="16"
                                FontWeight="SemiBold"
-                               Foreground="#CBD5F5"/>
+                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
                     <TextBlock Text="Confirm what the preview should include before you run it."
                                FontSize="12"
-                               Foreground="#64748B"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"
                                Margin="0,2,0,20"/>
 
                     <WrapPanel>
@@ -696,15 +769,16 @@
                                 <TextBlock Text="Scope"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                 <TextBlock Text="Include Downloads to mirror the quick toggle (D)."
                                            FontSize="12"
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,8"/>
-                                <CheckBox Content="Include Downloads"
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Content="Include Downloads"
                                           FontSize="13"
-                                          Foreground="#F8FAFC"
+                                          Foreground="{StaticResource CleanupSoftTextBrush}"
                                           IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
                             </StackPanel>
                         </Border>
@@ -714,10 +788,10 @@
                                 <TextBlock Text="Filter by type"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                 <TextBlock Text="Choose whether to scan files, folders, or both (F)."
                                            FontSize="12"
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,8"/>
                                 <ComboBox ItemsSource="{Binding ItemKindOptions}"
@@ -725,7 +799,7 @@
                                           SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
                                           DisplayMemberPath="Label"
                                           Background="Transparent"
-                                          Foreground="#E2E8F0"
+                                          Foreground="{StaticResource CleanupSoftTextBrush}"
                                           BorderThickness="0"
                                           Padding="0">
                                     <ComboBox.Template>
@@ -750,9 +824,9 @@
                                                        Focusable="False"
                                                        IsOpen="{TemplateBinding IsDropDownOpen}"
                                                        PopupAnimation="Slide">
-                                                    <Border x:Name="PopupBorder"
-                                                            Background="#0F172A"
-                                                            BorderBrush="#1E293B"
+                            <Border x:Name="PopupBorder"
+                                Background="{StaticResource CleanupSurfaceBrush}"
+                                BorderBrush="{StaticResource CleanupBorderBrush}"
                                                             BorderThickness="1"
                                                             CornerRadius="6"
                                                             Padding="4">
@@ -772,8 +846,8 @@
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled"
                                                          Value="False">
-                                                    <Setter Property="Foreground"
-                                                            Value="#64748B"/>
+                            <Setter Property="Foreground"
+                                Value="{StaticResource CleanupMutedTextBrush}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -790,17 +864,17 @@
                                 <TextBlock Text="Extensions"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                 <TextBlock Text="Enable filtering (E) to include or exclude extensions."
                                            FontSize="12"
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,8"/>
                                 <ComboBox ItemsSource="{Binding ExtensionFilterOptions}"
                                           SelectedValuePath="Mode"
                                           SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
                                           Background="Transparent"
-                                          Foreground="#E2E8F0"
+                                          Foreground="{StaticResource CleanupSoftTextBrush}"
                                           BorderThickness="0"
                                           Padding="0"
                                           ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
@@ -826,9 +900,9 @@
                                                        Focusable="False"
                                                        IsOpen="{TemplateBinding IsDropDownOpen}"
                                                        PopupAnimation="Slide">
-                                                    <Border x:Name="PopupBorder"
-                                                            Background="#0F172A"
-                                                            BorderBrush="#1E293B"
+                            <Border x:Name="PopupBorder"
+                                Background="{StaticResource CleanupSurfaceBrush}"
+                                BorderBrush="{StaticResource CleanupBorderBrush}"
                                                             BorderThickness="1"
                                                             CornerRadius="6"
                                                             Padding="4">
@@ -848,8 +922,8 @@
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled"
                                                          Value="False">
-                                                    <Setter Property="Foreground"
-                                                            Value="#64748B"/>
+                            <Setter Property="Foreground"
+                                Value="{StaticResource CleanupMutedTextBrush}"/>
                                                 </Trigger>
                                             </ControlTemplate.Triggers>
                                         </ControlTemplate>
@@ -861,9 +935,9 @@
                                         <DataTemplate>
                                             <StackPanel>
                                                 <TextBlock Text="{Binding Label}"
-                                                           Foreground="#E2E8F0"/>
+                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                                 <TextBlock Text="{Binding Description}"
-                                                           Foreground="#64748B"
+                                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                                            FontSize="11"/>
                                             </StackPanel>
                                         </DataTemplate>
@@ -871,7 +945,7 @@
                                 </ComboBox>
                                 <TextBlock Text="{Binding ExtensionStatusText}"
                                            FontSize="12"
-                                           Foreground="#CBD5F5"
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,8,0,0"/>
                             </StackPanel>
@@ -883,10 +957,10 @@
                                 <TextBlock Text="Top items"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                 <TextBlock Text="Use the slider or presets to keep previews manageable (T)."
                                            FontSize="12"
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,8"/>
                 <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
@@ -900,15 +974,15 @@
                                             Margin="0,0,0,8">
                                     <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              Width="64"
-                                             Background="#0F172A"
-                                             Foreground="#E2E8F0"
-                                             BorderBrush="#1E293B"
+                                             Background="{StaticResource CleanupSurfaceBrush}"
+                                             Foreground="{StaticResource CleanupSoftTextBrush}"
+                                             BorderBrush="{StaticResource CleanupBorderBrush}"
                                              BorderThickness="1"
                                              Padding="6,4"
                                              HorizontalContentAlignment="Center"
                                              Margin="0,0,12,0"/>
                                     <TextBlock FontSize="12"
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
                                                VerticalAlignment="Center">
                                         <Run Text="Range: "/>
                                         <Run Text="{Binding PreviewCountMinimum}"/>
@@ -966,7 +1040,7 @@
 
                     <Expander Header="Advanced options"
                               Background="Transparent"
-                              Foreground="#CBD5F5"
+                              Foreground="{StaticResource CleanupSoftTextBrush}"
                               Margin="0,12,0,0">
                         <StackPanel Margin="0,12,0,0">
                             <Border Style="{StaticResource AdvancedCardStyle}">
@@ -974,20 +1048,20 @@
                                     <TextBlock Text="Extension profile"
                                                FontSize="13"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"/>
+                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                     <TextBlock FontSize="12"
                                                Margin="0,4,0,8">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Foreground"
-                                                        Value="#64748B"/>
+                                                        Value="{StaticResource CleanupMutedTextBrush}"/>
                                                 <Setter Property="Text"
                                                         Value="Apply a preset list of extensions for quick filtering."/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsExtensionSelectorEnabled}"
                                                                  Value="False">
                                                         <Setter Property="Foreground"
-                                                                Value="#475569"/>
+                                                                Value="{StaticResource CleanupMutedTextBrush}"/>
                                                         <Setter Property="Text"
                                                                 Value="Enable extension filtering above to choose a preset."/>
                                                     </DataTrigger>
@@ -999,7 +1073,7 @@
                                               SelectedItem="{Binding SelectedExtensionProfile, Mode=TwoWay}"
                                               DisplayMemberPath="Name"
                                               Background="Transparent"
-                                              Foreground="#E2E8F0"
+                                              Foreground="{StaticResource CleanupSoftTextBrush}"
                                               BorderThickness="0"
                                               Padding="0"
                                               IsEnabled="{Binding IsExtensionSelectorEnabled}">
@@ -1025,9 +1099,9 @@
                                                            Focusable="False"
                                                            IsOpen="{TemplateBinding IsDropDownOpen}"
                                                            PopupAnimation="Slide">
-                                                        <Border x:Name="PopupBorder"
-                                                                Background="#0F172A"
-                                                                BorderBrush="#1E293B"
+                            <Border x:Name="PopupBorder"
+                                Background="{StaticResource CleanupSurfaceBrush}"
+                                BorderBrush="{StaticResource CleanupBorderBrush}"
                                                                 BorderThickness="1"
                                                                 CornerRadius="6"
                                                                 Padding="4">
@@ -1047,8 +1121,8 @@
                                                     </Trigger>
                                                     <Trigger Property="IsEnabled"
                                                              Value="False">
-                                                        <Setter Property="Foreground"
-                                                                Value="#64748B"/>
+                                <Setter Property="Foreground"
+                                    Value="{StaticResource CleanupMutedTextBrush}"/>
                                                     </Trigger>
                                                 </ControlTemplate.Triggers>
                                             </ControlTemplate>
@@ -1065,15 +1139,15 @@
                                     <TextBlock Text="Custom extensions"
                                                FontSize="13"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"/>
+                                                                                             Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                     <TextBlock Text="Separate values with commas, spaces, or semicolons."
                                                FontSize="12"
-                                               Foreground="#64748B"
+                                                                                             Foreground="{StaticResource CleanupMutedTextBrush}"
                                                Margin="0,4,0,8"/>
                                     <TextBox Text="{Binding CustomExtensionInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="#0F172A"
-                                             Foreground="#E2E8F0"
-                                             BorderBrush="#1E293B"
+                                             Background="{StaticResource CleanupSurfaceBrush}"
+                                                                                         Foreground="{StaticResource CleanupSoftTextBrush}"
+                                             BorderBrush="{StaticResource CleanupBorderBrush}"
                                              BorderThickness="1"
                                              Padding="6"
                                              IsEnabled="{Binding IsExtensionSelectorEnabled}"
@@ -1086,45 +1160,45 @@
                                     <TextBlock Text="Page range selection"
                                                FontSize="13"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"/>
+                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                     <TextBlock Text="Apply range selects after categories load; useful for deep dives."
                                                FontSize="12"
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
                                                Margin="0,4,0,8"
                                                TextWrapping="Wrap"/>
                                     <StackPanel Orientation="Horizontal"
                                                 Margin="0,0,0,8"
                                                 VerticalAlignment="Center">
                                         <TextBlock Text="Pages"
-                                                   Foreground="#94A3B8"
+                                                                                                     Foreground="{StaticResource CleanupMutedTextBrush}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,8,0"/>
                                         <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Width="48"
-                                                 Background="#0F172A"
-                                                 Foreground="#E2E8F0"
-                                                 BorderBrush="#1E293B"
+                                                                                                 Background="{StaticResource CleanupSurfaceBrush}"
+                                                                                                 Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                                                                 BorderBrush="{StaticResource CleanupBorderBrush}"
                                                  BorderThickness="1"
                                                  Padding="6,4"
                                                  HorizontalContentAlignment="Center"
                                                  Margin="0,0,6,0"/>
                                         <TextBlock Text="-"
-                                                   Foreground="#94A3B8"
+                                                                                                     Foreground="{StaticResource CleanupMutedTextBrush}"
                                                    VerticalAlignment="Center"
                                                    Margin="0,0,6,0"/>
                                         <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Width="48"
-                                                 Background="#0F172A"
-                                                 Foreground="#E2E8F0"
-                                                 BorderBrush="#1E293B"
+                                                                                                 Background="{StaticResource CleanupSurfaceBrush}"
+                                                                                                 Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                                                                 BorderBrush="{StaticResource CleanupBorderBrush}"
                                                  BorderThickness="1"
                                                  Padding="6,4"
                                                  HorizontalContentAlignment="Center"
                                                  Margin="0,0,8,0"/>
                                         <Button Content="Select range"
                                                 Command="{Binding SelectPageRangeCommand}"
-                                                Background="#1E293B"
-                                                Foreground="#E2E8F0"
+                        Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                Foreground="{StaticResource CleanupSoftTextBrush}"
                                                 Padding="14,6"
                                                 Cursor="Hand"
                                                 BorderThickness="0"
@@ -1150,7 +1224,9 @@
                                                                  Value="True">
                                                             <Setter TargetName="SelectRangeBorder"
                                                                     Property="Background"
-                                                                    Value="#24324C"/>
+                                                                    Value="{StaticResource CleanupAccentBrush}"/>
+                                                            <Setter Property="Foreground"
+                                                                    Value="#041225"/>
                                                         </Trigger>
                                                     </ControlTemplate.Triggers>
                                                 </ControlTemplate>
@@ -1159,7 +1235,7 @@
                                     </StackPanel>
                                     <TextBlock Text="For all filtered items, use Select all pages below."
                                                FontSize="11"
-                                               Foreground="#475569"/>
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1174,10 +1250,10 @@
                         <Button Content="Reset filters"
                                 Command="{Binding ResetFiltersCommand}"
                                 Style="{StaticResource FlatButtonStyle}"
-                                Background="#0F172A"/>
+                                Background="{StaticResource CleanupSurfaceBrush}"/>
                         <Button Content="Run preview"
-                                Background="#22C55E"
-                                Foreground="#06111D"
+                                Background="{StaticResource CleanupAccentBrushSecondary}"
+                                Foreground="#041225"
                                 FontWeight="Semibold"
                                 Padding="16,8"
                                 Cursor="Hand"
@@ -1204,7 +1280,7 @@
                                                  Value="True">
                                             <Setter TargetName="RunBorder"
                                                     Property="Background"
-                                                    Value="#16A34A"/>
+                            Value="#2DD4BF"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -1218,12 +1294,13 @@
                 </StackPanel>
             </Border>
 
-        <Border Background="#0F172A"
-            BorderBrush="#1E293B"
+        <Border Background="{StaticResource CleanupSurfaceBaseBrush}"
+            BorderBrush="{StaticResource CleanupBorderBrush}"
             BorderThickness="1"
             CornerRadius="14"
         Padding="0"
-            Style="{StaticResource PreviewPhaseContainerStyle}">
+            Style="{StaticResource PreviewPhaseContainerStyle}"
+            Effect="{StaticResource SurfaceShadowEffect}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -1237,10 +1314,10 @@
             <StackPanel DockPanel.Dock="Left">
                             <TextBlock Text="Phase 2 — Preview results"
                                        FontSize="14"
-                                       Foreground="#CBD5F5"/>
+                        Foreground="{StaticResource CleanupSoftTextBrush}"/>
                             <TextBlock Text="{Binding SummaryText}"
                                        FontSize="12"
-                                       Foreground="#64748B"/>
+                        Foreground="{StaticResource CleanupMutedTextBrush}"/>
                         </StackPanel>
             <StackPanel DockPanel.Dock="Right"
                     Orientation="Horizontal"
@@ -1248,19 +1325,19 @@
                 <Button Content="Back to setup"
                     Command="{Binding NavigateToSetupCommand}"
                     Style="{StaticResource FlatButtonStyle}"
-                    Background="#111C33"
+                    Background="{StaticResource CleanupSurfaceBrush}"
                     Margin="0"
                     VerticalAlignment="Center"/>
             </StackPanel>
                     </DockPanel>
 
-                    <Border Grid.Row="1"
-                            Margin="24,0,24,16"
-                            Padding="18"
-                            Background="#111C33"
-                            CornerRadius="14"
-                            BorderBrush="#1E293B"
-                            BorderThickness="1"
+            <Border Grid.Row="1"
+                Margin="24,0,24,16"
+                Padding="18"
+                Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                CornerRadius="14"
+                BorderBrush="{StaticResource CleanupBorderBrush}"
+                BorderThickness="1"
                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -1272,12 +1349,12 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <Border Grid.Row="0"
-                                    Grid.Column="0"
-                                    Width="40"
-                                    Height="40"
-                                    CornerRadius="20"
-                                    Background="#17223C"
+                <Border Grid.Row="0"
+                    Grid.Column="0"
+                    Width="40"
+                    Height="40"
+                    CornerRadius="20"
+                    Background="{StaticResource CleanupSurfaceHighlightBrush}"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
                                 <TextBlock Text="⚙️"
@@ -1303,14 +1380,14 @@
                                            Text="{Binding ActiveOperationStatus}"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"
                                            TextTrimming="CharacterEllipsis"/>
                                 <TextBlock Grid.Row="0"
                                            Grid.Column="1"
                                            Text="{Binding ActiveOperationPercentDisplay}"
                                            FontSize="14"
                                            FontWeight="SemiBold"
-                                           Foreground="#38BDF8"
+                                           Foreground="{StaticResource CleanupAccentBrush}"
                                            Margin="12,0,0,0"
                                            Visibility="{Binding HasActiveOperationPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -1319,7 +1396,7 @@
                                            Grid.ColumnSpan="2"
                                            Text="{Binding ActiveOperationDetail}"
                                            FontSize="12"
-                                           Foreground="#94A3B8"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextTrimming="CharacterEllipsis"
                                            Margin="0,4,0,0"/>
                             </Grid>
@@ -1328,7 +1405,7 @@
                     Grid.Column="0"
                     Grid.ColumnSpan="2"
                     Margin="0,16,0,0"
-                    Background="#101B30"
+                    Background="{StaticResource CleanupSurfaceBrush}"
                     CornerRadius="10"
                     ClipToBounds="True">
                                 <ProgressBar Height="18"
@@ -1337,7 +1414,7 @@
                                              Value="{Binding ActiveOperationProgressValue, Mode=OneWay}"
                                              IsIndeterminate="{Binding IsActiveOperationIndeterminate}"
                                              Foreground="{StaticResource CleanupProgressBrush}"
-                                             Background="#14203A"
+                                             Background="{StaticResource CleanupSurfaceBaseBrush}"
                                              BorderThickness="0"/>
                             </Border>
                         </Grid>
@@ -1346,8 +1423,8 @@
                     <StackPanel Grid.Row="2"
                                 Margin="24,0,24,12">
             <Border Style="{StaticResource InlineToastStyle}"
-                Background="#10233C"
-                BorderBrush="#38BDF8"
+                Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                BorderBrush="{StaticResource CleanupAccentBrush}"
                 BorderThickness="1"
                 CornerRadius="12"
                 Padding="12"
@@ -1360,7 +1437,7 @@
                        VerticalAlignment="Center"/>
                 <TextBlock Text="{Binding RefreshToastText}"
                        FontSize="12"
-                       Foreground="#E2E8F0"
+              Foreground="{StaticResource CleanupSoftTextBrush}"
                        TextWrapping="Wrap"
                        VerticalAlignment="Center"
                        MaxWidth="360"/>
@@ -1374,15 +1451,15 @@
                         <WrapPanel Margin="0,0,0,8">
                             <TextBlock Text="Selected"
                                        FontSize="12"
-                                       Foreground="#94A3B8"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"
                                        Margin="0,0,8,8"/>
                             <TextBlock Text="{Binding SelectedItemCount, StringFormat={}{0:N0} files}"
                                        FontSize="12"
-                                       Foreground="#E2E8F0"
+                                       Foreground="{StaticResource CleanupSoftTextBrush}"
                                        Margin="0,0,16,8"/>
                             <TextBlock Text="{Binding SelectedItemSizeMegabytes, StringFormat={}{0:F2} MB}"
                                        FontSize="12"
-                                       Foreground="#E2E8F0"
+                                       Foreground="{StaticResource CleanupSoftTextBrush}"
                                        Margin="0,0,0,8"/>
                         </WrapPanel>
                         <WrapPanel>
@@ -1391,8 +1468,8 @@
                                     Padding="14,8"
                                     Cursor="Hand"
                                     BorderThickness="0"
-                                    Background="#1E293B"
-                                    Foreground="#E2E8F0"
+                    Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                    Foreground="{StaticResource CleanupSoftTextBrush}"
                                     Margin="0,0,8,8">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
@@ -1414,7 +1491,9 @@
                                                      Value="True">
                                                 <Setter TargetName="ClearBorder"
                                                         Property="Background"
-                                                        Value="#24324C"/>
+                                                        Value="{StaticResource CleanupAccentBrush}"/>
+                                                <Setter Property="Foreground"
+                                                        Value="#041225"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -1425,8 +1504,8 @@
                                     Padding="14,8"
                                     Cursor="Hand"
                                     BorderThickness="0"
-                                    Background="#1E293B"
-                                    Foreground="#E2E8F0"
+                                    Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                    Foreground="{StaticResource CleanupSoftTextBrush}"
                                     Margin="0,0,8,8">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
@@ -1448,7 +1527,9 @@
                                                      Value="True">
                                                 <Setter TargetName="SelectBorder"
                                                         Property="Background"
-                                                        Value="#24324C"/>
+                                                        Value="{StaticResource CleanupAccentBrush}"/>
+                                                <Setter Property="Foreground"
+                                                        Value="#041225"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -1459,8 +1540,8 @@
                                     Padding="14,8"
                                     Cursor="Hand"
                                     BorderThickness="0"
-                                    Background="#1E293B"
-                                    Foreground="#E2E8F0"
+                                    Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                    Foreground="{StaticResource CleanupSoftTextBrush}"
                                     Margin="0,0,8,8"
                                     ToolTip="Select every filtered item across all pages.">
                                 <Button.Template>
@@ -1483,7 +1564,9 @@
                                                      Value="True">
                                                 <Setter TargetName="SelectAllPagesBorder"
                                                         Property="Background"
-                                                        Value="#24324C"/>
+                                                        Value="{StaticResource CleanupAccentBrush}"/>
+                                                <Setter Property="Foreground"
+                                                        Value="#041225"/>
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
@@ -1492,13 +1575,13 @@
                             <Button Content="Delete selected"
                                     Command="{Binding DeleteSelectedCommand}"
                                     Background="#EF4444"
-                                    Foreground="#F8FAFC"
+                                    Foreground="{StaticResource CleanupSoftTextBrush}"
                                     FontWeight="Semibold"
                                     Padding="16,8"
                                     Cursor="Hand"
                                     BorderThickness="0"
                                     Margin="0,0,8,8"
-                    ToolTip="Open confirmation to review and run cleanup for the selected items.">
+                                    ToolTip="Open confirmation to review and run cleanup for the selected items.">
                                 <Button.Template>
                                     <ControlTemplate TargetType="Button">
                                         <Border x:Name="ActionBorder"
@@ -1535,17 +1618,18 @@
                             <ColumnDefinition Width="3*"/>
                         </Grid.ColumnDefinitions>
 
-                        <Border x:Name="CategoryListHost"
-                                Grid.Column="0"
-                                Margin="0,0,12,0"
-                                Background="#0F172A"
-                                CornerRadius="10">
+            <Border x:Name="CategoryListHost"
+                Grid.Column="0"
+                Margin="0,0,12,0"
+                Background="{StaticResource CleanupSurfaceBrush}"
+                CornerRadius="10"
+                Effect="{StaticResource CardShadowEffect}">
                             <ListView x:Name="CategoryListView"
                                       ItemsSource="{Binding Targets}"
                                       SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
                                       Background="Transparent"
                                       BorderThickness="0"
-                                      Foreground="#F8FAFC"
+                                      Foreground="{StaticResource CleanupSoftTextBrush}"
                                       Padding="12,12,12,4"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -1591,7 +1675,8 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="*"/>
                                                 </Grid.ColumnDefinitions>
-                                                <CheckBox Grid.Row="0"
+                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                          Grid.Row="0"
                                                           Grid.RowSpan="3"
                                                           Grid.Column="0"
                                                           IsChecked="{Binding SelectionToggleState, Mode=TwoWay}"
@@ -1599,7 +1684,7 @@
                                                           Margin="0,2,16,0"
                                                           VerticalAlignment="Top"
                                                           FocusVisualStyle="{x:Null}"
-                                                          Foreground="#E2E8F0"
+                                                          Foreground="{StaticResource CleanupSoftTextBrush}"
                                                           ToolTip="Select or clear this entire category."/>
                                                 <StackPanel Grid.Row="0"
                                                             Grid.Column="1"
@@ -1608,14 +1693,14 @@
                                                     <Border Style="{StaticResource CategoryBadgeStyle}"
                                                             VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding Classification}"
-                                                                   Foreground="#38BDF8"
+                                                                   Foreground="{StaticResource CleanupAccentBrush}"
                                                                    FontSize="11"
                                                                    FontWeight="SemiBold"
                                                                    TextTrimming="CharacterEllipsis"/>
                                                     </Border>
                                                     <TextBlock Text="{Binding Category}"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#F8FAFC"
+                                                               Foreground="{StaticResource CleanupSoftTextBrush}"
                                                                TextWrapping="Wrap"
                                                                TextTrimming="CharacterEllipsis"
                                                                ToolTip="{Binding Category}">
@@ -1630,17 +1715,21 @@
                                                            Grid.Column="1"
                                                            Margin="0,8,0,0"
                                                            HorizontalAlignment="Left">
-                                                    <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                    <Border Style="{StaticResource CleanupMetaChipStyle}"
+                                                            Background="{StaticResource CleanupChipItemsBackgroundBrush}"
+                                                            BorderBrush="{StaticResource CleanupChipItemsBorderBrush}">
                                                         <TextBlock FontSize="12"
-                                                                   Foreground="#E2E8F0">
+                                                                   Foreground="{StaticResource CleanupSoftTextBrush}">
                                                             <Run Text="Items"/>
                                                             <Run Text=" • "/>
                                                             <Run Text="{Binding RemainingItemCount, Mode=OneWay}"/>
                                                         </TextBlock>
                                                     </Border>
-                                                    <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                    <Border Style="{StaticResource CleanupMetaChipStyle}"
+                                                            Background="{StaticResource CleanupChipSizeBackgroundBrush}"
+                                                            BorderBrush="{StaticResource CleanupChipSizeBorderBrush}">
                                                         <TextBlock FontSize="12"
-                                                                   Foreground="#E2E8F0">
+                                                                   Foreground="{StaticResource CleanupSoftTextBrush}">
                                                             <Run Text="Size"/>
                                                             <Run Text=" • "/>
                                                             <Run Text="{Binding RemainingSizeMegabytes, Mode=OneWay, StringFormat={}{0:F2} MB}"/>
@@ -1651,7 +1740,7 @@
                                                            Grid.Column="1"
                                                            Margin="0,10,0,0"
                                                            FontSize="11"
-                                                           Foreground="#94A3B8"
+                                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                                            TextWrapping="Wrap"
                                                            TextTrimming="None"
                                                            Text="{Binding Path}"
@@ -1667,10 +1756,11 @@
                             </ListView>
                         </Border>
 
-                        <Border x:Name="ItemListHost"
-                                Grid.Column="1"
-                                Background="#0F172A"
-                                CornerRadius="10">
+            <Border x:Name="ItemListHost"
+                Grid.Column="1"
+                Background="{StaticResource CleanupSurfaceBrush}"
+                CornerRadius="10"
+                Effect="{StaticResource CardShadowEffect}">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -1682,31 +1772,33 @@
                                             VerticalAlignment="Center">
                                     <TextBlock Text="Preview items"
                                                FontSize="14"
-                                               Foreground="#CBD5F5"/>
+                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                     <TextBlock Text="{Binding FilteredItems.Count, StringFormat={}{0} items visible}"
                                                FontSize="12"
-                                               Foreground="#64748B"
+                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                                Margin="8,0,0,0"/>
                                     <TextBlock Text="{Binding SelectedTarget.RemainingItemCount, StringFormat={}{0} total, TargetNullValue=0 total}"
                                                FontSize="12"
-                                               Foreground="#64748B"
+                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                                Margin="8,0,0,0"/>
-                                    <Button Content="⟨ Prev"
-                                            Command="{Binding PreviousPageCommand}"
-                                            Margin="16,0,0,0"
-                                            Padding="8,2"
-                                            FontSize="12"
-                                            IsEnabled="{Binding CanGoToPreviousPage}"/>
+                    <Button Content="⟨ Prev"
+                        Command="{Binding PreviousPageCommand}"
+                        Margin="16,0,0,0"
+                        Padding="12,6"
+                        FontSize="12"
+                        Style="{StaticResource FlatButtonStyle}"
+                        IsEnabled="{Binding CanGoToPreviousPage}"/>
                                     <TextBlock Text="{Binding PageDisplay}"
                                                FontSize="12"
-                                               Foreground="#CBD5F5"
+                                               Foreground="{StaticResource CleanupSoftTextBrush}"
                                                Margin="8,0,8,0"
                                                VerticalAlignment="Center"/>
-                                    <Button Content="Next ⟩"
-                                            Command="{Binding NextPageCommand}"
-                                            Padding="8,2"
-                                            FontSize="12"
-                                            IsEnabled="{Binding CanGoToNextPage}"/>
+                    <Button Content="Next ⟩"
+                        Command="{Binding NextPageCommand}"
+                        Padding="12,6"
+                        FontSize="12"
+                        Style="{StaticResource FlatButtonStyle}"
+                        IsEnabled="{Binding CanGoToNextPage}"/>
                                 </StackPanel>
 
                                 <Grid Grid.Row="1"
@@ -1715,7 +1807,7 @@
                                               ItemsSource="{Binding FilteredItems}"
                                               Background="Transparent"
                                               BorderThickness="0"
-                                              Foreground="#F8FAFC"
+                                              Foreground="{StaticResource CleanupSoftTextBrush}"
                                               Padding="8,8,8,4"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
@@ -1768,7 +1860,8 @@
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <CheckBox Grid.Row="0"
+                                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                                  Grid.Row="0"
                                                                   Grid.RowSpan="3"
                                                                   Grid.Column="0"
                                                                   IsChecked="{Binding IsSelected, Mode=TwoWay}"
@@ -1780,7 +1873,7 @@
                                                                    Grid.ColumnSpan="2"
                                                                    Text="{Binding Name}"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F8FAFC"
+                                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
                                                                    TextWrapping="Wrap"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    ToolTip="{Binding FullName}">
@@ -1794,33 +1887,41 @@
                                                                    Grid.ColumnSpan="2"
                                                                    Margin="0,8,0,0"
                                                                    HorizontalAlignment="Left">
-                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}"
+                                                                    Background="{StaticResource CleanupChipSizeBackgroundBrush}"
+                                                                    BorderBrush="{StaticResource CleanupChipSizeBorderBrush}">
                                                                 <TextBlock FontSize="11"
-                                                                           Foreground="#E2E8F0">
+                                                                           Foreground="{StaticResource CleanupSoftTextBrush}">
                                                                     <Run Text="Size"/>
                                                                     <Run Text=" • "/>
                                                                     <Run Text="{Binding SizeMegabytes, Mode=OneWay, StringFormat={}{0:F2} MB}"/>
                                                                 </TextBlock>
                                                             </Border>
-                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}"
+                                                                    Background="{StaticResource CleanupChipModifiedBackgroundBrush}"
+                                                                    BorderBrush="{StaticResource CleanupChipModifiedBorderBrush}">
                                                                 <TextBlock FontSize="11"
-                                                                           Foreground="#CBD5F5">
+                                                                           Foreground="{StaticResource CleanupSoftTextBrush}">
                                                                     <Run Text="Modified"/>
                                                                     <Run Text=" • "/>
                                                                     <Run Text="{Binding LastModifiedDisplay, Mode=OneWay}"/>
                                                                 </TextBlock>
                                                             </Border>
-                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}"
+                                                                    Background="{StaticResource CleanupChipAccessedBackgroundBrush}"
+                                                                    BorderBrush="{StaticResource CleanupChipAccessedBorderBrush}">
                                                                 <TextBlock FontSize="11"
-                                                                           Foreground="#CBD5F5">
+                                                                           Foreground="{StaticResource CleanupSoftTextBrush}">
                                                                     <Run Text="Accessed"/>
                                                                     <Run Text=" • "/>
                                                                     <Run Text="{Binding LastAccessDisplay, Mode=OneWay}"/>
                                                                 </TextBlock>
                                                             </Border>
-                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}"
+                                                                    Background="{StaticResource CleanupChipCreatedBackgroundBrush}"
+                                                                    BorderBrush="{StaticResource CleanupChipCreatedBorderBrush}">
                                                                 <TextBlock FontSize="11"
-                                                                           Foreground="#CBD5F5">
+                                                                           Foreground="{StaticResource CleanupSoftTextBrush}">
                                                                     <Run Text="Created"/>
                                                                     <Run Text=" • "/>
                                                                     <Run Text="{Binding CreationDisplay, Mode=OneWay}"/>
@@ -1832,7 +1933,7 @@
                                                                    Grid.ColumnSpan="2"
                                                                    Margin="0,10,0,0"
                                                                    FontSize="11"
-                                                                   Foreground="#7FA6D3"
+                                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
                                                                    TextWrapping="Wrap"
                                                                    TextTrimming="None"
                                                                    Text="{Binding FullName}"
@@ -1848,7 +1949,7 @@
                                     </ListView>
 
                                     <TextBlock Text="Select a category to review its items."
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
                                                FontSize="13"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
@@ -1868,7 +1969,7 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="No remaining files in this category."
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
                                                FontSize="13"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
@@ -1893,7 +1994,7 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                     <TextBlock Text="No items match the current filters."
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
                                                FontSize="13"
                                                HorizontalAlignment="Center"
                                                VerticalAlignment="Center"
@@ -1938,32 +2039,33 @@
         Panel.ZIndex="2">
             <Border HorizontalAlignment="Center"
                     VerticalAlignment="Center"
-                    Background="#0B1624"
-                    BorderBrush="#1E293B"
+                    Background="{StaticResource CleanupSurfaceBrush}"
+                    BorderBrush="{StaticResource CleanupBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="18"
                     Padding="28"
                     Width="680"
-                    MaxWidth="760">
+                    MaxWidth="760"
+                    Effect="{StaticResource SurfaceShadowEffect}">
                 <StackPanel>
                     <TextBlock Text="Phase 3 — Confirm cleanup"
                                FontSize="18"
                                FontWeight="SemiBold"
-                               Foreground="#F8FAFC"/>
+                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
                     <TextBlock Text="Review the impact before running cleanup."
                                FontSize="12"
-                               Foreground="#94A3B8"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"
                                Margin="0,4,0,16"/>
                     <WrapPanel Margin="0,0,0,8">
                         <Border Style="{StaticResource SheetCardStyle}">
                             <StackPanel>
                                 <TextBlock Text="Items"
                                            FontSize="12"
-                                           Foreground="#94A3B8"/>
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                 <TextBlock Text="{Binding PendingDeletionItemSummary}"
                                            FontSize="22"
                                            FontWeight="Semibold"
-                                           Foreground="#F8FAFC"
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"
                                            Margin="0,6,0,0"/>
                             </StackPanel>
                         </Border>
@@ -1971,11 +2073,11 @@
                             <StackPanel>
                                 <TextBlock Text="Space impact"
                                            FontSize="12"
-                                           Foreground="#94A3B8"/>
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                 <TextBlock Text="{Binding PendingDeletionSizeDisplay}"
                                            FontSize="22"
                                            FontWeight="Semibold"
-                                           Foreground="#F8FAFC"
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"
                                            Margin="0,6,0,0"/>
                             </StackPanel>
                         </Border>
@@ -1983,11 +2085,11 @@
                             <StackPanel>
                                 <TextBlock Text="Categories"
                                            FontSize="12"
-                                           Foreground="#94A3B8"/>
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                 <TextBlock Text="{Binding PendingDeletionCategorySummary}"
                                            FontSize="22"
                                            FontWeight="Semibold"
-                                           Foreground="#F8FAFC"
+                                           Foreground="{StaticResource CleanupSoftTextBrush}"
                                            Margin="0,6,0,0"/>
                             </StackPanel>
                         </Border>
@@ -1995,7 +2097,7 @@
                     <StackPanel Margin="0,0,0,12">
                         <TextBlock Text="Categories selected"
                                    FontSize="12"
-                                   Foreground="#94A3B8"/>
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
                         <ScrollViewer Margin="0,4,0,0"
                                       MaxHeight="220"
                                       VerticalScrollBarVisibility="Auto"
@@ -2026,7 +2128,7 @@
                                         <Border Style="{StaticResource CategorySummaryChipStyle}">
                                             <TextBlock Text="{Binding}"
                                                        FontSize="12"
-                                                       Foreground="#E2E8F0"/>
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -2034,7 +2136,7 @@
                         </ScrollViewer>
                         <TextBlock Text="No categories selected."
                                    FontSize="12"
-                                   Foreground="#64748B"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
                                    Margin="0,8,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -2055,7 +2157,7 @@
                         <TextBlock Text="Risk callouts"
                                    FontSize="14"
                                    FontWeight="SemiBold"
-                                   Foreground="#CBD5F5"/>
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
                         <ItemsControl ItemsSource="{Binding PendingDeletionRisks}"
                                       Margin="0,8,0,0">
                             <ItemsControl.ItemTemplate>
@@ -2067,21 +2169,21 @@
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background"
-                                                        Value="#111C33"/>
+                                                        Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
                                                 <Setter Property="BorderBrush"
-                                                        Value="#1E3A8A"/>
+                                                        Value="{StaticResource CleanupAccentBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding Severity}"
                                                                  Value="{x:Static viewModels:CleanupDeletionRiskSeverity.Caution}">
                                                         <Setter Property="Background"
-                                                                Value="#1B2238"/>
+                                                                Value="#1E253C"/>
                                                         <Setter Property="BorderBrush"
                                                                 Value="#FBBF24"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding Severity}"
                                                                  Value="{x:Static viewModels:CleanupDeletionRiskSeverity.Danger}">
                                                         <Setter Property="Background"
-                                                                Value="#1F1B2D"/>
+                                                                Value="#2A1426"/>
                                                         <Setter Property="BorderBrush"
                                                                 Value="#F87171"/>
                                                     </DataTrigger>
@@ -2092,10 +2194,10 @@
                                             <TextBlock Text="{Binding Title}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"
-                                                       Foreground="#F8FAFC"/>
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                             <TextBlock Text="{Binding Description}"
                                                        FontSize="12"
-                                                       Foreground="#94A3B8"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
                                                        Margin="0,4,0,0"
                                                        TextWrapping="Wrap"/>
                                         </StackPanel>
@@ -2105,7 +2207,7 @@
                         </ItemsControl>
                         <TextBlock Text="No additional risks detected. You're good to go."
                                    FontSize="12"
-                                   Foreground="#64748B"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
                                    Margin="0,0,0,12">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -2123,18 +2225,20 @@
                         </TextBlock>
                     </StackPanel>
                     <StackPanel Margin="0,8,0,0">
-                        <CheckBox Content="Send to Recycle Bin when possible"
+                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                  Content="Send to Recycle Bin when possible"
                                   IsChecked="{Binding UseRecycleBin, Mode=TwoWay}"
-                                  Foreground="#E2E8F0"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
                                   FontSize="13"
                                   Margin="0,0,0,8"/>
-                        <CheckBox Content="Generate cleanup report"
+                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                  Content="Generate cleanup report"
                                   IsChecked="{Binding GenerateCleanupReport, Mode=TwoWay}"
-                                  Foreground="#E2E8F0"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
                                   FontSize="13"/>
                         <TextBlock Text="Reports save under Documents\TidyWindow\Reports."
                                    FontSize="11"
-                                   Foreground="#64748B"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
                                    Margin="24,4,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
@@ -2157,12 +2261,12 @@
             <Button Content="Back to review"
                 Command="{Binding DismissDeletionConfirmationCommand}"
                 Style="{StaticResource FlatButtonStyle}"
-                Background="#111C33"
+        Background="{StaticResource CleanupSurfaceBrush}"
                 Margin="0"/>
                         <Button Content="Run cleanup"
                                 Command="{Binding ConfirmCleanupCommand}"
-                                Background="#22C55E"
-                                Foreground="#06111D"
+                Background="{StaticResource CleanupAccentBrushSecondary}"
+                Foreground="#041225"
                                 FontWeight="Semibold"
                                 Padding="18,10"
                                 Cursor="Hand"
@@ -2188,7 +2292,7 @@
                                                  Value="True">
                                             <Setter TargetName="ConfirmRunBorder"
                                                     Property="Background"
-                                                    Value="#16A34A"/>
+                            Value="#2DD4BF"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -2223,26 +2327,28 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <Border Background="#091523"
-                        BorderBrush="#1E293B"
+                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                        BorderBrush="{StaticResource CleanupBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="24"
                         Padding="32"
             Margin="0,0,24,0"
-            Style="{StaticResource CelebrationPhaseContainerStyle}">
+            Style="{StaticResource CelebrationPhaseContainerStyle}"
+            Effect="{StaticResource SurfaceShadowEffect}">
                     <controls:CleanupCelebrationView x:Name="CelebrationView"
                                                      Width="340"
                                                      Height="220"/>
                 </Border>
                     <Border Grid.Column="1"
-                        Background="#0B1624"
-                        BorderBrush="#1E293B"
+                        Background="{StaticResource CleanupSurfaceBrush}"
+                        BorderBrush="{StaticResource CleanupBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="20"
                         Padding="28"
                         Width="440"
                         MaxWidth="480"
-                        Style="{StaticResource CelebrationPhaseContainerStyle}">
+                        Style="{StaticResource CelebrationPhaseContainerStyle}"
+                        Effect="{StaticResource SurfaceShadowEffect}">
                     <Grid>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
@@ -2254,16 +2360,16 @@
                             <TextBlock Text="Phase 4 — Cleanup feedback"
                                        FontSize="18"
                                        FontWeight="SemiBold"
-                                       Foreground="#38BDF8"/>
+                                       Foreground="{StaticResource CleanupAccentBrush}"/>
                             <TextBlock Text="{Binding CelebrationHeadline}"
                                        FontSize="24"
                                        FontWeight="Bold"
-                                       Foreground="#F8FAFC"
+                                       Foreground="{StaticResource CleanupSoftTextBrush}"
                                        Margin="0,6,0,4"
                                        TextWrapping="Wrap"/>
                             <TextBlock Text="{Binding CelebrationDetails}"
                                        FontSize="12"
-                                       Foreground="#94A3B8"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"
                                        TextWrapping="Wrap"
                                        Margin="0,0,0,16"/>
                             <WrapPanel Margin="0,0,0,12">
@@ -2271,11 +2377,11 @@
                                     <StackPanel>
                                         <TextBlock Text="Space reclaimed"
                                                    FontSize="12"
-                                                   Foreground="#94A3B8"/>
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                         <TextBlock Text="{Binding CelebrationReclaimedDisplay}"
                                                    FontSize="20"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#F8FAFC"
+                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                                    Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Border>
@@ -2283,11 +2389,11 @@
                                     <StackPanel>
                                         <TextBlock Text="Items removed"
                                                    FontSize="12"
-                                                   Foreground="#94A3B8"/>
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                         <TextBlock Text="{Binding CelebrationItemsDeleted, StringFormat={}{0:N0}}"
                                                    FontSize="20"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#F8FAFC"
+                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                                    Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Border>
@@ -2295,11 +2401,11 @@
                                     <StackPanel>
                                         <TextBlock Text="Categories"
                                                    FontSize="12"
-                                                   Foreground="#94A3B8"/>
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                         <TextBlock Text="{Binding CelebrationCategoryCount, StringFormat={}{0:N0}}"
                                                    FontSize="20"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#F8FAFC"
+                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                                    Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Border>
@@ -2307,17 +2413,17 @@
                                     <StackPanel>
                                         <TextBlock Text="Time saved"
                                                    FontSize="12"
-                                                   Foreground="#94A3B8"/>
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                         <TextBlock Text="{Binding CelebrationTimeSavedDisplay}"
                                                    FontSize="20"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#F8FAFC"
+                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                                    Margin="0,6,0,0"/>
                                     </StackPanel>
                                 </Border>
                             </WrapPanel>
                             <TextBlock FontSize="12"
-                                       Foreground="#64748B"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"
                                        Margin="0,0,0,12">
                                 <Run Text="Execution time · "/>
                                 <Run Text="{Binding CelebrationDurationDisplay}"/>
@@ -2331,7 +2437,7 @@
                             <StackPanel Margin="0,0,0,16">
                                 <TextBlock Text="Categories touched"
                                            FontSize="12"
-                                           Foreground="#94A3B8"/>
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
                                 <ItemsControl ItemsSource="{Binding CelebrationCategories}"
                                               Margin="0,4,0,0">
                                     <ItemsControl.ItemsPanel>
@@ -2344,7 +2450,7 @@
                                             <Border Style="{StaticResource CategorySummaryChipStyle}">
                                                 <TextBlock Text="{Binding}"
                                                            FontSize="12"
-                                                           Foreground="#E2E8F0"/>
+                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -2362,7 +2468,7 @@
                                 </ItemsControl>
                                 <TextBlock Text="No categories were affected."
                                            FontSize="12"
-                                           Foreground="#64748B"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
                                            Margin="0,8,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -2389,7 +2495,7 @@
                             <TextBlock Grid.Row="0"
                                        Text="Failures"
                                        FontSize="12"
-                                       Foreground="#94A3B8"/>
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
                             <ScrollViewer Grid.Row="1"
                                           Margin="0,6,0,0"
                                           VerticalScrollBarVisibility="Auto"
@@ -2410,8 +2516,8 @@
                                 <ItemsControl ItemsSource="{Binding CelebrationFailures}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#111C33"
-                                                    BorderBrush="#1E293B"
+                        <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                            BorderBrush="{StaticResource CleanupBorderBrush}"
                                                     BorderThickness="1"
                                                     CornerRadius="10"
                                                     Padding="12"
@@ -2425,10 +2531,10 @@
                                                         <TextBlock Text="{Binding DisplayName}"
                                                                    FontSize="13"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F8FAFC"/>
+                                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
                                                         <TextBlock Text="{Binding Reason}"
                                                                    FontSize="12"
-                                                                   Foreground="#94A3B8"
+                                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
                                                                    TextWrapping="Wrap"
                                                                    Margin="0,4,0,0"/>
                                                     </StackPanel>
@@ -2452,7 +2558,7 @@
                             <TextBlock Grid.Row="2"
                                        Text="All items were removed successfully. Great job!"
                                        FontSize="12"
-                                       Foreground="#64748B"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"
                                        Margin="0,8,0,0">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">
@@ -2488,17 +2594,18 @@
                             <Button Content="Back to dashboard"
                                     Command="{Binding CancelCommand}"
                                     Style="{StaticResource FlatButtonStyle}"
-                    Background="#111C33"
+            Background="{StaticResource CleanupSurfaceBrush}"
                     Margin="0,0,12,12"/>
                             <Button Content="Close"
                                     Command="{Binding CloseCelebrationCommand}"
-                                    Background="#22C55E"
-                                    Foreground="#06111D"
+                    Style="{StaticResource FlatButtonStyle}"
+                    Background="{StaticResource CleanupAccentBrushSecondary}"
+                    Foreground="#041225"
                                     FontWeight="SemiBold"
                                     Padding="18,10"
-                                    BorderThickness="0"
-                    Cursor="Hand"
-                    Margin="0,0,0,12"/>
+                    BorderThickness="0"
+            Cursor="Hand"
+            Margin="0,0,0,12"/>
                         </WrapPanel>
                     </Grid>
                 </Border>

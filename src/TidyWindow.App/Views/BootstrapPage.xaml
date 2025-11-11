@@ -204,11 +204,13 @@
                                 <WrapPanel Grid.Column="0"
                                            Orientation="Horizontal"
                                            HorizontalAlignment="Left">
-                                    <CheckBox Content="Chocolatey"
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Chocolatey"
                                               Margin="0,0,12,8"
                                               Foreground="#F8FAFC"
                                               IsChecked="{Binding IncludeChocolatey, Mode=TwoWay}"/>
-                                    <CheckBox Content="Scoop"
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Scoop"
                                               Margin="0,0,12,8"
                                               Foreground="#F8FAFC"
                                               IsChecked="{Binding IncludeScoop, Mode=TwoWay}"/>
