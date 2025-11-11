@@ -2002,7 +2002,8 @@
                                       HorizontalScrollBarVisibility="Disabled"
                                       CanContentScroll="False">
                             <ScrollViewer.Style>
-                                <Style TargetType="ScrollViewer">
+                                <Style TargetType="ScrollViewer"
+                                       BasedOn="{StaticResource App.ScrollViewerStyle}">
                                     <Setter Property="Visibility"
                                             Value="Visible"/>
                                     <Style.Triggers>
@@ -2395,7 +2396,8 @@
                                           HorizontalScrollBarVisibility="Disabled"
                                           MaxHeight="220">
                                 <ScrollViewer.Style>
-                                    <Style TargetType="ScrollViewer">
+                                    <Style TargetType="ScrollViewer"
+                                           BasedOn="{StaticResource App.ScrollViewerStyle}">
                                         <Setter Property="Visibility" Value="Visible"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding HasCelebrationFailures}"

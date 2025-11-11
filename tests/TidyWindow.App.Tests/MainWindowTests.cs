@@ -64,13 +64,23 @@ public sealed class MainWindowTests
 
     private static void InvokeStateChanged(MainWindow window)
     {
-        var handler = typeof(MainWindow).GetMethod("OnStateChanged", BindingFlags.NonPublic | BindingFlags.Instance);
-        handler?.Invoke(window, new object?[] { window, EventArgs.Empty });
+        var handler = typeof(MainWindow).GetMethod(
+            "OnStateChanged",
+            BindingFlags.NonPublic | BindingFlags.Instance,
+            binder: null,
+            types: new[] { typeof(EventArgs) },
+            modifiers: null);
+        handler?.Invoke(window, new object?[] { EventArgs.Empty });
     }
 
     private static void InvokeClosing(MainWindow window, CancelEventArgs args)
     {
-        var method = typeof(MainWindow).GetMethod("OnClosing", BindingFlags.NonPublic | BindingFlags.Instance);
+        var method = typeof(MainWindow).GetMethod(
+            "OnClosing",
+            BindingFlags.NonPublic | BindingFlags.Instance,
+            binder: null,
+            types: new[] { typeof(CancelEventArgs) },
+            modifiers: null);
         method?.Invoke(window, new object?[] { args });
     }
 

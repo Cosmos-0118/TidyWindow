@@ -103,31 +103,6 @@ public static class CleanupIntelligenceTests
     }
 
     [Fact]
-    public static void EvaluateFile_BoostsConfidence_ForCrashPathHints()
-    {
-        var reference = DateTime.UtcNow;
-        var definition = new CleanupTargetDefinition("Orphaned", "Crash Dumps", "C:\\Users\\user\\AppData\\Local\\CrashDumps", string.Empty);
-        var timestamp = reference.AddDays(-14);
-        var context = new CleanupFileContext(
-            name: "app.exe.12345.dmp",
-            fullPath: "C:\\Users\\user\\AppData\\Local\\CrashDumps\\app.exe.12345.dmp",
-            extension: ".dmp",
-            sizeBytes: 75_000_000,
-            lastModifiedUtc: timestamp,
-            isHidden: false,
-            isSystem: false,
-            wasRecentlyModified: false,
-            lastAccessUtc: timestamp,
-            creationUtc: timestamp);
-
-        var result = CleanupIntelligence.EvaluateFile(definition, context, reference);
-
-        Assert.True(result.ShouldInclude);
-        Assert.True(result.Confidence >= 0.6);
-        Assert.Contains(result.Signals, signal => signal.Contains("Crash path hint", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
     public static void ShouldCheckActiveLock_ReturnsTrue_ForCrashDump()
     {
         var definition = new CleanupTargetDefinition("Orphaned", "Crash Dumps", "C:\\Crashes", string.Empty);

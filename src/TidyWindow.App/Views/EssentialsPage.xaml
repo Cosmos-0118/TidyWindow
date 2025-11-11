@@ -842,7 +842,8 @@
                                                   VerticalScrollBarVisibility="Auto"
                                                   HorizontalScrollBarVisibility="Auto">
                                         <ScrollViewer.Style>
-                                            <Style TargetType="ScrollViewer">
+                                            <Style TargetType="ScrollViewer"
+                                                   BasedOn="{StaticResource App.ScrollViewerStyle}">
                                                 <Setter Property="Visibility"
                                                         Value="Visible"/>
                                                 <Style.Triggers>

@@ -32,6 +32,8 @@ public partial class App : WpfApplication
     {
         CaptureOriginalUserSid(e);
 
+        AppUserModelIdService.EnsureCurrentProcessAppUserModelId();
+
         _crashLogs = new CrashLogService();
         _crashLogs.Attach(this);
 

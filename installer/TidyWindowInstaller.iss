@@ -6,6 +6,7 @@
 #endif
 #define MyAppPublisher "Cosmos-0118"
 #define MyAppExeName "TidyWindow.exe"
+#define MyAppAumid "Cosmos0118.TidyWindow"
 #ifndef BuildOutput
   #define BuildOutput "..\\src\\TidyWindow.App\\bin\\Release\\net8.0-windows\\win-x64\\publish"
 #endif
@@ -41,8 +42,8 @@ Name: "runatstartup"; Description: "&Run TidyWindow at Windows startup"; GroupDe
 Source: "{#BuildOutput}\\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
-Name: "{autoprograms}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; WorkingDir: "{app}"
-Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: desktopicon; WorkingDir: "{app}"
+Name: "{autoprograms}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; WorkingDir: "{app}"; AppUserModelID: "{#MyAppAumid}"
+Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: desktopicon; WorkingDir: "{app}"; AppUserModelID: "{#MyAppAumid}"
 
 [Run]
 Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent

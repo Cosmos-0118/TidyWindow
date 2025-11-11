@@ -24,8 +24,14 @@ public partial class RegistryOptimizerPage : Page
     private bool _rootScrollWheelAttached;
     private double _scrollAnimationTarget = double.NaN;
 
+    private const double CompactPrimaryMinWidth = 320d;
+    private const double CompactSecondaryMinWidth = 280d;
+    private const double WideLayoutBreakpoint = 1280d;
+    private const double CompactLayoutBreakpoint = 1120d;
+    private const double StackedLayoutBreakpoint = 960d;
     private const double MarginTighteningBuffer = 160d;
     private const double ScreenMaxWidthRatio = 0.92d;
+    private const double ColumnShareBias = 0.55d;
     private const double CompactCardPrimaryWidthThreshold = 780d;
 
     private Thickness _secondaryColumnDefaultMargin;
@@ -160,10 +166,22 @@ public partial class RegistryOptimizerPage : Page
             targetWidth = viewportWidth;
         }
 
-        var totalMinimum = _primaryColumnDefaultMinWidth + _secondaryColumnDefaultMinWidth + _columnSpacing;
-        var stackLayout = targetWidth < totalMinimum;
+        var compactColumns = viewportWidth < WideLayoutBreakpoint
+                              || targetWidth < (_primaryColumnDefaultMinWidth + _secondaryColumnDefaultMinWidth + _columnSpacing + MarginTighteningBuffer);
 
-        var tightMargins = viewportWidth < totalMinimum + MarginTighteningBuffer;
+        var desiredPrimaryMin = compactColumns
+            ? Math.Min(_primaryColumnDefaultMinWidth, CompactPrimaryMinWidth)
+            : _primaryColumnDefaultMinWidth;
+        var desiredSecondaryMin = compactColumns
+            ? Math.Min(_secondaryColumnDefaultMinWidth, CompactSecondaryMinWidth)
+            : _secondaryColumnDefaultMinWidth;
+
+        var totalMinimum = desiredPrimaryMin + desiredSecondaryMin + _columnSpacing;
+        var stackLayout = viewportWidth < StackedLayoutBreakpoint || targetWidth < totalMinimum;
+
+        var tightMargins = stackLayout
+                            || viewportWidth < CompactLayoutBreakpoint
+                            || targetWidth < totalMinimum + MarginTighteningBuffer;
         var desiredMargin = stackLayout
             ? _scrollViewerStackedMargin
             : tightMargins
@@ -205,10 +223,18 @@ public partial class RegistryOptimizerPage : Page
                 Grid.SetRow(SecondaryColumnHost, 0);
                 Grid.SetColumn(SecondaryColumnHost, 1);
                 SecondaryColumnHost.Margin = _secondaryColumnDefaultMargin;
-                PrimaryColumnDefinition.MinWidth = _primaryColumnDefaultMinWidth;
-                SecondaryColumnDefinition.MinWidth = _secondaryColumnDefaultMinWidth;
                 _isStackedLayout = false;
             }
+        }
+
+        if (!PrimaryColumnDefinition.MinWidth.Equals(desiredPrimaryMin))
+        {
+            PrimaryColumnDefinition.MinWidth = desiredPrimaryMin;
+        }
+
+        if (!SecondaryColumnDefinition.MinWidth.Equals(desiredSecondaryMin))
+        {
+            SecondaryColumnDefinition.MinWidth = desiredSecondaryMin;
         }
 
         var frameWidth = Math.Max(targetWidth, totalMinimum);
@@ -225,8 +251,8 @@ public partial class RegistryOptimizerPage : Page
         PrimaryColumnHost.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
         SecondaryColumnHost.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
 
-        var desiredPrimary = Math.Max(_primaryColumnDefaultMinWidth, PrimaryColumnHost.DesiredSize.Width);
-        var desiredSecondary = Math.Max(_secondaryColumnDefaultMinWidth, SecondaryColumnHost.DesiredSize.Width);
+        var desiredPrimary = Math.Max(desiredPrimaryMin, PrimaryColumnHost.DesiredSize.Width);
+        var desiredSecondary = Math.Max(desiredSecondaryMin, SecondaryColumnHost.DesiredSize.Width);
         var desiredTotal = desiredPrimary + desiredSecondary;
 
         double primaryWidth;
@@ -240,27 +266,27 @@ public partial class RegistryOptimizerPage : Page
         else
         {
             var scale = availableForColumns / desiredTotal;
-            primaryWidth = Math.Max(_primaryColumnDefaultMinWidth, desiredPrimary * scale);
-            secondaryWidth = Math.Max(_secondaryColumnDefaultMinWidth, availableForColumns - primaryWidth);
+            primaryWidth = Math.Max(desiredPrimaryMin, desiredPrimary * scale);
+            secondaryWidth = Math.Max(desiredSecondaryMin, availableForColumns - primaryWidth);
 
             if (primaryWidth + secondaryWidth > availableForColumns)
             {
                 var overflow = primaryWidth + secondaryWidth - availableForColumns;
-                var maxPrimaryReduction = Math.Max(0d, primaryWidth - _primaryColumnDefaultMinWidth);
-                var primaryReduction = Math.Min(overflow * 0.55, maxPrimaryReduction);
+                var maxPrimaryReduction = Math.Max(0d, primaryWidth - desiredPrimaryMin);
+                var primaryReduction = Math.Min(overflow * ColumnShareBias, maxPrimaryReduction);
                 primaryWidth -= primaryReduction;
                 overflow -= primaryReduction;
 
                 if (overflow > 0)
                 {
-                    var maxSecondaryReduction = Math.Max(0d, secondaryWidth - _secondaryColumnDefaultMinWidth);
+                    var maxSecondaryReduction = Math.Max(0d, secondaryWidth - desiredSecondaryMin);
                     var secondaryReduction = Math.Min(overflow, maxSecondaryReduction);
                     secondaryWidth -= secondaryReduction;
                     overflow -= secondaryReduction;
 
                     if (overflow > 0)
                     {
-                        primaryWidth = Math.Max(_primaryColumnDefaultMinWidth, primaryWidth - overflow);
+                        primaryWidth = Math.Max(desiredPrimaryMin, primaryWidth - overflow);
                     }
                 }
             }
@@ -269,17 +295,18 @@ public partial class RegistryOptimizerPage : Page
         var remaining = availableForColumns - (primaryWidth + secondaryWidth);
         if (remaining > 0)
         {
-            primaryWidth += remaining * 0.55;
-            secondaryWidth += remaining * 0.45;
+            primaryWidth += remaining * ColumnShareBias;
+            secondaryWidth += remaining * (1d - ColumnShareBias);
         }
 
-        primaryWidth = Math.Max(_primaryColumnDefaultMinWidth, primaryWidth);
-        secondaryWidth = Math.Max(_secondaryColumnDefaultMinWidth, secondaryWidth);
+        primaryWidth = Math.Max(desiredPrimaryMin, primaryWidth);
+        secondaryWidth = Math.Max(desiredSecondaryMin, secondaryWidth);
 
         PrimaryColumnDefinition.Width = new GridLength(primaryWidth, GridUnitType.Pixel);
         SecondaryColumnDefinition.Width = new GridLength(secondaryWidth, GridUnitType.Pixel);
 
-        var shouldCompactCards = viewportWidth < totalMinimum + MarginTighteningBuffer
+        var shouldCompactCards = stackLayout
+                                  || tightMargins
                                   || primaryWidth < CompactCardPrimaryWidthThreshold;
         if (IsCompactCards != shouldCompactCards)
         {

@@ -1,0 +1,228 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Reusable palette for the scrollbar experience -->
+    <SolidColorBrush x:Key="ScrollBar.TrackBrush"
+                     Color="#142436"
+                     Opacity="0.55"/>
+    <SolidColorBrush x:Key="ScrollBar.TrackHoverBrush"
+                     Color="#1D2F47"
+                     Opacity="0.75"/>
+    <SolidColorBrush x:Key="ScrollBar.TrackDisabledBrush"
+                     Color="#1B2335"
+                     Opacity="0.45"/>
+
+    <SolidColorBrush x:Key="ScrollBar.ThumbBrush"
+                     Color="#38BDF8"/>
+    <SolidColorBrush x:Key="ScrollBar.ThumbHoverBrush"
+                     Color="#1D9CEC"/>
+    <SolidColorBrush x:Key="ScrollBar.ThumbDragBrush"
+                     Color="#177FCC"/>
+    <SolidColorBrush x:Key="ScrollBar.ThumbDisabledBrush"
+                     Color="#334155"/>
+
+    <Style x:Key="App.ScrollBarDecreaseButtonStyle"
+           TargetType="RepeatButton">
+        <Setter Property="Focusable"
+                Value="False"/>
+        <Setter Property="Background"
+                Value="Transparent"/>
+        <Setter Property="BorderThickness"
+                Value="0"/>
+        <Setter Property="Command"
+                Value="{x:Static ScrollBar.LineUpCommand}"/>
+        <Setter Property="Padding"
+                Value="0"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RepeatButton">
+                    <Border Background="{TemplateBinding Background}"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Background"
+                        Value="Transparent"/>
+            </Trigger>
+            <DataTrigger Binding="{Binding Orientation, RelativeSource={RelativeSource AncestorType=ScrollBar}}"
+                         Value="Horizontal">
+                <Setter Property="Command"
+                        Value="{x:Static ScrollBar.LineLeftCommand}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.ScrollBarIncreaseButtonStyle"
+           TargetType="RepeatButton"
+           BasedOn="{StaticResource App.ScrollBarDecreaseButtonStyle}">
+        <Setter Property="Command"
+                Value="{x:Static ScrollBar.LineDownCommand}"/>
+        <Style.Triggers>
+            <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter Property="Background"
+                        Value="Transparent"/>
+            </Trigger>
+            <DataTrigger Binding="{Binding Orientation, RelativeSource={RelativeSource AncestorType=ScrollBar}}"
+                         Value="Horizontal">
+                <Setter Property="Command"
+                        Value="{x:Static ScrollBar.LineRightCommand}"/>
+            </DataTrigger>
+        </Style.Triggers>
+    </Style>
+
+    <Style x:Key="App.ScrollBarThumbStyle"
+           TargetType="Thumb">
+        <Setter Property="Background"
+                Value="{StaticResource ScrollBar.ThumbBrush}"/>
+        <Setter Property="BorderThickness"
+                Value="0"/>
+        <Setter Property="SnapsToDevicePixels"
+                Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="ThumbRoot"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="6"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver"
+                                 Value="True">
+                            <Setter TargetName="ThumbRoot"
+                                    Property="Background"
+                                    Value="{StaticResource ScrollBar.ThumbHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsDragging"
+                                 Value="True">
+                            <Setter TargetName="ThumbRoot"
+                                    Property="Background"
+                                    Value="{StaticResource ScrollBar.ThumbDragBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled"
+                                 Value="False">
+                            <Setter TargetName="ThumbRoot"
+                                    Property="Background"
+                                    Value="{StaticResource ScrollBar.ThumbDisabledBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="App.ScrollBarStyle"
+           TargetType="ScrollBar">
+        <Setter Property="SnapsToDevicePixels"
+                Value="True"/>
+        <Setter Property="Padding"
+                Value="0"/>
+        <Setter Property="Background"
+                Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid x:Name="Root"
+                          Background="{TemplateBinding Background}">
+                        <Border x:Name="TrackBackground"
+                                Background="{StaticResource ScrollBar.TrackBrush}"
+                                CornerRadius="6"
+                                Opacity="1"/>
+                           <Track x:Name="PART_Track"
+                                   Margin="0"
+                               Focusable="False"
+                               Orientation="{TemplateBinding Orientation}">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource App.ScrollBarDecreaseButtonStyle}"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Style="{StaticResource App.ScrollBarIncreaseButtonStyle}"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource App.ScrollBarThumbStyle}"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation"
+                                 Value="Vertical">
+                            <Setter Property="Width"
+                                    Value="12"/>
+                            <Setter TargetName="TrackBackground"
+                                    Property="CornerRadius"
+                                    Value="6"/>
+                            <Setter TargetName="TrackBackground"
+                                    Property="Margin"
+                                    Value="0,4"/>
+                            <Setter TargetName="PART_Track"
+                                    Property="IsDirectionReversed"
+                                    Value="True"/>
+                        </Trigger>
+                        <Trigger Property="Orientation"
+                                 Value="Horizontal">
+                            <Setter Property="Height"
+                                    Value="12"/>
+                            <Setter TargetName="TrackBackground"
+                                    Property="CornerRadius"
+                                    Value="6"/>
+                            <Setter TargetName="TrackBackground"
+                                    Property="Margin"
+                                    Value="4,0"/>
+                            <Setter TargetName="PART_Track"
+                                    Property="IsDirectionReversed"
+                                    Value="False"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver"
+                                 Value="True">
+                            <Setter TargetName="TrackBackground"
+                                    Property="Background"
+                                    Value="{StaticResource ScrollBar.TrackHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled"
+                                 Value="False">
+                            <Setter TargetName="TrackBackground"
+                                    Property="Background"
+                                    Value="{StaticResource ScrollBar.TrackDisabledBrush}"/>
+                        </Trigger>
+                        <Trigger Property="Orientation"
+                                 Value="Horizontal">
+                            <Setter TargetName="Root"
+                                    Property="LayoutTransform">
+                                <Setter.Value>
+                                    <RotateTransform Angle="0"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="TrackBackground"
+                                    Property="HorizontalAlignment"
+                                    Value="Stretch"/>
+                            <Setter TargetName="TrackBackground"
+                                    Property="VerticalAlignment"
+                                    Value="Center"/>
+                        </Trigger>
+                        <Trigger Property="Orientation"
+                                 Value="Vertical">
+                            <Setter TargetName="TrackBackground"
+                                    Property="VerticalAlignment"
+                                    Value="Stretch"/>
+                            <Setter TargetName="TrackBackground"
+                                    Property="HorizontalAlignment"
+                                    Value="Center"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="App.ScrollViewerStyle"
+           TargetType="ScrollViewer">
+        <Setter Property="PanningMode"
+                Value="Both"/>
+    </Style>
+
+    <Style TargetType="ScrollViewer"
+           BasedOn="{StaticResource App.ScrollViewerStyle}"/>
+
+    <Style TargetType="ScrollBar"
+           BasedOn="{StaticResource App.ScrollBarStyle}"/>
+</ResourceDictionary>
