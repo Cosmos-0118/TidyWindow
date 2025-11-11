@@ -1,9 +1,9 @@
 using System;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App.Views;
@@ -14,13 +14,6 @@ public partial class InstallHubPage : Page
     private bool _disposed;
     private bool _scrollHandlersAttached;
     private bool _sizeHandlerAttached;
-    private System.Windows.Controls.ListView? _packagesListView;
-    private ScrollViewer? _packagesScrollViewer;
-    private GridViewColumn? _packageColumn;
-    private GridViewColumn? _managerColumn;
-    private GridViewColumn? _adminColumn;
-    private GridViewColumn? _statusColumn;
-    private GridViewColumn? _actionsColumn;
     private Thickness _scrollViewerDefaultMargin;
     private readonly Thickness _scrollViewerCompactMargin = new(24);
     private readonly Thickness _scrollViewerStackedMargin = new(16, 24, 16, 24);
@@ -30,6 +23,10 @@ public partial class InstallHubPage : Page
     private double _primaryColumnDefaultMinWidth;
     private double _secondaryColumnDefaultMinWidth;
     private bool _isStackedLayout;
+    private WrapPanel? _bundleItemsHost;
+    private WrapPanel? _packageItemsHost;
+    private bool _bundleLayoutScheduled;
+    private bool _packageLayoutScheduled;
 
     private const double WideLayoutBreakpoint = 1320d;
     private const double CompactLayoutBreakpoint = 1180d;
@@ -37,26 +34,6 @@ public partial class InstallHubPage : Page
     private const double CompactPrimaryMinWidth = 320d;
     private const double CompactSecondaryMinWidth = 280d;
     private const double GridPaddingWidth = 56d;
-
-    private const double PackagePreferredWidth = 280d;
-    private const double PackageCompactWidth = 240d;
-    private const double PackageMinimumWidth = 200d;
-
-    private const double ManagerPreferredWidth = 120d;
-    private const double ManagerCompactWidth = 100d;
-    private const double ManagerMinimumWidth = 88d;
-
-    private const double AdminPreferredWidth = 80d;
-    private const double AdminCompactWidth = 68d;
-    private const double AdminMinimumWidth = 60d;
-
-    private const double StatusPreferredWidth = 220d;
-    private const double StatusCompactWidth = 180d;
-    private const double StatusMinimumWidth = 140d;
-
-    private const double ActionsPreferredWidth = 140d;
-    private const double ActionsCompactWidth = 120d;
-    private const double ActionsMinimumWidth = 108d;
 
     public InstallHubPage(InstallHubViewModel viewModel)
     {
@@ -80,11 +57,6 @@ public partial class InstallHubPage : Page
 
         EnsureScrollHandlers();
 
-        PackagesList.Loaded -= PackagesList_OnLoaded;
-        PackagesList.Loaded += PackagesList_OnLoaded;
-        PackagesList.SizeChanged -= PackagesList_OnSizeChanged;
-        PackagesList.SizeChanged += PackagesList_OnSizeChanged;
-
         if (!_sizeHandlerAttached)
         {
             ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
@@ -94,7 +66,6 @@ public partial class InstallHubPage : Page
         await loadTask;
 
         ApplyResponsiveLayout(ContentScrollViewer.ActualWidth);
-        UpdatePackageColumnWidths();
     }
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
@@ -111,9 +82,6 @@ public partial class InstallHubPage : Page
             ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
             _sizeHandlerAttached = false;
         }
-
-        PackagesList.Loaded -= PackagesList_OnLoaded;
-        PackagesList.SizeChanged -= PackagesList_OnSizeChanged;
 
         _viewModel.Dispose();
         _disposed = true;
@@ -140,7 +108,6 @@ public partial class InstallHubPage : Page
             }
 
             ApplyResponsiveLayout(ContentScrollViewer.ActualWidth);
-            UpdatePackageColumnWidths();
         }
     }
 
@@ -187,27 +154,6 @@ public partial class InstallHubPage : Page
         PackagesList.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         OperationsList.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         _scrollHandlersAttached = false;
-    }
-
-    private void PackagesList_OnLoaded(object sender, RoutedEventArgs e)
-    {
-        _packagesListView ??= sender as System.Windows.Controls.ListView;
-        if (_packagesListView is null)
-        {
-            return;
-        }
-
-        _packagesScrollViewer ??= FindChildScrollViewer(_packagesListView);
-        CachePackageColumns();
-        UpdatePackageColumnWidths();
-    }
-
-    private void PackagesList_OnSizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (e.WidthChanged)
-        {
-            UpdatePackageColumnWidths();
-        }
     }
 
     private static void OnNestedPreviewMouseWheel(object sender, MouseWheelEventArgs e)
@@ -355,111 +301,190 @@ public partial class InstallHubPage : Page
                 ? _scrollViewerCompactMargin
                 : _scrollViewerDefaultMargin;
 
-        UpdatePackageColumnWidths();
+        UpdateAdaptiveLists();
     }
 
-    private void CachePackageColumns()
+    private void BundlesList_Loaded(object sender, RoutedEventArgs e)
     {
-        if (_packagesListView?.View is not GridView gridView)
-        {
-            return;
-        }
-
-        if (gridView.Columns.Count < 5)
-        {
-            return;
-        }
-
-        _packageColumn = gridView.Columns[0];
-        _managerColumn = gridView.Columns[1];
-        _adminColumn = gridView.Columns[2];
-        _statusColumn = gridView.Columns[3];
-        _actionsColumn = gridView.Columns[4];
+        _bundleItemsHost = FindItemsHost<WrapPanel>(BundlesList);
+        UpdateBundlesLayout();
     }
 
-    private void UpdatePackageColumnWidths()
+    private void BundlesList_SizeChanged(object sender, SizeChangedEventArgs e)
     {
-        if (_packagesListView is null || _packageColumn is null)
+        if (e.WidthChanged)
+        {
+            UpdateBundlesLayout();
+        }
+    }
+
+    private void PackagesList_Loaded(object sender, RoutedEventArgs e)
+    {
+        _packageItemsHost = FindItemsHost<WrapPanel>(PackagesList);
+        UpdatePackagesLayout();
+    }
+
+    private void PackagesList_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+        {
+            UpdatePackagesLayout();
+        }
+    }
+
+    private void UpdateAdaptiveLists()
+    {
+        UpdateBundlesLayout();
+        UpdatePackagesLayout();
+    }
+
+    private void UpdateBundlesLayout()
+    {
+        if (!IsLoaded)
         {
             return;
         }
 
-        var availableWidth = _packagesListView.ActualWidth;
-        if (double.IsNaN(availableWidth) || availableWidth <= 0)
+        _bundleItemsHost ??= FindItemsHost<WrapPanel>(BundlesList);
+        if (_bundleItemsHost is null)
+        {
+            ScheduleBundleLayoutUpdate();
+            return;
+        }
+
+        var availableWidth = GetScrollableContentWidth(BundlesList);
+        if (availableWidth <= 0)
+        {
+            ScheduleBundleLayoutUpdate();
+            return;
+        }
+
+        var targetWidth = CalculateAdaptiveItemWidth(availableWidth, 216d, 280d, 22d, 3);
+        if (!double.IsNaN(targetWidth))
+        {
+            _bundleItemsHost.ItemWidth = targetWidth;
+        }
+    }
+
+    private void UpdatePackagesLayout()
+    {
+        if (!IsLoaded)
         {
             return;
         }
 
-        var workingWidth = Math.Max(0d, availableWidth - GridPaddingWidth);
-
-        if (_packagesScrollViewer?.ComputedVerticalScrollBarVisibility == Visibility.Visible)
+        _packageItemsHost ??= FindItemsHost<WrapPanel>(PackagesList);
+        if (_packageItemsHost is null)
         {
-            workingWidth = Math.Max(0d, workingWidth - SystemParameters.VerticalScrollBarWidth);
+            SchedulePackageLayoutUpdate();
+            return;
         }
 
-        var packageWidth = PackagePreferredWidth;
-        var managerWidth = ManagerPreferredWidth;
-        var adminWidth = AdminPreferredWidth;
-        var statusWidth = StatusPreferredWidth;
-        var actionsWidth = ActionsPreferredWidth;
-
-        var preferredTotal = packageWidth + managerWidth + adminWidth + statusWidth + actionsWidth;
-
-        if (workingWidth > preferredTotal)
+        var availableWidth = GetScrollableContentWidth(PackagesList);
+        if (availableWidth <= 0)
         {
-            packageWidth += workingWidth - preferredTotal;
+            SchedulePackageLayoutUpdate();
+            return;
         }
-        else
+
+        var targetWidth = CalculateAdaptiveItemWidth(availableWidth, 236d, 360d, 22d, 3);
+        if (!double.IsNaN(targetWidth))
         {
-            var overflow = preferredTotal - workingWidth;
+            _packageItemsHost.ItemWidth = targetWidth;
+        }
+    }
 
-            packageWidth = ReduceWidth(packageWidth, PackageCompactWidth, ref overflow);
-            statusWidth = ReduceWidth(statusWidth, StatusCompactWidth, ref overflow);
-            actionsWidth = ReduceWidth(actionsWidth, ActionsCompactWidth, ref overflow);
-            managerWidth = ReduceWidth(managerWidth, ManagerCompactWidth, ref overflow);
-            adminWidth = ReduceWidth(adminWidth, AdminCompactWidth, ref overflow);
+    private void ScheduleBundleLayoutUpdate()
+    {
+        if (_bundleLayoutScheduled)
+        {
+            return;
+        }
 
-            if (overflow > 0)
+        _bundleLayoutScheduled = true;
+        Dispatcher.InvokeAsync(() =>
+        {
+            _bundleLayoutScheduled = false;
+            UpdateBundlesLayout();
+        }, DispatcherPriority.Background);
+    }
+
+    private void SchedulePackageLayoutUpdate()
+    {
+        if (_packageLayoutScheduled)
+        {
+            return;
+        }
+
+        _packageLayoutScheduled = true;
+        Dispatcher.InvokeAsync(() =>
+        {
+            _packageLayoutScheduled = false;
+            UpdatePackagesLayout();
+        }, DispatcherPriority.Background);
+    }
+
+    private static double CalculateAdaptiveItemWidth(double availableWidth, double minWidth, double maxWidth, double spacing, int maxColumns)
+    {
+        if (availableWidth <= 0)
+        {
+            return double.NaN;
+        }
+
+        var maxFeasibleColumns = Math.Min(maxColumns, Math.Max(1, (int)Math.Floor((availableWidth + spacing) / (minWidth + spacing))));
+
+        for (var columns = maxFeasibleColumns; columns >= 1; columns--)
+        {
+            var width = (availableWidth - ((columns - 1) * spacing)) / columns;
+            if (width >= minWidth || columns == 1)
             {
-                packageWidth = ReduceWidth(packageWidth, PackageMinimumWidth, ref overflow);
-                statusWidth = ReduceWidth(statusWidth, StatusMinimumWidth, ref overflow);
-                actionsWidth = ReduceWidth(actionsWidth, ActionsMinimumWidth, ref overflow);
-                managerWidth = ReduceWidth(managerWidth, ManagerMinimumWidth, ref overflow);
-                adminWidth = ReduceWidth(adminWidth, AdminMinimumWidth, ref overflow);
+                return Math.Min(Math.Max(width, minWidth), maxWidth);
             }
         }
 
-        _packageColumn.Width = packageWidth;
-        if (_managerColumn is not null)
-        {
-            _managerColumn.Width = managerWidth;
-        }
-
-        if (_adminColumn is not null)
-        {
-            _adminColumn.Width = adminWidth;
-        }
-
-        if (_statusColumn is not null)
-        {
-            _statusColumn.Width = statusWidth;
-        }
-
-        if (_actionsColumn is not null)
-        {
-            _actionsColumn.Width = actionsWidth;
-        }
+        return Math.Min(maxWidth, minWidth);
     }
 
-    private static double ReduceWidth(double current, double target, ref double overflow)
+    private static double GetScrollableContentWidth(ItemsControl control)
     {
-        if (current <= target || overflow <= 0)
+        var padding = control.Padding;
+        var width = control.ActualWidth - padding.Left - padding.Right;
+        const double scrollbarAllowance = 18d;
+        return Math.Max(0, width - scrollbarAllowance);
+    }
+
+    private static T? FindItemsHost<T>(ItemsControl control) where T : System.Windows.Controls.Panel
+    {
+        if (VisualTreeHelper.GetChildrenCount(control) == 0)
         {
-            return current;
+            control.ApplyTemplate();
         }
 
-        var delta = Math.Min(current - target, overflow);
-        overflow -= delta;
-        return current - delta;
+        return FindVisualChild<T>(control);
+    }
+
+    private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        if (parent is null)
+        {
+            return null;
+        }
+
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T typedChild)
+            {
+                return typedChild;
+            }
+
+            var descendent = FindVisualChild<T>(child);
+            if (descendent is not null)
+            {
+                return descendent;
+            }
+        }
+
+        return null;
     }
 }

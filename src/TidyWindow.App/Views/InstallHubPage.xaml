@@ -11,6 +11,9 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
 
+        <CubicEase x:Key="InstallHubEaseIn" EasingMode="EaseInOut"/>
+        <CubicEase x:Key="InstallHubEaseOut" EasingMode="EaseOut"/>
+
         <Style x:Key="InstallAccentButtonStyle"
                TargetType="Button">
             <Setter Property="Background"
@@ -64,69 +67,305 @@
             </Setter>
         </Style>
 
-        <Style x:Key="InstallSecondaryButtonStyle"
-               TargetType="Button">
-            <Setter Property="Background"
+    <Style x:Key="InstallSecondaryButtonStyle"
+           TargetType="Button">
+        <Setter Property="Background"
+            Value="#1E293B"/>
+        <Setter Property="Foreground"
+            Value="#E2E8F0"/>
+        <Setter Property="BorderBrush"
+            Value="#334155"/>
+        <Setter Property="BorderThickness"
+            Value="1"/>
+        <Setter Property="Padding"
+            Value="12,6"/>
+        <Setter Property="Cursor"
+            Value="Hand"/>
+        <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="Button">
+            <Border x:Name="Root"
+                Background="{TemplateBinding Background}"
+                BorderBrush="{TemplateBinding BorderBrush}"
+                BorderThickness="{TemplateBinding BorderThickness}"
+                CornerRadius="6"
+                Padding="{TemplateBinding Padding}">
+                <ContentPresenter HorizontalAlignment="Center"
+                          VerticalAlignment="Center"/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#243048"/>
+                </Trigger>
+                <Trigger Property="IsPressed"
+                     Value="True">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#1A2436"/>
+                </Trigger>
+                <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter TargetName="Root"
+                    Property="Background"
+                    Value="#111827"/>
+                <Setter TargetName="Root"
+                    Property="BorderBrush"
                     Value="#1E293B"/>
-            <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
-            <Setter Property="BorderBrush"
-                    Value="#334155"/>
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-            <Setter Property="Padding"
-                    Value="12,6"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#243048"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#1A2436"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled"
-                                     Value="False">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#111827"/>
-                                <Setter TargetName="Root"
-                                        Property="BorderBrush"
-                                        Value="#1E293B"/>
-                                <Setter Property="Foreground"
-                                        Value="#475569"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+                <Setter Property="Foreground"
+                    Value="#475569"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value>
+        </Setter>
+    </Style>
 
-        <LinearGradientBrush x:Key="InstallHubOverlayBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#B30F172A" Offset="0"/>
-            <GradientStop Color="#E61F2E48" Offset="1"/>
-        </LinearGradientBrush>
+    <Style x:Key="InstallBadgeStyle"
+           TargetType="Border">
+        <Setter Property="Background"
+            Value="#1E293B"/>
+        <Setter Property="CornerRadius"
+            Value="6"/>
+        <Setter Property="Padding"
+            Value="8,4"/>
+        <Setter Property="Margin"
+            Value="0,0,8,8"/>
+    </Style>
 
-        <CubicEase x:Key="InstallHubEaseIn" EasingMode="EaseInOut"/>
-        <CubicEase x:Key="InstallHubEaseOut" EasingMode="EaseOut"/>
+    <Style x:Key="InstallCardBorderStyle"
+           TargetType="Border">
+        <Setter Property="Background"
+            Value="#111827"/>
+        <Setter Property="BorderBrush"
+            Value="#1E293B"/>
+        <Setter Property="BorderThickness"
+            Value="1"/>
+        <Setter Property="CornerRadius"
+            Value="16"/>
+        <Setter Property="Padding"
+            Value="24"/>
+        <Setter Property="SnapsToDevicePixels"
+            Value="True"/>
+        <Setter Property="ClipToBounds"
+            Value="True"/>
+    </Style>
+
+    <Style x:Key="InstallBundleCardItemStyle"
+           TargetType="ListBoxItem">
+        <Setter Property="Padding"
+            Value="0"/>
+        <Setter Property="Margin"
+            Value="0,0,22,22"/>
+        <Setter Property="HorizontalContentAlignment"
+            Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment"
+            Value="Stretch"/>
+        <Setter Property="MinWidth"
+            Value="200"/>
+        <Setter Property="MaxWidth"
+            Value="280"/>
+        <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="ListBoxItem">
+            <Border x:Name="Container"
+                CornerRadius="14"
+                Background="#101B33"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                Padding="18"
+                Opacity="0"
+                SnapsToDevicePixels="True">
+                <Border.RenderTransform>
+                <TranslateTransform Y="12"/>
+                </Border.RenderTransform>
+                <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Container"
+                             Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.24"
+                             EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                    <DoubleAnimation Storyboard.TargetName="Container"
+                             Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                             To="0"
+                             Duration="0:0:0.28"
+                             EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                    </Storyboard>
+                </BeginStoryboard>
+                </EventTrigger>
+                <Trigger Property="IsSelected"
+                     Value="True">
+                <Setter TargetName="Container"
+                    Property="Background"
+                    Value="#1E3A8A"/>
+                <Setter TargetName="Container"
+                    Property="BorderBrush"
+                    Value="#38BDF8"/>
+                </Trigger>
+                <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter TargetName="Container"
+                    Property="Background"
+                    Value="#162643"/>
+                <Setter TargetName="Container"
+                    Property="BorderBrush"
+                    Value="#1E3A8A"/>
+                </Trigger>
+                <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter TargetName="Container"
+                    Property="Opacity"
+                    Value="0.55"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallPackageCardItemStyle"
+           TargetType="ListViewItem">
+        <Setter Property="Padding"
+            Value="0"/>
+        <Setter Property="Margin"
+            Value="0,0,22,22"/>
+        <Setter Property="HorizontalContentAlignment"
+            Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment"
+            Value="Stretch"/>
+        <Setter Property="MinWidth"
+            Value="220"/>
+        <Setter Property="MaxWidth"
+            Value="360"/>
+        <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="ListViewItem">
+            <Border x:Name="Container"
+                CornerRadius="16"
+                Background="#101B33"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                Padding="20"
+                Opacity="0"
+                SnapsToDevicePixels="True">
+                <Border.RenderTransform>
+                <TranslateTransform Y="18"/>
+                </Border.RenderTransform>
+                <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Container"
+                             Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.26"
+                             EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                    <DoubleAnimation Storyboard.TargetName="Container"
+                             Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                             To="0"
+                             Duration="0:0:0.3"
+                             EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                    </Storyboard>
+                </BeginStoryboard>
+                </EventTrigger>
+                <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter TargetName="Container"
+                    Property="Background"
+                    Value="#162643"/>
+                <Setter TargetName="Container"
+                    Property="BorderBrush"
+                    Value="#1E3A8A"/>
+                </Trigger>
+                <Trigger Property="IsSelected"
+                     Value="True">
+                <Setter TargetName="Container"
+                    Property="BorderBrush"
+                    Value="#38BDF8"/>
+                </Trigger>
+                <Trigger Property="IsEnabled"
+                     Value="False">
+                <Setter TargetName="Container"
+                    Property="Opacity"
+                    Value="0.55"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallQueueItemStyle"
+           TargetType="ListViewItem">
+        <Setter Property="Padding"
+            Value="0"/>
+        <Setter Property="Margin"
+            Value="0,0,0,12"/>
+        <Setter Property="HorizontalContentAlignment"
+            Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment"
+            Value="Stretch"/>
+        <Setter Property="Template">
+        <Setter.Value>
+            <ControlTemplate TargetType="ListViewItem">
+            <Border x:Name="Container"
+                CornerRadius="12"
+                Background="#101B33"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                Padding="14"
+                Opacity="0"
+                SnapsToDevicePixels="True">
+                <Border.RenderTransform>
+                <TranslateTransform Y="12"/>
+                </Border.RenderTransform>
+                <ContentPresenter/>
+            </Border>
+            <ControlTemplate.Triggers>
+                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                <BeginStoryboard>
+                    <Storyboard>
+                    <DoubleAnimation Storyboard.TargetName="Container"
+                             Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.24"
+                             EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                    <DoubleAnimation Storyboard.TargetName="Container"
+                             Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                             To="0"
+                             Duration="0:0:0.26"
+                             EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                    </Storyboard>
+                </BeginStoryboard>
+                </EventTrigger>
+                <Trigger Property="IsMouseOver"
+                     Value="True">
+                <Setter TargetName="Container"
+                    Property="Background"
+                    Value="#162643"/>
+                <Setter TargetName="Container"
+                    Property="BorderBrush"
+                    Value="#1E3A8A"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Setter.Value>
+        </Setter>
+    </Style>
+
+    <LinearGradientBrush x:Key="InstallHubOverlayBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#B30F172A" Offset="0"/>
+        <GradientStop Color="#E61F2E48" Offset="1"/>
+    </LinearGradientBrush>
     </Page.Resources>
 
     <Grid>
@@ -143,20 +382,17 @@
                   HorizontalAlignment="Center">
                 <Grid.Style>
                     <Style TargetType="Grid">
-                        <Setter Property="Opacity"
-                                Value="1"/>
-                        <Setter Property="IsHitTestVisible"
-                                Value="True"/>
+                        <Setter Property="Opacity" Value="1"/>
+                        <Setter Property="IsHitTestVisible" Value="True"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsLoading}" Value="True">
-                                <Setter Property="Opacity" Value="0"/>
                                 <Setter Property="IsHitTestVisible" Value="False"/>
                                 <DataTrigger.EnterActions>
                                     <BeginStoryboard>
                                         <Storyboard>
                                             <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                             To="0"
-                                                             Duration="0:0:0.45"
+                                                             To="0.35"
+                                                             Duration="0:0:0.3"
                                                              EasingFunction="{StaticResource InstallHubEaseIn}"/>
                                         </Storyboard>
                                     </BeginStoryboard>
@@ -166,7 +402,7 @@
                                         <Storyboard>
                                             <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                              To="1"
-                                                             Duration="0:0:0.55"
+                                                             Duration="0:0:0.35"
                                                              EasingFunction="{StaticResource InstallHubEaseOut}"/>
                                         </Storyboard>
                                     </BeginStoryboard>
@@ -175,6 +411,7 @@
                         </Style.Triggers>
                     </Style>
                 </Grid.Style>
+
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -199,7 +436,8 @@
                                    Foreground="#F8FAFC"/>
                         <TextBlock Text="Curate bundles, share presets, and queue installs"
                                    FontSize="14"
-                                   Foreground="#94A3B8"/>
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </StackPanel>
 
@@ -222,368 +460,445 @@
                     <StackPanel x:Name="PrimaryColumnHost"
                                 Grid.Row="0"
                                 Grid.Column="0">
-                        <Border Background="#111827"
-                                BorderBrush="#1E293B"
-                                BorderThickness="1"
-                                CornerRadius="12"
-                                Padding="20"
+                        <Border Style="{StaticResource InstallCardBorderStyle}"
                                 Margin="0,0,0,20">
-                            <StackPanel>
-                                <Grid Margin="0,0,0,16">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="Preset bundles"
+                                               Foreground="#E2E8F0"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Pick from crafted stacks or start from the full catalog"
+                                               Foreground="#64748B"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Grid Grid.Row="1"
+                                      Margin="0,16,0,12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Bundles"
-                                                   Foreground="#E2E8F0"
-                                                   FontSize="16"
-                                                   FontWeight="SemiBold"/>
-                                        <TextBlock Text="Choose curated sets or browse everything"
+
+                                    <StackPanel Grid.Column="0"
+                                                Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding SelectedBundle.Name}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F8FAFC"
+                                                   TextTrimming="CharacterEllipsis">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedBundle}"
+                                                                     Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <Border Margin="12,0,0,0">
+                                            <Border.DataContext>
+                                                <Binding Path="SelectedBundle"/>
+                                            </Border.DataContext>
+                                            <Border.Style>
+                                                <Style TargetType="Border"
+                                                       BasedOn="{StaticResource InstallBadgeStyle}">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding}"
+                                                                     Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <TextBlock Text="{Binding BundlePackageCount, StringFormat={}{0} package(s)}"
+                                                       Foreground="#CBD5F5"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                        <TextBlock Text="Select a bundle to see curated stacks"
                                                    Foreground="#64748B"
-                                                   FontSize="12"
-                                                   TextWrapping="Wrap"/>
+                                                   FontSize="12">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedBundle}"
+                                                                     Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
                                     </StackPanel>
+
                                     <Button Grid.Column="1"
                                             Content="Queue bundle"
                                             Command="{Binding QueueBundleCommand}"
                                             CommandParameter="{Binding SelectedBundle}"
-                                            Margin="8,0,0,0"
-                                            VerticalAlignment="Center"
-                                            Background="#22C55E"
-                                            Foreground="#06111D"
-                                            Style="{StaticResource InstallAccentButtonStyle}"/>
+                                            Style="{StaticResource InstallAccentButtonStyle}"
+                                            MinWidth="128"/>
                                 </Grid>
 
-                            <ListBox x:Name="BundlesList"
-                                     ItemsSource="{Binding Bundles}"
-                                     SelectedItem="{Binding SelectedBundle, Mode=TwoWay}"
-                                     BorderThickness="0"
-                                     Background="#0F172A"
-                                     Foreground="#E2E8F0"
-                                     MinHeight="160"
-                                     MaxHeight="320"
-                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                     VirtualizingStackPanel.ScrollUnit="Pixel">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Padding"
-                                                Value="0"/>
-                                        <Setter Property="Margin"
-                                                Value="0,4"/>
-                                        <Setter Property="HorizontalContentAlignment"
-                                                Value="Stretch"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListBoxItem">
-                                                    <Border x:Name="Container"
-                                                            Background="#141E30"
-                                                            CornerRadius="8"
-                                                            Padding="12">
-                                                        <ContentPresenter/>
+                                <!-- Increased right padding to prevent card clipping -->
+                                <ListBox x:Name="BundlesList"
+                                         Grid.Row="2"
+                                         ItemsSource="{Binding Bundles}"
+                                         SelectedItem="{Binding SelectedBundle, Mode=TwoWay}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                          Padding="12,8,12,18"
+                                          Loaded="BundlesList_Loaded"
+                                          SizeChanged="BundlesList_SizeChanged"
+                                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel IsItemsHost="True"
+                                                       HorizontalAlignment="Left"/>
+                                        </ItemsPanelTemplate>
+                                    </ListBox.ItemsPanel>
+                                    <ListBox.ItemContainerStyle>
+                                        <StaticResource ResourceKey="InstallBundleCardItemStyle"/>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#F8FAFC"
+                                                           TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding Description}"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="12"
+                                                           Margin="0,8,0,0"
+                                                           TextWrapping="Wrap"/>
+                                                <StackPanel Orientation="Horizontal"
+                                                            Margin="0,12,0,0">
+                                                    <Border>
+                                                        <Border.Style>
+                                                            <Style TargetType="Border"
+                                                                   BasedOn="{StaticResource InstallBadgeStyle}">
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSyntheticAll}"
+                                                                                 Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding PackageCountDisplay}"
+                                                                   Foreground="#CBD5F5"
+                                                                   FontSize="11"/>
                                                     </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsSelected"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="Background"
-                                                                    Value="#1E3A8A"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="Background"
-                                                                    Value="#1B2942"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
+                                                    <Border>
+                                                        <Border.Style>
+                                                            <Style TargetType="Border"
+                                                                   BasedOn="{StaticResource InstallBadgeStyle}">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsSyntheticAll}"
+                                                                                 Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Border.Style>
+                                                        <TextBlock Text="{Binding BundlePackageCount, StringFormat={}{0} packages}"
+                                                                   Foreground="#CBD5F5"
+                                                                   FontSize="11"/>
+                                                    </Border>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource InstallCardBorderStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="Install catalog"
+                                               Foreground="#E2E8F0"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Filter packages, add them to your queue, or export curated presets"
+                                               Foreground="#64748B"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <WrapPanel Grid.Row="1"
+                                           Margin="0,16,0,0"
+                                           VerticalAlignment="Center">
+                                    <TextBox MinWidth="220"
+                                             MaxWidth="260"
+                                             Margin="0,0,12,8"
+                                             Padding="10,6"
+                                             Background="#0F172A"
+                                             BorderBrush="#1E293B"
+                                             Foreground="#E2E8F0"
+                                             ToolTip="Filter by package name, identifier, or tags"
+                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <Button Content="Queue selected"
+                                            Command="{Binding QueueSelectionCommand}"
+                                            Margin="0,0,12,8"
+                                            Style="{StaticResource InstallAccentButtonStyle}"/>
+                                    <Button Content="Export selection"
+                                            Command="{Binding ExportSelectionCommand}"
+                                            Margin="0,0,12,8"
+                                            Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                    <Button Content="Import preset"
+                                            Command="{Binding ImportPresetCommand}"
+                                            Margin="0,0,0,8"
+                                            Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                </WrapPanel>
+
+                                <Border Grid.Row="2"
+                                        Margin="0,14,0,0"
+                                        Background="#0F172A"
+                                        BorderBrush="#1E293B"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Padding="12"
+                                        Visibility="{Binding HasActiveOperations, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="⚙"
+                                                   FontSize="14"
+                                                   Margin="0,0,10,0"/>
                                         <StackPanel>
-                                            <TextBlock Text="{Binding Name}"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"/>
-                                            <TextBlock Text="{Binding Description}"
+                                            <TextBlock Text="Installs in progress"
+                                                       Foreground="#38BDF8"
                                                        FontSize="12"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="We highlight packages currently queued so you can avoid duplicates."
                                                        Foreground="#94A3B8"
+                                                       FontSize="11"
                                                        TextWrapping="Wrap"
                                                        Margin="0,4,0,0"/>
                                         </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </StackPanel>
-                    </Border>
+                                    </StackPanel>
+                                </Border>
 
-            <Border Background="#111827"
-                BorderBrush="#1E293B"
-                BorderThickness="1"
-                CornerRadius="12"
-                Padding="20">
-                <Grid Grid.IsSharedSizeScope="True">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <WrapPanel Grid.Row="0"
-                                       Margin="0,0,0,16"
-                                       VerticalAlignment="Center">
-                                <TextBox MinWidth="180"
-                                         MaxWidth="220"
-                                         Margin="0,0,12,4"
-                                         Padding="8,6"
-                                         Background="#0F172A"
-                                         BorderBrush="#1E293B"
-                                         Foreground="#E2E8F0"
-                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-                                <Button Content="Queue selected"
-                                        Command="{Binding QueueSelectionCommand}"
-                                        Margin="0,0,8,4"
-                                        Background="#22C55E"
-                                        Foreground="#06111D"
-                                        Style="{StaticResource InstallAccentButtonStyle}"/>
-                                <Button Content="Export selection"
-                                        Command="{Binding ExportSelectionCommand}"
-                                        Margin="0,0,8,4"
-                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                                <Button Content="Import preset"
-                                        Command="{Binding ImportPresetCommand}"
-                                        Margin="0,0,0,4"
-                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                            </WrapPanel>
-
-                            <ListView x:Name="PackagesList"
-                                      Grid.Row="1"
-                                      ItemsSource="{Binding Packages}"
-                                      Background="Transparent"
-                                      BorderThickness="0"
-                                      Foreground="#F8FAFC"
-                                      HorizontalAlignment="Stretch"
-                                      VerticalAlignment="Stretch"
-                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                      ScrollViewer.CanContentScroll="True"
-                                      VirtualizingPanel.IsVirtualizing="True"
-                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                      VirtualizingStackPanel.ScrollUnit="Pixel"
-                                      Loaded="PackagesList_OnLoaded"
-                                      SizeChanged="PackagesList_OnSizeChanged">
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="HorizontalContentAlignment"
-                                                Value="Stretch"/>
-                                        <Setter Property="Padding"
-                                                Value="12"/>
-                                        <Setter Property="Margin"
-                                                Value="0,3"/>
-                                        <Setter Property="Background"
-                                                Value="#0F172A"/>
-                                        <Setter Property="Foreground"
-                                                Value="#F8FAFC"/>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListViewItem">
-                                                    <Border x:Name="Container"
-                                                            CornerRadius="8"
-                                                            Background="{TemplateBinding Background}"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <GridViewRowPresenter Margin="0"
-                                                                              Content="{TemplateBinding Content}"
-                                                                              Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsSelected"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="Background"
-                                                                    Value="#1E3A8A"/>
-                                                            <Setter Property="Foreground"
-                                                                    Value="#F8FAFC"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver"
-                                                                 Value="True">
-                                                            <Setter TargetName="Container"
-                                                                    Property="Background"
-                                                                    Value="#1B2942"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </ListView.ItemContainerStyle>
-                                <ListView.View>
-                                    <GridView AllowsColumnReorder="False">
-                                        <GridView.ColumnHeaderContainerStyle>
-                                            <Style TargetType="GridViewColumnHeader">
-                                                <Setter Property="Foreground"
-                                                        Value="#94A3B8"/>
-                                                <Setter Property="FontSize"
-                                                        Value="12"/>
-                                                <Setter Property="FontWeight"
-                                                        Value="SemiBold"/>
-                                                <Setter Property="HorizontalContentAlignment"
-                                                        Value="Left"/>
-                                                <Setter Property="Padding"
-                                                        Value="6,4"/>
-                                                <Setter Property="Background"
-                                                        Value="Transparent"/>
-                                            </Style>
-                                        </GridView.ColumnHeaderContainerStyle>
-                                        <GridViewColumn Width="280">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Package"/>
-                                            </GridViewColumn.Header>
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
+                                <!-- Increased right padding to prevent card clipping -->
+                                <ListView x:Name="PackagesList"
+                                          Grid.Row="3"
+                                          Margin="0,16,0,0"
+                                          ItemsSource="{Binding Packages}"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Padding="16,10,16,22"
+                                          Foreground="#F8FAFC"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.CanContentScroll="True"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingStackPanel.ScrollUnit="Pixel"
+                                          Loaded="PackagesList_Loaded"
+                                          SizeChanged="PackagesList_SizeChanged">
+                                    <ListView.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel IsItemsHost="True"
+                                                       HorizontalAlignment="Left"/>
+                                        </ItemsPanelTemplate>
+                                    </ListView.ItemsPanel>
+                                    <ListView.ItemContainerStyle>
+                                        <StaticResource ResourceKey="InstallPackageCardItemStyle"/>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                              VerticalAlignment="Center"
+                                                              Margin="0,0,10,0"/>
                                                     <StackPanel>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                    VerticalAlignment="Center">
-                                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                      IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                      Margin="0,0,8,0"/>
-                                                            <TextBlock Text="{Binding Definition.Name}"
-                                                                       FontWeight="SemiBold"
-                                                                       TextWrapping="Wrap"/>
-                                                        </StackPanel>
-                                                        <TextBlock Text="{Binding Summary}"
-                                                                   Foreground="#94A3B8"
-                                                                   FontSize="12"
-                                                                   TextWrapping="Wrap"
-                                                                   Margin="24,2,0,0"/>
+                                                        <TextBlock Text="{Binding Definition.Name}"
+                                                                   FontSize="16"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F8FAFC"
+                                                                   TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding Definition.Id}"
+                                                                   Foreground="#64748B"
+                                                                   FontSize="11"
+                                                                   Margin="0,4,0,0"/>
                                                     </StackPanel>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Width="120"
-                                                        DisplayMemberBinding="{Binding ManagerLabel}">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Manager"/>
-                                            </GridViewColumn.Header>
-                                        </GridViewColumn>
-                                        <GridViewColumn Width="80">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Admin"/>
-                                            </GridViewColumn.Header>
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock TextAlignment="Center"
-                                                               MinWidth="60">
+                                                </StackPanel>
+
+                                                <WrapPanel Margin="0,12,0,0">
+                                                    <Border Style="{StaticResource InstallBadgeStyle}">
+                                                        <TextBlock Text="{Binding ManagerLabel}"
+                                                                   Foreground="#38BDF8"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"/>
+                                                    </Border>
+                                                    <Border Style="{StaticResource InstallBadgeStyle}"
+                                                            Background="#1F2937"
+                                                            Visibility="{Binding RequiresAdmin, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="Admin"
+                                                                   Foreground="#F97316"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"/>
+                                                    </Border>
+                                                    <Border Style="{StaticResource InstallBadgeStyle}"
+                                                            Background="#1B2A44"
+                                                            Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="Queued"
+                                                                   Foreground="#22C55E"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"/>
+                                                    </Border>
+                                                </WrapPanel>
+
+                                                <TextBlock Text="{Binding Summary}"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,10,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Summary}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Summary}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <TextBlock Text="{Binding TagDisplay}"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="11"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,8,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding TagDisplay}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding TagDisplay}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <Grid Margin="0,16,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding LastStatus}"
+                                                               Foreground="#94A3B8"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center"
+                                                               TextWrapping="Wrap">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Text"
-                                                                        Value="No"/>
+                                                                <Setter Property="Visibility" Value="Visible"/>
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding RequiresAdmin}"
-                                                                                 Value="True">
-                                                                        <Setter Property="Text"
-                                                                                Value="Yes"/>
+                                                                    <DataTrigger Binding="{Binding LastStatus}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding LastStatus}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Width="200">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Status"/>
-                                            </GridViewColumn.Header>
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding LastStatus}"
-                                                               Foreground="#E2E8F0"
-                                                               TextWrapping="Wrap"
-                                                               MaxWidth="220"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Width="120">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Actions"/>
-                                            </GridViewColumn.Header>
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <Button Content="Queue"
+                                                    <Button Grid.Column="1"
+                                                            Content="Queue"
                                                             Command="{Binding DataContext.QueuePackageCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                             CommandParameter="{Binding}"
-                                                            MinWidth="72"
-                                                            HorizontalAlignment="Center"
+                                                            MinWidth="100"
                                                             Style="{StaticResource InstallAccentButtonStyle}"
                                                             IsEnabled="{Binding IsQueued, Converter={StaticResource InverseBooleanConverter}}"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                    </GridView>
-                                </ListView.View>
-                            </ListView>
+                                                </Grid>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
 
-                            <TextBlock Grid.Row="2"
-                                       Text="No packages match your filter."
-                                       HorizontalAlignment="Center"
-                                       Foreground="#64748B"
-                                       Margin="0,16,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility"
-                                                Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Packages.Count}"
-                                                         Value="0">
-                                                <Setter Property="Visibility"
-                                                        Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
-            </Border>
-            </StackPanel>
+                                <TextBlock Grid.Row="4"
+                                           Text="No packages match your filters."
+                                           Foreground="#64748B"
+                                           FontSize="12"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,20,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Packages.Count}"
+                                                             Value="0">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
 
-            <StackPanel x:Name="SecondaryColumnHost"
-                Grid.Row="0"
-                Grid.Column="1"
-                Margin="16,0,0,0">
-            <Border x:Name="QueueCard"
-                Background="#111827"
-                CornerRadius="12"
-                Padding="20"
-                MinWidth="320"
-                BorderBrush="#1E293B"
-                BorderThickness="1">
-                <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <Grid Grid.Row="0"
-                                  Margin="0,0,0,16">
+                    <StackPanel x:Name="SecondaryColumnHost"
+                                Grid.Row="0"
+                                Grid.Column="1"
+                                Margin="16,0,0,0">
+                        <Border Style="{StaticResource InstallCardBorderStyle}">
+                            <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
+
                                 <StackPanel Grid.Row="0">
                                     <TextBlock Text="Install queue"
                                                Foreground="#E2E8F0"
                                                FontSize="16"
                                                FontWeight="SemiBold"/>
-                                    <TextBlock Text="Review pending installs and retry when needed"
+                                    <TextBlock Text="Monitor pending installs, retry failures, or clear completed entries"
                                                Foreground="#64748B"
-                                               TextWrapping="Wrap"
-                                               FontSize="12"/>
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
                                 </StackPanel>
+
                                 <WrapPanel Grid.Row="1"
-                                           Margin="0,8,0,0"
+                                           Margin="0,16,0,0"
                                            HorizontalAlignment="Left">
                                     <Button Content="Retry failed"
                                             Command="{Binding RetryFailedCommand}"
@@ -593,52 +908,83 @@
                                             Margin="8,0,0,0"
                                             Style="{StaticResource InstallSecondaryButtonStyle}"/>
                                 </WrapPanel>
-                            </Grid>
 
-                            <ListView x:Name="OperationsList"
-                                      Grid.Row="1"
-                                      ItemsSource="{Binding Operations}"
-                                      Background="Transparent"
-                                      BorderThickness="0"
-                                      Foreground="#F8FAFC"
-                                      ScrollViewer.VerticalScrollBarVisibility="Visible"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                      ScrollViewer.CanContentScroll="True"
-                                      VirtualizingPanel.IsVirtualizing="True"
-                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                      VirtualizingStackPanel.ScrollUnit="Pixel">
-                                <ListView.ItemContainerStyle>
-                                    <Style TargetType="ListViewItem">
-                                        <Setter Property="HorizontalContentAlignment"
-                                                Value="Stretch"/>
-                                        <Setter Property="Padding"
-                                                Value="0"/>
-                                        <Setter Property="Background"
-                                                Value="Transparent"/>
-                                    </Style>
-                                </ListView.ItemContainerStyle>
-                                <ListView.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Padding="12"
-                                                Margin="0,4"
-                                                CornerRadius="8"
-                                                Background="#141E30">
+                                <ListView x:Name="OperationsList"
+                                          Grid.Row="2"
+                                          Margin="0,18,0,0"
+                                          ItemsSource="{Binding Operations}"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Padding="6,6,6,10"
+                                          Foreground="#F8FAFC"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.CanContentScroll="True"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingStackPanel.ScrollUnit="Pixel">
+                                    <ListView.ItemContainerStyle>
+                                        <StaticResource ResourceKey="InstallQueueItemStyle"/>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
                                             <StackPanel>
-                                                <WrapPanel VerticalAlignment="Center"
-                                                           Margin="0,0,0,4">
+                                                <StackPanel Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding PackageName}"
                                                                FontWeight="SemiBold"
-                                                               TextWrapping="Wrap"/>
+                                                               TextWrapping="Wrap"
+                                                               MaxWidth="180"/>
                                                     <TextBlock Text="{Binding StatusLabel}"
-                                                               Foreground="#38BDF8"
-                                                               Margin="12,0,0,0"/>
-                                                    <TextBlock Text="{Binding Attempts}"
-                                                               Foreground="#94A3B8"
-                                                               Margin="12,0,0,0"/>
-                                                </WrapPanel>
+                                                               Margin="10,0,0,0"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#38BDF8"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                 Value="Installed">
+                                                                        <Setter Property="Foreground" Value="#22C55E"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                 Value="Failed">
+                                                                        <Setter Property="Foreground" Value="#F87171"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                 Value="Cancelled">
+                                                                        <Setter Property="Foreground" Value="#FBBF24"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+
                                                 <TextBlock Text="{Binding Message}"
                                                            Foreground="#94A3B8"
-                                                           TextWrapping="WrapWithOverflow"/>
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,6,0,0"/>
+                                                <TextBlock Text="{Binding Attempts}"
+                                                           Foreground="#64748B"
+                                                           FontSize="11"
+                                                           Margin="0,4,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Attempts}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Attempts}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
                                                 <StackPanel Orientation="Horizontal"
                                                             Margin="0,12,0,0"
                                                             HorizontalAlignment="Right">
@@ -649,42 +995,39 @@
                                                             IsEnabled="{Binding IsActive}"/>
                                                 </StackPanel>
                                             </StackPanel>
-                                        </Border>
-                                    </DataTemplate>
-                                </ListView.ItemTemplate>
-                            </ListView>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
 
-                            <TextBlock Grid.Row="2"
-                                       Text="No installs queued yet. Queue a bundle or single package to get started."
-                                       HorizontalAlignment="Center"
-                                       Foreground="#64748B"
-                                       Margin="0,16,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility"
-                                                Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding Operations.Count}"
-                                                         Value="0">
-                                                <Setter Property="Visibility"
-                                                        Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
+                                <TextBlock Grid.Row="3"
+                                           Text="No installs queued yet. Queue a bundle or single package to get started."
+                                           HorizontalAlignment="Center"
+                                           Foreground="#64748B"
+                                           Margin="0,16,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Operations.Count}"
+                                                             Value="0">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
                         </Border>
                     </StackPanel>
                 </Grid>
             </Grid>
         </ScrollViewer>
 
-    <ContentControl x:Name="InstallHubLoadingOverlay"
-            Panel.ZIndex="5"
-            Focusable="False"
-            HorizontalAlignment="Stretch"
-            VerticalAlignment="Stretch">
+        <ContentControl x:Name="InstallHubLoadingOverlay"
+                        Panel.ZIndex="5"
+                        Focusable="False"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Stretch">
             <ContentControl.Template>
                 <ControlTemplate TargetType="ContentControl">
                     <Grid x:Name="OverlayRoot"
