@@ -1,24 +1,50 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- Reusable palette for the scrollbar experience -->
-    <SolidColorBrush x:Key="ScrollBar.TrackBrush"
-                     Color="#142436"
-                     Opacity="0.55"/>
-    <SolidColorBrush x:Key="ScrollBar.TrackHoverBrush"
-                     Color="#1D2F47"
-                     Opacity="0.75"/>
-    <SolidColorBrush x:Key="ScrollBar.TrackDisabledBrush"
-                     Color="#1B2335"
-                     Opacity="0.45"/>
+        <!-- Reusable palette for the scrollbar experience -->
+        <LinearGradientBrush x:Key="ScrollBar.TrackBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#11263F"
+                                          Offset="0"/>
+                <GradientStop Color="#0C1B31"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ScrollBar.TrackHoverBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#173453"
+                                          Offset="0"/>
+                <GradientStop Color="#0E223B"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="ScrollBar.TrackDisabledBrush"
+                                         Color="#1B2335"
+                                         Opacity="0.35"/>
+        <LinearGradientBrush x:Key="ScrollBar.TrackHighlightBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#2E9AF4"
+                                          Offset="0"/>
+                <GradientStop Color="#38BDF8"
+                                          Offset="0.5"/>
+                <GradientStop Color="#0EA5E9"
+                                          Offset="1"/>
+        </LinearGradientBrush>
 
-    <SolidColorBrush x:Key="ScrollBar.ThumbBrush"
-                     Color="#38BDF8"/>
-    <SolidColorBrush x:Key="ScrollBar.ThumbHoverBrush"
-                     Color="#1D9CEC"/>
-    <SolidColorBrush x:Key="ScrollBar.ThumbDragBrush"
-                     Color="#177FCC"/>
-    <SolidColorBrush x:Key="ScrollBar.ThumbDisabledBrush"
-                     Color="#334155"/>
+        <SolidColorBrush x:Key="ScrollBar.ThumbBrush"
+                                         Color="#38BDF8"/>
+        <SolidColorBrush x:Key="ScrollBar.ThumbHoverBrush"
+                                         Color="#53D0FF"/>
+        <SolidColorBrush x:Key="ScrollBar.ThumbDragBrush"
+                                         Color="#11A0F3"/>
+        <SolidColorBrush x:Key="ScrollBar.ThumbDisabledBrush"
+                                         Color="#334155"/>
+        <SolidColorBrush x:Key="ScrollBar.ThumbGlowBrush"
+                                         Color="#38BDF8"
+                                         Opacity="0.4"/>
+
+        <CubicEase x:Key="ScrollBarEase"
+                           EasingMode="EaseOut"/>
 
     <Style x:Key="App.ScrollBarDecreaseButtonStyle"
            TargetType="RepeatButton">
@@ -83,29 +109,212 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Border x:Name="ThumbRoot"
-                            Background="{TemplateBinding Background}"
-                            CornerRadius="6"/>
-                    <ControlTemplate.Triggers>
-                        <Trigger Property="IsMouseOver"
-                                 Value="True">
-                            <Setter TargetName="ThumbRoot"
-                                    Property="Background"
-                                    Value="{StaticResource ScrollBar.ThumbHoverBrush}"/>
-                        </Trigger>
-                        <Trigger Property="IsDragging"
-                                 Value="True">
-                            <Setter TargetName="ThumbRoot"
-                                    Property="Background"
-                                    Value="{StaticResource ScrollBar.ThumbDragBrush}"/>
-                        </Trigger>
-                        <Trigger Property="IsEnabled"
-                                 Value="False">
-                            <Setter TargetName="ThumbRoot"
-                                    Property="Background"
-                                    Value="{StaticResource ScrollBar.ThumbDisabledBrush}"/>
-                        </Trigger>
-                    </ControlTemplate.Triggers>
+                                        <Grid x:Name="ThumbRoot"
+                                                  RenderTransformOrigin="0.5,0.5">
+                                                <Grid.RenderTransform>
+                                                        <ScaleTransform x:Name="ThumbScale"
+                                                                                        ScaleX="1"
+                                                                                        ScaleY="1"/>
+                                                </Grid.RenderTransform>
+                                                <Grid.Effect>
+                                                        <DropShadowEffect x:Name="ThumbShadow"
+                                                                                          BlurRadius="18"
+                                                                                          Color="#5AD6FF"
+                                                                                          ShadowDepth="0"
+                                                                                          Opacity="0"/>
+                                                </Grid.Effect>
+                                                <Border x:Name="Glow"
+                                                                Background="{StaticResource ScrollBar.ThumbGlowBrush}"
+                                                                CornerRadius="9"
+                                                                Opacity="0"/>
+                                                <Border x:Name="Surface"
+                                                                Background="{TemplateBinding Background}"
+                                                                CornerRadius="9"/>
+                                                <Border x:Name="Shimmer"
+                                                                Margin="1.5"
+                                                                CornerRadius="7"
+                                                                BorderBrush="#D7F5FF"
+                                                                BorderThickness="0"
+                                                                Opacity="0"/>
+                                        </Grid>
+                                        <ControlTemplate.Triggers>
+                                                <Trigger Property="IsMouseOver"
+                                                                 Value="True">
+                                                        <Setter TargetName="Surface"
+                                                                        Property="Background"
+                                                                        Value="{StaticResource ScrollBar.ThumbHoverBrush}"/>
+                                                        <Setter TargetName="Shimmer"
+                                                                        Property="BorderThickness"
+                                                                        Value="1"/>
+                                                        <Trigger.EnterActions>
+                                                                <BeginStoryboard x:Name="ThumbHoverOn">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1.08"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                                 To="1.08"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.45"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Shimmer"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.65"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.55"
+                                                                                                                 Duration="0:0:0.22"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                                <StopStoryboard BeginStoryboardName="ThumbHoverOn"/>
+                                                                <BeginStoryboard x:Name="ThumbHoverOff">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.22"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.22"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Shimmer"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                </Trigger>
+                                                <Trigger Property="IsDragging"
+                                                                 Value="True">
+                                                        <Setter TargetName="Surface"
+                                                                        Property="Background"
+                                                                        Value="{StaticResource ScrollBar.ThumbDragBrush}"/>
+                                                        <Setter TargetName="Shimmer"
+                                                                        Property="BorderBrush"
+                                                                        Value="#F9FAFB"/>
+                                                        <Trigger.EnterActions>
+                                                                <StopStoryboard BeginStoryboardName="ThumbHoverOn"/>
+                                                                <BeginStoryboard x:Name="ThumbDragOn">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1.14"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                                 To="1.14"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.6"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Shimmer"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.85"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.75"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                                <BeginStoryboard x:Name="ThumbDragOff">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1.08"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                                 To="1.08"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.45"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Shimmer"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.65"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.55"
+                                                                                                                 Duration="0:0:0.22"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled"
+                                                                 Value="False">
+                                                        <Setter TargetName="Surface"
+                                                                        Property="Background"
+                                                                        Value="{StaticResource ScrollBar.ThumbDisabledBrush}"/>
+                                                        <Trigger.EnterActions>
+                                                                <BeginStoryboard>
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.1"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Shimmer"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.1"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.1"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.1"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ThumbScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.1"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                </Trigger>
+                                        </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
@@ -125,13 +334,34 @@
                     <Grid x:Name="Root"
                           Background="{TemplateBinding Background}">
                         <Border x:Name="TrackBackground"
-                                Background="{StaticResource ScrollBar.TrackBrush}"
-                                CornerRadius="6"
-                                Opacity="1"/>
-                           <Track x:Name="PART_Track"
-                                   Margin="0"
-                               Focusable="False"
-                               Orientation="{TemplateBinding Orientation}">
+                                                                Background="{StaticResource ScrollBar.TrackBrush}"
+                                                                CornerRadius="9"
+                                                                Opacity="0.88"/>
+                                                <Border x:Name="TrackHighlight"
+                                                                Background="{StaticResource ScrollBar.TrackHighlightBrush}"
+                                                                CornerRadius="9"
+                                                                Opacity="0"
+                                                                Margin="0"/>
+                                                <Border x:Name="TrackSheen"
+                                                                Margin="2"
+                                                                CornerRadius="7"
+                                                                Opacity="0">
+                                                        <Border.Background>
+                                                                <LinearGradientBrush StartPoint="0,0"
+                                                                                                         EndPoint="0,1">
+                                                                        <GradientStop Color="#5FFFFFFF"
+                                                                                                  Offset="0"/>
+                                                                        <GradientStop Color="#18FFFFFF"
+                                                                                                  Offset="0.45"/>
+                                                                        <GradientStop Color="#00FFFFFF"
+                                                                                                  Offset="1"/>
+                                                                </LinearGradientBrush>
+                                                        </Border.Background>
+                                                </Border>
+                                                <Track x:Name="PART_Track"
+                                                           Margin="0"
+                                                           Focusable="False"
+                                                           Orientation="{TemplateBinding Orientation}">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Style="{StaticResource App.ScrollBarDecreaseButtonStyle}"/>
                             </Track.DecreaseRepeatButton>
@@ -147,13 +377,19 @@
                         <Trigger Property="Orientation"
                                  Value="Vertical">
                             <Setter Property="Width"
-                                    Value="12"/>
+                                    Value="14"/>
                             <Setter TargetName="TrackBackground"
                                     Property="CornerRadius"
-                                    Value="6"/>
+                                    Value="9"/>
                             <Setter TargetName="TrackBackground"
                                     Property="Margin"
                                     Value="0,4"/>
+                            <Setter TargetName="TrackHighlight"
+                                    Property="Margin"
+                                    Value="0,4"/>
+                            <Setter TargetName="TrackSheen"
+                                    Property="Margin"
+                                    Value="2,6"/>
                             <Setter TargetName="PART_Track"
                                     Property="IsDirectionReversed"
                                     Value="True"/>
@@ -161,13 +397,19 @@
                         <Trigger Property="Orientation"
                                  Value="Horizontal">
                             <Setter Property="Height"
-                                    Value="12"/>
+                                    Value="14"/>
                             <Setter TargetName="TrackBackground"
                                     Property="CornerRadius"
-                                    Value="6"/>
+                                    Value="9"/>
                             <Setter TargetName="TrackBackground"
                                     Property="Margin"
                                     Value="4,0"/>
+                            <Setter TargetName="TrackHighlight"
+                                    Property="Margin"
+                                    Value="4,0"/>
+                            <Setter TargetName="TrackSheen"
+                                    Property="Margin"
+                                    Value="6,2"/>
                             <Setter TargetName="PART_Track"
                                     Property="IsDirectionReversed"
                                     Value="False"/>
@@ -177,12 +419,64 @@
                             <Setter TargetName="TrackBackground"
                                     Property="Background"
                                     Value="{StaticResource ScrollBar.TrackHoverBrush}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="TrackHoverOn">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="TrackHighlight"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.55"
+                                                         Duration="0:0:0.28"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="TrackSheen"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.4"
+                                                         Duration="0:0:0.28"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="TrackBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="1"
+                                                         Duration="0:0:0.28"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="TrackHoverOn"/>
+                                <BeginStoryboard x:Name="TrackHoverOff">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="TrackHighlight"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.25"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="TrackSheen"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         Duration="0:0:0.25"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="TrackBackground"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.88"
+                                                         Duration="0:0:0.25"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsEnabled"
                                  Value="False">
                             <Setter TargetName="TrackBackground"
                                     Property="Background"
                                     Value="{StaticResource ScrollBar.TrackDisabledBrush}"/>
+                            <Setter TargetName="TrackHighlight"
+                                    Property="Opacity"
+                                    Value="0"/>
+                            <Setter TargetName="TrackSheen"
+                                    Property="Opacity"
+                                    Value="0"/>
+                            <Setter TargetName="TrackBackground"
+                                    Property="Opacity"
+                                    Value="0.6"/>
                         </Trigger>
                         <Trigger Property="Orientation"
                                  Value="Horizontal">
@@ -198,6 +492,12 @@
                             <Setter TargetName="TrackBackground"
                                     Property="VerticalAlignment"
                                     Value="Center"/>
+                            <Setter TargetName="TrackHighlight"
+                                    Property="VerticalAlignment"
+                                    Value="Center"/>
+                            <Setter TargetName="TrackSheen"
+                                    Property="VerticalAlignment"
+                                    Value="Center"/>
                         </Trigger>
                         <Trigger Property="Orientation"
                                  Value="Vertical">
@@ -205,6 +505,12 @@
                                     Property="VerticalAlignment"
                                     Value="Stretch"/>
                             <Setter TargetName="TrackBackground"
+                                    Property="HorizontalAlignment"
+                                    Value="Center"/>
+                            <Setter TargetName="TrackHighlight"
+                                    Property="HorizontalAlignment"
+                                    Value="Center"/>
+                            <Setter TargetName="TrackSheen"
                                     Property="HorizontalAlignment"
                                     Value="Center"/>
                         </Trigger>
