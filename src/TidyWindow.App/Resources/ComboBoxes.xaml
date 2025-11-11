@@ -1,60 +1,115 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <!-- Palette for the custom combo box experience -->
-    <SolidColorBrush x:Key="ComboBox.BackgroundBrush"
-                     Color="#0F172A"/>
-    <SolidColorBrush x:Key="ComboBox.HoverBrush"
-                     Color="#15263F"/>
-    <SolidColorBrush x:Key="ComboBox.ActiveBrush"
-                     Color="#132039"/>
-    <SolidColorBrush x:Key="ComboBox.DisabledBackgroundBrush"
-                     Color="#1B2335"/>
+        <LinearGradientBrush x:Key="ComboBox.BackgroundBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#122540"
+                                          Offset="0"/>
+                <GradientStop Color="#0B1626"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ComboBox.HoverBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#1B3356"
+                                          Offset="0"/>
+                <GradientStop Color="#10213A"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ComboBox.ActiveBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#1F2750"
+                                          Offset="0"/>
+                <GradientStop Color="#152D4B"
+                                          Offset="0.55"/>
+                <GradientStop Color="#101F39"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ComboBox.DisabledBackgroundBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#1B2335"
+                                          Offset="0"/>
+                <GradientStop Color="#151C2D"
+                                          Offset="1"/>
+        </LinearGradientBrush>
 
-    <SolidColorBrush x:Key="ComboBox.BorderBrush"
-                     Color="#1E293B"/>
-    <SolidColorBrush x:Key="ComboBox.HoverBorderBrush"
-                     Color="#273852"/>
-    <SolidColorBrush x:Key="ComboBox.ActiveBorderBrush"
-                     Color="#38BDF8"/>
-    <SolidColorBrush x:Key="ComboBox.DisabledBorderBrush"
-                     Color="#273245"/>
-    <SolidColorBrush x:Key="ComboBox.FocusBrush"
-                     Color="#2563EB"/>
+        <SolidColorBrush x:Key="ComboBox.BorderBrush"
+                                         Color="#23324A"/>
+        <SolidColorBrush x:Key="ComboBox.HoverBorderBrush"
+                                         Color="#2E4160"/>
+        <SolidColorBrush x:Key="ComboBox.ActiveBorderBrush"
+                                         Color="#3CC5FF"/>
+        <SolidColorBrush x:Key="ComboBox.DisabledBorderBrush"
+                                         Color="#273245"/>
+        <SolidColorBrush x:Key="ComboBox.FocusBrush"
+                                         Color="#2563EB"/>
 
-    <SolidColorBrush x:Key="ComboBox.GlyphBrush"
-                     Color="#38BDF8"/>
-    <SolidColorBrush x:Key="ComboBox.HoverGlyphBrush"
-                     Color="#1D9CEC"/>
-    <SolidColorBrush x:Key="ComboBox.ActiveGlyphBrush"
-                     Color="#7C3AED"/>
-    <SolidColorBrush x:Key="ComboBox.DisabledGlyphBrush"
-                     Color="#475569"/>
+        <SolidColorBrush x:Key="ComboBox.GlyphBrush"
+                                         Color="#38BDF8"/>
+        <SolidColorBrush x:Key="ComboBox.HoverGlyphBrush"
+                                         Color="#53D0FF"/>
+        <SolidColorBrush x:Key="ComboBox.ActiveGlyphBrush"
+                                         Color="#8B5CF6"/>
+        <SolidColorBrush x:Key="ComboBox.DisabledGlyphBrush"
+                                         Color="#475569"/>
 
-    <SolidColorBrush x:Key="ComboBox.PopupBackgroundBrush"
-                     Color="#0F172A"/>
-    <SolidColorBrush x:Key="ComboBox.PopupBorderBrush"
-                     Color="#1E293B"/>
+        <LinearGradientBrush x:Key="ComboBox.HighlightOverlayBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#3DB5FF"
+                                          Offset="0"/>
+                <GradientStop Color="#1D5FEB"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ComboBox.SurfaceSheenBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#6CFFFFFF"
+                                          Offset="0"/>
+                <GradientStop Color="#18FFFFFF"
+                                          Offset="0.45"/>
+                <GradientStop Color="#00FFFFFF"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ComboBox.FocusHaloBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="1,1">
+                <GradientStop Color="#53D0FF"
+                                          Offset="0"/>
+                <GradientStop Color="#2563EB"
+                                          Offset="1"/>
+        </LinearGradientBrush>
 
-    <SolidColorBrush x:Key="ComboBox.ItemHoverBrush"
-                     Color="#1B2942"/>
-    <SolidColorBrush x:Key="ComboBox.ItemHoverBorderBrush"
-                     Color="#2A3F62"/>
-    <SolidColorBrush x:Key="ComboBox.ItemSelectedBrush"
-                     Color="#1E3A8A"/>
-    <SolidColorBrush x:Key="ComboBox.ItemSelectedForegroundBrush"
-                     Color="#F8FAFC"/>
+        <SolidColorBrush x:Key="ComboBox.PopupBackgroundBrush"
+                                         Color="#0F172A"/>
+        <SolidColorBrush x:Key="ComboBox.PopupBorderBrush"
+                                         Color="#1E293B"/>
 
-    <SolidColorBrush x:Key="ComboBox.DisabledForegroundBrush"
-                     Color="#64748B"/>
+        <SolidColorBrush x:Key="ComboBox.ItemHoverBrush"
+                                         Color="#1C2F51"/>
+        <SolidColorBrush x:Key="ComboBox.ItemHoverBorderBrush"
+                                         Color="#2A3F62"/>
+        <SolidColorBrush x:Key="ComboBox.ItemSelectedBrush"
+                                         Color="#1E3A8A"/>
+        <SolidColorBrush x:Key="ComboBox.ItemSelectedForegroundBrush"
+                                         Color="#F8FAFC"/>
 
-    <DropShadowEffect x:Key="ComboBox.PopupShadow"
-                      Color="#000000"
-                      BlurRadius="22"
-                      ShadowDepth="0"
-                      Opacity="0.42"/>
+        <SolidColorBrush x:Key="ComboBox.DisabledForegroundBrush"
+                                         Color="#64748B"/>
 
-    <CubicEase x:Key="ComboBox.PopupEase"
-               EasingMode="EaseOut"/>
+        <DropShadowEffect x:Key="ComboBox.PopupShadow"
+                                          Color="#000000"
+                                          BlurRadius="26"
+                                          ShadowDepth="0"
+                                          Opacity="0.48"/>
+
+        <CubicEase x:Key="ComboBox.PopupEase"
+                           EasingMode="EaseOut"/>
+        <CubicEase x:Key="ComboBoxEase"
+                           EasingMode="EaseOut"/>
 
     <Style x:Key="App.ComboBoxToggleButtonStyle"
            TargetType="ToggleButton">
@@ -67,49 +122,179 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Border Background="Transparent"
-                            CornerRadius="10"
-                            Padding="0">
-                        <Grid>
-                            <Border x:Name="ArrowHost"
-                                    Width="36"
-                                    HorizontalAlignment="Right"
-                                    Background="Transparent"
-                                    Padding="0">
-                                                                                                                                <Path x:Name="ArrowGlyph"
-                                                                                                                                                        Data="M 0 0 L 5 5 L 10 0"
-                                                                                                                                                        Stroke="{TemplateBinding Foreground}"
-                                                                                                                                                        StrokeThickness="1.5"
-                                                                                                                                                        StrokeStartLineCap="Round"
-                                                                                                                                                        StrokeEndLineCap="Round"
-                                                                                                                                                        HorizontalAlignment="Center"
-                                                                                                                                                        VerticalAlignment="Center">
-                                                                                                                                                <Path.RenderTransform>
-                                                                                                                                                                <RotateTransform Angle="0"
-                                                                                                                                                                                                                                 CenterX="5"
-                                                                                                                                                                                                                                 CenterY="2.5"/>
-                                                                                                                                                </Path.RenderTransform>
-                                                                                                                                </Path>
-                            </Border>
-                        </Grid>
+                                        <Border Background="Transparent"
+                                                        CornerRadius="12"
+                                                        Padding="0">
+                                                <Grid>
+                                                        <Border x:Name="ArrowGlow"
+                                                                        Width="28"
+                                                                        Height="32"
+                                                                        Margin="0,4,6,4"
+                                                                        HorizontalAlignment="Right"
+                                                                        CornerRadius="14"
+                                                                        Background="{StaticResource ComboBox.HighlightOverlayBrush}"
+                                                                        Opacity="0"
+                                                                        IsHitTestVisible="False"/>
+                                                        <Grid x:Name="ArrowHost"
+                                                                  Width="36"
+                                                                  HorizontalAlignment="Right"
+                                                                  Background="Transparent">
+                                                                <Grid.RenderTransform>
+                                                                        <ScaleTransform x:Name="ArrowHostScale"
+                                                                                                        ScaleX="1"
+                                                                                                        ScaleY="1"/>
+                                                                </Grid.RenderTransform>
+                                                                <Path x:Name="ArrowGlyph"
+                                                                          Data="M 0 0 L 5 5 L 10 0"
+                                                                          Stroke="{TemplateBinding Foreground}"
+                                                                          StrokeThickness="1.5"
+                                                                          StrokeStartLineCap="Round"
+                                                                          StrokeEndLineCap="Round"
+                                                                          HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center">
+                                                                        <Path.Effect>
+                                                                                <DropShadowEffect x:Name="ArrowShadow"
+                                                                                                                  BlurRadius="10"
+                                                                                                                  Color="#4CD2FF"
+                                                                                                                  ShadowDepth="0"
+                                                                                                                  Opacity="0"/>
+                                                                        </Path.Effect>
+                                                                        <Path.RenderTransform>
+                                                                                <TransformGroup>
+                                                                                        <ScaleTransform x:Name="ArrowScale"
+                                                                                                                        ScaleX="1"
+                                                                                                                        ScaleY="1"/>
+                                                                                        <RotateTransform x:Name="ArrowRotate"
+                                                                                                                         Angle="0"
+                                                                                                                         CenterX="5"
+                                                                                                                         CenterY="2.5"/>
+                                                                                </TransformGroup>
+                                                                        </Path.RenderTransform>
+                                                                </Path>
+                                                        </Grid>
+                                                </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                                                 <Trigger Property="IsChecked"
                                                                  Value="True">
-                                                        <Setter TargetName="ArrowGlyph"
-                                                                        Property="RenderTransform">
-                                                                <Setter.Value>
-                                                                        <RotateTransform Angle="180"
-                                                                                                         CenterX="5"
-                                                                                                         CenterY="2.5"/>
-                                                                </Setter.Value>
-                                                        </Setter>
+                                                        <Trigger.EnterActions>
+                                                                <BeginStoryboard x:Name="ArrowCheckOn">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowRotate"
+                                                                                                                 Storyboard.TargetProperty="Angle"
+                                                                                                                 To="180"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowGlow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.38"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.45"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                                <StopStoryboard BeginStoryboardName="ArrowCheckOn"/>
+                                                                <BeginStoryboard x:Name="ArrowCheckOff">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowRotate"
+                                                                                                                 Storyboard.TargetProperty="Angle"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.22"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowGlow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.22"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.22"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.ExitActions>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver"
+                                                                 Value="True">
+                                                        <Trigger.EnterActions>
+                                                                <BeginStoryboard x:Name="ArrowHoverOn">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1.12"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                                 To="1.12"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowHostScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1.05"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowGlow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.28"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.3"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.EnterActions>
+                                                        <Trigger.ExitActions>
+                                                                <StopStoryboard BeginStoryboardName="ArrowHoverOn"/>
+                                                                <BeginStoryboard x:Name="ArrowHoverOff">
+                                                                        <Storyboard>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleY"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowHostScale"
+                                                                                                                 Storyboard.TargetProperty="ScaleX"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowGlow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="ArrowShadow"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ComboBoxEase}"/>
+                                                                        </Storyboard>
+                                                                </BeginStoryboard>
+                                                        </Trigger.ExitActions>
                                                 </Trigger>
                         <Trigger Property="IsEnabled"
                                  Value="False">
-                            <Setter TargetName="ArrowGlyph"
-                                    Property="Opacity"
-                                    Value="0.45"/>
+                                                        <Setter TargetName="ArrowGlow"
+                                                                        Property="Opacity"
+                                                                        Value="0"/>
+                                                        <Setter TargetName="ArrowGlyph"
+                                                                        Property="Opacity"
+                                                                        Value="0.45"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -226,71 +411,114 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBox">
-                    <Grid x:Name="Root"
-                          SnapsToDevicePixels="True">
-                        <Border x:Name="Surface"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="12"
-                                SnapsToDevicePixels="True"/>
-                        <Border x:Name="FocusBorder"
-                                Margin="-2"
-                                CornerRadius="14"
-                                BorderThickness="1.5"
-                                BorderBrush="{StaticResource ComboBox.FocusBrush}"
-                                Opacity="0"/>
-                        <ContentPresenter x:Name="ContentSite"
-                                          Margin="{TemplateBinding Padding}"
-                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
-                                          Content="{TemplateBinding SelectionBoxItem}"
-                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                          RecognizesAccessKey="True"
-                                          IsHitTestVisible="False"/>
-                        <ToggleButton x:Name="ToggleButton"
-                                      Style="{StaticResource App.ComboBoxToggleButtonStyle}"
-                                      Focusable="False"
-                                      Background="Transparent"
-                                      BorderThickness="0"
-                                      Foreground="{StaticResource ComboBox.GlyphBrush}"
-                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                      HorizontalAlignment="Stretch"
-                                      VerticalAlignment="Stretch"/>
-                        <Popup x:Name="PART_Popup"
-                               Placement="Bottom"
-                               AllowsTransparency="True"
-                               Focusable="False"
-                               StaysOpen="False"
-                               PopupAnimation="Fade"
-                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
-                               IsOpen="{TemplateBinding IsDropDownOpen}">
-                            <Grid x:Name="DropDown"
-                                  SnapsToDevicePixels="True"
-                                  MinWidth="{TemplateBinding ActualWidth}"
-                                  MaxHeight="{TemplateBinding MaxDropDownHeight}">
-                                <Border x:Name="PopupBorder"
-                                        Background="{StaticResource ComboBox.PopupBackgroundBrush}"
-                                        BorderBrush="{StaticResource ComboBox.PopupBorderBrush}"
-                                        BorderThickness="1"
-                                        CornerRadius="12"
-                                        Padding="6"
-                                        Opacity="0"
-                                        Effect="{StaticResource ComboBox.PopupShadow}">
-                                    <Border.RenderTransform>
-                                        <ScaleTransform ScaleX="0.94"
-                                                        ScaleY="0.92"/>
-                                    </Border.RenderTransform>
-                                    <Border.RenderTransformOrigin>0.5,0</Border.RenderTransformOrigin>
-                                    <ScrollViewer Margin="0"
+                                        <Grid x:Name="Root"
                                                   SnapsToDevicePixels="True">
-                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                    </ScrollViewer>
-                                </Border>
-                            </Grid>
-                        </Popup>
-                    </Grid>
+                                                <Grid x:Name="SurfaceLayers">
+                                                        <Border x:Name="Surface"
+                                                                        Background="{TemplateBinding Background}"
+                                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                                        CornerRadius="14"
+                                                                        SnapsToDevicePixels="True">
+                                                                <Border.Effect>
+                                                                        <DropShadowEffect x:Name="SurfaceShadow"
+                                                                                                          Color="#2F9BFF"
+                                                                                                          BlurRadius="14"
+                                                                                                          ShadowDepth="0"
+                                                                                                          Opacity="0.18"/>
+                                                                </Border.Effect>
+                                                        </Border>
+                                                        <Border x:Name="HoverOverlay"
+                                                                        Background="{StaticResource ComboBox.HighlightOverlayBrush}"
+                                                                        CornerRadius="14"
+                                                                        Opacity="0"
+                                                                        IsHitTestVisible="False"/>
+                                                        <Border x:Name="SurfaceSheen"
+                                                                        Margin="2"
+                                                                        CornerRadius="12"
+                                                                        Background="{StaticResource ComboBox.SurfaceSheenBrush}"
+                                                                        Opacity="0"
+                                                                        IsHitTestVisible="False"/>
+                                                        <Border x:Name="ActiveGlow"
+                                                                        Margin="-2"
+                                                                        CornerRadius="16"
+                                                                        BorderBrush="{StaticResource ComboBox.FocusHaloBrush}"
+                                                                        BorderThickness="1.6"
+                                                                        Opacity="0"
+                                                                        IsHitTestVisible="False"/>
+                                                        <Border x:Name="FocusBorder"
+                                                                        Margin="-3"
+                                                                        CornerRadius="18"
+                                                                        BorderThickness="2"
+                                                                        BorderBrush="{StaticResource ComboBox.FocusBrush}"
+                                                                        Opacity="0"
+                                                                        IsHitTestVisible="False"/>
+                                                </Grid>
+                                                <ContentPresenter x:Name="ContentSite"
+                                                                                  Margin="{TemplateBinding Padding}"
+                                                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                                                                  Content="{TemplateBinding SelectionBoxItem}"
+                                                                                  ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                                                                  ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                                                                  RecognizesAccessKey="True"
+                                                                                  IsHitTestVisible="False"/>
+                                                <ToggleButton x:Name="ToggleButton"
+                                                                          Style="{StaticResource App.ComboBoxToggleButtonStyle}"
+                                                                          Focusable="False"
+                                                                          Background="Transparent"
+                                                                          BorderThickness="0"
+                                                                          Foreground="{StaticResource ComboBox.GlyphBrush}"
+                                                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                                                          HorizontalAlignment="Stretch"
+                                                                          VerticalAlignment="Stretch"/>
+                                                <Popup x:Name="PART_Popup"
+                                                           Placement="Bottom"
+                                                           AllowsTransparency="True"
+                                                           Focusable="False"
+                                                           StaysOpen="False"
+                                                           PopupAnimation="Fade"
+                                                           PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                                                           IsOpen="{TemplateBinding IsDropDownOpen}">
+                                                        <Grid x:Name="DropDown"
+                                                                  SnapsToDevicePixels="True"
+                                                                  MinWidth="{TemplateBinding ActualWidth}"
+                                                                  MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                                                <Border x:Name="PopupGlow"
+                                                                                Background="{StaticResource ComboBox.HighlightOverlayBrush}"
+                                                                                CornerRadius="14"
+                                                                                Opacity="0"
+                                                                                Margin="0"
+                                                                                IsHitTestVisible="False"/>
+                                                                <Border x:Name="PopupBorder"
+                                                                                Background="{StaticResource ComboBox.PopupBackgroundBrush}"
+                                                                                BorderBrush="{StaticResource ComboBox.PopupBorderBrush}"
+                                                                                BorderThickness="1"
+                                                                                CornerRadius="12"
+                                                                                Padding="6"
+                                                                                Opacity="0"
+                                                                                Effect="{StaticResource ComboBox.PopupShadow}">
+                                                                        <Border.RenderTransform>
+                                                                                <ScaleTransform ScaleX="0.94"
+                                                                                                                ScaleY="0.86"/>
+                                                                        </Border.RenderTransform>
+                                                                        <Border.RenderTransformOrigin>0.5,0</Border.RenderTransformOrigin>
+                                                                        <Grid>
+                                                                                <Border x:Name="PopupSheen"
+                                                                                                Background="{StaticResource ComboBox.SurfaceSheenBrush}"
+                                                                                                CornerRadius="10"
+                                                                                                Margin="2"
+                                                                                                Opacity="0"
+                                                                                                IsHitTestVisible="False"/>
+                                                                                <ScrollViewer Margin="0"
+                                                                                                          SnapsToDevicePixels="True">
+                                                                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                                                                </ScrollViewer>
+                                                                        </Grid>
+                                                                </Border>
+                                                        </Grid>
+                                                </Popup>
+                                        </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="HasItems"
                                  Value="False">
@@ -311,6 +539,18 @@
                             <Setter TargetName="ToggleButton"
                                     Property="Foreground"
                                     Value="{StaticResource ComboBox.DisabledGlyphBrush}"/>
+                            <Setter TargetName="HoverOverlay"
+                                    Property="Opacity"
+                                    Value="0"/>
+                            <Setter TargetName="SurfaceSheen"
+                                    Property="Opacity"
+                                    Value="0"/>
+                            <Setter TargetName="ActiveGlow"
+                                    Property="Opacity"
+                                    Value="0"/>
+                            <Setter TargetName="FocusBorder"
+                                    Property="Opacity"
+                                    Value="0"/>
                         </Trigger>
                         <Trigger Property="IsMouseOver"
                                  Value="True">
@@ -323,6 +563,15 @@
                             <Setter TargetName="ToggleButton"
                                     Property="Foreground"
                                     Value="{StaticResource ComboBox.HoverGlyphBrush}"/>
+                            <Setter TargetName="HoverOverlay"
+                                    Property="Opacity"
+                                    Value="0.45"/>
+                            <Setter TargetName="SurfaceSheen"
+                                    Property="Opacity"
+                                    Value="0.35"/>
+                            <Setter TargetName="ActiveGlow"
+                                    Property="Opacity"
+                                    Value="0.35"/>
                         </Trigger>
                         <Trigger Property="IsDropDownOpen"
                                  Value="True">
@@ -334,10 +583,19 @@
                                     Value="{StaticResource ComboBox.ActiveBorderBrush}"/>
                             <Setter TargetName="FocusBorder"
                                     Property="Opacity"
-                                    Value="0.9"/>
+                                    Value="1"/>
                             <Setter TargetName="ToggleButton"
                                     Property="Foreground"
                                     Value="{StaticResource ComboBox.ActiveGlyphBrush}"/>
+                            <Setter TargetName="ActiveGlow"
+                                    Property="Opacity"
+                                    Value="0.8"/>
+                            <Setter TargetName="HoverOverlay"
+                                    Property="Opacity"
+                                    Value="0.7"/>
+                            <Setter TargetName="SurfaceSheen"
+                                    Property="Opacity"
+                                    Value="0.55"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocusWithin"
                                  Value="True">
@@ -350,6 +608,9 @@
                             <Setter TargetName="ToggleButton"
                                     Property="Foreground"
                                     Value="{StaticResource ComboBox.HoverGlyphBrush}"/>
+                            <Setter TargetName="ActiveGlow"
+                                    Property="Opacity"
+                                    Value="0.6"/>
                         </Trigger>
                         <Trigger SourceName="PART_Popup"
                                  Property="Popup.IsOpen"
@@ -361,17 +622,29 @@
                                                          Storyboard.TargetProperty="Opacity"
                                                          From="0"
                                                          To="1"
-                                                         Duration="0:0:0.16"
+                                                         Duration="0:0:0.18"
                                                          EasingFunction="{StaticResource ComboBox.PopupEase}"/>
                                         <DoubleAnimation Storyboard.TargetName="PopupBorder"
                                                          Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
                                                          To="1"
-                                                         Duration="0:0:0.16"
+                                                         Duration="0:0:0.18"
                                                          EasingFunction="{StaticResource ComboBox.PopupEase}"/>
                                         <DoubleAnimation Storyboard.TargetName="PopupBorder"
                                                          Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
                                                          To="1"
-                                                         Duration="0:0:0.16"
+                                                         Duration="0:0:0.18"
+                                                         EasingFunction="{StaticResource ComboBox.PopupEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="PopupGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0"
+                                                         To="0.5"
+                                                         Duration="0:0:0.2"
+                                                         EasingFunction="{StaticResource ComboBox.PopupEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="PopupSheen"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0"
+                                                         To="0.65"
+                                                         Duration="0:0:0.2"
                                                          EasingFunction="{StaticResource ComboBox.PopupEase}"/>
                                     </Storyboard>
                                 </BeginStoryboard>
