@@ -61,6 +61,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         ManagerFilters.Add(AllManagersFilter);
         Operations.CollectionChanged += OnOperationsCollectionChanged;
+        Warnings.CollectionChanged += OnWarningsCollectionChanged;
     }
 
     public ObservableCollection<PackageMaintenanceItemViewModel> Packages { get; } = new();
@@ -94,6 +95,17 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     [ObservableProperty]
     private string _headline = "Maintain installed packages";
 
+    [ObservableProperty]
+    private bool _areWarningsVisible = true;
+
+    public bool HasWarnings => Warnings.Count > 0;
+
+    public string WarningToggleLabel => !HasWarnings
+        ? "Show warnings"
+        : AreWarningsVisible
+            ? "Hide warnings"
+            : $"Show warnings ({Warnings.Count})";
+
     public string SummaryText
     {
         get
@@ -119,6 +131,11 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     public Func<string, bool>? ConfirmElevation { get; set; }
 
     public event EventHandler? AdministratorRestartRequested;
+
+    partial void OnAreWarningsVisibleChanged(bool value)
+    {
+        OnPropertyChanged(nameof(WarningToggleLabel));
+    }
 
     [RelayCommand]
     private async Task RefreshAsync()
@@ -221,6 +238,19 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _mainViewModel.SetStatusMessage($"Queued {enqueued} update(s).");
         QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
     }
+
+    [RelayCommand(CanExecute = nameof(CanToggleWarnings))]
+    private void ToggleWarnings()
+    {
+        if (!HasWarnings)
+        {
+            return;
+        }
+
+        AreWarningsVisible = !AreWarningsVisible;
+    }
+
+    private bool CanToggleWarnings() => HasWarnings;
 
     [RelayCommand(CanExecute = nameof(CanSelectAllPackages))]
     private void SelectAllPackages()
@@ -1506,6 +1536,13 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         return dispatcher.InvokeAsync(action, DispatcherPriority.Normal).Task;
     }
 
+    private void OnWarningsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasWarnings));
+        OnPropertyChanged(nameof(WarningToggleLabel));
+        ToggleWarningsCommand.NotifyCanExecuteChanged();
+    }
+
     public void Dispose()
     {
         if (_isDisposed)
@@ -1515,6 +1552,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         _isDisposed = true;
         Operations.CollectionChanged -= OnOperationsCollectionChanged;
+        Warnings.CollectionChanged -= OnWarningsCollectionChanged;
 
         foreach (var item in _attachedItems.ToList())
         {

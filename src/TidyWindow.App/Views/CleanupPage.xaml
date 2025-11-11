@@ -1996,24 +1996,13 @@
                         <TextBlock Text="Categories selected"
                                    FontSize="12"
                                    Foreground="#94A3B8"/>
-                        <ItemsControl ItemsSource="{Binding PendingDeletionCategories}"
-                                      Margin="0,4,0,0">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Style="{StaticResource CategorySummaryChipStyle}">
-                                        <TextBlock Text="{Binding}"
-                                                   FontSize="12"
-                                                   Foreground="#E2E8F0"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                            <ItemsControl.Style>
-                                <Style TargetType="ItemsControl">
+                        <ScrollViewer Margin="0,4,0,0"
+                                      MaxHeight="220"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      CanContentScroll="False">
+                            <ScrollViewer.Style>
+                                <Style TargetType="ScrollViewer">
                                     <Setter Property="Visibility"
                                             Value="Visible"/>
                                     <Style.Triggers>
@@ -2024,8 +2013,24 @@
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </ItemsControl.Style>
-                        </ItemsControl>
+                            </ScrollViewer.Style>
+                            <ItemsControl ItemsSource="{Binding PendingDeletionCategories}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource CategorySummaryChipStyle}">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="12"
+                                                       Foreground="#E2E8F0"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
                         <TextBlock Text="No categories selected."
                                    FontSize="12"
                                    Foreground="#64748B"

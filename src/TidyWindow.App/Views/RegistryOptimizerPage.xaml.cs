@@ -26,6 +26,7 @@ public partial class RegistryOptimizerPage : Page
 
     private const double MarginTighteningBuffer = 160d;
     private const double ScreenMaxWidthRatio = 0.92d;
+    private const double CompactCardPrimaryWidthThreshold = 780d;
 
     private Thickness _secondaryColumnDefaultMargin;
     private readonly Thickness _secondaryColumnStackedMargin = new(0, 24, 0, 0);
@@ -174,12 +175,6 @@ public partial class RegistryOptimizerPage : Page
             ContentScrollViewer.Margin = desiredMargin;
         }
 
-        var compactCards = stackLayout || viewportWidth < totalMinimum + MarginTighteningBuffer;
-        if (IsCompactCards != compactCards)
-        {
-            IsCompactCards = compactCards;
-        }
-
         if (stackLayout)
         {
             if (!_isStackedLayout)
@@ -197,6 +192,10 @@ public partial class RegistryOptimizerPage : Page
 
             PageContentGrid.Width = double.IsNaN(targetWidth) ? double.NaN : targetWidth;
             PageContentGrid.MaxWidth = Math.Max(totalMinimum, defaultMaxWidth);
+            if (!IsCompactCards)
+            {
+                IsCompactCards = true;
+            }
             return;
         }
         else
@@ -279,6 +278,13 @@ public partial class RegistryOptimizerPage : Page
 
         PrimaryColumnDefinition.Width = new GridLength(primaryWidth, GridUnitType.Pixel);
         SecondaryColumnDefinition.Width = new GridLength(secondaryWidth, GridUnitType.Pixel);
+
+        var shouldCompactCards = viewportWidth < totalMinimum + MarginTighteningBuffer
+                                  || primaryWidth < CompactCardPrimaryWidthThreshold;
+        if (IsCompactCards != shouldCompactCards)
+        {
+            IsCompactCards = shouldCompactCards;
+        }
     }
 
     private void EnsureScrollHandlers()
