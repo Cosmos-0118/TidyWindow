@@ -3,7 +3,8 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:svc="clr-namespace:TidyWindow.App.Services"
+    xmlns:svc="clr-namespace:TidyWindow.App.Services"
+    xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
       mc:Ignorable="d"
       Title="Logs"
       Background="Transparent">
@@ -84,19 +85,19 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="LogsCardBorderStyle"
-               TargetType="Border">
-            <Setter Property="Background"
-                    Value="#0F172A"/>
-            <Setter Property="BorderBrush"
-                    Value="#1E293B"/>
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-            <Setter Property="CornerRadius"
-                    Value="12"/>
-            <Setter Property="Padding"
-                    Value="20"/>
-        </Style>
+    <Style x:Key="LogsCardBorderStyle"
+           TargetType="Border">
+        <Setter Property="Background"
+            Value="#0F172A"/>
+        <Setter Property="BorderBrush"
+            Value="#1E293B"/>
+        <Setter Property="BorderThickness"
+            Value="1"/>
+        <Setter Property="CornerRadius"
+            Value="12"/>
+        <Setter Property="Padding"
+            Value="16"/>
+    </Style>
 
         <Style x:Key="LogsSecondaryButtonStyle"
                TargetType="Button">
@@ -108,8 +109,8 @@
                     Value="#334155"/>
             <Setter Property="BorderThickness"
                     Value="1"/>
-            <Setter Property="Padding"
-                    Value="12,6"/>
+        <Setter Property="Padding"
+            Value="10,5"/>
             <Setter Property="Cursor"
                     Value="Hand"/>
             <Setter Property="Template">
@@ -152,6 +153,59 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="LogEntryCardStyle"
+               TargetType="Border">
+            <Setter Property="Background" Value="#101C33"/>
+            <Setter Property="BorderBrush" Value="#1E293B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
+                             Value="True">
+                    <Setter Property="Background" Value="#14253F"/>
+                    <Setter Property="BorderBrush" Value="#2C4A76"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                             Value="True">
+                    <Setter Property="Background" Value="#132844"/>
+                    <Setter Property="BorderBrush" Value="#38BDF8"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="LogLevelChipStyle"
+               TargetType="Border">
+            <Setter Property="Background" Value="#13243C"/>
+            <Setter Property="BorderBrush" Value="#1E3A5F"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="8,3"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="TextElement.Foreground" Value="#38BDF8"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Level}"
+                             Value="{x:Static svc:ActivityLogLevel.Success}">
+                    <Setter Property="Background" Value="#103021"/>
+                    <Setter Property="BorderBrush" Value="#1C5C34"/>
+                    <Setter Property="TextElement.Foreground" Value="#34D399"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}"
+                             Value="{x:Static svc:ActivityLogLevel.Warning}">
+                    <Setter Property="Background" Value="#2C220F"/>
+                    <Setter Property="BorderBrush" Value="#A16207"/>
+                    <Setter Property="TextElement.Foreground" Value="#F59E0B"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Level}"
+                             Value="{x:Static svc:ActivityLogLevel.Error}">
+                    <Setter Property="Background" Value="#301519"/>
+                    <Setter Property="BorderBrush" Value="#B91C1C"/>
+                    <Setter Property="TextElement.Foreground" Value="#F87171"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </Page.Resources>
 
@@ -402,159 +456,79 @@
                                           BorderThickness="0"
                                           Foreground="#F8FAFC"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                          ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           ScrollViewer.CanContentScroll="True"
                                           VirtualizingPanel.IsVirtualizing="True"
                                           VirtualizingPanel.VirtualizationMode="Recycling"
                                           VirtualizingStackPanel.ScrollUnit="Pixel"
-                                          Loaded="LogsListView_Loaded"
-                                          SizeChanged="LogsListView_SizeChanged">
+                                          Loaded="LogsListView_Loaded">
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
-                                            <Setter Property="HorizontalContentAlignment"
-                                                    Value="Stretch"/>
-                                            <Setter Property="Padding"
-                                                    Value="10,8"/>
-                                            <Setter Property="Margin"
-                                                    Value="0,4"/>
-                                            <Setter Property="Background"
-                                                    Value="#101D30"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0,0,0,8"/>
+                                            <Setter Property="Background" Value="Transparent"/>
                                             <Setter Property="Template">
                                                 <Setter.Value>
                                                     <ControlTemplate TargetType="ListViewItem">
-                                                        <Border x:Name="Container"
-                                                                CornerRadius="8"
-                                                                Background="{TemplateBinding Background}"
-                                                                Padding="{TemplateBinding Padding}">
-                                                            <GridViewRowPresenter Content="{TemplateBinding Content}"
-                                                                                  Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                SnapsToDevicePixels="True">
+                                                            <ContentPresenter/>
                                                         </Border>
-                                                        <ControlTemplate.Triggers>
-                                                            <Trigger Property="IsSelected"
-                                                                     Value="True">
-                                                                <Setter TargetName="Container"
-                                                                        Property="Background"
-                                                                        Value="#1E3A8A"/>
-                                                                <Setter Property="Foreground"
-                                                                        Value="#F8FAFC"/>
-                                                            </Trigger>
-                                                            <Trigger Property="IsMouseOver"
-                                                                     Value="True">
-                                                                <Setter TargetName="Container"
-                                                                        Property="Background"
-                                                                        Value="#1B2942"/>
-                                                            </Trigger>
-                                                        </ControlTemplate.Triggers>
                                                     </ControlTemplate>
                                                 </Setter.Value>
                                             </Setter>
                                         </Style>
                                     </ListView.ItemContainerStyle>
-                                    <ListView.View>
-                                        <GridView x:Name="LogsGridView"
-                                                  AllowsColumnReorder="False">
-                                            <GridView.ColumnHeaderContainerStyle>
-                                                <Style TargetType="GridViewColumnHeader">
-                                                    <Setter Property="Foreground"
-                                                            Value="#94A3B8"/>
-                                                    <Setter Property="FontSize"
-                                                            Value="12"/>
-                                                    <Setter Property="FontWeight"
-                                                            Value="SemiBold"/>
-                                                    <Setter Property="HorizontalContentAlignment"
-                                                            Value="Left"/>
-                                                    <Setter Property="Padding"
-                                                            Value="6,4"/>
-                                                    <Setter Property="Background"
-                                                            Value="Transparent"/>
-                                                </Style>
-                                            </GridView.ColumnHeaderContainerStyle>
-                                            <GridViewColumn x:Name="TimestampColumn"
-                                                            Width="180"
-                                                            DisplayMemberBinding="{Binding TimestampDisplay}">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Time"/>
-                                                </GridViewColumn.Header>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="LevelColumn"
-                                                            Width="110">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Level"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
-                                                        <TextBlock Text="{Binding LevelDisplay}"
-                                                                   FontWeight="SemiBold">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Foreground"
-                                                                            Value="#38BDF8"/>
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding Level}"
-                                                                                     Value="{x:Static svc:ActivityLogLevel.Success}">
-                                                                            <Setter Property="Foreground"
-                                                                                    Value="#22C55E"/>
-                                                                        </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding Level}"
-                                                                                     Value="{x:Static svc:ActivityLogLevel.Warning}">
-                                                                            <Setter Property="Foreground"
-                                                                                    Value="#F59E0B"/>
-                                                                        </DataTrigger>
-                                                                        <DataTrigger Binding="{Binding Level}"
-                                                                                     Value="{x:Static svc:ActivityLogLevel.Error}">
-                                                                            <Setter Property="Foreground"
-                                                                                    Value="#F87171"/>
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="SourceColumn"
-                                                            Width="180">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Source"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type viewModels:ActivityLogItemViewModel}">
+                                            <Border Style="{StaticResource LogEntryCardStyle}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding TimestampDisplay}"
+                                                                   FontSize="13"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F8FAFC"/>
                                                         <TextBlock Text="{Binding Source}"
+                                                                   FontSize="11"
+                                                                   Foreground="#94A3B8"
+                                                                   Margin="0,4,0,0"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    ToolTip="{Binding Source}"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="MessageColumn"
-                                                            Width="360">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Message"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
                                                         <TextBlock Text="{Binding Message}"
-                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontSize="13"
+                                                                   Foreground="#E2E8F0"
+                                                                   Margin="0,6,0,0"
+                                                                   TextWrapping="Wrap"
                                                                    ToolTip="{Binding Message}"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                            <GridViewColumn x:Name="ActionsColumn"
-                                                            Width="120">
-                                                <GridViewColumn.Header>
-                                                    <TextBlock Text="Actions"/>
-                                                </GridViewColumn.Header>
-                                                <GridViewColumn.CellTemplate>
-                                                    <DataTemplate>
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="1"
+                                                                HorizontalAlignment="Right"
+                                                                VerticalAlignment="Top">
+                                                        <Border Style="{StaticResource LogLevelChipStyle}">
+                                                            <TextBlock Text="{Binding LevelDisplay}"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"
+                                                                       HorizontalAlignment="Center"
+                                                                       TextAlignment="Center"/>
+                                                        </Border>
                                                         <Button Content="Copy"
                                                                 Command="{Binding DataContext.CopyEntryCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                 CommandParameter="{Binding}"
-                                                                HorizontalAlignment="Stretch"
+                                                                MinWidth="84"
+                                                                Margin="0,4,0,0"
                                                                 Style="{StaticResource LogsSecondaryButtonStyle}"/>
-                                                    </DataTemplate>
-                                                </GridViewColumn.CellTemplate>
-                                            </GridViewColumn>
-                                        </GridView>
-                                    </ListView.View>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
                                 </ListView>
 
                                 <TextBlock Text="No log entries yet. Run an operation or adjust filters."

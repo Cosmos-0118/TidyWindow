@@ -1359,10 +1359,10 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanClearCurrentSelection))]
     private void ClearCurrentSelection()
     {
-        ApplySelectionToCurrentTarget(false, currentPageOnly: true);
+        ApplySelectionAcrossTargets(false);
     }
 
-    private bool CanClearCurrentSelection() => FilteredItems.Any(static item => item.IsSelected);
+    private bool CanClearCurrentSelection() => HasSelection;
 
     private void ApplySelectionAcrossTargets(bool isSelected)
     {

@@ -13,6 +13,10 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    <converters:StringLengthToFontSizeConverter x:Key="CleanupTitleFontSizeConverter"
+                            LargeSize="16"
+                            MediumSize="14"
+                            SmallSize="12"/>
     <LinearGradientBrush x:Key="CleanupProgressBrush"
                   StartPoint="0,0"
                   EndPoint="1,0">
@@ -547,6 +551,63 @@
             Value="8,4"/>
         <Setter Property="Margin"
             Value="0,0,8,8"/>
+    </Style>
+    <Style x:Key="CleanupListCardStyle"
+           TargetType="Border">
+        <Setter Property="Background"
+            Value="#111C33"/>
+        <Setter Property="BorderBrush"
+            Value="#1E293B"/>
+        <Setter Property="BorderThickness"
+            Value="1"/>
+        <Setter Property="CornerRadius"
+            Value="12"/>
+        <Setter Property="Padding"
+            Value="14,12"/>
+        <Setter Property="SnapsToDevicePixels"
+            Value="True"/>
+        <Setter Property="Opacity"
+            Value="0.96"/>
+        <Style.Triggers>
+        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
+                 Value="True">
+            <Setter Property="BorderBrush"
+                Value="#38BDF8"/>
+            <Setter Property="Background"
+                Value="#172844"/>
+            <Setter Property="Opacity"
+                Value="1"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                 Value="True">
+            <Setter Property="BorderBrush"
+                Value="#38BDF8"/>
+            <Setter Property="Background"
+                Value="#1E3355"/>
+            <Setter Property="Opacity"
+                Value="1"/>
+        </DataTrigger>
+        <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsEnabled}"
+                 Value="False">
+            <Setter Property="Opacity"
+                Value="0.55"/>
+        </DataTrigger>
+        </Style.Triggers>
+    </Style>
+    <Style x:Key="CleanupMetaChipStyle"
+           TargetType="Border">
+        <Setter Property="Background"
+            Value="#13243C"/>
+        <Setter Property="BorderBrush"
+            Value="#1E293B"/>
+        <Setter Property="BorderThickness"
+            Value="1"/>
+        <Setter Property="CornerRadius"
+            Value="8"/>
+        <Setter Property="Padding"
+            Value="8,4"/>
+        <Setter Property="Margin"
+            Value="0,0,8,0"/>
     </Style>
     </Page.Resources>
     <Grid>
@@ -1485,6 +1546,7 @@
                                       Background="Transparent"
                                       BorderThickness="0"
                                       Foreground="#F8FAFC"
+                                      Padding="12,12,12,4"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                       ScrollViewer.CanContentScroll="True"
@@ -1497,199 +1559,107 @@
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment"
                                                 Value="Stretch"/>
+                                        <Setter Property="Margin"
+                                                Value="0,0,0,10"/>
                                         <Setter Property="Padding"
-                                                Value="6"/>
+                                                Value="0"/>
                                         <Setter Property="Background"
-                                                Value="#111C33"/>
-                                        <Setter Property="Foreground"
-                                                Value="#F8FAFC"/>
+                                                Value="Transparent"/>
+                                        <Setter Property="BorderThickness"
+                                                Value="0"/>
+                                        <Setter Property="FocusVisualStyle"
+                                                Value="{x:Null}"/>
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListViewItem">
-                                                    <Border x:Name="Outer"
-                                                            Background="{TemplateBinding Background}"
-                                                            CornerRadius="8"
-                                                            Padding="{TemplateBinding Padding}"
-                                                            Opacity="0.94"
-                                                            RenderTransformOrigin="0.5,0.5">
-                                                        <Border.RenderTransform>
-                                                            <ScaleTransform ScaleX="1"
-                                                                            ScaleY="1"/>
-                                                        </Border.RenderTransform>
-                                                        <GridViewRowPresenter Margin="0"
-                                                                              Content="{TemplateBinding Content}"
-                                                                              Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsSelected"
-                                                                 Value="True">
-                                                            <Setter TargetName="Outer"
-                                                                    Property="Background"
-                                                                    Value="#1F2937"/>
-                                                            <Trigger.EnterActions>
-                                                                <BeginStoryboard>
-                                                                    <Storyboard>
-                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
-                                                                                         Storyboard.TargetProperty="Opacity"
-                                                                                         To="1"
-                                                                                         Duration="0:0:0.18">
-                                                                            <DoubleAnimation.EasingFunction>
-                                                                                <QuadraticEase EasingMode="EaseOut"/>
-                                                                            </DoubleAnimation.EasingFunction>
-                                                                        </DoubleAnimation>
-                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
-                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
-                                                                                         To="1.04"
-                                                                                         Duration="0:0:0.18">
-                                                                            <DoubleAnimation.EasingFunction>
-                                                                                <QuadraticEase EasingMode="EaseOut"/>
-                                                                            </DoubleAnimation.EasingFunction>
-                                                                        </DoubleAnimation>
-                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
-                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
-                                                                                         To="1.04"
-                                                                                         Duration="0:0:0.18">
-                                                                            <DoubleAnimation.EasingFunction>
-                                                                                <QuadraticEase EasingMode="EaseOut"/>
-                                                                            </DoubleAnimation.EasingFunction>
-                                                                        </DoubleAnimation>
-                                                                    </Storyboard>
-                                                                </BeginStoryboard>
-                                                            </Trigger.EnterActions>
-                                                            <Trigger.ExitActions>
-                                                                <BeginStoryboard>
-                                                                    <Storyboard FillBehavior="Stop">
-                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
-                                                                                         Storyboard.TargetProperty="Opacity"
-                                                                                         To="0.94"
-                                                                                         Duration="0:0:0.18">
-                                                                            <DoubleAnimation.EasingFunction>
-                                                                                <QuadraticEase EasingMode="EaseInOut"/>
-                                                                            </DoubleAnimation.EasingFunction>
-                                                                        </DoubleAnimation>
-                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
-                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
-                                                                                         To="1"
-                                                                                         Duration="0:0:0.18">
-                                                                            <DoubleAnimation.EasingFunction>
-                                                                                <QuadraticEase EasingMode="EaseInOut"/>
-                                                                            </DoubleAnimation.EasingFunction>
-                                                                        </DoubleAnimation>
-                                                                        <DoubleAnimation Storyboard.TargetName="Outer"
-                                                                                         Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
-                                                                                         To="1"
-                                                                                         Duration="0:0:0.18">
-                                                                            <DoubleAnimation.EasingFunction>
-                                                                                <QuadraticEase EasingMode="EaseInOut"/>
-                                                                            </DoubleAnimation.EasingFunction>
-                                                                        </DoubleAnimation>
-                                                                    </Storyboard>
-                                                                </BeginStoryboard>
-                                                            </Trigger.ExitActions>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver"
-                                                                 Value="True">
-                                                            <Setter TargetName="Outer"
-                                                                    Property="Background"
-                                                                    Value="#27364A"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsEnabled"
-                                                                 Value="False">
-                                                            <Setter TargetName="Outer"
-                                                                    Property="Opacity"
-                                                                    Value="0.6"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
+                                                    <ContentPresenter/>
                                                 </ControlTemplate>
                                             </Setter.Value>
                                         </Setter>
                                     </Style>
                                 </ListView.ItemContainerStyle>
-                                <ListView.View>
-                                    <GridView AllowsColumnReorder="False">
-                                        <GridView.ColumnHeaderContainerStyle>
-                                            <Style TargetType="GridViewColumnHeader">
-                                                <Setter Property="Foreground"
-                                                        Value="#94A3B8"/>
-                                                <Setter Property="FontSize"
-                                                        Value="12"/>
-                                                <Setter Property="FontWeight"
-                                                        Value="SemiBold"/>
-                                                <Setter Property="HorizontalContentAlignment"
-                                                        Value="Left"/>
-                                                <Setter Property="Padding"
-                                                        Value="6,4"/>
-                                                <Setter Property="Background"
-                                                        Value="Transparent"/>
-                                            </Style>
-                                        </GridView.ColumnHeaderContainerStyle>
-                                        <GridViewColumn Width="260">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Category"/>
-                                            </GridViewColumn.Header>
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <StackPanel Orientation="Horizontal">
-                                                        <CheckBox IsChecked="{Binding SelectionToggleState, Mode=TwoWay}"
-                                                                  IsThreeState="True"
-                                                                  VerticalAlignment="Center"
-                                                                  Margin="0,0,8,0"
-                                                                  FocusVisualStyle="{x:Null}"
-                                                                  Foreground="#E2E8F0"
-                                                                  ToolTip="Select or clear this entire category."/>
-                                <Border Style="{StaticResource CategoryBadgeStyle}"
-                                    VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding Classification}"
-                                                                       Foreground="#38BDF8"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold"
-                                                                       TextTrimming="CharacterEllipsis"/>
-                                                        </Border>
-                                                        <TextBlock Text="{Binding Category}"
-                                                                   FontSize="13"
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource CleanupListCardStyle}">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <CheckBox Grid.Row="0"
+                                                          Grid.RowSpan="3"
+                                                          Grid.Column="0"
+                                                          IsChecked="{Binding SelectionToggleState, Mode=TwoWay}"
+                                                          IsThreeState="True"
+                                                          Margin="0,2,16,0"
+                                                          VerticalAlignment="Top"
+                                                          FocusVisualStyle="{x:Null}"
+                                                          Foreground="#E2E8F0"
+                                                          ToolTip="Select or clear this entire category."/>
+                                                <StackPanel Grid.Row="0"
+                                                            Grid.Column="1"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Top">
+                                                    <Border Style="{StaticResource CategoryBadgeStyle}"
+                                                            VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding Classification}"
+                                                                   Foreground="#38BDF8"
+                                                                   FontSize="11"
                                                                    FontWeight="SemiBold"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   ToolTip="{Binding Category}"/>
-                                                    </StackPanel>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Width="90"
-                                                        DisplayMemberBinding="{Binding RemainingItemCount}">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Items"/>
-                                            </GridViewColumn.Header>
-                                        </GridViewColumn>
-                                        <GridViewColumn Width="140">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Size"/>
-                                            </GridViewColumn.Header>
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding RemainingSizeMegabytes, StringFormat={}{0:F2} MB}"
-                                                               FontSize="12"
-                                                               Foreground="#CBD5F5"
-                                                               TextAlignment="Right"
-                                                               HorizontalAlignment="Stretch"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                        <GridViewColumn Width="320">
-                                            <GridViewColumn.Header>
-                                                <TextBlock Text="Path"/>
-                                            </GridViewColumn.Header>
-                                            <GridViewColumn.CellTemplate>
-                                                <DataTemplate>
-                                                    <TextBlock Text="{Binding Path}"
-                                                               FontSize="12"
-                                                               Foreground="#94A3B8"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding Category}"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#F8FAFC"
+                                                               TextWrapping="Wrap"
                                                                TextTrimming="CharacterEllipsis"
-                                                               ToolTip="{Binding Path}"/>
-                                                </DataTemplate>
-                                            </GridViewColumn.CellTemplate>
-                                        </GridViewColumn>
-                                    </GridView>
-                                </ListView.View>
+                                                               ToolTip="{Binding Category}">
+                                                        <TextBlock.FontSize>
+                                                            <Binding Path="Category"
+                                                                     Converter="{StaticResource CleanupTitleFontSizeConverter}"
+                                                                     ConverterParameter="compact"/>
+                                                        </TextBlock.FontSize>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <WrapPanel Grid.Row="1"
+                                                           Grid.Column="1"
+                                                           Margin="0,8,0,0"
+                                                           HorizontalAlignment="Left">
+                                                    <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                        <TextBlock FontSize="12"
+                                                                   Foreground="#E2E8F0">
+                                                            <Run Text="Items"/>
+                                                            <Run Text=" • "/>
+                                                            <Run Text="{Binding RemainingItemCount, Mode=OneWay}"/>
+                                                        </TextBlock>
+                                                    </Border>
+                                                    <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                        <TextBlock FontSize="12"
+                                                                   Foreground="#E2E8F0">
+                                                            <Run Text="Size"/>
+                                                            <Run Text=" • "/>
+                                                            <Run Text="{Binding RemainingSizeMegabytes, Mode=OneWay, StringFormat={}{0:F2} MB}"/>
+                                                        </TextBlock>
+                                                    </Border>
+                                                </WrapPanel>
+                                                <TextBlock Grid.Row="2"
+                                                           Grid.Column="1"
+                                                           Margin="0,10,0,0"
+                                                           FontSize="11"
+                                                           Foreground="#94A3B8"
+                                                           TextWrapping="Wrap"
+                                                           TextTrimming="None"
+                                                           Text="{Binding Path}"
+                                                           ToolTip="{Binding Path}"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
                                 <ListView.IsEnabled>
                                     <Binding Path="IsBusy"
                                              Converter="{StaticResource InverseBooleanConverter}"/>
@@ -1746,6 +1716,7 @@
                                               Background="Transparent"
                                               BorderThickness="0"
                                               Foreground="#F8FAFC"
+                                              Padding="8,8,8,4"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                               ScrollViewer.CanContentScroll="True"
@@ -1758,213 +1729,118 @@
                                             <Style TargetType="ListViewItem">
                                                 <Setter Property="HorizontalContentAlignment"
                                                         Value="Stretch"/>
+                                                <Setter Property="Margin"
+                                                        Value="0,0,0,10"/>
                                                 <Setter Property="Padding"
-                                                        Value="6"/>
+                                                        Value="0"/>
                                                 <Setter Property="Background"
-                                                        Value="#111C33"/>
+                                                        Value="Transparent"/>
+                                                <Setter Property="BorderThickness"
+                                                        Value="0"/>
+                                                <Setter Property="FocusVisualStyle"
+                                                        Value="{x:Null}"/>
                                                 <Setter Property="Template">
                                                     <Setter.Value>
                                                         <ControlTemplate TargetType="ListViewItem">
-                                                            <Border x:Name="Inner"
-                                                                    Background="{TemplateBinding Background}"
-                                                                    CornerRadius="8"
-                                                                    Padding="{TemplateBinding Padding}"
-                                                                    Opacity="0.92"
-                                                                    RenderTransformOrigin="0.5,0.5">
-                                                                <Border.RenderTransform>
-                                                                    <ScaleTransform ScaleX="1"
-                                                                                    ScaleY="1"/>
-                                                                </Border.RenderTransform>
-                                                                <GridViewRowPresenter Margin="0"
-                                                                                      Content="{TemplateBinding Content}"
-                                                                                      Columns="{Binding Path=View.Columns, RelativeSource={RelativeSource AncestorType=ListView}}"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver"
-                                                                         Value="True">
-                                                                    <Setter TargetName="Inner"
-                                                                            Property="Background"
-                                                                            Value="#1B2942"/>
-                                                                </Trigger>
-                                                                <DataTrigger Binding="{Binding IsSelected}"
-                                                                             Value="True">
-                                                                    <Setter TargetName="Inner"
-                                                                            Property="Background"
-                                                                            Value="#1E3355"/>
-                                                                    <DataTrigger.EnterActions>
-                                                                        <BeginStoryboard>
-                                                                            <Storyboard>
-                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
-                                                                                                 Storyboard.TargetProperty="Opacity"
-                                                                                                 To="1"
-                                                                                                 Duration="0:0:0.18">
-                                                                                    <DoubleAnimation.EasingFunction>
-                                                                                        <QuadraticEase EasingMode="EaseOut"/>
-                                                                                    </DoubleAnimation.EasingFunction>
-                                                                                </DoubleAnimation>
-                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
-                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
-                                                                                                 To="1.03"
-                                                                                                 Duration="0:0:0.18">
-                                                                                    <DoubleAnimation.EasingFunction>
-                                                                                        <QuadraticEase EasingMode="EaseOut"/>
-                                                                                    </DoubleAnimation.EasingFunction>
-                                                                                </DoubleAnimation>
-                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
-                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
-                                                                                                 To="1.03"
-                                                                                                 Duration="0:0:0.18">
-                                                                                    <DoubleAnimation.EasingFunction>
-                                                                                        <QuadraticEase EasingMode="EaseOut"/>
-                                                                                    </DoubleAnimation.EasingFunction>
-                                                                                </DoubleAnimation>
-                                                                            </Storyboard>
-                                                                        </BeginStoryboard>
-                                                                    </DataTrigger.EnterActions>
-                                                                    <DataTrigger.ExitActions>
-                                                                        <BeginStoryboard>
-                                                                            <Storyboard FillBehavior="Stop">
-                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
-                                                                                                 Storyboard.TargetProperty="Opacity"
-                                                                                                 To="0.92"
-                                                                                                 Duration="0:0:0.18">
-                                                                                    <DoubleAnimation.EasingFunction>
-                                                                                        <QuadraticEase EasingMode="EaseInOut"/>
-                                                                                    </DoubleAnimation.EasingFunction>
-                                                                                </DoubleAnimation>
-                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
-                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleX)"
-                                                                                                 To="1"
-                                                                                                 Duration="0:0:0.18">
-                                                                                    <DoubleAnimation.EasingFunction>
-                                                                                        <QuadraticEase EasingMode="EaseInOut"/>
-                                                                                    </DoubleAnimation.EasingFunction>
-                                                                                </DoubleAnimation>
-                                                                                <DoubleAnimation Storyboard.TargetName="Inner"
-                                                                                                 Storyboard.TargetProperty="RenderTransform.(ScaleTransform.ScaleY)"
-                                                                                                 To="1"
-                                                                                                 Duration="0:0:0.18">
-                                                                                    <DoubleAnimation.EasingFunction>
-                                                                                        <QuadraticEase EasingMode="EaseInOut"/>
-                                                                                    </DoubleAnimation.EasingFunction>
-                                                                                </DoubleAnimation>
-                                                                            </Storyboard>
-                                                                        </BeginStoryboard>
-                                                                    </DataTrigger.ExitActions>
-                                                                </DataTrigger>
-                                                            </ControlTemplate.Triggers>
+                                                            <ContentPresenter/>
                                                         </ControlTemplate>
                                                     </Setter.Value>
                                                 </Setter>
                                             </Style>
                                         </ListView.ItemContainerStyle>
-                                        <ListView.View>
-                                            <GridView AllowsColumnReorder="False">
-                                                <GridView.ColumnHeaderContainerStyle>
-                                                    <Style TargetType="GridViewColumnHeader">
-                                                        <Setter Property="Foreground"
-                                                                Value="#94A3B8"/>
-                                                        <Setter Property="FontSize"
-                                                                Value="12"/>
-                                                        <Setter Property="FontWeight"
-                                                                Value="SemiBold"/>
-                                                        <Setter Property="HorizontalContentAlignment"
-                                                                Value="Left"/>
-                                                        <Setter Property="Padding"
-                                                                Value="6,4"/>
-                                                        <Setter Property="Background"
-                                                                Value="Transparent"/>
-                                                    </Style>
-                                                </GridView.ColumnHeaderContainerStyle>
-                                                <GridViewColumn Width="380">
-                                                    <GridViewColumn.Header>
-                                                        <TextBlock Text="Item"/>
-                                                    </GridViewColumn.Header>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <StackPanel>
-                                                                <StackPanel.ContextMenu>
-                                                                    <ContextMenu>
-                                                                        <MenuItem Header="Copy full path"
-                                                                                  Command="{Binding PlacementTarget.DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
-                                                                    </ContextMenu>
-                                                                </StackPanel.ContextMenu>
-                                                                <StackPanel Orientation="Horizontal">
-                                                                    <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                              Margin="0,0,12,0"/>
-                                                                    <TextBlock Text="{Binding Name}"
-                                                                               FontSize="13"
-                                                                               FontWeight="SemiBold"
-                                                                               TextTrimming="CharacterEllipsis"/>
-                                                                </StackPanel>
-                                                                <TextBlock Text="{Binding FullName}"
-                                                                           FontSize="11"
-                                                                           Foreground="#94A3B8"
-                                                                           Margin="24,2,0,0"
-                                                                           TextTrimming="CharacterEllipsis"
-                                                                           ToolTip="{Binding FullName}"/>
-                                                            </StackPanel>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Width="120">
-                                                    <GridViewColumn.Header>
-                                                        <TextBlock Text="Size"/>
-                                                    </GridViewColumn.Header>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding SizeMegabytes, StringFormat={}{0:F2} MB}"
-                                                                       FontSize="12"
-                                                                       Foreground="#CBD5F5"
-                                                                       TextAlignment="Right"
-                                                                       HorizontalAlignment="Stretch"/>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Width="180">
-                                                    <GridViewColumn.Header>
-                                                        <TextBlock Text="Last modified"/>
-                                                    </GridViewColumn.Header>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding LastModifiedDisplay}"
-                                                                       FontSize="12"
-                                                                       Foreground="#94A3B8"
-                                                                       TextAlignment="Right"
-                                                                       HorizontalAlignment="Stretch"/>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Width="180">
-                                                    <GridViewColumn.Header>
-                                                        <TextBlock Text="Last accessed"/>
-                                                    </GridViewColumn.Header>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding LastAccessDisplay}"
-                                                                       FontSize="12"
-                                                                       Foreground="#94A3B8"
-                                                                       TextAlignment="Right"
-                                                                       HorizontalAlignment="Stretch"/>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                                <GridViewColumn Width="180">
-                                                    <GridViewColumn.Header>
-                                                        <TextBlock Text="Created"/>
-                                                    </GridViewColumn.Header>
-                                                    <GridViewColumn.CellTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding CreationDisplay}"
-                                                                       FontSize="12"
-                                                                       Foreground="#94A3B8"
-                                                                       TextAlignment="Right"
-                                                                       HorizontalAlignment="Stretch"/>
-                                                        </DataTemplate>
-                                                    </GridViewColumn.CellTemplate>
-                                                </GridViewColumn>
-                                            </GridView>
-                                        </ListView.View>
+                                        <ListView.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource CleanupListCardStyle}">
+                                                    <Border.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Copy full path"
+                                                                      Command="{Binding PlacementTarget.DataContext.CopyPathCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                        </ContextMenu>
+                                                    </Border.ContextMenu>
+                                                    <Grid>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto"/>
+                                                            <RowDefinition Height="Auto"/>
+                                                            <RowDefinition Height="Auto"/>
+                                                        </Grid.RowDefinitions>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox Grid.Row="0"
+                                                                  Grid.RowSpan="3"
+                                                                  Grid.Column="0"
+                                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                  Margin="0,2,16,0"
+                                                                  VerticalAlignment="Top"
+                                                                  FocusVisualStyle="{x:Null}"/>
+                                                        <TextBlock Grid.Row="0"
+                                                                   Grid.Column="1"
+                                                                   Grid.ColumnSpan="2"
+                                                                   Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F8FAFC"
+                                                                   TextWrapping="Wrap"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   ToolTip="{Binding FullName}">
+                                                            <TextBlock.FontSize>
+                                                                <Binding Path="Name"
+                                                                         Converter="{StaticResource CleanupTitleFontSizeConverter}"/>
+                                                            </TextBlock.FontSize>
+                                                        </TextBlock>
+                                                        <WrapPanel Grid.Row="1"
+                                                                   Grid.Column="1"
+                                                                   Grid.ColumnSpan="2"
+                                                                   Margin="0,8,0,0"
+                                                                   HorizontalAlignment="Left">
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                                <TextBlock FontSize="11"
+                                                                           Foreground="#E2E8F0">
+                                                                    <Run Text="Size"/>
+                                                                    <Run Text=" • "/>
+                                                                    <Run Text="{Binding SizeMegabytes, Mode=OneWay, StringFormat={}{0:F2} MB}"/>
+                                                                </TextBlock>
+                                                            </Border>
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                                <TextBlock FontSize="11"
+                                                                           Foreground="#CBD5F5">
+                                                                    <Run Text="Modified"/>
+                                                                    <Run Text=" • "/>
+                                                                    <Run Text="{Binding LastModifiedDisplay, Mode=OneWay}"/>
+                                                                </TextBlock>
+                                                            </Border>
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                                <TextBlock FontSize="11"
+                                                                           Foreground="#CBD5F5">
+                                                                    <Run Text="Accessed"/>
+                                                                    <Run Text=" • "/>
+                                                                    <Run Text="{Binding LastAccessDisplay, Mode=OneWay}"/>
+                                                                </TextBlock>
+                                                            </Border>
+                                                            <Border Style="{StaticResource CleanupMetaChipStyle}">
+                                                                <TextBlock FontSize="11"
+                                                                           Foreground="#CBD5F5">
+                                                                    <Run Text="Created"/>
+                                                                    <Run Text=" • "/>
+                                                                    <Run Text="{Binding CreationDisplay, Mode=OneWay}"/>
+                                                                </TextBlock>
+                                                            </Border>
+                                                        </WrapPanel>
+                                                        <TextBlock Grid.Row="2"
+                                                                   Grid.Column="1"
+                                                                   Grid.ColumnSpan="2"
+                                                                   Margin="0,10,0,0"
+                                                                   FontSize="11"
+                                                                   Foreground="#7FA6D3"
+                                                                   TextWrapping="Wrap"
+                                                                   TextTrimming="None"
+                                                                   Text="{Binding FullName}"
+                                                                   ToolTip="{Binding FullName}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ListView.ItemTemplate>
                                         <ListView.IsEnabled>
                                             <Binding Path="IsBusy"
                                                      Converter="{StaticResource InverseBooleanConverter}"/>

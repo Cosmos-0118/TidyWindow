@@ -1,5 +1,15 @@
 a smart watch dog that sniffs logs for errors:
 
+give this feature a smart little name(sound cool and good)
+
+in setings page:
+ -it needs rework make it beautiful and now we always run in admin mode so change the description.
+ - we add a option to run our app in background(system tray). user can togel it.
+ -we send system notification from our app. like if anything is completed. other notification from logs.
+ -they can also toggle notification from settings.
+ -we should not bombard them with notification just when they are not in the app we should send.
+ 
+
 -our app can give lot of small silly errors:(the below are some i found go through the app and find more).
  0) we could also add a gendralised notification like if there was any error a option like view so they can view in logs.
  1) when user doesnt have latest version of powershell.
