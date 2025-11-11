@@ -1,90 +1,91 @@
 # TidyWindow Tech Stack and Rationale
 
-## 1. Product Overview
+## 1. Product Snapshot
 
-TidyWindow keeps Windows machines tidy by combining a desktop app with curated maintenance automations. The WPF application gives users a friendly dashboard, while PowerShell scripts and catalog data files drive repair, cleanup, and package-management tasks behind the scenes.
+TidyWindow blends a WPF cockpit with curated PowerShell automation so Windows developer machines stay healthy. The desktop app handles navigation, background services, and user feedback, while `TidyWindow.Core` and the `automation/` scripts do the heavy lifting.
 
-## 2. Application Layers
+## 2. Layered Architecture
 
--   **Presentation (WPF + MVVM)**
+-   **Presentation (`src/TidyWindow.App/`)**
 
-    -   `TidyWindow.App` uses Windows Presentation Foundation running on .NET 8.
-    -   CommunityToolkit.Mvvm helps us express the MVVM pattern without manual boilerplate.
-    -   The desktop app binds UI controls to view models, so state changes flow cleanly and we keep logic testable. 
+    -   Runs on WPF + .NET 8 with MVVM delivered by CommunityToolkit.Mvvm.
+    -   `App.xaml.cs` wires everything with `Microsoft.Extensions.Hosting`, so services are resolved through dependency injection.
+    -   `MainWindow` hosts modular pages (Cleanup, Deep Scan, Install Hub, Registry, Driver Updates, Activity Log) loaded via `NavigationService`.
+    -   Tray support, PulseGuard notifications, crash logging, and background preferences live under `Services/`.
 
--   **Core Services (.NET class library)**
+-   **Core Services (`src/TidyWindow.Core/`)**
 
-    -   `TidyWindow.Core` holds the business logic that decides when and how to call maintenance routines, read catalog metadata, and report progress back to the UI.
-    -   Targeting .NET 8 gives us modern language features, long-term support, and high performance on Windows.
+    -   Encapsulate cleanup, diagnostics, install orchestration, registry management, package upkeep, and driver detection.
+    -   `Automation/PowerShellInvoker.cs` runs scripts inside managed runspaces, falls back to external `pwsh.exe`, and streams structured output.
+    -   `Maintenance/RegistryStateService.cs`, `Maintenance/RegistryOptimizerService.cs`, and `Maintenance/RegistryStateWatcher.cs` coordinate detection, application, and monitoring of registry tweaks.
+    -   `Diagnostics/DeepScanService.cs` performs fast file system walks with live progress snapshots.
+    -   `Install/InstallQueue.cs` and `Install/BundlePresetService.cs` map YAML bundles to actionable install plans.
+    -   `Updates/DriverUpdateService.cs` consumes JSON from automation scripts, normalises hardware IDs, and enriches presentation data.
 
--   **Automation Assets (PowerShell)*
-    -   The `automation/` folder contains PowerShell modules and scripts that actually perform maintenance operations: disk checks, network resets, RAM purges, app repairs, and more.
-    -   Scripts rely on Windows-native utilities, so PowerShell is the natural choice for privileged system work.
-    -   The `TidyWindow.Automation` module provides helper functions and logging so that every script has a consistent experience.
+-   **Automation Assets (`automation/`)**
 
--   **Catalog Data (YAML)**
-    -   YAML files in `data/catalog/` describe available maintenance bundles, package groups, and installable tools.
-    -   Keeping metadata outside the binaries means we can update or extend catalog entries without shipping new code.
+    -   PowerShell 7 scripts grouped by purpose: essentials repairs, diagnostics, package bootstrap, registry probes, and catalog installs.
+    -   `modules/TidyWindow.Automation.psm1` supplies shared helpers for logging, elevation, and structured output.
+    -   Scripts emit JSON so core services can parse results without brittle text parsing.
 
-## 3. Key Technology Choices
+-   **Catalog & Data (`data/catalog/`)**
+    -   YAML bundles describe curated install sets and maintenance packages.
+    -   Additional data folders (for example `data/cache/registry`) are populated at runtime for state snapshots and restore points.
 
-| Component            | Technology                                       | Why we use it                                                                                     |
-| -------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| UI framework         | WPF (.NET 8)                                     | Native Windows UI, rich styling, MVVM friendly, easy binding to view models.                      |
-| MVVM utilities       | CommunityToolkit.Mvvm                            | Reduces boilerplate for `INotifyPropertyChanged`, commands, and dependency injection.             |
-| Logging              | Serilog                                          | Structured logging makes diagnostics easy and integrates with sinks if we extend telemetry later. |
-| Dependency Injection | Microsoft.Extensions.DependencyInjection/Hosting | Provides a standard DI container and host builder so services stay loosely coupled.               |
-| Automation language  | PowerShell 5+                                    | Built into Windows, can run admin scripts, and integrates easily with system utilities.           |
-| Packaging            | Inno Setup + CI pipelines                        | Produces a familiar Windows installer and automates builds with GitHub Actions.                   |
-| Metadata             | YAML                                             | Human-readable, supports comments, and is already common in infrastructure ecosystems.            |
+## 3. Execution Pipeline
 
-## 4. How Things Work Together
-
-1. **User launches TidyWindow.** The WPF shell spins up, the DI container wires view models and services, and the dashboard loads catalog data.
-2. **User selects a maintenance task.** The view model resolves the right automation entry from the catalog and hands it to a service layer.
-3. **Core service orchestrates execution.** Services either call internal logic or spawn PowerShell scripts under the hood. They log progress through Serilog so the UI can surface status updates.
-4. **Automation script runs.** Each script leverages helper functions from `TidyWindow.Automation` to check prerequisites, demand admin rights when required, and execute Windows utilities safely.
-5. **Results flow back to the UI.** The service layer captures results, updates view models, and the UI refreshes bindings to show success, warnings, or errors.
-
-### Simplified call sequence
+1. **Startup** – `App.xaml.cs` ensures elevation, attaches `CrashLogService`, spins a splash screen, and builds the DI container.
+2. **Navigation** – The navigation rail binds to `NavigationService` and `MainViewModel`; pages resolve their viewmodels on first use, keeping startup lean.
+3. **Command Dispatch** – ViewModel commands call into strongly typed services (`CleanupService`, `DeepScanService`, `DriverUpdateService`, etc.) housed in `TidyWindow.Core`.
+4. **Automation Bridge** – Services either run pure .NET workflows or call PowerShell via `PowerShellInvoker`. Parameters are normalised, cancellation tokens respected, and JSON output is parsed back into domain records.
+5. **Feedback Loop** – `ActivityLogService` records entries that drive the Activity Log page and PulseGuard notifications; viewmodels update observable collections so WPF refreshes automatically.
 
 ```
-User Action → ViewModel command → Core service → PowerShell runner → Windows tools
-                                ↓                       ↑
-                            Serilog logs           Script output
-                                ↓                       |
-                         UI status updates ←—— result formatting
+User action → ViewModel → Core service → (Runspace PowerShell | Managed logic)
+                                           ↓
+                                   ActivityLog + results
+                                           ↓
+                                     UI updates / prompts
 ```
 
-This flow keeps UI code thin: the view model issues commands, the service decides which script or internal routine to execute, and automation layers deal with the low-level Windows work.
+## 4. Core Subsystems
 
-## 5. Deployment Flow
+-   **Cleanup** – `CleanupService` previews and deletes items with retry, recycle-bin, and hidden/system guards. Signatures and policies ship in `Cleanup/`.
+-   **Deep Scan** – `DeepScanService` categorises folders/files, merges overlapping matches, and streams progress via `DeepScanProgressUpdate`.
+-   **Install Hub** – `InstallQueue` sequences catalog-defined packages while `BundlePresetService` reads/writes preset YAML files.
+-   **Package Maintenance** – `PackageMaintenanceService` triggers update/remove scripts and validates JSON payloads before surfacing results.
+-   **Registry Optimizer** – `RegistryOptimizerService` builds plans, saves restore points, and works with `RegistryPreferenceService` for custom values.
+-   **Driver Updates** – `DriverUpdateService` deduplicates devices, interprets problem codes, and summarises optional filters for the UI.
+-   **Background Presence** – `BackgroundPresenceService` toggles auto-start based on saved preferences; `PulseGuardService` throttles and routes notifications using Activity Log entries.
 
--   GitHub Actions CI restores, builds, and tests the solution on Windows.
--   Automated checks ensure the publish directory contains every script and catalog file before packaging.
--   Release builds produce a self-contained publish folder, zip artifacts, and an Inno Setup installer.
--   The installer bundles the executable plus the automation/data assets, so users receive a ready-to-run desktop experience.
+## 5. Automation Script Patterns
 
-## 6. Why This Stack Works For Us
+-   Scripts import `TidyWindow.Automation` to share logging, elevation checks, and error handling.
+-   Parameters are always named so `PowerShellInvoker` can pass dictionaries straight through.
+-   Diagnostics scripts (for example `automation/essentials/driver-update-detect.ps1`) emit JSON objects as their final output line.
+-   Catalog installers use YAML (`data/catalog/bundles.yml` and `data/catalog/packages/**`) to stay editable without recompiling.
 
--   **Windows focus:** All critical components (WPF, PowerShell, Inno Setup) are built around delivering the best Windows experience.
--   **Separation of concerns:** UI, business logic, scripts, and data live in distinct projects or folders, making them independently maintainable.
--   **Extensibility:** Adding a new maintenance routine usually means updating catalog YAML and dropping in a new PowerShell script—no code changes needed unless the UI needs new features.
--   **Tooling ecosystem:** .NET 8 offers long-term support, strong tooling (Visual Studio, VS Code, dotnet CLI), and community libraries.
+## 6. Observability & Resilience
 
-## 7. Why We Chose C# and .NET
+-   `ActivityLogService` stores recent entries in-memory for quick filtering and copy/paste within the app.
+-   `PulseGuardService` listens for warnings/errors, applies cool-down windows, and escalates through tray notifications or high-friction prompts.
+-   `CrashLogService` writes WPF, TaskScheduler, and AppDomain exceptions to `%LocalAppData%/TidyWindow/logs`.
+-   Registry operations create restore points and can revert them later (`RegistryOptimizerViewModel` + `RegistryOptimizerService`).
 
--   **Native Windows integration:** C# on .NET gives first-class access to Windows APIs, WPF, and interop layers we need for system maintenance.
--   **Performance with safety:** Modern C# provides high-level abstractions, async flows, and pattern matching while still compiling to efficient IL. We can interop with PowerShell or unmanaged code when needed, but most logic stays memory-safe.
--   **Rich ecosystem:** NuGet delivers proven libraries (CommunityToolkit.Mvvm, Serilog, dependency-injection packages) so we focus on product features instead of infrastructure plumbing.
--   **Testability:** The language and tooling make it easy to write unit or integration tests against services in `TidyWindow.Core`, keeping regressions low.
--   **Team familiarity:** Contributors versed in Windows desktop development typically know C#, reducing onboarding time.
+## 7. Tooling & Build
 
-## 8. Looking Ahead
+-   **Runtime** – .NET 8.0, WPF, PowerShell 7 (invoked as `pwsh`).
+-   **MVVM Toolkit** – CommunityToolkit.Mvvm for observable properties and relay commands.
+-   **Dependency Injection** – `Microsoft.Extensions.Hosting` + `Microsoft.Extensions.DependencyInjection` to configure services once at startup.
+-   **Packaging** – Inno Setup script `installer/TidyWindowInstaller.iss` bundles the WPF app, PowerShell scripts, and catalog data.
+-   **Testing** – `tests/` projects validate core services (e.g., driver update pipeline, PulseGuard throttling) and automation contracts.
 
--   We can introduce telemetry sinks or diagnostics dashboards via Serilog without changing core logic.
--   Catalog-driven design allows us to publish new bundles as separate updates.
--   The automation module can grow with additional utilities or cross-cutting guards (for example, snapshotting registry keys before edits).
+## 8. Why This Stack Works
 
-This stack keeps TidyWindow approachable for new contributors while giving power users the depth of Windows-native automation.
+-   Built specifically for Windows: WPF UI, PowerShell automation, and installer support fit native expectations.
+-   Strong separation of concerns keeps UI, core logic, scripts, and data independent and easy to extend.
+-   Script-driven design means many updates ship by editing YAML or PowerShell without touching compiled code.
+-   Hosting + DI simplify background services (tray, notifications, preferences) and make unit testing achievable.
+-   Modern C# features (records, async/await, pattern matching) keep the codebase expressive while remaining performant.
 
+The result is a maintainable, Windows-native toolkit that automates common system hygiene tasks without sacrificing responsiveness or transparency.
