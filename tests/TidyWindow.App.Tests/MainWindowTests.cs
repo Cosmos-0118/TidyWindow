@@ -4,6 +4,7 @@ using System.IO;
 using System.Reflection;
 using System.Threading.Tasks;
 using System.Windows;
+using WpfApplication = System.Windows.Application;
 using Microsoft.Extensions.DependencyInjection;
 using TidyWindow.App;
 using TidyWindow.App.Services;
@@ -55,9 +56,9 @@ public sealed class MainWindowTests
 
     private static void EnsureApplication()
     {
-        if (Application.Current is null)
+        if (WpfApplication.Current is null)
         {
-            new Application();
+            new WpfApplication();
         }
     }
 
