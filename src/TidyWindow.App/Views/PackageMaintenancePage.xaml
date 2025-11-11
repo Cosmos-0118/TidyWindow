@@ -12,6 +12,15 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    <converters:StringLengthToFontSizeConverter x:Key="PackageNameFontSizeConverter"
+                            LargeSize="15"
+                            MediumSize="13"
+                            SmallSize="11"/>
+    <converters:StringLengthToFontSizeConverter x:Key="PackageDetailsFontSizeConverter"
+                            LargeSize="20"
+                            MediumSize="17"
+                            SmallSize="15"
+                            MinimumSize="13"/>
 
         <ControlTemplate x:Key="MaintenanceComboToggleButtonTemplate"
                          TargetType="ToggleButton">
@@ -582,7 +591,7 @@
                       DataType="{x:Type viewModels:PackageMaintenanceItemViewModel}">
             <StackPanel>
                 <TextBlock Text="{Binding DisplayName}"
-                           FontSize="20"
+                           FontSize="{Binding DisplayName, Converter={StaticResource PackageDetailsFontSizeConverter}}"
                            FontWeight="Bold"
                            Foreground="#F8FAFC"
                            TextWrapping="Wrap"/>
@@ -1266,20 +1275,10 @@
                                                                 VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding DisplayName}"
                                                                    FontWeight="SemiBold"
-                                                                   FontSize="15"
+                                                                   FontSize="{Binding DisplayName, Converter={StaticResource PackageNameFontSizeConverter}, ConverterParameter=compact}"
                                                                    Foreground="#F8FAFC"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    TextWrapping="Wrap"/>
-                                                        <Border Background="#1F3A6E"
-                                                                CornerRadius="6"
-                                                                Padding="8,3"
-                                                                Margin="12,0,0,0"
-                                                                Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                            <TextBlock Text="Update available"
-                                                                       Foreground="#22C55E"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold"/>
-                                                        </Border>
                                                     </StackPanel>
 
                                                     <WrapPanel Margin="0,10,0,0">
@@ -1412,107 +1411,121 @@
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="3"
-                                                            Orientation="Horizontal"
+                                                            Orientation="Vertical"
                                                             VerticalAlignment="Top"
                                                             HorizontalAlignment="Right">
-                                                    <Button Content="Q"
-                                                            Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                            CommandParameter="{Binding}"
-                                                            Width="44"
-                                                            Height="38"
-                                                            Margin="0,0,8,0"
-                                                            Padding="0"
-                                                            HorizontalContentAlignment="Center"
-                                                            VerticalContentAlignment="Center"
-                                                            AutomationProperties.Name="Queue update">
-                                                        <Button.ToolTip>Queue update</Button.ToolTip>
-                                                        <Button.Style>
-                                                            <Style TargetType="Button"
-                                                                   BasedOn="{StaticResource AccentButtonStyle}">
-                                                                <Setter Property="FontWeight"
-                                                                        Value="Bold"/>
-                                                                <Setter Property="IsEnabled"
-                                                                        Value="True"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding CanUpdate}"
-                                                                                 Value="False">
-                                                                        <Setter Property="IsEnabled"
-                                                                                Value="False"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding IsBusy}"
-                                                                                 Value="True">
-                                                                        <Setter Property="IsEnabled"
-                                                                                Value="False"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                    <Button Content="R"
-                                                            Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                            CommandParameter="{Binding}"
-                                                            Width="44"
-                                                            Height="38"
-                                                            Margin="0,0,8,0"
-                                                            Padding="0"
-                                                            HorizontalContentAlignment="Center"
-                                                            VerticalContentAlignment="Center"
-                                                            AutomationProperties.Name="Remove">
-                                                        <Button.ToolTip>Remove</Button.ToolTip>
-                                                        <Button.Style>
-                                                            <Style TargetType="Button"
-                                                                   BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                <Setter Property="FontWeight"
-                                                                        Value="Bold"/>
-                                                                <Setter Property="IsEnabled"
-                                                                        Value="True"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding CanRemove}"
-                                                                                 Value="False">
-                                                                        <Setter Property="IsEnabled"
-                                                                                Value="False"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding IsBusy}"
-                                                                                 Value="True">
-                                                                        <Setter Property="IsEnabled"
-                                                                                Value="False"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                    <Button Content="F"
-                                                            Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                            CommandParameter="{Binding}"
-                                                            Width="44"
-                                                            Height="38"
-                                                            Padding="0"
-                                                            HorizontalContentAlignment="Center"
-                                                            VerticalContentAlignment="Center"
-                                                            AutomationProperties.Name="Force cleanup">
-                                                        <Button.ToolTip>Force cleanup</Button.ToolTip>
-                                                        <Button.Style>
-                                                            <Style TargetType="Button"
-                                                                   BasedOn="{StaticResource DangerButtonStyle}">
-                                                                <Setter Property="FontWeight"
-                                                                        Value="Bold"/>
-                                                                <Setter Property="IsEnabled"
-                                                                        Value="True"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding CanForceRemove}"
-                                                                                 Value="False">
-                                                                        <Setter Property="IsEnabled"
-                                                                                Value="False"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding IsBusy}"
-                                                                                 Value="True">
-                                                                        <Setter Property="IsEnabled"
-                                                                                Value="False"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                HorizontalAlignment="Right">
+                                                        <Button Content="Q"
+                                                                Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}"
+                                                                Width="44"
+                                                                Height="38"
+                                                                Margin="0,0,8,0"
+                                                                Padding="0"
+                                                                HorizontalContentAlignment="Center"
+                                                                VerticalContentAlignment="Center"
+                                                                AutomationProperties.Name="Queue update">
+                                                            <Button.ToolTip>Queue update</Button.ToolTip>
+                                                            <Button.Style>
+                                                                <Style TargetType="Button"
+                                                                       BasedOn="{StaticResource AccentButtonStyle}">
+                                                                    <Setter Property="FontWeight"
+                                                                            Value="Bold"/>
+                                                                    <Setter Property="IsEnabled"
+                                                                            Value="True"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding CanUpdate}"
+                                                                                     Value="False">
+                                                                            <Setter Property="IsEnabled"
+                                                                                    Value="False"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsBusy}"
+                                                                                     Value="True">
+                                                                            <Setter Property="IsEnabled"
+                                                                                    Value="False"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <Button Content="R"
+                                                                Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}"
+                                                                Width="44"
+                                                                Height="38"
+                                                                Margin="0,0,8,0"
+                                                                Padding="0"
+                                                                HorizontalContentAlignment="Center"
+                                                                VerticalContentAlignment="Center"
+                                                                AutomationProperties.Name="Remove">
+                                                            <Button.ToolTip>Remove</Button.ToolTip>
+                                                            <Button.Style>
+                                                                <Style TargetType="Button"
+                                                                       BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                                    <Setter Property="FontWeight"
+                                                                            Value="Bold"/>
+                                                                    <Setter Property="IsEnabled"
+                                                                            Value="True"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding CanRemove}"
+                                                                                     Value="False">
+                                                                            <Setter Property="IsEnabled"
+                                                                                    Value="False"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsBusy}"
+                                                                                     Value="True">
+                                                                            <Setter Property="IsEnabled"
+                                                                                    Value="False"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <Button Content="F"
+                                                                Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}"
+                                                                Width="44"
+                                                                Height="38"
+                                                                Padding="0"
+                                                                HorizontalContentAlignment="Center"
+                                                                VerticalContentAlignment="Center"
+                                                                AutomationProperties.Name="Force cleanup">
+                                                            <Button.ToolTip>Force cleanup</Button.ToolTip>
+                                                            <Button.Style>
+                                                                <Style TargetType="Button"
+                                                                       BasedOn="{StaticResource DangerButtonStyle}">
+                                                                    <Setter Property="FontWeight"
+                                                                            Value="Bold"/>
+                                                                    <Setter Property="IsEnabled"
+                                                                            Value="True"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding CanForceRemove}"
+                                                                                     Value="False">
+                                                                            <Setter Property="IsEnabled"
+                                                                                    Value="False"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsBusy}"
+                                                                                     Value="True">
+                                                                            <Setter Property="IsEnabled"
+                                                                                    Value="False"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </StackPanel>
+                                                    <Border Background="#1F3A6E"
+                                                            CornerRadius="6"
+                                                            Padding="8,3"
+                                                            Margin="0,10,0,0"
+                                                            HorizontalAlignment="Right"
+                                                            Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="Update available"
+                                                                   Foreground="#22C55E"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"/>
+                                                    </Border>
                                                 </StackPanel>
                                             </Grid>
                                         </DataTemplate>

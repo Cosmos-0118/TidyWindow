@@ -6,7 +6,7 @@
 #endif
 #define MyAppPublisher "Cosmos-0118"
 #define MyAppExeName "TidyWindow.exe"
-#define MyAppAumid "Cosmos0118.TidyWindow"
+#define MyAppAumid "TidyWindow"
 #ifndef BuildOutput
   #define BuildOutput "..\\src\\TidyWindow.App\\bin\\Release\\net8.0-windows\\win-x64\\publish"
 #endif

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using WpfApplication = System.Windows.Application;
 
@@ -123,15 +124,44 @@ public sealed class PulseGuardService : IDisposable
     {
         if (_dispatcher.CheckAccess())
         {
-            var windowOnUiThread = WpfApplication.Current?.MainWindow;
-            return windowOnUiThread is not null && windowOnUiThread.IsActive;
+            return IsMainWindowActiveOnUiThread();
         }
 
-        return _dispatcher.Invoke(() =>
+        return _dispatcher.Invoke(IsMainWindowActiveOnUiThread);
+    }
+
+    private static bool IsMainWindowActiveOnUiThread()
+    {
+        var window = WpfApplication.Current?.MainWindow;
+        if (window is null)
         {
-            var window = WpfApplication.Current?.MainWindow;
-            return window is not null && window.IsActive;
-        });
+            return false;
+        }
+
+        if (window.IsActive || window.IsKeyboardFocusWithin)
+        {
+            return true;
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        var interop = new WindowInteropHelper(window);
+        var handle = interop.Handle;
+
+        if (handle == IntPtr.Zero && window.IsLoaded)
+        {
+            handle = interop.EnsureHandle();
+        }
+
+        if (handle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        return NativeWindowHelper.IsProcessWindowInForeground(handle);
     }
 
     private bool ShouldDispatch(ActivityLogEntry entry, PulseGuardNotificationKind kind)

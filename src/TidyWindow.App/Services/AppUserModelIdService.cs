@@ -7,7 +7,7 @@ namespace TidyWindow.App.Services;
 internal static class AppUserModelIdService
 {
     // Keep in sync with installer/AppUserModelID entries.
-    private const string AppUserModelId = "Cosmos0118.TidyWindow";
+    private const string AppUserModelId = "TidyWindow";
 
     public static void EnsureCurrentProcessAppUserModelId()
     {
