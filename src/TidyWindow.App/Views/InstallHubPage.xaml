@@ -656,10 +656,7 @@
                                     <TextBox MinWidth="220"
                                              MaxWidth="260"
                                              Margin="0,0,12,8"
-                                             Padding="10,6"
-                                             Background="#0F172A"
-                                             BorderBrush="#1E293B"
-                                             Foreground="#E2E8F0"
+                                             Style="{StaticResource App.TextBoxStyle}"
                                              ToolTip="Filter by package name, identifier, or tags"
                                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
                                     <Button Content="Queue selected"

@@ -785,11 +785,7 @@
                                             Margin="0,0,0,8">
                                     <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                              Width="64"
-                                             Background="{StaticResource CleanupSurfaceBrush}"
-                                             Foreground="{StaticResource CleanupSoftTextBrush}"
-                                             BorderBrush="{StaticResource CleanupBorderBrush}"
-                                             BorderThickness="1"
-                                             Padding="6,4"
+                                             Style="{StaticResource App.TextBoxStyle}"
                                              HorizontalContentAlignment="Center"
                                              Margin="0,0,12,0"/>
                                     <TextBlock FontSize="12"
@@ -899,11 +895,7 @@
                                                                                              Foreground="{StaticResource CleanupMutedTextBrush}"
                                                Margin="0,4,0,8"/>
                                     <TextBox Text="{Binding CustomExtensionInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="{StaticResource CleanupSurfaceBrush}"
-                                                                                         Foreground="{StaticResource CleanupSoftTextBrush}"
-                                             BorderBrush="{StaticResource CleanupBorderBrush}"
-                                             BorderThickness="1"
-                                             Padding="6"
+                                             Style="{StaticResource App.TextBoxStyle}"
                                              IsEnabled="{Binding IsExtensionSelectorEnabled}"
                                              ToolTip="Separate extensions with commas, spaces, or semicolons."/>
                                 </StackPanel>
@@ -929,11 +921,7 @@
                                                    Margin="0,0,8,0"/>
                                         <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Width="48"
-                                                                                                 Background="{StaticResource CleanupSurfaceBrush}"
-                                                                                                 Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                                                                 BorderBrush="{StaticResource CleanupBorderBrush}"
-                                                 BorderThickness="1"
-                                                 Padding="6,4"
+                                                 Style="{StaticResource App.TextBoxStyle}"
                                                  HorizontalContentAlignment="Center"
                                                  Margin="0,0,6,0"/>
                                         <TextBlock Text="-"
@@ -942,11 +930,7 @@
                                                    Margin="0,0,6,0"/>
                                         <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                  Width="48"
-                                                                                                 Background="{StaticResource CleanupSurfaceBrush}"
-                                                                                                 Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                                                                 BorderBrush="{StaticResource CleanupBorderBrush}"
-                                                 BorderThickness="1"
-                                                 Padding="6,4"
+                                                 Style="{StaticResource App.TextBoxStyle}"
                                                  HorizontalContentAlignment="Center"
                                                  Margin="0,0,8,0"/>
                                         <Button Content="Select range"

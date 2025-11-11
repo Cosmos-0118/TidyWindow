@@ -1,0 +1,159 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Palette for custom text field experience -->
+    <SolidColorBrush x:Key="TextBox.BackgroundBrush"
+                     Color="#0F172A"/>
+    <SolidColorBrush x:Key="TextBox.HoverBrush"
+                     Color="#14233A"/>
+    <SolidColorBrush x:Key="TextBox.ActiveBrush"
+                     Color="#162A45"/>
+    <SolidColorBrush x:Key="TextBox.DisabledBackgroundBrush"
+                     Color="#131C2C"/>
+    <SolidColorBrush x:Key="TextBox.ReadOnlyBackgroundBrush"
+                     Color="#142038"/>
+
+    <SolidColorBrush x:Key="TextBox.BorderBrush"
+                     Color="#1E293B"/>
+    <SolidColorBrush x:Key="TextBox.HoverBorderBrush"
+                     Color="#273952"/>
+    <SolidColorBrush x:Key="TextBox.ActiveBorderBrush"
+                     Color="#38BDF8"/>
+    <SolidColorBrush x:Key="TextBox.DisabledBorderBrush"
+                     Color="#273245"/>
+    <SolidColorBrush x:Key="TextBox.ReadOnlyBorderBrush"
+                     Color="#304562"/>
+    <SolidColorBrush x:Key="TextBox.FocusBrush"
+                     Color="#2563EB"/>
+    <SolidColorBrush x:Key="TextBox.ErrorBorderBrush"
+                     Color="#F87171"/>
+
+    <SolidColorBrush x:Key="TextBox.ForegroundBrush"
+                     Color="#F8FAFC"/>
+    <SolidColorBrush x:Key="TextBox.DisabledForegroundBrush"
+                     Color="#7687A2"/>
+    <SolidColorBrush x:Key="TextBox.ReadOnlyForegroundBrush"
+                     Color="#C7D2FE"/>
+
+    <SolidColorBrush x:Key="TextBox.SelectionBrush"
+                     Color="#2563EB"/>
+
+    <CubicEase x:Key="TextBoxEase"
+               EasingMode="EaseOut"/>
+
+    <Style x:Key="App.TextBoxStyle"
+           TargetType="TextBox">
+        <Setter Property="Foreground"
+                Value="{StaticResource TextBox.ForegroundBrush}"/>
+        <Setter Property="Background"
+                Value="{StaticResource TextBox.BackgroundBrush}"/>
+        <Setter Property="BorderBrush"
+                Value="{StaticResource TextBox.BorderBrush}"/>
+        <Setter Property="BorderThickness"
+                Value="1"/>
+        <Setter Property="Padding"
+                Value="14,8"/>
+        <Setter Property="MinHeight"
+                Value="36"/>
+        <Setter Property="FontSize"
+                Value="14"/>
+        <Setter Property="FontFamily"
+                Value="Segoe UI"/>
+        <Setter Property="VerticalContentAlignment"
+                Value="Center"/>
+        <Setter Property="CaretBrush"
+                Value="#38BDF8"/>
+        <Setter Property="SelectionBrush"
+                Value="{StaticResource TextBox.SelectionBrush}"/>
+        <Setter Property="SelectionOpacity"
+                Value="0.35"/>
+        <Setter Property="SnapsToDevicePixels"
+                Value="True"/>
+        <Setter Property="FocusVisualStyle"
+                Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Grid SnapsToDevicePixels="True">
+                        <Border x:Name="Surface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"/>
+                        <Border x:Name="FocusBorder"
+                                Margin="-2"
+                                CornerRadius="12"
+                                BorderThickness="1.5"
+                                BorderBrush="{StaticResource TextBox.FocusBrush}"
+                                Opacity="0"
+                                IsHitTestVisible="False"/>
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      Focusable="False"
+                                      HorizontalScrollBarVisibility="Hidden"
+                                      VerticalScrollBarVisibility="Hidden"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver"
+                                 Value="True">
+                            <Setter TargetName="Surface"
+                                    Property="Background"
+                                    Value="{StaticResource TextBox.HoverBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource TextBox.HoverBorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused"
+                                 Value="True">
+                            <Setter TargetName="Surface"
+                                    Property="Background"
+                                    Value="{StaticResource TextBox.ActiveBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource TextBox.ActiveBorderBrush}"/>
+                            <Setter TargetName="FocusBorder"
+                                    Property="Opacity"
+                                    Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled"
+                                 Value="False">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource TextBox.DisabledForegroundBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="Background"
+                                    Value="{StaticResource TextBox.DisabledBackgroundBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource TextBox.DisabledBorderBrush}"/>
+                            <Setter TargetName="FocusBorder"
+                                    Property="Opacity"
+                                    Value="0"/>
+                        </Trigger>
+                        <Trigger Property="IsReadOnly"
+                                 Value="True">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource TextBox.ReadOnlyForegroundBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="Background"
+                                    Value="{StaticResource TextBox.ReadOnlyBackgroundBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource TextBox.ReadOnlyBorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="Validation.HasError"
+                                 Value="True">
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource TextBox.ErrorBorderBrush}"/>
+                            <Setter TargetName="FocusBorder"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource TextBox.ErrorBorderBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="TextBox"
+           BasedOn="{StaticResource App.TextBoxStyle}"/>
+</ResourceDictionary>

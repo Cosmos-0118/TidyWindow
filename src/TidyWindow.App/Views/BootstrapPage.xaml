@@ -512,8 +512,7 @@
                                              Text="winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements"
                                              IsReadOnly="True"
                                              BorderThickness="0"
-                                             Background="#0B1626"
-                                             Foreground="#F8FAFC"
+                                             Style="{StaticResource App.TextBoxStyle}"
                                              FontFamily="Consolas"
                                              FontSize="12"
                                              TextWrapping="Wrap"/>

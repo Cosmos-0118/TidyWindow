@@ -333,11 +333,8 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0"
                                                  Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged}"
-                                                 Background="#0A1324"
-                                                 Foreground="#F8FAFC"
-                                                 BorderBrush="#1E293B"
-                                                 Padding="8,6"
-                                                 MinWidth="220"/>
+                                                 MinWidth="220"
+                                                 Style="{StaticResource App.TextBoxStyle}"/>
                                         <Button Grid.Column="1"
                                                 Content="Browse"
                                                 Click="BrowseButton_OnClick"
@@ -388,22 +385,16 @@
                                             <TextBlock Text="Min size (MB)"
                                                        Foreground="#94A3B8"/>
                                             <TextBox Margin="0,6,0,0"
-                                                     Text="{Binding MinimumSizeMb, UpdateSourceTrigger=PropertyChanged}"
-                                                     Background="#0A1324"
-                                                     Foreground="#F8FAFC"
-                                                     BorderBrush="#1E293B"
-                                                     Padding="8,6"/>
+                                                     Style="{StaticResource App.TextBoxStyle}"
+                                                     Text="{Binding MinimumSizeMb, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1"
                                                     Margin="12,0,0,0">
                                             <TextBlock Text="Top results"
                                                        Foreground="#94A3B8"/>
                                             <TextBox Margin="0,6,0,0"
-                                                     Text="{Binding MaxItems, UpdateSourceTrigger=PropertyChanged}"
-                                                     Background="#0A1324"
-                                                     Foreground="#F8FAFC"
-                                                     BorderBrush="#1E293B"
-                                                     Padding="8,6"/>
+                                                     Style="{StaticResource App.TextBoxStyle}"
+                                                     Text="{Binding MaxItems, UpdateSourceTrigger=PropertyChanged}"/>
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -440,11 +431,8 @@
                                     <TextBlock Text="Narrow results by name while keeping things flexible."
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <TextBox Margin="0,16,0,0"
-                                             Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged}"
-                                             Background="#0A1324"
-                                             Foreground="#F8FAFC"
-                                             BorderBrush="#1E293B"
-                                             Padding="8,6"/>
+                                             Style="{StaticResource App.TextBoxStyle}"
+                                             Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged}"/>
                                     <ComboBox Margin="0,16,0,0"
                                               ItemsSource="{Binding NameMatchModes}"
                                               SelectedItem="{Binding SelectedMatchMode}"

@@ -414,46 +414,22 @@
     </Style>
 
     <Style x:Key="RegistryValueTextBoxStyle"
-           TargetType="TextBox">
-        <Setter Property="Background"
-                Value="#0F172A"/>
-        <Setter Property="BorderBrush"
-                Value="#27374D"/>
-        <Setter Property="BorderThickness"
-                Value="1"/>
-        <Setter Property="Foreground"
-                Value="#F8FAFC"/>
-        <Setter Property="Padding"
-                Value="8,4"/>
+           TargetType="TextBox"
+           BasedOn="{StaticResource App.TextBoxStyle}">
+        <Setter Property="Margin"
+                Value="0,4,0,0"/>
         <Setter Property="MinWidth"
                 Value="120"/>
         <Setter Property="HorizontalAlignment"
                 Value="Stretch"/>
         <Setter Property="VerticalContentAlignment"
                 Value="Center"/>
-        <Setter Property="CaretBrush"
-                Value="#38BDF8"/>
-        <Setter Property="SelectionBrush"
-                Value="#38BDF8"/>
-        <Setter Property="SelectionOpacity"
-                Value="0.4"/>
-        <Setter Property="FocusVisualStyle"
-                Value="{x:Null}"/>
-        <Setter Property="Margin"
-                Value="0,4,0,0"/>
+        <Setter Property="Padding"
+                Value="12,6"/>
         <Style.Triggers>
-            <Trigger Property="IsEnabled"
-                     Value="False">
-                <Setter Property="Opacity"
-                        Value="0.6"/>
-                <Setter Property="BorderBrush"
-                        Value="#1B2335"/>
-            </Trigger>
             <DataTrigger Binding="{Binding HasValidationError}"
                          Value="True">
                 <Setter Property="BorderBrush"
-                        Value="#F87171"/>
-                <Setter Property="Foreground"
                         Value="#F87171"/>
             </DataTrigger>
         </Style.Triggers>

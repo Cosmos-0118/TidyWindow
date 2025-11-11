@@ -209,11 +209,8 @@
                                     <TextBlock Text="Search text"
                                                Foreground="#94A3B8"/>
                                     <TextBox Margin="0,6,0,0"
-                                             Padding="10,6"
                                              MinWidth="200"
-                                             Background="#0F172A"
-                                             Foreground="#F8FAFC"
-                                             BorderBrush="#1E293B"
+                                             Style="{StaticResource App.TextBoxStyle}"
                                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
                                 </StackPanel>
 

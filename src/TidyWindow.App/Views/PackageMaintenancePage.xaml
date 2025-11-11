@@ -640,10 +640,7 @@
                              MinWidth="220"
                              HorizontalAlignment="Stretch"
                              Margin="0,4,0,0"
-                             Padding="8,4"
-                             Background="#0F172A"
-                             BorderBrush="#1E293B"
-                             Foreground="#E2E8F0"
+                             Style="{StaticResource App.TextBoxStyle}"
                              ToolTip="Provide a specific version to install. Leave blank for the latest release."/>
                     <TextBlock Text="Leave blank to install the latest version available from the package manager."
                                Foreground="#64748B"
@@ -953,10 +950,7 @@
                                 <TextBox MinWidth="220"
                                          MaxWidth="260"
                                          Margin="0,0,12,8"
-                                         Padding="10,6"
-                                         Background="#0F172A"
-                                         BorderBrush="#1E293B"
-                                         Foreground="#E2E8F0"
+                                         Style="{StaticResource App.TextBoxStyle}"
                                          ToolTip="Filter by package name, identifier, manager, or tag"
                                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
                                 <ComboBox Width="180"
@@ -1269,12 +1263,9 @@
                                                                FontSize="11"/>
                                                     <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
                                                              Margin="0,6,0,0"
-                                                             Padding="10,5"
                                                              MinWidth="180"
                                                              MaxWidth="260"
-                                                             Background="#0F172A"
-                                                             BorderBrush="#1E293B"
-                                                             Foreground="#E2E8F0"
+                                                             Style="{StaticResource App.TextBoxStyle}"
                                                              ToolTip="Provide a specific version to install. Leave blank for the latest release."/>
                                                     <TextBlock Text="Leave blank to install the latest available version."
                                                                Foreground="#475569"
