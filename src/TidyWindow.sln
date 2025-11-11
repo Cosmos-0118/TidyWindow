@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TidyWindow.Core.Tests", "..
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TidyWindow.Automation.Tests", "..\tests\TidyWindow.Automation.Tests\TidyWindow.Automation.Tests.csproj", "{8F9FBB7B-A36D-49D3-97F7-8BDE47779DF6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TidyWindow.App.Tests", "..\tests\TidyWindow.App.Tests\TidyWindow.App.Tests.csproj", "{C4A995B9-39B9-4A8C-8D8F-E39BFB2D4E8A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -36,5 +38,9 @@ Global
 		{8F9FBB7B-A36D-49D3-97F7-8BDE47779DF6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8F9FBB7B-A36D-49D3-97F7-8BDE47779DF6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{8F9FBB7B-A36D-49D3-97F7-8BDE47779DF6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4A995B9-39B9-4A8C-8D8F-E39BFB2D4E8A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4A995B9-39B9-4A8C-8D8F-E39BFB2D4E8A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4A995B9-39B9-4A8C-8D8F-E39BFB2D4E8A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4A995B9-39B9-4A8C-8D8F-E39BFB2D4E8A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

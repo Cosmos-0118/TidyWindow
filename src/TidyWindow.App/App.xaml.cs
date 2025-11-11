@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Security.Principal;
 using System.Threading.Tasks;
 using System.Windows;
@@ -57,6 +58,13 @@ public partial class App : WpfApplication
                 services.AddSingleton<NavigationService>();
                 services.AddSingleton<ActivityLogService>();
                 services.AddSingleton<IPrivilegeService, PrivilegeService>();
+                services.AddSingleton<UserPreferencesService>();
+                services.AddSingleton<AppAutoStartService>();
+                services.AddSingleton<AppRestartService>();
+                services.AddSingleton<ITrayService, TrayService>();
+                services.AddSingleton<IHighFrictionPromptService, HighFrictionPromptService>();
+                services.AddSingleton<BackgroundPresenceService>();
+                services.AddSingleton<PulseGuardService>();
 
                 services.AddSingleton<PowerShellInvoker>();
                 services.AddSingleton<PackageManagerDetector>();
@@ -108,21 +116,40 @@ public partial class App : WpfApplication
 
         splash.UpdateStatus("Preparing interface...");
 
+        var preferences = _host.Services.GetRequiredService<UserPreferencesService>();
+        var trayService = _host.Services.GetRequiredService<ITrayService>();
+        _ = _host.Services.GetRequiredService<BackgroundPresenceService>();
+        _ = _host.Services.GetRequiredService<PulseGuardService>();
+        _ = _host.Services.GetRequiredService<IHighFrictionPromptService>();
+
+        var launchMinimized = e.Args?.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase)) == true;
+        var startHidden = launchMinimized && preferences.Current.RunInBackground;
+
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
         Current.MainWindow = mainWindow;
-        mainWindow.Opacity = 0;
-        mainWindow.WindowState = WindowState.Maximized;
+        mainWindow.Opacity = startHidden ? 1 : 0;
+        mainWindow.WindowState = startHidden ? WindowState.Minimized : WindowState.Maximized;
         mainWindow.Show();
-        mainWindow.Activate();
+        if (!startHidden)
+        {
+            mainWindow.Activate();
+        }
 
         splash.UpdateStatus("Launching cockpit...");
         await splash.CloseWithFadeAsync(TimeSpan.FromMilliseconds(1600));
 
-        var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(280))
+        if (!startHidden)
         {
-            EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
-        };
-        mainWindow.BeginAnimation(Window.OpacityProperty, fadeIn);
+            var fadeIn = new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(280))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            };
+            mainWindow.BeginAnimation(Window.OpacityProperty, fadeIn);
+        }
+        else
+        {
+            trayService.HideToTray(showHint: false);
+        }
 
         ShutdownMode = ShutdownMode.OnMainWindowClose;
     }

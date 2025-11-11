@@ -16,18 +16,24 @@ public partial class MainWindow : Window
 {
     private readonly NavigationService _navigationService;
     private readonly MainViewModel _viewModel;
+    private readonly ITrayService _trayService;
+    private readonly UserPreferencesService _preferences;
     private System.Windows.Navigation.NavigationService? _frameNavigationService;
     private bool _initialNavigationCompleted;
 
-    public MainWindow(MainViewModel viewModel, NavigationService navigationService)
+    public MainWindow(MainViewModel viewModel, NavigationService navigationService, ITrayService trayService, UserPreferencesService preferences)
     {
         InitializeComponent();
         _navigationService = navigationService;
         _viewModel = viewModel;
+        _trayService = trayService ?? throw new ArgumentNullException(nameof(trayService));
+        _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         DataContext = _viewModel;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         ToggleLoadingOverlay(_viewModel.IsShellLoading);
         Loaded += OnLoaded;
+        StateChanged += OnStateChanged;
+        _trayService.Attach(this);
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -66,6 +72,14 @@ public partial class MainWindow : Window
         if (e.PropertyName == nameof(MainViewModel.IsShellLoading))
         {
             ToggleLoadingOverlay(_viewModel.IsShellLoading);
+        }
+    }
+
+    private void OnStateChanged(object? sender, EventArgs e)
+    {
+        if (WindowState == WindowState.Minimized && _preferences.Current.RunInBackground)
+        {
+            _trayService.HideToTray(showHint: true);
         }
     }
 
@@ -117,5 +131,20 @@ public partial class MainWindow : Window
             _frameNavigationService.LoadCompleted -= OnInitialNavigationCompleted;
             _frameNavigationService = null;
         }
+
+        StateChanged -= OnStateChanged;
+    }
+
+    protected override void OnClosing(CancelEventArgs e)
+    {
+        if (!_trayService.IsExitRequested && _preferences.Current.RunInBackground)
+        {
+            e.Cancel = true;
+            _trayService.HideToTray(showHint: true);
+            return;
+        }
+
+        _trayService.PrepareForExit();
+        base.OnClosing(e);
     }
 }

@@ -126,3 +126,14 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 
 -   `dotnet build src/TidyWindow.sln`
 -   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+
+## PulseGuard Watchdog & Notifications
+
+PulseGuard is the smart watchdog that keeps a pulse on automation logs, surfaces actionable insights, and keeps the app helpful without becoming noisy.
+
+[x] Step 10.1: Finalize PulseGuard log heuristics, naming, and UX copy; define error/event taxonomy for automation scripts.
+[x] Step 10.2: Rework `Views/SettingsPage.xaml` and related view models so the admin-mode default is explained, the layout is modernized check other pages for reference, and PulseGuard controls are grouped coherently.
+[x] Step 10.3: Implement background (system tray) mode with a toggle in settings, including tray icon states, auto-start behavior, and graceful shutdown hooks.
+[x] Step 10.4: Build notification pipeline that queues toast notifications, enforces cooldown rules, and differentiates success summaries from actionable alerts.
+[x] Step 10.5: Surface high-friction scenarios (e.g., legacy PowerShell, post-install restarts) as targeted prompts with "View logs" and "Restart app" actions.
+[ ] Step 10.6: Add unit and UI automation coverage validating log parsing, notification throttling, and background-mode lifecycle transitions.

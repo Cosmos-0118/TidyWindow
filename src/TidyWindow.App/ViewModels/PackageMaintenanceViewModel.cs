@@ -18,6 +18,7 @@ namespace TidyWindow.App.ViewModels;
 public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDisposable
 {
     private const string AllManagersFilter = "All managers";
+    private const string ManualUpgradeSuppressionReason = MaintenanceSuppressionReasons.ManualUpgradeRequired;
 
     private readonly PackageInventoryService _inventoryService;
     private readonly PackageMaintenanceService _maintenanceService;
@@ -25,8 +26,10 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly MainViewModel _mainViewModel;
     private readonly IPrivilegeService _privilegeService;
     private readonly ActivityLogService _activityLog;
+    private readonly UserPreferencesService _preferences;
 
     private const int WingetCannotUpgradeExitCode = -1978334956;
+    private const int WingetUnknownVersionExitCode = -1978335189;
 
     private readonly List<PackageMaintenanceItemViewModel> _allPackages = new();
     private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -45,7 +48,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         InstallCatalogService catalogService,
         MainViewModel mainViewModel,
         IPrivilegeService privilegeService,
-        ActivityLogService activityLogService)
+        ActivityLogService activityLogService,
+        UserPreferencesService userPreferencesService)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _maintenanceService = maintenanceService ?? throw new ArgumentNullException(nameof(maintenanceService));
@@ -53,6 +57,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _privilegeService = privilegeService ?? throw new ArgumentNullException(nameof(privilegeService));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
+        _preferences = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
 
         ManagerFilters.Add(AllManagersFilter);
         Operations.CollectionChanged += OnOperationsCollectionChanged;
@@ -469,10 +474,18 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                 : result.Summary.Trim();
 
             var isNonActionableFailure = false;
+            MaintenanceSuppressionEntry? suppressionEntry = null;
+            var suppressionRemoved = false;
+
             if (!result.Success && TryGetNonActionableMaintenanceMessage(result, item.DisplayName, out var friendlyMessage))
             {
                 message = friendlyMessage;
                 isNonActionableFailure = true;
+                suppressionEntry = RegisterNonActionableSuppression(request, item, result, message);
+            }
+            else if (result.Success)
+            {
+                suppressionRemoved = TryClearSuppression(result, item, request);
             }
 
             await RunOnUiThreadAsync(() =>
@@ -484,6 +497,16 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                 item.QueueStatus = message;
                 item.ApplyMaintenanceResult(result);
                 item.ApplyOperationResult(result.Success, message);
+                if (suppressionEntry is not null)
+                {
+                    item.ApplySuppression(suppressionEntry);
+                    AddSuppressionWarning(item, suppressionEntry);
+                }
+                else if (suppressionRemoved)
+                {
+                    item.ClearSuppression();
+                    RemoveSuppressionWarnings(item.DisplayName);
+                }
             }).ConfigureAwait(false);
 
             await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
@@ -549,30 +572,32 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _allPackages.Clear();
         _packagesByKey.Clear();
 
+        var suppressionWarnings = new List<string>();
+        var warningSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
         Warnings.Clear();
         foreach (var warning in snapshot.Warnings)
         {
             if (!string.IsNullOrWhiteSpace(warning))
             {
-                Warnings.Add(warning.Trim());
+                var normalized = warning.Trim();
+                if (warningSet.Add(normalized))
+                {
+                    Warnings.Add(normalized);
+                }
             }
         }
 
         var newItems = new List<PackageMaintenanceItemViewModel>();
         foreach (var package in snapshot.Packages)
         {
+            var item = new PackageMaintenanceItemViewModel(package);
+            var suppression = ResolveSuppression(package);
+            ApplySuppressionState(item, suppression, suppressionWarnings);
+
             var key = BuildKey(package.Manager, package.PackageIdentifier);
-            if (_packagesByKey.TryGetValue(key, out var existing))
-            {
-                existing.UpdateFrom(package);
-                newItems.Add(existing);
-            }
-            else
-            {
-                var created = new PackageMaintenanceItemViewModel(package);
-                _packagesByKey[key] = created;
-                newItems.Add(created);
-            }
+            _packagesByKey[key] = item;
+            newItems.Add(item);
         }
 
         _allPackages.AddRange(newItems
@@ -581,6 +606,289 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         EnsureManagerFilters();
         ApplyFilters();
+
+        foreach (var message in suppressionWarnings)
+        {
+            if (warningSet.Add(message))
+            {
+                Warnings.Add(message);
+            }
+        }
+    }
+
+    private MaintenanceSuppressionEntry? ResolveSuppression(PackageInventoryItem package)
+    {
+        if (package is null)
+        {
+            return null;
+        }
+
+        var manager = package.Manager;
+        var packageId = package.PackageIdentifier;
+        if (string.IsNullOrWhiteSpace(manager) || string.IsNullOrWhiteSpace(packageId))
+        {
+            return null;
+        }
+
+        var suppression = _preferences.GetMaintenanceSuppression(manager, packageId);
+        if (suppression is null)
+        {
+            return null;
+        }
+
+        if (!package.IsUpdateAvailable)
+        {
+            if (_preferences.RemoveMaintenanceSuppression(manager, packageId))
+            {
+                _activityLog.LogInformation("Maintenance", $"Automatic updates for '{package.Name ?? package.PackageIdentifier}' are available again (package is up to date).");
+            }
+
+            return null;
+        }
+
+        var availableVersion = NormalizeVersion(package.AvailableVersion);
+        var trackedVersion = NormalizeVersion(suppression.LatestKnownVersion);
+
+        if (!string.IsNullOrEmpty(availableVersion) && !string.IsNullOrEmpty(trackedVersion)
+            && !string.Equals(availableVersion, trackedVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            if (_preferences.RemoveMaintenanceSuppression(manager, packageId))
+            {
+                var displayName = string.IsNullOrWhiteSpace(package.Name) ? package.PackageIdentifier : package.Name;
+                _activityLog.LogInformation("Maintenance", $"Detected a new update for '{displayName}'. Automatic updates have been resumed.");
+            }
+
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(trackedVersion) && !string.IsNullOrEmpty(availableVersion))
+        {
+            suppression = _preferences.AddMaintenanceSuppression(
+                manager,
+                packageId,
+                suppression.Reason,
+                suppression.Message,
+                suppression.ExitCode,
+                package.AvailableVersion,
+                suppression.RequestedVersion);
+        }
+
+        return suppression;
+    }
+
+    private static void ApplySuppressionState(
+        PackageMaintenanceItemViewModel item,
+        MaintenanceSuppressionEntry? suppression,
+        ICollection<string> warnings)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        if (suppression is null)
+        {
+            item.ClearSuppression();
+            return;
+        }
+
+        item.ApplySuppression(suppression);
+
+        if (warnings is null)
+        {
+            return;
+        }
+
+        var managerDisplay = ResolveManagerDisplay(item);
+        var message = string.IsNullOrWhiteSpace(suppression.Message)
+            ? $"{item.DisplayName} requires manual updates via {managerDisplay}."
+            : suppression.Message;
+
+        warnings.Add($"Updates for '{item.DisplayName}' via {managerDisplay} suppressed: {message}");
+    }
+
+    private MaintenanceSuppressionEntry? RegisterNonActionableSuppression(
+        MaintenanceOperationRequest request,
+        PackageMaintenanceItemViewModel item,
+        PackageMaintenanceResult result,
+        string message)
+    {
+        if (request is null || item is null || result is null)
+        {
+            return null;
+        }
+
+        var manager = !string.IsNullOrWhiteSpace(result.Manager) ? result.Manager : item.Manager;
+        var packageId = !string.IsNullOrWhiteSpace(result.PackageId) ? result.PackageId : request.PackageId;
+        if (string.IsNullOrWhiteSpace(manager) || string.IsNullOrWhiteSpace(packageId))
+        {
+            return null;
+        }
+
+        var latest = result.LatestVersion ?? result.RequestedVersion ?? item.AvailableVersion ?? request.TargetVersion;
+        var requested = result.RequestedVersion ?? request.TargetVersion;
+
+        var existing = _preferences.GetMaintenanceSuppression(manager, packageId);
+        var suppression = _preferences.AddMaintenanceSuppression(
+            manager,
+            packageId,
+            ManualUpgradeSuppressionReason,
+            message,
+            result.ExitCode,
+            latest,
+            requested);
+
+        if (existing is null)
+        {
+            _activityLog.LogWarning(
+                "Maintenance",
+                $"Automatic updates for '{item.DisplayName}' via {ResolveManagerDisplay(item)} will be skipped until the package is updated manually.",
+                BuildSuppressionDetails(item, result, suppression));
+        }
+
+        return suppression;
+    }
+
+    private bool TryClearSuppression(
+        PackageMaintenanceResult result,
+        PackageMaintenanceItemViewModel item,
+        MaintenanceOperationRequest request)
+    {
+        if (result is null || item is null || request is null)
+        {
+            return false;
+        }
+
+        var manager = !string.IsNullOrWhiteSpace(result.Manager) ? result.Manager : item.Manager;
+        var packageId = !string.IsNullOrWhiteSpace(result.PackageId) ? result.PackageId : request.PackageId;
+        if (string.IsNullOrWhiteSpace(manager) || string.IsNullOrWhiteSpace(packageId))
+        {
+            return false;
+        }
+
+        var removed = _preferences.RemoveMaintenanceSuppression(manager, packageId);
+        if (removed)
+        {
+            _activityLog.LogInformation(
+                "Maintenance",
+                $"Automatic updates for '{item.DisplayName}' via {ResolveManagerDisplay(item)} have been resumed.");
+        }
+
+        return removed;
+    }
+
+    private static IEnumerable<string> BuildSuppressionDetails(
+        PackageMaintenanceItemViewModel item,
+        PackageMaintenanceResult result,
+        MaintenanceSuppressionEntry suppression)
+    {
+        var lines = new List<string>
+        {
+            $"Manager: {(!string.IsNullOrWhiteSpace(suppression.Manager) ? suppression.Manager : item.Manager)}",
+            $"Package identifier: {(!string.IsNullOrWhiteSpace(suppression.PackageId) ? suppression.PackageId : item.PackageIdentifier)}",
+            $"Exit code: {suppression.ExitCode}",
+            $"Reason: {suppression.Reason}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(suppression.LatestKnownVersion))
+        {
+            lines.Add($"Latest known version: {suppression.LatestKnownVersion}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(suppression.RequestedVersion))
+        {
+            lines.Add($"Requested version: {suppression.RequestedVersion}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.StatusBefore) || !string.IsNullOrWhiteSpace(result.StatusAfter))
+        {
+            lines.Add($"Status before: {result.StatusBefore ?? "(unknown)"}");
+            lines.Add($"Status after: {result.StatusAfter ?? "(unknown)"}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.Summary))
+        {
+            lines.Add($"Summary: {result.Summary.Trim()}");
+        }
+
+        return lines;
+    }
+
+    private static string ResolveManagerDisplay(PackageMaintenanceItemViewModel item)
+    {
+        if (item is null)
+        {
+            return "(unknown)";
+        }
+
+        return string.IsNullOrWhiteSpace(item.ManagerDisplay)
+            ? (string.IsNullOrWhiteSpace(item.Manager) ? "(unknown)" : item.Manager)
+            : item.ManagerDisplay;
+    }
+
+    private void AddSuppressionWarning(
+        PackageMaintenanceItemViewModel item,
+        MaintenanceSuppressionEntry entry)
+    {
+        if (item is null || entry is null)
+        {
+            return;
+        }
+
+        var managerDisplay = ResolveManagerDisplay(item);
+        var message = string.IsNullOrWhiteSpace(entry.Message)
+            ? $"{item.DisplayName} requires manual updates via {managerDisplay}."
+            : entry.Message;
+
+        var warning = $"Updates for '{item.DisplayName}' via {managerDisplay} suppressed: {message}";
+        if (Warnings.Any(existing => string.Equals(existing, warning, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        Warnings.Add(warning);
+    }
+
+    private void RemoveSuppressionWarnings(string? displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName) || Warnings.Count == 0)
+        {
+            return;
+        }
+
+        var prefix = $"Updates for '{displayName}'";
+        for (var index = Warnings.Count - 1; index >= 0; index--)
+        {
+            var value = Warnings[index];
+            if (!string.IsNullOrWhiteSpace(value) && value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                Warnings.RemoveAt(index);
+            }
+        }
+    }
+
+    private static string? NormalizeVersion(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0
+            || string.Equals(trimmed, "unknown", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(trimmed, "not installed", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var candidate = trimmed.Replace('_', '.').Replace('-', '.');
+        while (candidate.Contains("..", StringComparison.Ordinal))
+        {
+            candidate = candidate.Replace("..", ".");
+        }
+
+        return candidate.Trim('.');
     }
 
     private void ApplyFilters()
@@ -776,26 +1084,32 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             return false;
         }
 
-        if (result.Attempted)
-        {
-            return false;
-        }
-
-        if (result.ExitCode != WingetCannotUpgradeExitCode && !ContainsNonActionableWingetMessage(result))
-        {
-            return false;
-        }
-
-        var targetVersion = string.IsNullOrWhiteSpace(result.RequestedVersion)
+        var latestVersion = string.IsNullOrWhiteSpace(result.RequestedVersion)
             ? result.LatestVersion
             : result.RequestedVersion;
 
-        var versionText = string.IsNullOrWhiteSpace(targetVersion)
-            ? "the latest available version"
-            : $"version {targetVersion}";
+        if (result.ExitCode == WingetCannotUpgradeExitCode || ContainsNonActionableWingetMessage(result))
+        {
+            var versionText = string.IsNullOrWhiteSpace(latestVersion)
+                ? "the latest available version"
+                : $"version {latestVersion}";
 
-        message = $"{packageDisplayName} cannot be updated automatically with winget. Use the publisher's installer to update to {versionText}.";
-        return true;
+            message = $"{packageDisplayName} cannot be updated automatically with winget. Use the publisher's installer to update to {versionText}.";
+            return true;
+        }
+
+        if (result.ExitCode == WingetUnknownVersionExitCode || ContainsUnknownVersionWingetMessage(result))
+        {
+            var packageId = string.IsNullOrWhiteSpace(result.PackageId) ? packageDisplayName : result.PackageId;
+            var versionText = string.IsNullOrWhiteSpace(latestVersion)
+                ? "the latest available version"
+                : $"version {latestVersion}";
+
+            message = $"{packageDisplayName}'s version cannot be determined by winget. Run 'winget upgrade --id {packageId} --include-unknown' manually or update via the publisher to reach {versionText}.";
+            return true;
+        }
+
+        return false;
     }
 
     private static bool ContainsNonActionableWingetMessage(PackageMaintenanceResult result)
@@ -830,6 +1144,42 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         return !string.IsNullOrWhiteSpace(result.Summary)
             && result.Summary.IndexOf("cannot be upgraded using winget", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool ContainsUnknownVersionWingetMessage(PackageMaintenanceResult result)
+    {
+        static bool ContainsPhrase(IEnumerable<string> lines)
+        {
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (line.IndexOf("version number cannot be determined", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("include-unknown", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!result.Output.IsDefaultOrEmpty && result.Output.Length > 0 && ContainsPhrase(result.Output))
+        {
+            return true;
+        }
+
+        if (!result.Errors.IsDefaultOrEmpty && result.Errors.Length > 0 && ContainsPhrase(result.Errors))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(result.Summary)
+            && (result.Summary.IndexOf("version number cannot be determined", StringComparison.OrdinalIgnoreCase) >= 0
+                || result.Summary.IndexOf("include-unknown", StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
     private void SynchronizeCollection(ObservableCollection<PackageMaintenanceItemViewModel> target, IList<PackageMaintenanceItemViewModel> source)
@@ -966,12 +1316,14 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.IsSelected)
-            || e.PropertyName == nameof(PackageMaintenanceItemViewModel.TargetVersion))
+            || e.PropertyName == nameof(PackageMaintenanceItemViewModel.TargetVersion)
+            || e.PropertyName == nameof(PackageMaintenanceItemViewModel.CanUpdate))
         {
             QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
         }
 
-        if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.TargetVersion))
+        if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.TargetVersion)
+            || e.PropertyName == nameof(PackageMaintenanceItemViewModel.IsSuppressed))
         {
             ApplyFilters();
         }
@@ -1094,9 +1446,17 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                || manager.Equals("chocolatey", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string BuildKey(string manager, string identifier)
+    private static string BuildKey(string? manager, string? identifier)
     {
-        return manager.Trim().ToLowerInvariant() + "|" + identifier.Trim();
+        var managerPart = string.IsNullOrWhiteSpace(manager)
+            ? "unknown"
+            : manager.Trim().ToLowerInvariant();
+
+        var identifierPart = string.IsNullOrWhiteSpace(identifier)
+            ? string.Empty
+            : identifier.Trim();
+
+        return managerPart + "|" + identifierPart;
     }
 
     private static string FormatRelativeTime(DateTimeOffset timestamp)
@@ -1318,6 +1678,9 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     private string _tagsDisplay = string.Empty;
     private string? _installPackageId;
     private bool _requiresAdministrativeAccess;
+    private bool _isSuppressed;
+    private string? _suppressionMessage;
+    private MaintenanceSuppressionEntry? _suppression;
 
     public PackageMaintenanceItemViewModel(PackageInventoryItem item)
     {
@@ -1473,7 +1836,8 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
         private set => SetProperty(ref _requiresAdministrativeAccess, value);
     }
 
-    public bool CanUpdate => (HasUpdate || !string.IsNullOrWhiteSpace(TargetVersion))
+    public bool CanUpdate => !IsSuppressed
+                             && (HasUpdate || !string.IsNullOrWhiteSpace(TargetVersion))
                              && (!string.IsNullOrWhiteSpace(InstallPackageId) || !string.IsNullOrWhiteSpace(PackageIdentifier));
 
     public bool CanRemove => !string.IsNullOrWhiteSpace(Manager) && !string.IsNullOrWhiteSpace(PackageIdentifier);
@@ -1483,6 +1847,26 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     public string VersionDisplay => HasUpdate && !string.IsNullOrWhiteSpace(AvailableVersion)
         ? $"{InstalledVersion} → {AvailableVersion}"
         : InstalledVersion;
+
+    public bool IsSuppressed
+    {
+        get => _isSuppressed;
+        private set
+        {
+            if (SetProperty(ref _isSuppressed, value))
+            {
+                OnPropertyChanged(nameof(CanUpdate));
+            }
+        }
+    }
+
+    public string? SuppressionMessage
+    {
+        get => _suppressionMessage;
+        private set => SetProperty(ref _suppressionMessage, string.IsNullOrWhiteSpace(value) ? null : value.Trim());
+    }
+
+    public MaintenanceSuppressionEntry? Suppression => _suppression;
 
     [ObservableProperty]
     private string? _targetVersion;
@@ -1545,13 +1929,54 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
                || PackageIdentifier.Contains(filter, comparison)
                || Manager.Contains(filter, comparison)
                || (!string.IsNullOrWhiteSpace(Source) && Source.Contains(filter, comparison))
-               || (!string.IsNullOrWhiteSpace(TagsDisplay) && TagsDisplay.Contains(filter, comparison));
+         || (!string.IsNullOrWhiteSpace(TagsDisplay) && TagsDisplay.Contains(filter, comparison))
+         || (!string.IsNullOrWhiteSpace(SuppressionMessage) && SuppressionMessage.Contains(filter, comparison));
     }
 
     public void ApplyOperationResult(bool success, string message)
     {
         LastOperationSucceeded = success;
         LastOperationMessage = string.IsNullOrWhiteSpace(message) ? (success ? "Operation completed." : "Operation failed.") : message.Trim();
+    }
+
+    public void ApplySuppression(MaintenanceSuppressionEntry entry)
+    {
+        if (entry is null)
+        {
+            return;
+        }
+
+        _suppression = entry;
+        OnPropertyChanged(nameof(Suppression));
+        SuppressionMessage = entry.Message;
+
+        if (!string.IsNullOrWhiteSpace(entry.LatestKnownVersion))
+        {
+            AvailableVersion = entry.LatestKnownVersion;
+        }
+
+        if (string.IsNullOrWhiteSpace(TargetVersion) && !string.IsNullOrWhiteSpace(entry.RequestedVersion))
+        {
+            TargetVersion = entry.RequestedVersion;
+        }
+
+        if (HasUpdate)
+        {
+            HasUpdate = false;
+        }
+
+        IsSuppressed = true;
+    }
+
+    public void ClearSuppression()
+    {
+        _suppression = null;
+        OnPropertyChanged(nameof(Suppression));
+        SuppressionMessage = null;
+        if (IsSuppressed)
+        {
+            IsSuppressed = false;
+        }
     }
 
     public void ApplyMaintenanceResult(PackageMaintenanceResult result)
