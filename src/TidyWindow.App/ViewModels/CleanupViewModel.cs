@@ -292,16 +292,21 @@ public sealed partial class CleanupViewModel : ViewModelBase
         get => _currentPage;
         set
         {
-            if (value < 1) value = 1;
-            if (value > TotalPages) value = TotalPages;
+            var totalPages = TotalPages;
+            if (value < 1)
+            {
+                value = 1;
+            }
+            else if (value > totalPages)
+            {
+                value = totalPages;
+            }
+
             if (_currentPage != value)
             {
                 _currentPage = value;
                 OnPropertyChanged(nameof(CurrentPage));
                 RefreshFilteredItems();
-                OnPropertyChanged(nameof(PageDisplay));
-                OnPropertyChanged(nameof(CanGoToPreviousPage));
-                OnPropertyChanged(nameof(CanGoToNextPage));
             }
         }
     }
@@ -324,8 +329,33 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
         }
     }
-    public int TotalPages => (_totalFilteredItems + PageSize - 1) / PageSize;
-    public string PageDisplay => $"Page {CurrentPage} of {TotalPages}";
+    public int TotalPages => ComputeTotalPages(_totalFilteredItems);
+
+    public string PageDisplay => _totalFilteredItems == 0
+        ? "Page 0 of 0"
+        : $"Page {CurrentPage} of {TotalPages}";
+
+    private int ComputeTotalPages(int itemCount)
+    {
+        if (itemCount <= 0)
+        {
+            return 1;
+        }
+
+        var pageSize = Math.Max(PageSize, 1);
+        return (itemCount + pageSize - 1) / pageSize;
+    }
+
+    private void ResetCurrentPage()
+    {
+        if (_currentPage == 1)
+        {
+            return;
+        }
+
+        _currentPage = 1;
+        OnPropertyChanged(nameof(CurrentPage));
+    }
     public bool CanGoToPreviousPage => CurrentPage > 1;
     public bool CanGoToNextPage => CurrentPage < TotalPages;
 
@@ -1308,7 +1338,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         var totalPages = TotalPages;
-        if (totalPages <= 0)
+        if (_totalFilteredItems == 0 || totalPages <= 0)
         {
             return;
         }
@@ -1441,6 +1471,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectRangeEndPage = 1;
         PreviewSortMode = CleanupPreviewSortMode.Impact;
         _mainViewModel.SetStatusMessage("Cleanup filters reset to defaults.");
+        ResetCurrentPage();
         RefreshFilteredItems();
     }
 
@@ -1620,8 +1651,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     partial void OnSelectedTargetChanged(CleanupTargetGroupViewModel? oldValue, CleanupTargetGroupViewModel? newValue)
     {
-        if (newValue is null || newValue.Items.Count == 0)
+        if (newValue is null)
         {
+            ResetCurrentPage();
             RefreshFilteredItems();
             SelectAllCurrentCommand.NotifyCanExecuteChanged();
             ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
@@ -1630,6 +1662,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             return;
         }
 
+        ResetCurrentPage();
         RefreshFilteredItems();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
@@ -1925,6 +1958,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         if (SelectedTarget is null)
         {
             _totalFilteredItems = 0;
+            ResetCurrentPage();
             OnPropertyChanged(nameof(HasFilteredResults));
             OnPropertyChanged(nameof(ExtensionStatusText));
             OnPropertyChanged(nameof(PageDisplay));
@@ -1949,8 +1983,18 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         var filtered = filteredQuery.ToList();
         _totalFilteredItems = filtered.Count;
-        int skip = (CurrentPage - 1) * PageSize;
-        foreach (var item in filtered.Skip(skip).Take(PageSize))
+
+        var totalPages = ComputeTotalPages(_totalFilteredItems);
+        var pageSize = Math.Max(PageSize, 1);
+        var currentPage = Math.Clamp(_currentPage, 1, totalPages);
+        if (currentPage != _currentPage)
+        {
+            _currentPage = currentPage;
+            OnPropertyChanged(nameof(CurrentPage));
+        }
+
+        var skip = (currentPage - 1) * pageSize;
+        foreach (var item in filtered.Skip(skip).Take(pageSize))
         {
             FilteredItems.Add(item);
         }
