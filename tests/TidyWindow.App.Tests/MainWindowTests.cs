@@ -14,37 +14,43 @@ namespace TidyWindow.App.Tests;
 
 public sealed class MainWindowTests
 {
-    [WpfFact]
+    [Fact]
     public async Task MinimizeWhileRunningInBackgroundHidesToTray()
     {
-        EnsureApplication();
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            EnsureApplication();
 
-        using var scope = await MainWindowTestScope.CreateAsync(runInBackground: true);
+            using var scope = await MainWindowTestScope.CreateAsync(runInBackground: true);
 
-        scope.Window.WindowState = WindowState.Minimized;
-        InvokeStateChanged(scope.Window);
+            scope.Window.WindowState = WindowState.Minimized;
+            InvokeStateChanged(scope.Window);
 
-        Assert.Equal(1, scope.Tray.HideToTrayCalls);
-        Assert.True(scope.Tray.LastHideToTrayHint);
+            Assert.Equal(1, scope.Tray.HideToTrayCalls);
+            Assert.True(scope.Tray.LastHideToTrayHint);
+        });
     }
 
-    [WpfFact]
+    [Fact]
     public async Task ClosingWhileRunningInBackgroundCancelsAndHides()
     {
-        EnsureApplication();
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            EnsureApplication();
 
-        using var scope = await MainWindowTestScope.CreateAsync(runInBackground: true);
+            using var scope = await MainWindowTestScope.CreateAsync(runInBackground: true);
 
-        var args = new CancelEventArgs();
-        InvokeClosing(scope.Window, args);
+            var args = new CancelEventArgs();
+            InvokeClosing(scope.Window, args);
 
-        Assert.True(args.Cancel);
-        Assert.Equal(1, scope.Tray.HideToTrayCalls);
+            Assert.True(args.Cancel);
+            Assert.Equal(1, scope.Tray.HideToTrayCalls);
 
-        scope.Tray.SetExitRequested(true);
-        args = new CancelEventArgs();
-        InvokeClosing(scope.Window, args);
-        Assert.False(args.Cancel);
+            scope.Tray.SetExitRequested(true);
+            args = new CancelEventArgs();
+            InvokeClosing(scope.Window, args);
+            Assert.False(args.Cancel);
+        });
     }
 
     private static void EnsureApplication()

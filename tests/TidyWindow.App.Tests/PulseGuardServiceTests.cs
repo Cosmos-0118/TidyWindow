@@ -8,30 +8,36 @@ namespace TidyWindow.App.Tests;
 
 public sealed class PulseGuardServiceTests
 {
-    [WpfFact]
+    [Fact]
     public async Task LegacyPowerShellErrorShowsHighFrictionPrompt()
     {
-        using var scope = new PulseGuardTestScope();
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
 
-        scope.ActivityLog.LogError("Bootstrap", "Automation halted because PowerShell 5.1 is still active.");
+            scope.ActivityLog.LogError("Bootstrap", "Automation halted because PowerShell 5.1 is still active.");
 
-        var scenario = await scope.Prompt.WaitForScenarioAsync(TimeSpan.FromSeconds(2));
+            var scenario = await scope.Prompt.WaitForScenarioAsync(TimeSpan.FromSeconds(2));
 
-        Assert.Equal(HighFrictionScenario.LegacyPowerShell, scenario);
+            Assert.Equal(HighFrictionScenario.LegacyPowerShell, scenario);
+        });
     }
 
-    [WpfFact]
+    [Fact]
     public async Task SuccessNotificationsRespectCooldownWindow()
     {
-        using var scope = new PulseGuardTestScope();
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
 
-        scope.ActivityLog.LogSuccess("Cleanup", "Finished removing 42 stale files.");
-        await scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromSeconds(2));
+            scope.ActivityLog.LogSuccess("Cleanup", "Finished removing 42 stale files.");
+            await scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromSeconds(2));
 
-        scope.ActivityLog.LogSuccess("Cleanup", "Follow-up success should be throttled.");
-        await Task.Delay(300);
+            scope.ActivityLog.LogSuccess("Cleanup", "Follow-up success should be throttled.");
+            await Task.Delay(300);
 
-        Assert.Single(scope.Tray.Notifications);
+            Assert.Single(scope.Tray.Notifications);
+        });
     }
 
     private sealed class PulseGuardTestScope : IDisposable
