@@ -878,13 +878,41 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 ? $"Removing {models.Count:N0} item(s) • {totalSizeMb:F2} MB"
                 : $"Removing {models.Count:N0} item(s)";
 
+            var progressStopwatch = Stopwatch.StartNew();
+            var lastProgressReported = -1;
+
             var progress = new Progress<CleanupDeletionProgress>(report =>
             {
+                if (report.Total > 0 && DeletionProgressTotal != report.Total)
+                {
+                    DeletionProgressTotal = report.Total;
+                }
+
+                var shouldRefresh =
+                    report.Completed == report.Total ||
+                    report.Completed == 0 ||
+                    report.Completed - lastProgressReported >= 25 ||
+                    progressStopwatch.Elapsed >= TimeSpan.FromMilliseconds(120);
+
+                if (!shouldRefresh)
+                {
+                    return;
+                }
+
+                lastProgressReported = report.Completed;
+                progressStopwatch.Restart();
+
                 DeletionProgressCurrent = report.Completed;
-                DeletionProgressTotal = report.Total;
-                DeletionStatusMessage = string.IsNullOrEmpty(report.CurrentPath)
-                    ? $"Deleting {report.Completed} of {report.Total}"
-                    : $"Deleting {report.Completed}/{report.Total}: {report.CurrentPath}";
+                if (string.IsNullOrEmpty(report.CurrentPath))
+                {
+                    DeletionStatusMessage = report.Total > 0
+                        ? $"Deleting {report.Completed} of {report.Total}"
+                        : "Deleting…";
+                }
+                else
+                {
+                    DeletionStatusMessage = $"Deleting {report.Completed}/{report.Total}: {report.CurrentPath}";
+                }
             });
 
             var stopwatch = Stopwatch.StartNew();
@@ -956,12 +984,30 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 }
             }
 
-            var removed = new HashSet<CleanupPreviewItemViewModel>();
-            foreach (var (group, item) in removalCandidates)
+            if (removalCandidates.Count > 0)
             {
-                if (removed.Add(item))
+                var removalByGroup = new Dictionary<CleanupTargetGroupViewModel, List<CleanupPreviewItemViewModel>>();
+                foreach (var (group, item) in removalCandidates)
                 {
-                    group.Items.Remove(item);
+                    if (!removalByGroup.TryGetValue(group, out var list))
+                    {
+                        list = new List<CleanupPreviewItemViewModel>();
+                        removalByGroup[group] = list;
+                    }
+
+                    list.Add(item);
+                }
+
+                var processedGroups = 0;
+                foreach (var kvp in removalByGroup)
+                {
+                    kvp.Key.RemoveItems(kvp.Value);
+                    processedGroups++;
+
+                    if (processedGroups % 3 == 0)
+                    {
+                        await Task.Yield();
+                    }
                 }
             }
 

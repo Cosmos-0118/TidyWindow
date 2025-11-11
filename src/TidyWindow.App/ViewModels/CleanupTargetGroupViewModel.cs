@@ -199,6 +199,51 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
         return new SelectionUpdateScope(this);
     }
 
+    public void RemoveItems(IReadOnlyCollection<CleanupPreviewItemViewModel> itemsToRemove)
+    {
+        if (itemsToRemove is null || itemsToRemove.Count == 0)
+        {
+            return;
+        }
+
+        var removalSet = new HashSet<CleanupPreviewItemViewModel>(itemsToRemove);
+        if (removalSet.Count == 0)
+        {
+            return;
+        }
+
+        var survivors = new List<CleanupPreviewItemViewModel>(Items.Count);
+        foreach (var item in Items)
+        {
+            item.PropertyChanged -= OnItemPropertyChanged;
+            if (!removalSet.Contains(item))
+            {
+                survivors.Add(item);
+            }
+        }
+
+        if (survivors.Count == Items.Count)
+        {
+            foreach (var survivor in survivors)
+            {
+                survivor.PropertyChanged += OnItemPropertyChanged;
+            }
+
+            return;
+        }
+
+        Items.CollectionChanged -= OnItemsCollectionChanged;
+        Items.Clear();
+        foreach (var survivor in survivors)
+        {
+            survivor.PropertyChanged += OnItemPropertyChanged;
+            Items.Add(survivor);
+        }
+        Items.CollectionChanged += OnItemsCollectionChanged;
+
+        OnItemsCollectionChanged(this, new NotifyCollectionChangedEventArgs(NotifyCollectionChangedAction.Reset));
+    }
+
     private void EndSelectionUpdate()
     {
         if (_selectionNotificationSuppression == 0)

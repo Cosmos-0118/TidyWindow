@@ -204,7 +204,8 @@ function Set-TidyServiceStartupMode {
         [Parameter(Mandatory = $true)]
         [string] $ServiceName,
         [ValidateSet('Automatic', 'AutomaticDelayedStart', 'Manual')]
-        [string] $StartupType = 'Manual'
+        [string] $StartupType = 'Manual',
+        [switch] $EnsureRunning
     )
 
     try {
@@ -218,24 +219,102 @@ function Set-TidyServiceStartupMode {
         return $false
     }
 
-    $isDisabled = $service.StartMode -eq 'Disabled'
-    if (-not $isDisabled) {
-        return $false
+    $changesMade = $false
+    $needsStartupUpdate = $service.StartMode -eq 'Disabled'
+    if (-not $needsStartupUpdate -and $StartupType -ne 'Manual') {
+        $needsStartupUpdate = -not [string]::Equals($service.StartMode, $StartupType, [System.StringComparison]::OrdinalIgnoreCase)
     }
 
-    Write-TidyOutput -Message ("Setting service {0} startup type to {1}." -f $ServiceName, $StartupType)
-    try {
-        Invoke-TidyCommand -Command {
-            param($name, $type)
-            Set-Service -Name $name -StartupType $type -ErrorAction Stop
-        } -Arguments @($ServiceName, $StartupType) -Description ("Configure service {0}." -f $ServiceName) | Out-Null
-        return $true
-    }
-    catch {
-        Write-TidyError -Message ("Failed to update service {0}. {1}" -f $ServiceName, $_.Exception.Message)
+    if ($needsStartupUpdate) {
+        Write-TidyOutput -Message ("Setting service {0} startup type to {1}." -f $ServiceName, $StartupType)
+        try {
+            Invoke-TidyCommand -Command {
+                param($name, $type)
+                Set-Service -Name $name -StartupType $type -ErrorAction Stop
+            } -Arguments @($ServiceName, $StartupType) -Description ("Configure service {0}." -f $ServiceName) | Out-Null
+            $changesMade = $true
+        }
+        catch {
+            Write-TidyError -Message ("Failed to update service {0}. {1}" -f $ServiceName, $_.Exception.Message)
+        }
     }
 
-    return $false
+    if ($EnsureRunning.IsPresent) {
+        try {
+            $status = Get-Service -Name $ServiceName -ErrorAction Stop
+            if ($status.Status -ne 'Running') {
+                Write-TidyOutput -Message ("Starting service {0}." -f $ServiceName)
+                Invoke-TidyCommand -Command {
+                    param($name)
+                    Start-Service -Name $name -ErrorAction Stop
+                } -Arguments @($ServiceName) -Description ("Start service {0}." -f $ServiceName) | Out-Null
+                $changesMade = $true
+            }
+        }
+        catch {
+            Write-TidyError -Message ("Failed to start service {0}. {1}" -f $ServiceName, $_.Exception.Message)
+        }
+    }
+
+    return $changesMade
+}
+
+function Enable-TidySystemRestoreRegistry {
+    $registryTargets = @(
+        @{ Path = 'Registry::HKLM\Software\Microsoft\Windows NT\CurrentVersion\SystemRestore'; Names = @('DisableSR', 'DisableConfig') },
+        @{ Path = 'Registry::HKLM\Software\Policies\Microsoft\Windows NT\SystemRestore'; Names = @('DisableSR', 'DisableConfig') }
+    )
+
+    $changesApplied = $false
+
+    foreach ($target in $registryTargets) {
+        $path = $target.Path
+        $names = $target.Names
+
+        try {
+            if (-not (Test-Path -LiteralPath $path)) {
+                continue
+            }
+
+            $current = Get-ItemProperty -LiteralPath $path -ErrorAction Stop
+            if ($null -eq $current) {
+                continue
+            }
+
+            foreach ($name in $names) {
+                if (-not ($current.PSObject.Properties.Name -contains $name)) {
+                    continue
+                }
+
+                $value = $current.$name
+                $numeric = 0
+                $shouldReset = $false
+
+                if ($null -eq $value) {
+                    $shouldReset = $true
+                }
+                elseif ([int]::TryParse($value.ToString(), [ref]$numeric)) {
+                    if ($numeric -ne 0) {
+                        $shouldReset = $true
+                    }
+                }
+                else {
+                    $shouldReset = $true
+                }
+
+                if ($shouldReset) {
+                    Write-TidyOutput -Message ("Resetting System Restore flag {0} at {1}." -f $name, $path)
+                    Set-ItemProperty -LiteralPath $path -Name $name -Value 0 -ErrorAction Stop
+                    $changesApplied = $true
+                }
+            }
+        }
+        catch {
+            Write-TidyError -Message ("Failed to adjust System Restore registry at {0}. {1}" -f $path, $_.Exception.Message)
+        }
+    }
+
+    return $changesApplied
 }
 
 function Enable-TidyRestoreSupport {
@@ -247,25 +326,99 @@ function Enable-TidyRestoreSupport {
 
     $anyChanges = $false
 
+    $driveSet = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    $normalizedDrives = [System.Collections.Generic.List[string]]::new()
+
+    foreach ($entry in @($DriveLetters)) {
+        if ([string]::IsNullOrWhiteSpace($entry)) {
+            continue
+        }
+
+        try {
+            $normalized = Normalize-TidyDrive -Drive $entry
+        }
+        catch {
+            Write-TidyError -Message ("Skipping invalid drive value '{0}'. {1}" -f $entry, $_.Exception.Message)
+            continue
+        }
+
+        if ($driveSet.Add($normalized)) {
+            $normalizedDrives.Add($normalized) | Out-Null
+        }
+    }
+
+    $systemDriveValue = $env:SystemDrive
+    if ([string]::IsNullOrWhiteSpace($systemDriveValue)) {
+        $systemRoot = $env:SystemRoot
+        if (-not [string]::IsNullOrWhiteSpace($systemRoot)) {
+            try {
+                $systemDriveValue = Split-Path -Path $systemRoot -Qualifier
+            }
+            catch {
+                $systemDriveValue = $null
+            }
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($systemDriveValue)) {
+        try {
+            $systemDriveNormalized = Normalize-TidyDrive -Drive $systemDriveValue
+            $addedSystemDrive = $driveSet.Add($systemDriveNormalized)
+            if ($addedSystemDrive) {
+                $normalizedDrives.Insert(0, $systemDriveNormalized)
+                Write-TidyOutput -Message ("Including system drive {0} in enable list." -f $systemDriveNormalized)
+            }
+            else {
+                $currentIndex = $normalizedDrives.IndexOf($systemDriveNormalized)
+                if ($currentIndex -gt 0) {
+                    $normalizedDrives.RemoveAt($currentIndex)
+                    $normalizedDrives.Insert(0, $systemDriveNormalized)
+                    Write-TidyOutput -Message ("Prioritizing system drive {0} for System Restore enablement." -f $systemDriveNormalized)
+                }
+            }
+        }
+        catch {
+            Write-TidyError -Message ("Unable to normalize system drive '{0}'. {1}" -f $systemDriveValue, $_.Exception.Message)
+        }
+    }
+
+    if ($normalizedDrives.Count -eq 0) {
+        Write-TidyError -Message 'No valid drive letters were supplied for System Restore enablement.'
+        return $false
+    }
+
     if ($RepairServices) {
+        if (Enable-TidySystemRestoreRegistry) {
+            $anyChanges = $true
+        }
+
         foreach ($serviceName in @('srservice', 'VSS')) {
-            if (Set-TidyServiceStartupMode -ServiceName $serviceName) {
+            if (Set-TidyServiceStartupMode -ServiceName $serviceName -EnsureRunning) {
                 $anyChanges = $true
             }
         }
     }
 
-    foreach ($drive in $DriveLetters) {
-        Write-TidyOutput -Message ("Enabling System Restore on {0}" -f $drive)
+    for ($i = 0; $i -lt $normalizedDrives.Count; $i++) {
+        $drive = $normalizedDrives[$i]
+        $targets = if ($i -eq 0) { @($drive) } else { @($normalizedDrives[0], $drive) }
+        $displayTargets = [string]::Join(', ', $targets)
+        Write-TidyOutput -Message ("Enabling System Restore on {0}" -f $displayTargets)
         try {
             Invoke-TidyCommand -Command {
-                param($targetDrive)
-                Enable-ComputerRestore -Drive $targetDrive -ErrorAction Stop
-            } -Arguments @($drive) -Description ("Enable System Restore {0}" -f $drive) | Out-Null
+                param($targetDrives)
+                Enable-ComputerRestore -Drive $targetDrives -ErrorAction Stop
+            } -Arguments @([object]$targets) -Description ("Enable System Restore {0}" -f $displayTargets) | Out-Null
             $anyChanges = $true
         }
         catch {
-            Write-TidyError -Message ("Failed to enable System Restore on {0}. {1}" -f $drive, $_.Exception.Message)
+            $errorText = $_.Exception.Message
+            if ($errorText -and $errorText -match 'Include System Drive') {
+                Write-TidyError -Message ("System Restore reported that the system drive was missing while enabling protection on {0}. Verify that {1} remains included and retry." -f $displayTargets, $normalizedDrives[0])
+            }
+            else {
+                Write-TidyError -Message ("Failed to enable System Restore on {0}. {1}" -f $displayTargets, $errorText)
+            }
         }
     }
 

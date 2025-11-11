@@ -753,7 +753,7 @@
         Margin="0,0,0,28"
             Style="{StaticResource SetupPhaseContainerStyle}"
             Effect="{StaticResource SurfaceShadowEffect}">
-                <StackPanel>
+                        <StackPanel>
                     <TextBlock Text="Setup checklist"
                                FontSize="16"
                                FontWeight="SemiBold"
@@ -2312,305 +2312,333 @@
         Panel.ZIndex="3"
         Style="{StaticResource CelebrationOverlayStyle}">
             <ScrollViewer HorizontalAlignment="Center"
-                          VerticalAlignment="Stretch"
-                          Margin="32"
-                          MaxWidth="980"
-                          HorizontalScrollBarVisibility="Disabled"
-                          VerticalScrollBarVisibility="Auto"
-                          CanContentScroll="False"
-                          PanningMode="VerticalOnly">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <Border Background="{StaticResource CleanupSurfaceBrush}"
-                        BorderBrush="{StaticResource CleanupBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="24"
-                        Padding="32"
-            Margin="0,0,24,0"
-            Style="{StaticResource CelebrationPhaseContainerStyle}"
-            Effect="{StaticResource SurfaceShadowEffect}">
-                    <controls:CleanupCelebrationView x:Name="CelebrationView"
-                                                     Width="340"
-                                                     Height="220"/>
-                </Border>
-                    <Border Grid.Column="1"
-                        Background="{StaticResource CleanupSurfaceBrush}"
-                        BorderBrush="{StaticResource CleanupBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="20"
-                        Padding="28"
-                        Width="440"
-                        MaxWidth="480"
-                        Style="{StaticResource CelebrationPhaseContainerStyle}"
-                        Effect="{StaticResource SurfaceShadowEffect}">
+                              VerticalAlignment="Stretch"
+                              Margin="32"
+                              MaxWidth="1180"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              CanContentScroll="False"
+                              PanningMode="VerticalOnly">
                     <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="360"/>
+                            <ColumnDefinition Width="24"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
-
-                        <StackPanel Grid.Row="0">
-                            <TextBlock Text="Phase 4 — Cleanup feedback"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource CleanupAccentBrush}"/>
-                            <TextBlock Text="{Binding CelebrationHeadline}"
-                                       FontSize="24"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource CleanupSoftTextBrush}"
-                                       Margin="0,6,0,4"
-                                       TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding CelebrationDetails}"
-                                       FontSize="12"
-                                       Foreground="{StaticResource CleanupMutedTextBrush}"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,16"/>
-                            <WrapPanel Margin="0,0,0,12">
-                                <Border Style="{StaticResource SheetCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="Space reclaimed"
-                                                   FontSize="12"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                        <TextBlock Text="{Binding CelebrationReclaimedDisplay}"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                   Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource SheetCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="Items removed"
-                                                   FontSize="12"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                        <TextBlock Text="{Binding CelebrationItemsDeleted, StringFormat={}{0:N0}}"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                   Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource SheetCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="Categories"
-                                                   FontSize="12"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                        <TextBlock Text="{Binding CelebrationCategoryCount, StringFormat={}{0:N0}}"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                   Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource SheetCardStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="Time saved"
-                                                   FontSize="12"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                        <TextBlock Text="{Binding CelebrationTimeSavedDisplay}"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                   Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </Border>
-                            </WrapPanel>
-                            <TextBlock FontSize="12"
-                                       Foreground="{StaticResource CleanupMutedTextBrush}"
-                                       Margin="0,0,0,12">
-                                <Run Text="Execution time · "/>
-                                <Run Text="{Binding CelebrationDurationDisplay}"/>
-                                <Run Text="   "/>
-                                <Run Text="Skipped · "/>
-                                <Run Text="{Binding CelebrationItemsSkipped, StringFormat={}{0:N0}}"/>
-                                <Run Text="   "/>
-                                <Run Text="Failed · "/>
-                                <Run Text="{Binding CelebrationItemsFailed, StringFormat={}{0:N0}}"/>
-                            </TextBlock>
-                            <StackPanel Margin="0,0,0,16">
-                                <TextBlock Text="Categories touched"
-                                           FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                <ItemsControl ItemsSource="{Binding CelebrationCategories}"
-                                              Margin="0,4,0,0">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <WrapPanel/>
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Style="{StaticResource CategorySummaryChipStyle}">
-                                                <TextBlock Text="{Binding}"
-                                                           FontSize="12"
-                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                    <ItemsControl.Style>
-                                        <Style TargetType="ItemsControl">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasCelebrationCategories}"
-                                                             Value="False">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </ItemsControl.Style>
-                                </ItemsControl>
-                                <TextBlock Text="No categories were affected."
-                                           FontSize="12"
+                        <Border Background="{StaticResource CleanupSurfaceBrush}"
+                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="24"
+                            Padding="32"
+                            MinHeight="380"
+                            Style="{StaticResource CelebrationPhaseContainerStyle}"
+                            Effect="{StaticResource SurfaceShadowEffect}">
+                            <StackPanel>
+                                <controls:CleanupCelebrationView x:Name="CelebrationView"
+                                                                 Width="296"
+                                                                 Height="220"
+                                                                 HorizontalAlignment="Center"/>
+                                <TextBlock Text="{Binding CelebrationHeadline}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
                                            Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           Margin="0,8,0,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasCelebrationCategories}"
-                                                             Value="False">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
+                                           Margin="0,20,0,8"
+                                           HorizontalAlignment="Center"/>
+                                <UniformGrid Columns="2"
+                                             Rows="2"
+                                             HorizontalAlignment="Stretch"
+                                             Margin="0,0,0,12"
+                                             VerticalAlignment="Top">
+                                    <Border Style="{StaticResource SheetCardStyle}"
+                                            Margin="0,0,12,12"
+                                            Padding="18"
+                                            MinHeight="110">
+                                        <StackPanel>
+                                            <TextBlock Text="Space reclaimed"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding CelebrationReclaimedDisplay}"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                    <Border Style="{StaticResource SheetCardStyle}"
+                        Margin="0,0,0,12"
+                        Padding="18"
+                        MinHeight="110">
+                                        <StackPanel>
+                                            <TextBlock Text="Items removed"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding CelebrationItemsDeleted, StringFormat={}{0:N0}}"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                    <Border Style="{StaticResource SheetCardStyle}"
+                        Margin="0,0,12,0"
+                        Padding="18"
+                        MinHeight="110">
+                                        <StackPanel>
+                                            <TextBlock Text="Categories"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding CelebrationCategoryCount, StringFormat={}{0:N0}}"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                    <Border Style="{StaticResource SheetCardStyle}"
+                        Margin="0"
+                        Padding="18"
+                        MinHeight="110">
+                                        <StackPanel>
+                                            <TextBlock Text="Time saved"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                            <TextBlock Text="{Binding CelebrationTimeSavedDisplay}"
+                                                       FontSize="20"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </UniformGrid>
+                                <TextBlock FontSize="12"
+                                           Foreground="{StaticResource CleanupMutedTextBrush}"
+                                           TextAlignment="Center">
+                                    <Run Text="Execution · "/>
+                                    <Run Text="{Binding CelebrationDurationDisplay}"/>
+                                    <Run Text="   "/>
+                                    <Run Text="Skipped · "/>
+                                    <Run Text="{Binding CelebrationItemsSkipped, StringFormat={}{0:N0}}"/>
+                                    <Run Text="   "/>
+                                    <Run Text="Failed · "/>
+                                    <Run Text="{Binding CelebrationItemsFailed, StringFormat={}{0:N0}}"/>
                                 </TextBlock>
                             </StackPanel>
-                        </StackPanel>
-
-                        <Grid Grid.Row="1"
-                              Margin="0,16,0,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0"
-                                       Text="Failures"
-                                       FontSize="12"
-                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                            <ScrollViewer Grid.Row="1"
-                                          Margin="0,6,0,0"
-                                          VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled"
-                                          MaxHeight="220">
-                                <ScrollViewer.Style>
-                                    <Style TargetType="ScrollViewer"
-                                           BasedOn="{StaticResource App.ScrollViewerStyle}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasCelebrationFailures}"
-                                                         Value="False">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </ScrollViewer.Style>
-                                <ItemsControl ItemsSource="{Binding CelebrationFailures}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                        <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                        </Border>
+                        <Border Grid.Column="2"
+                            Background="{StaticResource CleanupSurfaceBrush}"
                             BorderBrush="{StaticResource CleanupBorderBrush}"
-                                                    BorderThickness="1"
-                                                    CornerRadius="10"
-                                                    Padding="12"
-                                                    Margin="0,0,0,8">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel>
-                                                        <TextBlock Text="{Binding DisplayName}"
-                                                                   FontSize="13"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                                        <TextBlock Text="{Binding Reason}"
-                                                                   FontSize="12"
-                                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                                   TextWrapping="Wrap"
-                                                                   Margin="0,4,0,0"/>
-                                                    </StackPanel>
-                                                    <Button Grid.Column="1"
-                                                            Content="Retry"
-                                                            Command="{Binding DataContext.RetryFailureAsyncCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                            CommandParameter="{Binding}"
-                                                            Style="{StaticResource ChipButtonStyle}"
-                                                            Padding="14,6"
-                                                            Margin="12,0,0,0">
-                                                        <Button.IsEnabled>
-                                                            <Binding Path="IsRetrying" Converter="{StaticResource InverseBooleanConverter}"/>
-                                                        </Button.IsEnabled>
-                                                    </Button>
-                                                </Grid>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                            <TextBlock Grid.Row="2"
-                                       Text="All items were removed successfully. Great job!"
-                                       FontSize="12"
-                                       Foreground="{StaticResource CleanupMutedTextBrush}"
-                                       Margin="0,8,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasCelebrationFailures}"
-                                                         Value="False">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </Grid>
+                            BorderThickness="1"
+                            CornerRadius="20"
+                            Padding="32"
+                            MinWidth="420"
+                            MaxWidth="680"
+                            Style="{StaticResource CelebrationPhaseContainerStyle}"
+                            Effect="{StaticResource SurfaceShadowEffect}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
 
-        <WrapPanel Grid.Row="2"
-               Margin="0,24,0,0"
-               HorizontalAlignment="Right"
-               Orientation="Horizontal">
-                            <Button Content="Review report"
-                                    Command="{Binding ReviewCelebrationReportCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"
-                    IsEnabled="{Binding CanReviewCelebrationReport}"
-                    Margin="0,0,12,12"/>
-                            <Button Content="Share summary"
-                                    Command="{Binding ShareCelebrationSummaryCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"
-                    Margin="0,0,12,12"/>
-                            <Button Content="Schedule recurring scan"
-                                    Command="{Binding ScheduleRecurringScanCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"
-                    Margin="0,0,12,12"/>
-                            <Button Content="Back to dashboard"
-                                    Command="{Binding CancelCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"
-            Background="{StaticResource CleanupSurfaceBrush}"
-                    Margin="0,0,12,12"/>
-                            <Button Content="Close"
-                                    Command="{Binding CloseCelebrationCommand}"
-                    Style="{StaticResource FlatButtonStyle}"
-                    Background="{StaticResource CleanupAccentBrushSecondary}"
-                    Foreground="#041225"
-                                    FontWeight="SemiBold"
-                                    Padding="18,10"
-                    BorderThickness="0"
-            Cursor="Hand"
-            Margin="0,0,0,12"/>
-                        </WrapPanel>
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="Phase 4 — Cleanup feedback"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource CleanupAccentBrush}"/>
+                                    <TextBlock Text="{Binding CelebrationHeadline}"
+                                               FontSize="26"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource CleanupSoftTextBrush}"
+                                               Margin="0,8,0,6"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding CelebrationDetails}"
+                                               FontSize="13"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Row="1"
+                                            Margin="0,20,0,0">
+                                    <TextBlock Text="Categories touched"
+                                               FontSize="12"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                    <ItemsControl ItemsSource="{Binding CelebrationCategories}"
+                                                  Margin="0,6,0,0">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource CategorySummaryChipStyle}">
+                                                    <TextBlock Text="{Binding}"
+                                                               FontSize="12"
+                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                        <ItemsControl.Style>
+                                            <Style TargetType="ItemsControl">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasCelebrationCategories}"
+                                                                 Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ItemsControl.Style>
+                                    </ItemsControl>
+                                    <TextBlock Text="No categories were affected."
+                                               FontSize="12"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               Margin="0,8,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasCelebrationCategories}"
+                                                                 Value="False">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+
+                                <Grid Grid.Row="2"
+                                      Margin="0,28,0,0">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="*"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
+                                    <TextBlock Grid.Row="0"
+                                               Text="Failures"
+                                               FontSize="12"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                    <ScrollViewer Grid.Row="1"
+                                                  Margin="0,8,0,0"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  MaxHeight="280">
+                                        <ScrollViewer.Style>
+                                            <Style TargetType="ScrollViewer"
+                                                   BasedOn="{StaticResource App.ScrollViewerStyle}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasCelebrationFailures}"
+                                                                 Value="False">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </ScrollViewer.Style>
+                                        <ItemsControl ItemsSource="{Binding CelebrationFailures}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="10"
+                                                            Padding="12"
+                                                            Margin="0,0,0,8">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding DisplayName}"
+                                                                           FontSize="13"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                                <TextBlock Text="{Binding Reason}"
+                                                                           FontSize="12"
+                                                                           Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           Margin="0,4,0,0"/>
+                                                            </StackPanel>
+                                                            <Button Grid.Column="1"
+                                                                    Content="Retry"
+                                                                    Command="{Binding DataContext.RetryFailureAsyncCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Style="{StaticResource ChipButtonStyle}"
+                                                                    Padding="14,6"
+                                                                    Margin="12,0,0,0">
+                                                                <Button.IsEnabled>
+                                                                    <Binding Path="IsRetrying" Converter="{StaticResource InverseBooleanConverter}"/>
+                                                                </Button.IsEnabled>
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <TextBlock Grid.Row="2"
+                                               Text="All items were removed successfully. Great job!"
+                                               FontSize="12"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               Margin="0,8,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasCelebrationFailures}"
+                                                                 Value="False">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+
+                                <WrapPanel Grid.Row="3"
+                                           Margin="0,24,0,0"
+                                           HorizontalAlignment="Right"
+                                           Orientation="Horizontal">
+                                    <Button Content="Review report"
+                                            Command="{Binding ReviewCelebrationReportCommand}"
+                                            Style="{StaticResource FlatButtonStyle}"
+                                            IsEnabled="{Binding CanReviewCelebrationReport}"
+                                            Margin="0,0,12,12"/>
+                                    <Button Content="Share summary"
+                                            Command="{Binding ShareCelebrationSummaryCommand}"
+                                            Style="{StaticResource FlatButtonStyle}"
+                                            Margin="0,0,12,12"/>
+                                    <Button Content="Schedule recurring scan"
+                                            Command="{Binding ScheduleRecurringScanCommand}"
+                                            Style="{StaticResource FlatButtonStyle}"
+                                            Margin="0,0,12,12"/>
+                                    <Button Content="Back to dashboard"
+                                            Command="{Binding CancelCommand}"
+                                            Style="{StaticResource FlatButtonStyle}"
+                                            Background="{StaticResource CleanupSurfaceBrush}"
+                                            Margin="0,0,12,12"/>
+                                    <Button Content="Close"
+                                            Command="{Binding CloseCelebrationCommand}"
+                                            Style="{StaticResource FlatButtonStyle}"
+                                            Background="{StaticResource CleanupAccentBrushSecondary}"
+                                            Foreground="#041225"
+                                            FontWeight="SemiBold"
+                                            Padding="18,10"
+                                            BorderThickness="0"
+                                            Cursor="Hand"
+                                            Margin="0,0,0,12"/>
+                                </WrapPanel>
+                            </Grid>
+                        </Border>
                     </Grid>
-                </Border>
-                </Grid>
-            </ScrollViewer>
+                </ScrollViewer>
         </Border>
     </Grid>
 </Page>
