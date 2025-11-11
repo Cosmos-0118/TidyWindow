@@ -87,81 +87,6 @@
         <GradientStop Color="#6366F1"
               Offset="1"/>
     </LinearGradientBrush>
-        <ControlTemplate x:Key="ComboToggleButtonTemplate"
-                         TargetType="ToggleButton">
-            <Grid>
-                <Border x:Name="ToggleBorder"
-                        Background="{StaticResource CleanupSurfaceBrush}"
-                        BorderBrush="{StaticResource CleanupBorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="8,4"/>
-                <Path Data="M 0 0 L 5 5 L 10 0"
-                      Stroke="{StaticResource CleanupAccentBrush}"
-                      StrokeThickness="1.5"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Center"
-                      Margin="0,0,10,0"/>
-            </Grid>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver"
-                         Value="True">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Background"
-                            Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
-                    <Setter TargetName="ToggleBorder"
-                            Property="BorderBrush"
-                            Value="{StaticResource CleanupAccentBrush}"/>
-                </Trigger>
-                <Trigger Property="IsChecked"
-                         Value="True">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Background"
-                            Value="{StaticResource CleanupAccentBrush}"/>
-                    <Setter TargetName="ToggleBorder"
-                            Property="BorderBrush"
-                            Value="{StaticResource CleanupAccentBrush}"/>
-                </Trigger>
-                <Trigger Property="IsPressed"
-                         Value="True">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Background"
-                            Value="{StaticResource CleanupAccentBrushSecondary}"/>
-                    <Setter TargetName="ToggleBorder"
-                            Property="BorderBrush"
-                            Value="{StaticResource CleanupAccentBrushSecondary}"/>
-                </Trigger>
-                <Trigger Property="IsEnabled"
-                         Value="False">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Opacity"
-                            Value="0.5"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
-        <Style x:Key="CleanupComboBoxItemStyle"
-               TargetType="ComboBoxItem">
-            <Setter Property="Foreground"
-                    Value="{StaticResource CleanupSoftTextBrush}"/>
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="Padding"
-                    Value="8,4"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver"
-                         Value="True">
-                    <Setter Property="Background"
-                            Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
-                </Trigger>
-                <Trigger Property="IsSelected"
-                         Value="True">
-                    <Setter Property="Background"
-                            Value="{StaticResource CleanupAccentBrush}"/>
-                    <Setter Property="Foreground"
-                            Value="#041225"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
         <Style x:Key="SetupCardStyle"
                TargetType="Border">
             <Setter Property="Background"
@@ -798,64 +723,7 @@
                                           SelectedValuePath="Kind"
                                           SelectedValue="{Binding SelectedItemKind, Mode=TwoWay}"
                                           DisplayMemberPath="Label"
-                                          Background="Transparent"
-                                          Foreground="{StaticResource CleanupSoftTextBrush}"
-                                          BorderThickness="0"
-                                          Padding="0">
-                                    <ComboBox.Template>
-                                        <ControlTemplate TargetType="ComboBox">
-                                            <Grid>
-                                                <ToggleButton x:Name="ToggleButton"
-                                                              Template="{StaticResource ComboToggleButtonTemplate}"
-                                                              Grid.ColumnSpan="2"
-                                                              Focusable="False"
-                                                              IsHitTestVisible="True"
-                                                              ClickMode="Press"
-                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                                <ContentPresenter x:Name="ContentSite"
-                                                                  Margin="14,4,36,4"
-                                                                  VerticalAlignment="Center"
-                                                                  HorizontalAlignment="Left"
-                                                                  RecognizesAccessKey="True"
-                                                                  Content="{TemplateBinding SelectionBoxItem}"/>
-                                                <Popup x:Name="Popup"
-                                                       Placement="Bottom"
-                                                       AllowsTransparency="True"
-                                                       Focusable="False"
-                                                       IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                       PopupAnimation="Slide">
-                            <Border x:Name="PopupBorder"
-                                Background="{StaticResource CleanupSurfaceBrush}"
-                                BorderBrush="{StaticResource CleanupBorderBrush}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="6"
-                                                            Padding="4">
-                                                        <ScrollViewer Margin="0"
-                                                                      SnapsToDevicePixels="True">
-                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                        </ScrollViewer>
-                                                    </Border>
-                                                </Popup>
-                                            </Grid>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="HasItems"
-                                                         Value="False">
-                                                    <Setter TargetName="PopupBorder"
-                                                            Property="MinHeight"
-                                                            Value="24"/>
-                                                </Trigger>
-                                                <Trigger Property="IsEnabled"
-                                                         Value="False">
-                            <Setter Property="Foreground"
-                                Value="{StaticResource CleanupMutedTextBrush}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </ComboBox.Template>
-                                    <ComboBox.ItemContainerStyle>
-                                        <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                                    </ComboBox.ItemContainerStyle>
-                                </ComboBox>
+                                          Style="{StaticResource App.ComboBoxStyle}"/>
                             </StackPanel>
                         </Border>
 
@@ -873,71 +741,14 @@
                                 <ComboBox ItemsSource="{Binding ExtensionFilterOptions}"
                                           SelectedValuePath="Mode"
                                           SelectedValue="{Binding SelectedExtensionFilterMode, Mode=TwoWay}"
-                                          Background="Transparent"
-                                          Foreground="{StaticResource CleanupSoftTextBrush}"
-                                          BorderThickness="0"
-                                          Padding="0"
+                                          Style="{StaticResource App.ComboBoxStyle}"
                                           ToolTip="{Binding SelectedItem.Description, RelativeSource={RelativeSource Self}}">
-                                    <ComboBox.Template>
-                                        <ControlTemplate TargetType="ComboBox">
-                                            <Grid>
-                                                <ToggleButton x:Name="ToggleButton"
-                                                              Template="{StaticResource ComboToggleButtonTemplate}"
-                                                              Grid.ColumnSpan="2"
-                                                              Focusable="False"
-                                                              IsHitTestVisible="True"
-                                                              ClickMode="Press"
-                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                                <ContentPresenter x:Name="ContentSite"
-                                                                  Margin="14,4,36,4"
-                                                                  VerticalAlignment="Center"
-                                                                  HorizontalAlignment="Left"
-                                                                  RecognizesAccessKey="True"
-                                                                  Content="{TemplateBinding SelectionBoxItem}"/>
-                                                <Popup x:Name="Popup"
-                                                       Placement="Bottom"
-                                                       AllowsTransparency="True"
-                                                       Focusable="False"
-                                                       IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                       PopupAnimation="Slide">
-                            <Border x:Name="PopupBorder"
-                                Background="{StaticResource CleanupSurfaceBrush}"
-                                BorderBrush="{StaticResource CleanupBorderBrush}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="6"
-                                                            Padding="4">
-                                                        <ScrollViewer Margin="0"
-                                                                      SnapsToDevicePixels="True">
-                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                        </ScrollViewer>
-                                                    </Border>
-                                                </Popup>
-                                            </Grid>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="HasItems"
-                                                         Value="False">
-                                                    <Setter TargetName="PopupBorder"
-                                                            Property="MinHeight"
-                                                            Value="24"/>
-                                                </Trigger>
-                                                <Trigger Property="IsEnabled"
-                                                         Value="False">
-                            <Setter Property="Foreground"
-                                Value="{StaticResource CleanupMutedTextBrush}"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </ComboBox.Template>
-                                    <ComboBox.ItemContainerStyle>
-                                        <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                                    </ComboBox.ItemContainerStyle>
                                     <ComboBox.ItemTemplate>
                                         <DataTemplate>
                                             <StackPanel>
-                                                <TextBlock Text="{Binding Label}"
-                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                <TextBlock Text="{Binding Label}"/>
                                                 <TextBlock Text="{Binding Description}"
-                                                           Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                           Foreground="#94A3B8"
                                                            FontSize="11"/>
                                             </StackPanel>
                                         </DataTemplate>
@@ -1072,65 +883,8 @@
                                     <ComboBox ItemsSource="{Binding ExtensionProfiles}"
                                               SelectedItem="{Binding SelectedExtensionProfile, Mode=TwoWay}"
                                               DisplayMemberPath="Name"
-                                              Background="Transparent"
-                                              Foreground="{StaticResource CleanupSoftTextBrush}"
-                                              BorderThickness="0"
-                                              Padding="0"
-                                              IsEnabled="{Binding IsExtensionSelectorEnabled}">
-                                        <ComboBox.Template>
-                                            <ControlTemplate TargetType="ComboBox">
-                                                <Grid>
-                                                    <ToggleButton x:Name="ToggleButton"
-                                                                  Template="{StaticResource ComboToggleButtonTemplate}"
-                                                                  Grid.ColumnSpan="2"
-                                                                  Focusable="False"
-                                                                  IsHitTestVisible="True"
-                                                                  ClickMode="Press"
-                                                                  IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                                    <ContentPresenter x:Name="ContentSite"
-                                                                      Margin="14,4,36,4"
-                                                                      VerticalAlignment="Center"
-                                                                      HorizontalAlignment="Left"
-                                                                      RecognizesAccessKey="True"
-                                                                      Content="{TemplateBinding SelectionBoxItem}"/>
-                                                    <Popup x:Name="Popup"
-                                                           Placement="Bottom"
-                                                           AllowsTransparency="True"
-                                                           Focusable="False"
-                                                           IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                           PopupAnimation="Slide">
-                            <Border x:Name="PopupBorder"
-                                Background="{StaticResource CleanupSurfaceBrush}"
-                                BorderBrush="{StaticResource CleanupBorderBrush}"
-                                                                BorderThickness="1"
-                                                                CornerRadius="6"
-                                                                Padding="4">
-                                                            <ScrollViewer Margin="0"
-                                                                          SnapsToDevicePixels="True">
-                                                                <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                            </ScrollViewer>
-                                                        </Border>
-                                                    </Popup>
-                                                </Grid>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="HasItems"
-                                                             Value="False">
-                                                        <Setter TargetName="PopupBorder"
-                                                                Property="MinHeight"
-                                                                Value="24"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsEnabled"
-                                                             Value="False">
-                                <Setter Property="Foreground"
-                                    Value="{StaticResource CleanupMutedTextBrush}"/>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </ComboBox.Template>
-                                        <ComboBox.ItemContainerStyle>
-                                            <StaticResource ResourceKey="CleanupComboBoxItemStyle"/>
-                                        </ComboBox.ItemContainerStyle>
-                                    </ComboBox>
+                                              Style="{StaticResource App.ComboBoxStyle}"
+                                              IsEnabled="{Binding IsExtensionSelectorEnabled}"/>
                                 </StackPanel>
                             </Border>
 

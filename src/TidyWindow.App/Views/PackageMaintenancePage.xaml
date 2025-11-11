@@ -22,80 +22,6 @@
                             SmallSize="15"
                             MinimumSize="13"/>
 
-        <ControlTemplate x:Key="MaintenanceComboToggleButtonTemplate"
-                         TargetType="ToggleButton">
-            <Grid>
-                <Border x:Name="ToggleBorder"
-                        Background="#0F172A"
-                        BorderBrush="#1E293B"
-                        BorderThickness="1"
-                        CornerRadius="6"
-                        Padding="8,4"/>
-                <Path Data="M 0 0 L 5 5 L 10 0"
-                      Stroke="#38BDF8"
-                      StrokeThickness="1.5"
-                      HorizontalAlignment="Right"
-                      VerticalAlignment="Center"
-                      Margin="0,0,10,0"/>
-            </Grid>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver"
-                         Value="True">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Background"
-                            Value="#17233C"/>
-                </Trigger>
-                <Trigger Property="IsChecked"
-                         Value="True">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Background"
-                            Value="#132039"/>
-                    <Setter TargetName="ToggleBorder"
-                            Property="BorderBrush"
-                            Value="#38BDF8"/>
-                </Trigger>
-                <Trigger Property="IsPressed"
-                         Value="True">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Background"
-                            Value="#132039"/>
-                    <Setter TargetName="ToggleBorder"
-                            Property="BorderBrush"
-                            Value="#38BDF8"/>
-                </Trigger>
-                <Trigger Property="IsEnabled"
-                         Value="False">
-                    <Setter TargetName="ToggleBorder"
-                            Property="Opacity"
-                            Value="0.5"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
-
-        <Style x:Key="MaintenanceComboBoxItemStyle"
-               TargetType="ComboBoxItem">
-            <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="Padding"
-                    Value="8,4"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver"
-                         Value="True">
-                    <Setter Property="Background"
-                            Value="#1B2942"/>
-                </Trigger>
-                <Trigger Property="IsSelected"
-                         Value="True">
-                    <Setter Property="Background"
-                            Value="#1E3A8A"/>
-                    <Setter Property="Foreground"
-                            Value="#F8FAFC"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
         <Style x:Key="AccentButtonStyle"
                TargetType="Button">
             <Setter Property="Background"
@@ -1037,62 +963,7 @@
                                           Margin="0,0,12,8"
                                           ItemsSource="{Binding ManagerFilters}"
                                           SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
-                                          Background="Transparent"
-                                          Foreground="#E2E8F0"
-                                          BorderThickness="0"
-                                          Padding="0">
-                                    <ComboBox.Template>
-                                        <ControlTemplate TargetType="ComboBox">
-                                            <Grid>
-                                                <ToggleButton x:Name="ToggleButton"
-                                                              Template="{StaticResource MaintenanceComboToggleButtonTemplate}"
-                                                              Focusable="False"
-                                                              ClickMode="Press"
-                                                              IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                                <ContentPresenter x:Name="ContentSite"
-                                                                  Margin="14,4,36,4"
-                                                                  VerticalAlignment="Center"
-                                                                  HorizontalAlignment="Left"
-                                                                  RecognizesAccessKey="True"
-                                                                  Content="{TemplateBinding SelectionBoxItem}"/>
-                                                <Popup x:Name="Popup"
-                                                       Placement="Bottom"
-                                                       AllowsTransparency="True"
-                                                       Focusable="False"
-                                                       IsOpen="{TemplateBinding IsDropDownOpen}"
-                                                       PopupAnimation="Slide">
-                                                    <Border x:Name="PopupBorder"
-                                                            Background="#0F172A"
-                                                            BorderBrush="#1E293B"
-                                                            BorderThickness="1"
-                                                            CornerRadius="6"
-                                                            Padding="4">
-                                                        <ScrollViewer Margin="0"
-                                                                      SnapsToDevicePixels="True">
-                                                            <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
-                                                        </ScrollViewer>
-                                                    </Border>
-                                                </Popup>
-                                            </Grid>
-                                            <ControlTemplate.Triggers>
-                                                <Trigger Property="HasItems"
-                                                         Value="False">
-                                                    <Setter TargetName="PopupBorder"
-                                                            Property="MinHeight"
-                                                            Value="24"/>
-                                                </Trigger>
-                                                <Trigger Property="IsEnabled"
-                                                         Value="False">
-                                                    <Setter Property="Foreground"
-                                                            Value="#64748B"/>
-                                                </Trigger>
-                                            </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                    </ComboBox.Template>
-                                    <ComboBox.ItemContainerStyle>
-                                        <StaticResource ResourceKey="MaintenanceComboBoxItemStyle"/>
-                                    </ComboBox.ItemContainerStyle>
-                                </ComboBox>
+                                          Style="{StaticResource App.ComboBoxStyle}"/>
                                 <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                           Content="Updates only"
                                           Margin="0,0,12,8"

@@ -1,0 +1,390 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Palette for the custom combo box experience -->
+    <SolidColorBrush x:Key="ComboBox.BackgroundBrush"
+                     Color="#0F172A"/>
+    <SolidColorBrush x:Key="ComboBox.HoverBrush"
+                     Color="#15263F"/>
+    <SolidColorBrush x:Key="ComboBox.ActiveBrush"
+                     Color="#132039"/>
+    <SolidColorBrush x:Key="ComboBox.DisabledBackgroundBrush"
+                     Color="#1B2335"/>
+
+    <SolidColorBrush x:Key="ComboBox.BorderBrush"
+                     Color="#1E293B"/>
+    <SolidColorBrush x:Key="ComboBox.HoverBorderBrush"
+                     Color="#273852"/>
+    <SolidColorBrush x:Key="ComboBox.ActiveBorderBrush"
+                     Color="#38BDF8"/>
+    <SolidColorBrush x:Key="ComboBox.DisabledBorderBrush"
+                     Color="#273245"/>
+    <SolidColorBrush x:Key="ComboBox.FocusBrush"
+                     Color="#2563EB"/>
+
+    <SolidColorBrush x:Key="ComboBox.GlyphBrush"
+                     Color="#38BDF8"/>
+    <SolidColorBrush x:Key="ComboBox.HoverGlyphBrush"
+                     Color="#1D9CEC"/>
+    <SolidColorBrush x:Key="ComboBox.ActiveGlyphBrush"
+                     Color="#7C3AED"/>
+    <SolidColorBrush x:Key="ComboBox.DisabledGlyphBrush"
+                     Color="#475569"/>
+
+    <SolidColorBrush x:Key="ComboBox.PopupBackgroundBrush"
+                     Color="#0F172A"/>
+    <SolidColorBrush x:Key="ComboBox.PopupBorderBrush"
+                     Color="#1E293B"/>
+
+    <SolidColorBrush x:Key="ComboBox.ItemHoverBrush"
+                     Color="#1B2942"/>
+    <SolidColorBrush x:Key="ComboBox.ItemHoverBorderBrush"
+                     Color="#2A3F62"/>
+    <SolidColorBrush x:Key="ComboBox.ItemSelectedBrush"
+                     Color="#1E3A8A"/>
+    <SolidColorBrush x:Key="ComboBox.ItemSelectedForegroundBrush"
+                     Color="#F8FAFC"/>
+
+    <SolidColorBrush x:Key="ComboBox.DisabledForegroundBrush"
+                     Color="#64748B"/>
+
+    <DropShadowEffect x:Key="ComboBox.PopupShadow"
+                      Color="#000000"
+                      BlurRadius="22"
+                      ShadowDepth="0"
+                      Opacity="0.42"/>
+
+    <CubicEase x:Key="ComboBox.PopupEase"
+               EasingMode="EaseOut"/>
+
+    <Style x:Key="App.ComboBoxToggleButtonStyle"
+           TargetType="ToggleButton">
+        <Setter Property="Background"
+                Value="Transparent"/>
+        <Setter Property="BorderThickness"
+                Value="0"/>
+        <Setter Property="Foreground"
+                Value="{StaticResource ComboBox.GlyphBrush}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border Background="Transparent"
+                            CornerRadius="10"
+                            Padding="0">
+                        <Grid>
+                            <Border x:Name="ArrowHost"
+                                    Width="36"
+                                    HorizontalAlignment="Right"
+                                    Background="Transparent"
+                                    Padding="0">
+                                                                                                                                <Path x:Name="ArrowGlyph"
+                                                                                                                                                        Data="M 0 0 L 5 5 L 10 0"
+                                                                                                                                                        Stroke="{TemplateBinding Foreground}"
+                                                                                                                                                        StrokeThickness="1.5"
+                                                                                                                                                        StrokeStartLineCap="Round"
+                                                                                                                                                        StrokeEndLineCap="Round"
+                                                                                                                                                        HorizontalAlignment="Center"
+                                                                                                                                                        VerticalAlignment="Center">
+                                                                                                                                                <Path.RenderTransform>
+                                                                                                                                                                <RotateTransform Angle="0"
+                                                                                                                                                                                                                                 CenterX="5"
+                                                                                                                                                                                                                                 CenterY="2.5"/>
+                                                                                                                                                </Path.RenderTransform>
+                                                                                                                                </Path>
+                            </Border>
+                        </Grid>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked"
+                                                                 Value="True">
+                                                        <Setter TargetName="ArrowGlyph"
+                                                                        Property="RenderTransform">
+                                                                <Setter.Value>
+                                                                        <RotateTransform Angle="180"
+                                                                                                         CenterX="5"
+                                                                                                         CenterY="2.5"/>
+                                                                </Setter.Value>
+                                                        </Setter>
+                                                </Trigger>
+                        <Trigger Property="IsEnabled"
+                                 Value="False">
+                            <Setter TargetName="ArrowGlyph"
+                                    Property="Opacity"
+                                    Value="0.45"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="App.ComboBoxItemStyle"
+           TargetType="ComboBoxItem">
+        <Setter Property="Foreground"
+                Value="#E2E8F0"/>
+        <Setter Property="Padding"
+                Value="12,6"/>
+        <Setter Property="Background"
+                Value="Transparent"/>
+        <Setter Property="HorizontalContentAlignment"
+                Value="Left"/>
+        <Setter Property="VerticalContentAlignment"
+                Value="Center"/>
+        <Setter Property="SnapsToDevicePixels"
+                Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="ItemBorder"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            CornerRadius="8"
+                            Padding="{TemplateBinding Padding}"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver"
+                                 Value="True">
+                            <Setter TargetName="ItemBorder"
+                                    Property="Background"
+                                    Value="{StaticResource ComboBox.ItemHoverBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource ComboBox.ItemHoverBorderBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="BorderThickness"
+                                    Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsHighlighted"
+                                 Value="True">
+                            <Setter TargetName="ItemBorder"
+                                    Property="Background"
+                                    Value="{StaticResource ComboBox.ItemHoverBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource ComboBox.ItemHoverBorderBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="BorderThickness"
+                                    Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected"
+                                 Value="True">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource ComboBox.ItemSelectedForegroundBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="Background"
+                                    Value="{StaticResource ComboBox.ItemSelectedBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource ComboBox.ActiveBorderBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="BorderThickness"
+                                    Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled"
+                                 Value="False">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource ComboBox.DisabledForegroundBrush}"/>
+                            <Setter TargetName="ItemBorder"
+                                    Property="Opacity"
+                                    Value="0.7"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="App.ComboBoxStyle"
+           TargetType="ComboBox">
+        <Setter Property="Foreground"
+                Value="#F8FAFC"/>
+        <Setter Property="Background"
+                Value="{StaticResource ComboBox.BackgroundBrush}"/>
+        <Setter Property="BorderBrush"
+                Value="{StaticResource ComboBox.BorderBrush}"/>
+        <Setter Property="BorderThickness"
+                Value="1"/>
+        <Setter Property="Padding"
+                Value="16,8,48,8"/>
+        <Setter Property="MinHeight"
+                Value="36"/>
+        <Setter Property="SnapsToDevicePixels"
+                Value="True"/>
+        <Setter Property="HorizontalContentAlignment"
+                Value="Left"/>
+        <Setter Property="VerticalContentAlignment"
+                Value="Center"/>
+        <Setter Property="Cursor"
+                Value="Hand"/>
+        <Setter Property="FocusVisualStyle"
+                Value="{x:Null}"/>
+        <Setter Property="ItemContainerStyle"
+                Value="{StaticResource App.ComboBoxItemStyle}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid x:Name="Root"
+                          SnapsToDevicePixels="True">
+                        <Border x:Name="Surface"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                SnapsToDevicePixels="True"/>
+                        <Border x:Name="FocusBorder"
+                                Margin="-2"
+                                CornerRadius="14"
+                                BorderThickness="1.5"
+                                BorderBrush="{StaticResource ComboBox.FocusBrush}"
+                                Opacity="0"/>
+                        <ContentPresenter x:Name="ContentSite"
+                                          Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                          VerticalAlignment="{TemplateBinding VerticalContentAlignment}"
+                                          Content="{TemplateBinding SelectionBoxItem}"
+                                          ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                          ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                          RecognizesAccessKey="True"
+                                          IsHitTestVisible="False"/>
+                        <ToggleButton x:Name="ToggleButton"
+                                      Style="{StaticResource App.ComboBoxToggleButtonStyle}"
+                                      Focusable="False"
+                                      Background="Transparent"
+                                      BorderThickness="0"
+                                      Foreground="{StaticResource ComboBox.GlyphBrush}"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                      HorizontalAlignment="Stretch"
+                                      VerticalAlignment="Stretch"/>
+                        <Popup x:Name="PART_Popup"
+                               Placement="Bottom"
+                               AllowsTransparency="True"
+                               Focusable="False"
+                               StaysOpen="False"
+                               PopupAnimation="Fade"
+                               PlacementTarget="{Binding RelativeSource={RelativeSource TemplatedParent}}"
+                               IsOpen="{TemplateBinding IsDropDownOpen}">
+                            <Grid x:Name="DropDown"
+                                  SnapsToDevicePixels="True"
+                                  MinWidth="{TemplateBinding ActualWidth}"
+                                  MaxHeight="{TemplateBinding MaxDropDownHeight}">
+                                <Border x:Name="PopupBorder"
+                                        Background="{StaticResource ComboBox.PopupBackgroundBrush}"
+                                        BorderBrush="{StaticResource ComboBox.PopupBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="6"
+                                        Opacity="0"
+                                        Effect="{StaticResource ComboBox.PopupShadow}">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform ScaleX="0.94"
+                                                        ScaleY="0.92"/>
+                                    </Border.RenderTransform>
+                                    <Border.RenderTransformOrigin>0.5,0</Border.RenderTransformOrigin>
+                                    <ScrollViewer Margin="0"
+                                                  SnapsToDevicePixels="True">
+                                        <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained"/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Grid>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="HasItems"
+                                 Value="False">
+                            <Setter TargetName="PopupBorder"
+                                    Property="MinHeight"
+                                    Value="28"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled"
+                                 Value="False">
+                            <Setter Property="Foreground"
+                                    Value="{StaticResource ComboBox.DisabledForegroundBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="Background"
+                                    Value="{StaticResource ComboBox.DisabledBackgroundBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource ComboBox.DisabledBorderBrush}"/>
+                            <Setter TargetName="ToggleButton"
+                                    Property="Foreground"
+                                    Value="{StaticResource ComboBox.DisabledGlyphBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver"
+                                 Value="True">
+                            <Setter TargetName="Surface"
+                                    Property="Background"
+                                    Value="{StaticResource ComboBox.HoverBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource ComboBox.HoverBorderBrush}"/>
+                            <Setter TargetName="ToggleButton"
+                                    Property="Foreground"
+                                    Value="{StaticResource ComboBox.HoverGlyphBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsDropDownOpen"
+                                 Value="True">
+                            <Setter TargetName="Surface"
+                                    Property="Background"
+                                    Value="{StaticResource ComboBox.ActiveBrush}"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource ComboBox.ActiveBorderBrush}"/>
+                            <Setter TargetName="FocusBorder"
+                                    Property="Opacity"
+                                    Value="0.9"/>
+                            <Setter TargetName="ToggleButton"
+                                    Property="Foreground"
+                                    Value="{StaticResource ComboBox.ActiveGlyphBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocusWithin"
+                                 Value="True">
+                            <Setter TargetName="FocusBorder"
+                                    Property="Opacity"
+                                    Value="1"/>
+                            <Setter TargetName="Surface"
+                                    Property="BorderBrush"
+                                    Value="{StaticResource ComboBox.FocusBrush}"/>
+                            <Setter TargetName="ToggleButton"
+                                    Property="Foreground"
+                                    Value="{StaticResource ComboBox.HoverGlyphBrush}"/>
+                        </Trigger>
+                        <Trigger SourceName="PART_Popup"
+                                 Property="Popup.IsOpen"
+                                 Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PopupBorder"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0"
+                                                         To="1"
+                                                         Duration="0:0:0.16"
+                                                         EasingFunction="{StaticResource ComboBox.PopupEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="PopupBorder"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                         To="1"
+                                                         Duration="0:0:0.16"
+                                                         EasingFunction="{StaticResource ComboBox.PopupEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="PopupBorder"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                         To="1"
+                                                         Duration="0:0:0.16"
+                                                         EasingFunction="{StaticResource ComboBox.PopupEase}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ComboBoxItem"
+           BasedOn="{StaticResource App.ComboBoxItemStyle}"/>
+    <Style TargetType="ComboBox"
+           BasedOn="{StaticResource App.ComboBoxStyle}"/>
+</ResourceDictionary>
