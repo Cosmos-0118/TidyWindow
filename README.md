@@ -1,6 +1,6 @@
 # TidyWindow
 
-v1.0.0-alpha
+v2.5.1
 
 TidyWindow is a Windows desktop companion for setting up, cleaning, and maintaining developer machines. The WPF shell surfaces smart automation flows, while a .NET service layer executes PowerShell 7 scripts in the background so tasks stay responsive and auditable.
 
