@@ -17,23 +17,13 @@ public partial class InstallHubPage : Page
     private Thickness _scrollViewerDefaultMargin;
     private readonly Thickness _scrollViewerCompactMargin = new(24);
     private readonly Thickness _scrollViewerStackedMargin = new(16, 24, 16, 24);
-    private Thickness _secondaryColumnDefaultMargin;
-    private readonly Thickness _secondaryColumnCompactMargin = new(12, 0, 0, 0);
-    private readonly Thickness _secondaryColumnStackedMargin = new(0, 24, 0, 0);
-    private double _primaryColumnDefaultMinWidth;
-    private double _secondaryColumnDefaultMinWidth;
-    private bool _isStackedLayout;
     private WrapPanel? _bundleItemsHost;
     private WrapPanel? _packageItemsHost;
     private bool _bundleLayoutScheduled;
     private bool _packageLayoutScheduled;
 
-    private const double WideLayoutBreakpoint = 1320d;
     private const double CompactLayoutBreakpoint = 1180d;
     private const double StackedLayoutBreakpoint = 980d;
-    private const double CompactPrimaryMinWidth = 320d;
-    private const double CompactSecondaryMinWidth = 280d;
-    private const double GridPaddingWidth = 56d;
 
     public InstallHubPage(InstallHubViewModel viewModel)
     {
@@ -46,9 +36,6 @@ public partial class InstallHubPage : Page
         IsVisibleChanged += OnIsVisibleChanged;
 
         _scrollViewerDefaultMargin = ContentScrollViewer.Margin;
-        _secondaryColumnDefaultMargin = SecondaryColumnHost.Margin;
-        _primaryColumnDefaultMinWidth = PrimaryColumnDefinition.MinWidth;
-        _secondaryColumnDefaultMinWidth = SecondaryColumnDefinition.MinWidth;
     }
 
     private async void OnPageLoaded(object sender, RoutedEventArgs e)
@@ -255,49 +242,11 @@ public partial class InstallHubPage : Page
         }
 
         var stackLayout = viewportWidth < StackedLayoutBreakpoint;
-        var balancedColumns = viewportWidth < WideLayoutBreakpoint;
         var tightMargins = viewportWidth < CompactLayoutBreakpoint;
-
-        if (stackLayout)
-        {
-            if (!_isStackedLayout)
-            {
-                Grid.SetRow(SecondaryColumnHost, 1);
-                Grid.SetColumn(SecondaryColumnHost, 0);
-                SecondaryColumnHost.Margin = _secondaryColumnStackedMargin;
-                _isStackedLayout = true;
-            }
-
-            PrimaryColumnDefinition.Width = new GridLength(1, GridUnitType.Star);
-            SecondaryColumnDefinition.Width = new GridLength(0, GridUnitType.Pixel);
-            PrimaryColumnDefinition.MinWidth = 0;
-            SecondaryColumnDefinition.MinWidth = 0;
-        }
-        else
-        {
-            if (_isStackedLayout)
-            {
-                Grid.SetRow(SecondaryColumnHost, 0);
-                Grid.SetColumn(SecondaryColumnHost, 1);
-                SecondaryColumnHost.Margin = _secondaryColumnDefaultMargin;
-                _isStackedLayout = false;
-            }
-
-            PrimaryColumnDefinition.Width = balancedColumns
-                ? new GridLength(1, GridUnitType.Star)
-                : new GridLength(3, GridUnitType.Star);
-            SecondaryColumnDefinition.Width = balancedColumns
-                ? new GridLength(1, GridUnitType.Star)
-                : new GridLength(2, GridUnitType.Star);
-
-            PrimaryColumnDefinition.MinWidth = tightMargins ? CompactPrimaryMinWidth : _primaryColumnDefaultMinWidth;
-            SecondaryColumnDefinition.MinWidth = tightMargins ? CompactSecondaryMinWidth : _secondaryColumnDefaultMinWidth;
-            SecondaryColumnHost.Margin = tightMargins ? _secondaryColumnCompactMargin : _secondaryColumnDefaultMargin;
-        }
 
         ContentScrollViewer.Margin = stackLayout
             ? _scrollViewerStackedMargin
-            : (tightMargins || balancedColumns)
+            : tightMargins
                 ? _scrollViewerCompactMargin
                 : _scrollViewerDefaultMargin;
 
@@ -443,6 +392,11 @@ public partial class InstallHubPage : Page
         }
 
         return Math.Min(maxWidth, minWidth);
+    }
+
+    private void QueueOverlayBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        QueueDrawerToggle.IsChecked = false;
     }
 
     private static double GetScrollableContentWidth(ItemsControl control)

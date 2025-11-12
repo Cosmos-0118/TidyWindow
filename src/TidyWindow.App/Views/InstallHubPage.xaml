@@ -17,18 +17,12 @@
 
         <Style x:Key="InstallAccentButtonStyle"
                TargetType="Button">
-            <Setter Property="Background"
-                    Value="#7C3AED"/>
-            <Setter Property="Foreground"
-                    Value="#F8FAFC"/>
-            <Setter Property="BorderBrush"
-                    Value="Transparent"/>
-            <Setter Property="BorderThickness"
-                    Value="0"/>
-            <Setter Property="Padding"
-                    Value="14,6"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
+            <Setter Property="Background" Value="#7C3AED"/>
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -42,25 +36,15 @@
                                               VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#6D28D9"/>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#6D28D9"/>
                             </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#5B21B6"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#5B21B6"/>
                             </Trigger>
-                            <Trigger Property="IsEnabled"
-                                     Value="False">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#312E81"/>
-                                <Setter Property="Foreground"
-                                        Value="#94A3B8"/>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#312E81"/>
+                                <Setter Property="Foreground" Value="#94A3B8"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -68,73 +52,94 @@
             </Setter>
         </Style>
 
-    <Style x:Key="InstallSecondaryButtonStyle"
-           TargetType="Button">
-        <Setter Property="Background"
-            Value="#1E293B"/>
-        <Setter Property="Foreground"
-            Value="#E2E8F0"/>
-        <Setter Property="BorderBrush"
-            Value="#334155"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Setter Property="Padding"
-            Value="12,6"/>
-        <Setter Property="Cursor"
-            Value="Hand"/>
-        <Setter Property="Template">
-        <Setter.Value>
-            <ControlTemplate TargetType="Button">
-            <Border x:Name="Root"
-                Background="{TemplateBinding Background}"
-                BorderBrush="{TemplateBinding BorderBrush}"
-                BorderThickness="{TemplateBinding BorderThickness}"
-                CornerRadius="6"
-                Padding="{TemplateBinding Padding}">
-                <ContentPresenter HorizontalAlignment="Center"
-                          VerticalAlignment="Center"/>
-            </Border>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#243048"/>
-                </Trigger>
-                <Trigger Property="IsPressed"
-                     Value="True">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#1A2436"/>
-                </Trigger>
-                <Trigger Property="IsEnabled"
-                     Value="False">
-                <Setter TargetName="Root"
-                    Property="Background"
-                    Value="#111827"/>
-                <Setter TargetName="Root"
-                    Property="BorderBrush"
-                    Value="#1E293B"/>
-                <Setter Property="Foreground"
-                    Value="#475569"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-            </ControlTemplate>
-        </Setter.Value>
-        </Setter>
-    </Style>
+        <Style x:Key="InstallQueueDrawerToggleStyle"
+               TargetType="ToggleButton">
+            <Setter Property="Content" Value="Queue ▸"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="MinWidth" Value="120"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="ToolTipService.ToolTip" Value="Show install queue"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#312E81"/>
+                                <Setter Property="Content" Value="Queue ◂"/>
+                                <Setter Property="ToolTipService.ToolTip" Value="Hide install queue"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#27304D"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-    <Style x:Key="InstallBadgeStyle"
-           TargetType="Border">
-        <Setter Property="Background"
-            Value="#1E293B"/>
-        <Setter Property="CornerRadius"
-            Value="6"/>
-        <Setter Property="Padding"
-            Value="8,4"/>
-        <Setter Property="Margin"
-            Value="0,0,8,8"/>
-    </Style>
+        <Style x:Key="InstallSecondaryButtonStyle"
+               TargetType="Button">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#243048"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1A2436"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#111827"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
+                                <Setter Property="Foreground" Value="#475569"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="InstallBadgeStyle"
+               TargetType="Border">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+        </Style>
 
     <Style x:Key="InstallCardBorderStyle"
            TargetType="Border">
@@ -418,31 +423,26 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <controls:PageTitleBar Grid.Row="0"
-                                       Title="Smart install hub"
-                                       Subtitle="Curate bundles, share presets, and queue installs"
-                                       IconGlyph="📦"
-                                       Margin="0,0,0,28"/>
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <controls:PageTitleBar Grid.Column="0"
+                                           Title="Smart install hub"
+                                           Subtitle="Curate bundles, share presets, and queue installs"
+                                           IconGlyph="📦"
+                                           Margin="0,0,0,28"/>
+                    <ToggleButton x:Name="QueueDrawerToggle"
+                                  Grid.Column="1"
+                                  Margin="16,0,0,28"
+                                  VerticalAlignment="Bottom"
+                                  Style="{StaticResource InstallQueueDrawerToggleStyle}"/>
+                </Grid>
 
                 <Grid x:Name="MainLayoutGrid"
-                      Grid.Row="1"
-                      Margin="0,0,0,0">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition x:Name="PrimaryColumnDefinition"
-                                          Width="3*"
-                                          MinWidth="360"/>
-                        <ColumnDefinition x:Name="SecondaryColumnDefinition"
-                                          Width="2*"
-                                          MinWidth="320"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel x:Name="PrimaryColumnHost"
-                                Grid.Row="0"
-                                Grid.Column="0">
+                      Grid.Row="1">
+                    <StackPanel x:Name="PrimaryColumnHost">
                         <Border Style="{StaticResource InstallCardBorderStyle}"
                                 Margin="0,0,0,20">
                             <Grid>
@@ -852,12 +852,51 @@
                             </Grid>
                         </Border>
                     </StackPanel>
+                </Grid>
 
-                    <StackPanel x:Name="SecondaryColumnHost"
-                                Grid.Row="0"
-                                Grid.Column="1"
-                                Margin="16,0,0,0">
-                        <Border Style="{StaticResource InstallCardBorderStyle}">
+                <Border x:Name="QueueOverlay"
+                        Grid.Row="1"
+                        Panel.ZIndex="5">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Opacity" Value="0"/>
+                            <Setter Property="IsHitTestVisible" Value="False"/>
+                            <Setter Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform X="48"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsChecked, ElementName=QueueDrawerToggle}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Opacity" Value="1"/>
+                                    <Setter Property="IsHitTestVisible" Value="True"/>
+                                    <Setter Property="RenderTransform">
+                                        <Setter.Value>
+                                            <TranslateTransform X="0"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid Background="Transparent">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0"
+                                Background="#66050F1F"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="QueueOverlayBackdrop_MouseLeftButtonDown"/>
+                        <Border Grid.Column="1"
+                                Style="{StaticResource InstallCardBorderStyle}"
+                                Width="520"
+                                MinWidth="380"
+                                MaxWidth="700"
+                                Margin="24,0,0,0"
+                                VerticalAlignment="Stretch">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -914,7 +953,7 @@
                                                     <TextBlock Text="{Binding PackageName}"
                                                                FontWeight="SemiBold"
                                                                TextWrapping="Wrap"
-                                                               MaxWidth="180"/>
+                                                               MaxWidth="220"/>
                                                     <TextBlock Text="{Binding StatusLabel}"
                                                                Margin="10,0,0,0"
                                                                FontSize="12"
@@ -998,8 +1037,8 @@
                                 </TextBlock>
                             </Grid>
                         </Border>
-                    </StackPanel>
-                </Grid>
+                    </Grid>
+                </Border>
             </Grid>
         </ScrollViewer>
 
