@@ -85,6 +85,8 @@ internal static class RegistryOptimizerStrings
 
     public static string ValueRecommendationUnavailable => GetString(nameof(ValueRecommendationUnavailable), nameof(ValueRecommendationUnavailable));
 
+    public static string ValueObservedAtUnavailable => GetString(nameof(ValueObservedAtUnavailable), nameof(ValueObservedAtUnavailable));
+
     public static string CustomValueNotSupported => GetString(nameof(CustomValueNotSupported), nameof(CustomValueNotSupported));
 
     public static string CustomValueInfoGeneral => GetString(nameof(CustomValueInfoGeneral), nameof(CustomValueInfoGeneral));

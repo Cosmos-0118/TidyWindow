@@ -546,6 +546,9 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     [NotifyPropertyChangedFor(nameof(HasValidationError))]
     private bool _supportsCustomValue;
 
+    [ObservableProperty]
+    private bool _isDetailsVisible;
+
     public ReadOnlyObservableCollection<RegistrySnapshotDisplay> SnapshotEntries => _snapshotEntriesView;
 
     public bool HasSnapshots => SnapshotEntries.Count > 0;
@@ -672,6 +675,12 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(CustomValueInfoText));
+    }
+
+    [RelayCommand]
+    private void ToggleDetails()
+    {
+        IsDetailsVisible = !IsDetailsVisible;
     }
 
     private string ResolveRecommendedValueText(RegistryValueState? primaryValue)
