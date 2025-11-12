@@ -1,8 +1,9 @@
 <Page x:Class="TidyWindow.App.Views.EssentialsPage"
-      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="clr-namespace:TidyWindow.App.Views"
       mc:Ignorable="d"
       Title="Essentials"
       Background="Transparent">
@@ -147,32 +148,78 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Orientation="Horizontal"
-                        VerticalAlignment="Top">
-                <Border Width="48"
-                        Height="48"
-                        CornerRadius="12"
-                        Background="#1E293B"
-                        Margin="0,0,12,0">
-                    <TextBlock Text="🛠️"
-                               FontSize="24"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                </Border>
-                <StackPanel>
-                    <TextBlock Text="Essentials automation"
-                               FontSize="26"
-                               FontWeight="Bold"
-                               Foreground="#F8FAFC"/>
-                    <TextBlock Text="{Binding Headline}"
-                               FontSize="14"
-                               Foreground="#94A3B8"/>
-                </StackPanel>
-            </StackPanel>
+            <controls:PageTitleBar Grid.Row="0"
+                                   Title="Essentials automation"
+                                   Subtitle="{Binding Headline}"
+                                   IconGlyph="🛠️"
+                                   BadgeText="Core automations"
+                                   Margin="0,0,0,20">
+                <controls:PageTitleBar.BodyContent>
+                    <WrapPanel Orientation="Horizontal"
+                               Margin="0,4,0,0">
+                        <Border Background="#15253E"
+                                BorderBrush="#24364F"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="14,10"
+                                Margin="0,0,12,12"
+                                MinWidth="180">
+                            <StackPanel>
+                                <TextBlock Text="Curated repair flows"
+                                           FontSize="12"
+                                           Foreground="#93C5FD"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="Run high-impact scripts directly from this shelf."
+                                           FontSize="11"
+                                           Foreground="#CBD5F5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#15253E"
+                                BorderBrush="#24364F"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="14,10"
+                                Margin="0,0,12,12"
+                                MinWidth="180">
+                            <StackPanel>
+                                <TextBlock Text="Queue timeline"
+                                           FontSize="12"
+                                           Foreground="#93C5FD"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="Monitor every run and quickly retry anything that failed."
+                                           FontSize="11"
+                                           Foreground="#CBD5F5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Background="#15253E"
+                                BorderBrush="#24364F"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="14,10"
+                                Margin="0,0,12,12"
+                                MinWidth="180">
+                            <StackPanel>
+                                <TextBlock Text="Live terminal"
+                                           FontSize="12"
+                                           Foreground="#93C5FD"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="Inspect verbose output without leaving the cockpit."
+                                           FontSize="11"
+                                           Foreground="#CBD5F5"
+                                           TextWrapping="Wrap"
+                                           Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </WrapPanel>
+                </controls:PageTitleBar.BodyContent>
+            </controls:PageTitleBar>
 
-            <Grid x:Name="MainLayoutGrid"
-                  Grid.Row="1"
-                  Margin="0,28,0,0">
+        <Grid x:Name="MainLayoutGrid"
+            Grid.Row="1">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
