@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Navigation;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,7 @@ public sealed class NavigationService
     private Frame? _frame;
     private readonly Duration _transitionDuration = new(TimeSpan.FromMilliseconds(220));
     private readonly IEasingFunction _transitionEasing = new QuarticEase { EasingMode = EasingMode.EaseInOut };
+    private readonly double _transitionOffset = 14d;
     private bool _isTransitioning;
     private Type? _queuedNavigation;
     private Type? _activeNavigationTarget;
@@ -40,6 +42,7 @@ public sealed class NavigationService
         _frame.NavigationUIVisibility = NavigationUIVisibility.Hidden;
         _frame.Navigated += OnFrameNavigated;
         _frame.Opacity = 1d;
+        InitializeFrameTransforms(_frame);
     }
 
     public void Navigate(Type pageType)
@@ -119,6 +122,9 @@ public sealed class NavigationService
             {
                 _frame.BeginAnimation(UIElement.OpacityProperty, null);
                 _frame.Opacity = 0d;
+                var translate = EnsureFrameTranslateTransform();
+                translate.BeginAnimation(TranslateTransform.YProperty, null);
+                translate.Y = _transitionOffset;
                 _frame.Navigate(targetPage);
             }
             catch (Exception ex)
@@ -134,15 +140,20 @@ public sealed class NavigationService
         if (_frame.Content is FrameworkElement)
         {
             var fadeOut = CreateAnimation(_frame.Opacity, 0d);
+            var translate = EnsureFrameTranslateTransform();
+            var slideUp = CreateTranslationAnimation(translate.Y, -_transitionOffset * 0.4);
 
             void OnFadeOutCompleted(object? sender, EventArgs args)
             {
                 fadeOut.Completed -= OnFadeOutCompleted;
+                translate.BeginAnimation(TranslateTransform.YProperty, null);
+                translate.Y = _transitionOffset;
                 NavigateCore();
             }
 
             fadeOut.Completed += OnFadeOutCompleted;
             _frame.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+            translate.BeginAnimation(TranslateTransform.YProperty, slideUp);
         }
         else
         {
@@ -159,12 +170,17 @@ public sealed class NavigationService
 
         _frame.BeginAnimation(UIElement.OpacityProperty, null);
         _frame.Opacity = 0d;
+        var translate = EnsureFrameTranslateTransform();
+        translate.BeginAnimation(TranslateTransform.YProperty, null);
+        var slideIn = CreateTranslationAnimation(translate.Y, 0d);
 
         var fadeIn = CreateAnimation(0d, 1d);
 
         void FadeInCompleted(object? sender, EventArgs args)
         {
             fadeIn.Completed -= FadeInCompleted;
+            translate.BeginAnimation(TranslateTransform.YProperty, null);
+            translate.Y = 0d;
 
             var pending = _queuedNavigation;
             _queuedNavigation = null;
@@ -182,6 +198,7 @@ public sealed class NavigationService
 
         fadeIn.Completed += FadeInCompleted;
         _frame.BeginAnimation(UIElement.OpacityProperty, fadeIn);
+        translate.BeginAnimation(TranslateTransform.YProperty, slideIn);
     }
 
     private DoubleAnimation CreateAnimation(double? from, double to)
@@ -199,6 +216,88 @@ public sealed class NavigationService
         }
 
         return animation;
+    }
+
+    private DoubleAnimation CreateTranslationAnimation(double? from, double to)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = to,
+            Duration = _transitionDuration,
+            EasingFunction = _transitionEasing
+        };
+
+        if (from.HasValue)
+        {
+            animation.From = from.Value;
+        }
+
+        return animation;
+    }
+
+    private void InitializeFrameTransforms(Frame frame)
+    {
+        if (frame.RenderTransform is TranslateTransform)
+        {
+            return;
+        }
+
+        if (frame.RenderTransform is TransformGroup group)
+        {
+            foreach (var transform in group.Children)
+            {
+                if (transform is TranslateTransform)
+                {
+                    return;
+                }
+            }
+
+            group.Children.Add(new TranslateTransform());
+            return;
+        }
+
+        frame.RenderTransform = new TranslateTransform();
+    }
+
+    private TranslateTransform EnsureFrameTranslateTransform()
+    {
+        if (_frame is null)
+        {
+            return new TranslateTransform();
+        }
+
+        if (_frame.RenderTransform is TranslateTransform translate)
+        {
+            return translate;
+        }
+
+        if (_frame.RenderTransform is TransformGroup group)
+        {
+            foreach (var transform in group.Children)
+            {
+                if (transform is TranslateTransform existing)
+                {
+                    return existing;
+                }
+            }
+
+            var created = new TranslateTransform();
+            group.Children.Add(created);
+            return created;
+        }
+
+        translate = new TranslateTransform();
+        if (_frame.RenderTransform == Transform.Identity)
+        {
+            _frame.RenderTransform = translate;
+            return translate;
+        }
+
+        var newGroup = new TransformGroup();
+        newGroup.Children.Add(_frame.RenderTransform);
+        newGroup.Children.Add(translate);
+        _frame.RenderTransform = newGroup;
+        return translate;
     }
 
     private void ResetTransition()
