@@ -46,11 +46,11 @@ public partial class HighFrictionPromptWindow : Window
         }
     }
 
-    protected override void OnPreviewKeyDown(KeyEventArgs e)
+    protected override void OnPreviewKeyDown(System.Windows.Input.KeyEventArgs e)
     {
         base.OnPreviewKeyDown(e);
 
-        if (e.Key == Key.Escape)
+        if (e.Key == System.Windows.Input.Key.Escape)
         {
             Result = HighFrictionPromptResult.Dismissed;
             DialogResult = false;
