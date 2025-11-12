@@ -614,6 +614,10 @@
                       CanContentScroll="False"
                       PanningMode="VerticalOnly">
         <StackPanel MinWidth="760">
+        <controls:PageTitleBar Title="Cleanup operations"
+                                Subtitle="{Binding Headline}"
+                                IconGlyph="🧹"
+                                Margin="0,0,0,24"/>
         <Border Background="{StaticResource CleanupSurfaceBrush}"
             BorderBrush="{StaticResource CleanupBorderBrush}"
             BorderThickness="1"

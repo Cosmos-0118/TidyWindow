@@ -3,7 +3,8 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+    xmlns:controls="clr-namespace:TidyWindow.App.Views"
       mc:Ignorable="d"
       Title="Install hub"
       Background="Transparent">
@@ -417,33 +418,15 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0"
-                            Orientation="Horizontal">
-                    <Border Width="48"
-                            Height="48"
-                            CornerRadius="12"
-                            Background="#1E293B"
-                            Margin="0,0,12,0">
-                        <TextBlock Text="📦"
-                                   FontSize="24"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Border>
-                    <StackPanel>
-                        <TextBlock Text="Smart install hub"
-                                   FontSize="26"
-                                   FontWeight="Bold"
-                                   Foreground="#F8FAFC"/>
-                        <TextBlock Text="Curate bundles, share presets, and queue installs"
-                                   FontSize="14"
-                                   Foreground="#94A3B8"
-                                   TextWrapping="Wrap"/>
-                    </StackPanel>
-                </StackPanel>
+                <controls:PageTitleBar Grid.Row="0"
+                                       Title="Smart install hub"
+                                       Subtitle="Curate bundles, share presets, and queue installs"
+                                       IconGlyph="📦"
+                                       Margin="0,0,0,28"/>
 
                 <Grid x:Name="MainLayoutGrid"
                       Grid.Row="1"
-                      Margin="0,28,0,0">
+                      Margin="0,0,0,0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>

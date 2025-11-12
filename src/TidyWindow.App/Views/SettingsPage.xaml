@@ -3,6 +3,7 @@
           xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
           xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
           xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+          xmlns:controls="clr-namespace:TidyWindow.App.Views"
           mc:Ignorable="d"
           Background="Transparent"
           Title="Settings">
@@ -101,14 +102,10 @@
                                   HorizontalScrollBarVisibility="Disabled"
                                   CanContentScroll="False">
                 <StackPanel>
-                        <TextBlock Text="Settings"
-                                           FontSize="30"
-                                           FontWeight="Bold"
-                                           Foreground="#F9FAFB"/>
-                        <TextBlock Text="Tune how TidyWindow runs on your machine."
-                                           FontSize="14"
-                                           Margin="0,6,0,24"
-                                           Foreground="#94A3B8"/>
+                        <controls:PageTitleBar Title="Settings"
+                                               Subtitle="Tune how TidyWindow runs on your machine."
+                                               IconGlyph="⚙️"
+                                               Margin="0,0,0,24"/>
 
                         <StackPanel>
                                 <Border Background="#0B1120"

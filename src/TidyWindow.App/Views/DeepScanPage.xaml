@@ -3,7 +3,8 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+    xmlns:controls="clr-namespace:TidyWindow.App.Views"
       mc:Ignorable="d"
       Title="Deep scan"
       Background="Transparent">
@@ -216,30 +217,13 @@
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
-            <StackPanel Orientation="Horizontal">
-                <Border Width="48"
-                        Height="48"
-                        CornerRadius="12"
-                        Background="#1E293B"
-                        Margin="0,0,12,0">
-                    <TextBlock Text="🔍"
-                               FontSize="24"
-                               HorizontalAlignment="Center"
-                               VerticalAlignment="Center"/>
-                </Border>
-                <StackPanel>
-                    <TextBlock Text="Deep scan analyzer"
-                               FontSize="26"
-                               FontWeight="Bold"
-                               Foreground="#F8FAFC"/>
-                    <TextBlock Text="Highlight the heaviest files so you can reclaim space quickly"
-                               FontSize="14"
-                               Foreground="#94A3B8"/>
-                </StackPanel>
-            </StackPanel>
+            <controls:PageTitleBar Title="Deep scan analyzer"
+                                    Subtitle="Highlight the heaviest files so you can reclaim space quickly"
+                                    IconGlyph="🔍"
+                                    Margin="0,0,0,24"/>
 
             <Border Grid.Row="1"
-                    Margin="0,24,0,20"
+                    Margin="0,0,0,20"
                     Padding="16"
                     Background="#111827"
                     CornerRadius="12">

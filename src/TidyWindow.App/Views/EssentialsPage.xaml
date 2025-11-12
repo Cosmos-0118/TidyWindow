@@ -155,66 +155,83 @@
                                    BadgeText="Core automations"
                                    Margin="0,0,0,20">
                 <controls:PageTitleBar.BodyContent>
-                    <WrapPanel Orientation="Horizontal"
-                               Margin="0,4,0,0">
-                        <Border Background="#15253E"
-                                BorderBrush="#24364F"
-                                BorderThickness="1"
-                                CornerRadius="10"
-                                Padding="14,10"
-                                Margin="0,0,12,12"
-                                MinWidth="180">
-                            <StackPanel>
-                                <TextBlock Text="Curated repair flows"
-                                           FontSize="12"
-                                           Foreground="#93C5FD"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock Text="Run high-impact scripts directly from this shelf."
-                                           FontSize="11"
-                                           Foreground="#CBD5F5"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="#15253E"
-                                BorderBrush="#24364F"
-                                BorderThickness="1"
-                                CornerRadius="10"
-                                Padding="14,10"
-                                Margin="0,0,12,12"
-                                MinWidth="180">
-                            <StackPanel>
-                                <TextBlock Text="Queue timeline"
-                                           FontSize="12"
-                                           Foreground="#93C5FD"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock Text="Monitor every run and quickly retry anything that failed."
-                                           FontSize="11"
-                                           Foreground="#CBD5F5"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Background="#15253E"
-                                BorderBrush="#24364F"
-                                BorderThickness="1"
-                                CornerRadius="10"
-                                Padding="14,10"
-                                Margin="0,0,12,12"
-                                MinWidth="180">
-                            <StackPanel>
-                                <TextBlock Text="Live terminal"
-                                           FontSize="12"
-                                           Foreground="#93C5FD"
-                                           FontWeight="SemiBold"/>
-                                <TextBlock Text="Inspect verbose output without leaving the cockpit."
-                                           FontSize="11"
-                                           Foreground="#CBD5F5"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </Border>
-                    </WrapPanel>
+                    <Border Margin="0,4,0,0"
+                            Background="#10213A"
+                            BorderBrush="#2563EB"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="16"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                        <UniformGrid Rows="1"
+                                     Columns="3"
+                                     HorizontalAlignment="Stretch"
+                                     VerticalAlignment="Center">
+                            <Border Background="#15253E"
+                                    BorderBrush="#24364F"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Margin="8"
+                                    Padding="12"
+                                    MinWidth="180"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch">
+                                <StackPanel>
+                                    <TextBlock Text="Curated repair flows"
+                                               FontSize="12"
+                                               Foreground="#93C5FD"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Run high-impact scripts directly from this shelf."
+                                               FontSize="11"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#15253E"
+                                    BorderBrush="#24364F"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Margin="8"
+                                    Padding="12"
+                                    MinWidth="180"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch">
+                                <StackPanel>
+                                    <TextBlock Text="Queue timeline"
+                                               FontSize="12"
+                                               Foreground="#93C5FD"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Monitor every run and quickly retry anything that failed."
+                                               FontSize="11"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#15253E"
+                                    BorderBrush="#24364F"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Margin="8"
+                                    Padding="12"
+                                    MinWidth="180"
+                                    HorizontalAlignment="Stretch"
+                                    VerticalAlignment="Stretch">
+                                <StackPanel>
+                                    <TextBlock Text="Live terminal"
+                                               FontSize="12"
+                                               Foreground="#93C5FD"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Inspect verbose output without leaving the cockpit."
+                                               FontSize="11"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+                    </Border>
                 </controls:PageTitleBar.BodyContent>
             </controls:PageTitleBar>
 

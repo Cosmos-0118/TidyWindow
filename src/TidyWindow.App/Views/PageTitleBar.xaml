@@ -22,7 +22,7 @@
         <Style x:Key="TitleBarBadgeStyle"
                TargetType="Border">
             <Setter Property="CornerRadius"
-                    Value="6"/>
+            Value="10"/>
             <Setter Property="Padding"
                     Value="6,2"/>
             <Setter Property="Margin"
@@ -56,7 +56,7 @@
             <Setter Property="Height"
                     Value="40"/>
             <Setter Property="CornerRadius"
-                    Value="12"/>
+            Value="16"/>
             <Setter Property="Background"
                     Value="{StaticResource IconNormalBrush}"/>
             <Setter Property="BorderThickness"
@@ -89,190 +89,239 @@
         </Style>
     </UserControl.Resources>
 
-    <Border Padding="{Binding Padding, ElementName=RootControl}"
-            Background="{Binding Background, ElementName=RootControl}"
+    <Border Background="{Binding Background, ElementName=RootControl}"
             CornerRadius="{Binding CornerRadius, ElementName=RootControl}"
             SnapsToDevicePixels="True"
             UseLayoutRounding="True">
         <Border.Effect>
             <StaticResource ResourceKey="TitleBarShadowEffect"/>
         </Border.Effect>
-        <Grid>
-            <Border IsHitTestVisible="False"
+    <Grid x:Name="LayoutRoot">
+            <Border x:Name="ContentHost"
                     CornerRadius="{Binding CornerRadius, ElementName=RootControl}"
-                    Background="{StaticResource TitleBarOverlayBrush}"
-                    Opacity="0">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Opacity"
-                                Value="0"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsMouseOver, ElementName=RootControl}"
-                                         Value="True">
-                                <Setter Property="Opacity"
-                                        Value="1"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-            </Border>
+                    Padding="{Binding Padding, ElementName=RootControl}">
+                <Grid>
 
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
+                    <Grid x:Name="ContentGrid">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+                        <Grid x:Name="HeaderGrid"
+                              Grid.Row="0">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition x:Name="IconColumn"
+                                                  Width="Auto"/>
+                                <ColumnDefinition x:Name="TextColumn"
+                                                  Width="*"/>
+                                <ColumnDefinition x:Name="TrailingColumn"
+                                                  Width="Auto"/>
+                            </Grid.ColumnDefinitions>
 
-                    <Border x:Name="IconHost"
-                            Grid.Column="0"
-                            Style="{StaticResource TitleBarIconStyle}"
-                            BorderBrush="{Binding AccentBrush, ElementName=RootControl}">
-                        <TextBlock Text="{Binding IconGlyph, ElementName=RootControl}"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   Foreground="#F1F5F9"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Border>
-
-                    <StackPanel x:Name="TextHost"
-                                Grid.Column="1"
-                                VerticalAlignment="Center">
-                        <StackPanel.Style>
-                            <Style TargetType="StackPanel">
-                                <Setter Property="Margin"
-                                        Value="12,0,0,0"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IconGlyph, ElementName=RootControl}"
-                                                 Value="{x:Null}">
-                                        <Setter Property="Margin"
-                                                Value="0"/>
-                                    </DataTrigger>
-                                    <DataTrigger Binding="{Binding IconGlyph, ElementName=RootControl}"
-                                                 Value="">
-                                        <Setter Property="Margin"
-                                                Value="0"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </StackPanel.Style>
-
-                        <StackPanel Orientation="Horizontal"
-                                    VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title, ElementName=RootControl}"
-                                       FontSize="20"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"
-                                       TextTrimming="CharacterEllipsis"/>
-                            <Border x:Name="BadgeHost"
-                                    Style="{StaticResource TitleBarBadgeStyle}"
+                            <Border x:Name="IconHost"
+                                    Grid.Row="0"
+                                    Grid.Column="0"
+                                    Style="{StaticResource TitleBarIconStyle}"
                                     BorderBrush="{Binding AccentBrush, ElementName=RootControl}">
-                                <TextBlock Text="{Binding BadgeText, ElementName=RootControl}"
-                                           FontSize="11"
+                                <TextBlock Text="{Binding IconGlyph, ElementName=RootControl}"
+                                           FontSize="20"
                                            FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"/>
+                                           Foreground="#F1F5F9"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
                             </Border>
-                        </StackPanel>
 
-                        <TextBlock Text="{Binding Subtitle, ElementName=RootControl}"
-                                   Margin="0,4,0,0"
-                                   FontSize="12"
-                                   Foreground="#94A3B8"
-                                   TextTrimming="CharacterEllipsis"
-                                   TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
+                            <StackPanel x:Name="TextHost"
+                                        Grid.Row="0"
+                                        Grid.Column="1"
+                                        VerticalAlignment="Center">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Margin"
+                                                Value="12,0,0,0"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IconGlyph, ElementName=RootControl}"
+                                                         Value="{x:Null}">
+                                                <Setter Property="Margin"
+                                                        Value="0"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding IconGlyph, ElementName=RootControl}"
+                                                         Value="">
+                                                <Setter Property="Margin"
+                                                        Value="0"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+
+                <StackPanel x:Name="TitleRowPanel"
+                        Orientation="Horizontal"
+                        VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding Title, ElementName=RootControl}"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <Border x:Name="BadgeHost"
+                                            Style="{StaticResource TitleBarBadgeStyle}"
+                                            BorderBrush="{Binding AccentBrush, ElementName=RootControl}">
+                                        <TextBlock Text="{Binding BadgeText, ElementName=RootControl}"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#E2E8F0"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <TextBlock Text="{Binding Subtitle, ElementName=RootControl}"
+                                           Margin="0,4,0,0"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"
+                                           TextTrimming="CharacterEllipsis"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility"
+                                                    Value="Visible"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="Text"
+                                                         Value="{x:Null}">
+                                                    <Setter Property="Visibility"
+                                                            Value="Collapsed"/>
+                                                </Trigger>
+                                                <Trigger Property="Text"
+                                                         Value="">
+                                                    <Setter Property="Visibility"
+                                                            Value="Collapsed"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+
+                            <ContentPresenter x:Name="TrailingPresenter"
+                                              Grid.Row="0"
+                                              Grid.Column="2"
+                                              Margin="20,0,0,0"
+                                              VerticalAlignment="Center"
+                                              Content="{Binding TrailingContent, ElementName=RootControl}">
+                                <ContentPresenter.Style>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
+                                        <Setter Property="HorizontalAlignment"
+                                                Value="Right"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="Content"
+                                                     Value="{x:Null}">
+                                                <Setter Property="Visibility"
+                                                        Value="Collapsed"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ContentPresenter.Style>
+                            </ContentPresenter>
+                        </Grid>
+
+                        <ContentPresenter Grid.Row="1"
+                                          Margin="0,16,0,0"
+                                          Content="{Binding BodyContent, ElementName=RootControl}">
+                            <ContentPresenter.Style>
+                                <Style TargetType="ContentPresenter">
                                     <Setter Property="Visibility"
                                             Value="Visible"/>
                                     <Style.Triggers>
-                                        <Trigger Property="Text"
+                                        <Trigger Property="Content"
                                                  Value="{x:Null}">
-                                            <Setter Property="Visibility"
-                                                    Value="Collapsed"/>
-                                        </Trigger>
-                                        <Trigger Property="Text"
-                                                 Value="">
                                             <Setter Property="Visibility"
                                                     Value="Collapsed"/>
                                         </Trigger>
                                     </Style.Triggers>
                                 </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                    </StackPanel>
-
-                    <ContentPresenter Grid.Column="2"
-                                      Margin="20,0,0,0"
-                                      VerticalAlignment="Center"
-                                      Content="{Binding TrailingContent, ElementName=RootControl}">
-                        <ContentPresenter.Style>
-                            <Style TargetType="ContentPresenter">
-                                <Setter Property="Visibility"
-                                        Value="Visible"/>
-                                <Setter Property="HorizontalAlignment"
-                                        Value="Right"/>
-                                <Style.Triggers>
-                                    <Trigger Property="Content"
-                                             Value="{x:Null}">
-                                        <Setter Property="Visibility"
-                                                Value="Collapsed"/>
-                                    </Trigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ContentPresenter.Style>
-                    </ContentPresenter>
+                            </ContentPresenter.Style>
+                        </ContentPresenter>
+                    </Grid>
                 </Grid>
+            </Border>
 
-                <ContentPresenter Grid.Row="1"
-                                  Margin="0,16,0,0"
-                                  Content="{Binding BodyContent, ElementName=RootControl}">
-                    <ContentPresenter.Style>
-                        <Style TargetType="ContentPresenter">
-                            <Setter Property="Visibility"
-                                    Value="Visible"/>
-                            <Style.Triggers>
-                                <Trigger Property="Content"
-                                         Value="{x:Null}">
-                                    <Setter Property="Visibility"
-                                            Value="Collapsed"/>
-                                </Trigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ContentPresenter.Style>
-                </ContentPresenter>
-            </Grid>
-
-            <Border x:Name="AccentUnderline"
-                    IsHitTestVisible="False"
-                    Height="2"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Bottom"
-                    Background="{Binding AccentBrush, ElementName=RootControl}">
-                <Border.Style>
-                    <Style TargetType="Border">
+            <Rectangle x:Name="HoverLightTrack"
+                       Panel.ZIndex="5"
+                       IsHitTestVisible="False"
+                       Margin="3"
+                       StrokeThickness="1.6"
+                       RadiusX="{Binding CornerRadius.TopLeft, ElementName=RootControl}"
+                       RadiusY="{Binding CornerRadius.TopLeft, ElementName=RootControl}"
+                       StrokeLineJoin="Round"
+                       StrokeStartLineCap="Round"
+                       StrokeEndLineCap="Round"
+                       Stroke="{Binding AccentBrush, ElementName=RootControl, TargetNullValue=#55C7F5}">
+                <Rectangle.Style>
+                    <Style TargetType="Rectangle">
                         <Setter Property="Opacity"
-                                Value="0.65"/>
-                        <Setter Property="Margin"
-                                Value="120,0,120,0"/>
+                                Value="0"/>
+                        <Setter Property="StrokeDashArray"
+                                Value="4 16"/>
+                        <Setter Property="StrokeDashOffset"
+                                Value="0"/>
+                        <Setter Property="Effect">
+                            <Setter.Value>
+                                <DropShadowEffect BlurRadius="18"
+                                                  ShadowDepth="0"
+                                                  Color="#3376E5"
+                                                  Opacity="0.3"/>
+                            </Setter.Value>
+                        </Setter>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsMouseOver, ElementName=RootControl}"
                                          Value="True">
-                                <Setter Property="Opacity"
-                                        Value="1"/>
-                                <Setter Property="Margin"
-                                        Value="40,0,40,0"/>
+                                <DataTrigger.EnterActions>
+                                    <BeginStoryboard x:Name="HoverLightLoop">
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetProperty="StrokeDashOffset"
+                                                             From="0"
+                                                             To="20"
+                                                             Duration="0:0:2.4">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CircleEase EasingMode="EaseInOut"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                    <BeginStoryboard x:Name="HoverLightFadeIn">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             To="0.9"
+                                                             Duration="0:0:0.25"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.EnterActions>
+                                <DataTrigger.ExitActions>
+                                    <StopStoryboard BeginStoryboardName="HoverLightLoop"/>
+                                    <BeginStoryboard>
+                                        <Storyboard FillBehavior="Stop">
+                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                             To="0"
+                                                             Duration="0:0:0.25"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                    <BeginStoryboard>
+                                        <Storyboard FillBehavior="Stop">
+                                            <DoubleAnimation Storyboard.TargetProperty="StrokeDashOffset"
+                                                             To="0"
+                                                             Duration="0:0:0.05"/>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </DataTrigger.ExitActions>
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
-                </Border.Style>
-            </Border>
+                </Rectangle.Style>
+            </Rectangle>
         </Grid>
     </Border>
 </UserControl>

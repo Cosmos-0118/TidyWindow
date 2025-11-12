@@ -5,7 +5,8 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
       xmlns:core="clr-namespace:TidyWindow.Core.Updates;assembly=TidyWindow.Core"
-      xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
+    xmlns:primitives="clr-namespace:System.Windows.Controls.Primitives;assembly=PresentationFramework"
+    xmlns:controls="clr-namespace:TidyWindow.App.Views"
       mc:Ignorable="d"
       Title="Driver updates"
       Background="Transparent">
@@ -134,28 +135,10 @@
                             MaxWidth="1280"
                             HorizontalAlignment="Center"
                             d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,24">
-                        <Border Width="48"
-                                Height="48"
-                                CornerRadius="12"
-                                Background="#1E293B"
-                                Margin="0,0,12,0"
-                                VerticalAlignment="Center">
-                            <TextBlock Text="🧩"
-                                       FontSize="24"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
-                        </Border>
-                        <StackPanel>
-                            <TextBlock Text="Driver update insights"
-                                       FontSize="26"
-                                       FontWeight="Bold"
-                                       Foreground="#F8FAFC"/>
-                            <TextBlock Text="Detect pending driver updates and compare versions."
-                                       FontSize="14"
-                                       Foreground="#94A3B8"/>
-                        </StackPanel>
-                    </StackPanel>
+                    <controls:PageTitleBar Title="Driver update insights"
+                                           Subtitle="Detect pending driver updates and compare versions."
+                                           IconGlyph="🧩"
+                                           Margin="0,0,0,24"/>
 
                     <Border Background="#12263F"
                             BorderBrush="#1F365B"

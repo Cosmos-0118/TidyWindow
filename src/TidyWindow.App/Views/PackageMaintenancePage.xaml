@@ -4,7 +4,8 @@
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
-      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+    xmlns:controls="clr-namespace:TidyWindow.App.Views"
       mc:Ignorable="d"
       Title="Package maintenance"
       Background="Transparent"
@@ -845,63 +846,45 @@
                                       Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel x:Name="HeaderSummaryPanel"
-                            Grid.Row="0"
-                            Grid.Column="0"
-                            Orientation="Horizontal">
-                    <Border Width="48"
-                            Height="48"
-                            CornerRadius="12"
-                            Background="#1E293B"
-                            Margin="0,0,12,0">
-                        <TextBlock Text="🛠️"
-                                   FontSize="24"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Border>
-                    <StackPanel>
-                        <TextBlock Text="{Binding Headline}"
-                                   FontSize="26"
-                                   FontWeight="Bold"
-                                   Foreground="#F8FAFC"/>
-                        <TextBlock Text="{Binding SummaryText}"
-                                   FontSize="14"
-                                   Foreground="#94A3B8"
+                    <controls:PageTitleBar x:Name="HeaderSummaryPanel"
+                                           Grid.Row="0"
+                                           Grid.Column="0"
+                                           Title="{Binding Headline}"
+                                           Subtitle="{Binding SummaryText}"
+                                           IconGlyph="🛠️"
+                                           Margin="0,0,16,0"/>
+
+            <StackPanel x:Name="HeaderActionHost"
+                    Grid.Row="0"
+                    Grid.Column="1"
+                    Orientation="Vertical"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center">
+                <StackPanel x:Name="HeaderActionPanel"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+                            <ProgressBar Width="120"
+                                         Height="6"
+                                         IsIndeterminate="True"
+                                         Margin="0,0,12,0"
+                                         Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <Button Content="Refresh"
+                                    Command="{Binding RefreshCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}">
+                                <Button.IsEnabled>
+                                    <Binding Path="IsBusy"
+                                             Converter="{StaticResource InverseBooleanConverter}"/>
+                                </Button.IsEnabled>
+                            </Button>
+                        </StackPanel>
+                        <TextBlock x:Name="HeaderLastRefreshedText"
+                                   Text="{Binding LastRefreshedDisplay}"
+                                   Foreground="#64748B"
+                                   FontSize="12"
+                                   Margin="0,6,0,0"
+                                   HorizontalAlignment="Right"
                                    TextWrapping="Wrap"/>
                     </StackPanel>
-                </StackPanel>
-
-        <StackPanel x:Name="HeaderActionHost"
-                Grid.Row="0"
-                Grid.Column="1"
-                Orientation="Vertical"
-                HorizontalAlignment="Right"
-                VerticalAlignment="Center">
-            <StackPanel x:Name="HeaderActionPanel"
-                Orientation="Horizontal"
-                HorizontalAlignment="Right">
-                        <ProgressBar Width="120"
-                                     Height="6"
-                                     IsIndeterminate="True"
-                                     Margin="0,0,12,0"
-                                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <Button Content="Refresh"
-                                Command="{Binding RefreshCommand}"
-                                Style="{StaticResource SecondaryButtonStyle}">
-                            <Button.IsEnabled>
-                                <Binding Path="IsBusy"
-                                         Converter="{StaticResource InverseBooleanConverter}"/>
-                            </Button.IsEnabled>
-                        </Button>
-                    </StackPanel>
-                    <TextBlock x:Name="HeaderLastRefreshedText"
-                               Text="{Binding LastRefreshedDisplay}"
-                               Foreground="#64748B"
-                               FontSize="12"
-                               Margin="0,6,0,0"
-                               HorizontalAlignment="Right"
-                               TextWrapping="Wrap"/>
-                </StackPanel>
             </Grid>
 
             <Grid x:Name="MainLayoutGrid"
