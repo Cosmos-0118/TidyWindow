@@ -23,10 +23,13 @@ public partial class InstallHubPage : Page
     private bool _packageLayoutScheduled;
     private double _lastBundleItemWidth = double.NaN;
     private double _lastPackageItemWidth = double.NaN;
+    private bool _isStackLayout;
+    private bool _useCompactMargin;
 
     private const double CompactLayoutBreakpoint = 1180d;
     private const double StackedLayoutBreakpoint = 980d;
     private const double WidthChangeTolerance = 0.5d;
+    private const double LayoutHysteresis = 48d;
 
     public InstallHubPage(InstallHubViewModel viewModel)
     {
@@ -244,14 +247,39 @@ public partial class InstallHubPage : Page
             return;
         }
 
-        var stackLayout = viewportWidth < StackedLayoutBreakpoint;
-        var tightMargins = viewportWidth < CompactLayoutBreakpoint;
+        var stackLayout = _isStackLayout;
+        if (viewportWidth <= StackedLayoutBreakpoint - LayoutHysteresis)
+        {
+            stackLayout = true;
+        }
+        else if (viewportWidth >= StackedLayoutBreakpoint + LayoutHysteresis)
+        {
+            stackLayout = false;
+        }
 
-        ContentScrollViewer.Margin = stackLayout
+        var compactMargins = _useCompactMargin;
+        if (viewportWidth <= CompactLayoutBreakpoint - LayoutHysteresis)
+        {
+            compactMargins = true;
+        }
+        else if (viewportWidth >= CompactLayoutBreakpoint + LayoutHysteresis)
+        {
+            compactMargins = false;
+        }
+
+        _isStackLayout = stackLayout;
+        _useCompactMargin = compactMargins;
+
+        var targetMargin = stackLayout
             ? _scrollViewerStackedMargin
-            : tightMargins
+            : compactMargins
                 ? _scrollViewerCompactMargin
                 : _scrollViewerDefaultMargin;
+
+        if (!ThicknessEquals(ContentScrollViewer.Margin, targetMargin))
+        {
+            ContentScrollViewer.Margin = targetMargin;
+        }
 
         UpdateAdaptiveLists();
     }
@@ -434,6 +462,14 @@ public partial class InstallHubPage : Page
         }
 
         return false;
+    }
+
+    private static bool ThicknessEquals(Thickness left, Thickness right)
+    {
+        return Math.Abs(left.Left - right.Left) < 0.1
+            && Math.Abs(left.Top - right.Top) < 0.1
+            && Math.Abs(left.Right - right.Right) < 0.1
+            && Math.Abs(left.Bottom - right.Bottom) < 0.1;
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
