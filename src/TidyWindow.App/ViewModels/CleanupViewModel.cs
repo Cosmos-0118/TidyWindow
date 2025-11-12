@@ -113,6 +113,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private int _lastPreviewTotalItemCount;
     private bool _hasCompletedPreview;
     private CancellationTokenSource? _refreshToastCancellation;
+    private CancellationTokenSource? _phaseTransitionCancellation;
+    private readonly TimeSpan _phaseTransitionLeadDuration = TimeSpan.FromMilliseconds(160);
+    private readonly TimeSpan _phaseTransitionSettleDuration = TimeSpan.FromMilliseconds(220);
 
     public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService)
     {
@@ -267,6 +270,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _refreshToastText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isPhaseTransitioning;
+
+    [ObservableProperty]
+    private string _phaseTransitionMessage = string.Empty;
 
     private readonly ObservableCollection<string> _pendingDeletionCategories = new();
     private readonly ObservableCollection<string> _celebrationCategories = new();
@@ -614,7 +623,13 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 SelectedTarget = Targets[0];
             }
 
-            CurrentPhase = CleanupPhase.Preview;
+            var phaseMessage = Targets.Count == 0
+                ? "Finishing up — no cleanup items detected."
+                : "Loading preview results…";
+
+            await TransitionToPhaseAsync(
+                CleanupPhase.Preview,
+                transitionMessage: phaseMessage);
             HandleRefreshToast(newItems, totalItems);
 
             var status = Targets.Count == 0
@@ -675,10 +690,13 @@ public sealed partial class CleanupViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void NavigateToSetup()
+    private async Task NavigateToSetupAsync()
     {
         ClearPendingDeletionState();
-        CurrentPhase = CleanupPhase.Setup;
+        await TransitionToPhaseAsync(
+            CleanupPhase.Setup,
+            transitionMessage: "Returning to setup options…",
+            preTransitionDelay: TimeSpan.FromMilliseconds(120));
         HideRefreshToast();
     }
 
@@ -1053,7 +1071,13 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
             if (showCelebration)
             {
-                ShowCleanupCelebration(deletionResult, categoriesTouched, failureItems, stopwatch.Elapsed, reportPath, deletionSummary);
+                await ShowCleanupCelebrationAsync(
+                    deletionResult,
+                    categoriesTouched,
+                    failureItems,
+                    stopwatch.Elapsed,
+                    reportPath,
+                    deletionSummary);
             }
             else
             {
@@ -1124,7 +1148,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
     }
 
-    private void ShowCleanupCelebration(
+    private async Task ShowCleanupCelebrationAsync(
         CleanupDeletionResult deletionResult,
         IReadOnlyCollection<string> categoriesTouched,
         IReadOnlyList<CleanupCelebrationFailureViewModel> failureItems,
@@ -1184,7 +1208,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
             IsConfirmationSheetVisible = false;
         }
 
-        CurrentPhase = CleanupPhase.Celebration;
+        await TransitionToPhaseAsync(
+            CleanupPhase.Celebration,
+            transitionMessage: "Finalizing cleanup summary…",
+            preTransitionDelay: TimeSpan.FromMilliseconds(140),
+            settleDelay: TimeSpan.FromMilliseconds(260));
     }
 
     private static bool ShouldKeepSkippedEntry(CleanupDeletionEntry entry)
@@ -1546,11 +1574,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void CloseCelebration()
+    private async Task CloseCelebrationAsync()
     {
         CelebrationFailures.Clear();
         var nextPhase = Targets.Count > 0 ? CleanupPhase.Preview : CleanupPhase.Setup;
-        CurrentPhase = nextPhase;
+        var transitionMessage = nextPhase == CleanupPhase.Preview
+            ? "Reopening preview…"
+            : "Resetting cleanup flow…";
+
+        await TransitionToPhaseAsync(nextPhase, transitionMessage);
         _mainViewModel.SetStatusMessage("Cleanup summary dismissed. Ready for the next scan.");
     }
 
@@ -1899,12 +1931,78 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             IsRefreshToastVisible = false;
         }
+    }
 
-        if (!IsRefreshToastVisible)
+    private async Task TransitionToPhaseAsync(
+        CleanupPhase targetPhase,
+        string? transitionMessage = null,
+        TimeSpan? preTransitionDelay = null,
+        TimeSpan? settleDelay = null)
+    {
+        if (CurrentPhase == targetPhase && !IsPhaseTransitioning)
         {
-            RefreshToastText = string.Empty;
+            return;
+        }
+
+        var previous = _phaseTransitionCancellation;
+        var cts = new CancellationTokenSource();
+        _phaseTransitionCancellation = cts;
+        previous?.Cancel();
+
+        PhaseTransitionMessage = string.IsNullOrWhiteSpace(transitionMessage)
+            ? BuildDefaultPhaseTransitionMessage(targetPhase)
+            : transitionMessage;
+        IsPhaseTransitioning = true;
+
+        try
+        {
+            var lead = preTransitionDelay ?? _phaseTransitionLeadDuration;
+            if (lead > TimeSpan.Zero)
+            {
+                await Task.Delay(lead, cts.Token);
+            }
+
+            if (_phaseTransitionCancellation != cts)
+            {
+                return;
+            }
+
+            if (CurrentPhase != targetPhase)
+            {
+                CurrentPhase = targetPhase;
+            }
+
+            var settle = settleDelay ?? _phaseTransitionSettleDuration;
+            if (settle > TimeSpan.Zero)
+            {
+                await Task.Delay(settle, cts.Token);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer transition superseded this one; the latest will tidy up state.
+        }
+        finally
+        {
+            if (ReferenceEquals(_phaseTransitionCancellation, cts))
+            {
+                _phaseTransitionCancellation = null;
+                PhaseTransitionMessage = string.Empty;
+                IsPhaseTransitioning = false;
+            }
+
+            cts.Dispose();
+            previous?.Dispose();
         }
     }
+
+    private static string BuildDefaultPhaseTransitionMessage(CleanupPhase targetPhase) => targetPhase switch
+    {
+        CleanupPhase.Setup => "Preparing setup tools…",
+        CleanupPhase.Preview => "Loading preview results…",
+        CleanupPhase.Celebration => "Summarizing cleanup…",
+        _ => "Preparing next phase…"
+    };
 
     private async Task DismissRefreshToastAfterDelayAsync(TimeSpan delay, CancellationToken token)
     {

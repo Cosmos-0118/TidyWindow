@@ -11,7 +11,9 @@ public sealed class HighFrictionPromptService : IHighFrictionPromptService
     private readonly ITrayService _trayService;
     private readonly AppRestartService _restartService;
     private readonly ActivityLogService _activityLog;
-    private readonly HashSet<string> _displayedKeys = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, DateTimeOffset> _displayedPrompts = new(StringComparer.Ordinal);
+    private static readonly TimeSpan PromptCooldown = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan PromptRetention = TimeSpan.FromHours(6);
 
     public HighFrictionPromptService(ITrayService trayService, AppRestartService restartService, ActivityLogService activityLog)
     {
@@ -28,12 +30,9 @@ public sealed class HighFrictionPromptService : IHighFrictionPromptService
         }
 
         var key = BuildKey(scenario, entry);
-        lock (_displayedKeys)
+        if (!ShouldDisplayPrompt(key))
         {
-            if (!_displayedKeys.Add(key))
-            {
-                return;
-            }
+            return;
         }
 
         var metadata = CreateMetadata(scenario, entry);
@@ -72,10 +71,78 @@ public sealed class HighFrictionPromptService : IHighFrictionPromptService
         var builder = new StringBuilder();
         builder.Append((int)scenario)
                .Append('|')
-               .Append(entry.Timestamp.ToUnixTimeSeconds())
-               .Append('|')
-               .Append(entry.Source);
+               .Append(Normalize(entry.Source));
+
+        if (!string.IsNullOrWhiteSpace(entry.Message))
+        {
+            builder.Append('|').Append(Normalize(entry.Message));
+        }
+
+        foreach (var detail in entry.Details)
+        {
+            if (!string.IsNullOrWhiteSpace(detail))
+            {
+                builder.Append('|').Append(Normalize(detail));
+            }
+        }
+
         return builder.ToString();
+    }
+
+    private bool ShouldDisplayPrompt(string key)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        lock (_displayedPrompts)
+        {
+            PruneExpiredEntriesUnsafe(now);
+
+            if (_displayedPrompts.TryGetValue(key, out var previous) && now - previous < PromptCooldown)
+            {
+                return false;
+            }
+
+            _displayedPrompts[key] = now;
+            return true;
+        }
+    }
+
+    private void PruneExpiredEntriesUnsafe(DateTimeOffset now)
+    {
+        if (_displayedPrompts.Count == 0)
+        {
+            return;
+        }
+
+        List<string>? expiredKeys = null;
+        foreach (var entry in _displayedPrompts)
+        {
+            if (now - entry.Value > PromptRetention)
+            {
+                expiredKeys ??= new List<string>(_displayedPrompts.Count);
+                expiredKeys.Add(entry.Key);
+            }
+        }
+
+        if (expiredKeys is null)
+        {
+            return;
+        }
+
+        foreach (var key in expiredKeys)
+        {
+            _displayedPrompts.Remove(key);
+        }
+    }
+
+    private static string Normalize(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        return value.Trim().ToLowerInvariant();
     }
 
     private static PromptMetadata CreateMetadata(HighFrictionScenario scenario, ActivityLogEntry entry)

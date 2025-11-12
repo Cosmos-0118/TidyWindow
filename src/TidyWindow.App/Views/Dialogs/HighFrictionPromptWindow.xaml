@@ -1,57 +1,229 @@
 <Window x:Class="TidyWindow.App.Views.Dialogs.HighFrictionPromptWindow"
-        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="PulseGuard Prompt"
-        WindowStartupLocation="CenterOwner"
-        ResizeMode="NoResize"
-        SizeToContent="WidthAndHeight"
-        WindowStyle="ToolWindow"
-        Background="#0F172A"
-        Foreground="#E2E8F0"
-        MinWidth="420"
-        MinHeight="220"
-        ShowInTaskbar="False">
-    <Border Padding="24"
-            Background="#0F172A"
-            BorderBrush="#1D2A44"
-            BorderThickness="1"
-            CornerRadius="12">
-        <StackPanel>
-            <TextBlock x:Name="HeadingTextBlock"
-                       FontSize="20"
-                       FontWeight="SemiBold"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,12"/>
-            <TextBlock x:Name="BodyTextBlock"
-                       FontSize="13"
-                       Foreground="#C7D2FE"
-                       TextWrapping="Wrap"
-                       Margin="0,0,0,16"/>
-            <Border Background="#111C34"
-                    BorderBrush="#1E2F49"
-                    BorderThickness="1"
-                    CornerRadius="10"
-                    Padding="12"
-                    Margin="0,0,0,20">
-                <TextBlock x:Name="SuggestionTextBlock"
-                           FontSize="12"
-                           Foreground="#9FB3FF"
-                           TextWrapping="Wrap"/>
-            </Border>
-            <StackPanel Orientation="Horizontal"
-                        HorizontalAlignment="Right">
-                <Button Content="View logs"
-                        Width="100"
-                        Margin="0,0,10,0"
-                        Click="OnViewLogs"/>
-                <Button Content="Restart app"
-                        Width="110"
-                        Margin="0,0,10,0"
-                        Click="OnRestart"/>
-                <Button Content="Not now"
-                        Width="90"
-                        Click="OnDismiss"/>
-            </StackPanel>
-        </StackPanel>
-    </Border>
+                xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                Title="PulseGuard Prompt"
+                WindowStartupLocation="CenterOwner"
+                ResizeMode="NoResize"
+                SizeToContent="WidthAndHeight"
+                AllowsTransparency="True"
+                WindowStyle="None"
+                Background="Transparent"
+                Foreground="#E2E8F0"
+                MinWidth="460"
+                MinHeight="260"
+                ShowInTaskbar="False">
+        <Window.Resources>
+                <Style x:Key="PulseGuardButtonStyle" TargetType="Button">
+                        <Setter Property="Foreground" Value="#E2E8F0"/>
+                        <Setter Property="Background" Value="#1F2A44"/>
+                        <Setter Property="BorderBrush" Value="#334155"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Padding" Value="12,8"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="8">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center"
+                                                                                          RecognizesAccessKey="True"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="border" Property="Background" Value="#243453"/>
+                                                                <Setter TargetName="border" Property="BorderBrush" Value="#3B4F73"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                                <Setter TargetName="border" Property="Background" Value="#1B2742"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter TargetName="border" Property="Opacity" Value="0.6"/>
+                                                        </Trigger>
+                                                </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+
+                <Style x:Key="PulseGuardPrimaryButtonStyle" TargetType="Button">
+                        <Setter Property="Foreground" Value="#F8FAFC"/>
+                        <Setter Property="Background" Value="#2563EB"/>
+                        <Setter Property="BorderBrush" Value="#3B82F6"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Padding" Value="12,8"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="8">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center"
+                                                                                          RecognizesAccessKey="True"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="border" Property="Background" Value="#1D4ED8"/>
+                                                                <Setter TargetName="border" Property="BorderBrush" Value="#60A5FA"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                                <Setter TargetName="border" Property="Background" Value="#1E3A8A"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter TargetName="border" Property="Opacity" Value="0.6"/>
+                                                        </Trigger>
+                                                </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+
+                <Style x:Key="PulseGuardGhostButtonStyle" TargetType="Button">
+                        <Setter Property="Foreground" Value="#94A3B8"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="BorderBrush" Value="#1E2F49"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Padding" Value="12,8"/>
+                        <Setter Property="FontSize" Value="13"/>
+                        <Setter Property="FontWeight" Value="SemiBold"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border"
+                                                                Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="8">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                                          VerticalAlignment="Center"
+                                                                                          RecognizesAccessKey="True"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="border" Property="Background" Value="#14213B"/>
+                                                                <Setter TargetName="border" Property="BorderBrush" Value="#2A3E63"/>
+                                                                <Setter Property="Foreground" Value="#CBD5F5"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsPressed" Value="True">
+                                                                <Setter TargetName="border" Property="Background" Value="#10192F"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                                <Setter TargetName="border" Property="Opacity" Value="0.5"/>
+                                                        </Trigger>
+                                                </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+        </Window.Resources>
+
+        <Border x:Name="RootBorder"
+                        Padding="0"
+                        BorderBrush="#1D2A44"
+                        BorderThickness="1"
+                        CornerRadius="18"
+                        MouseLeftButtonDown="OnDragWindow">
+                <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#0F172A" Offset="0"/>
+                                <GradientStop Color="#0B1324" Offset="1"/>
+                        </LinearGradientBrush>
+                </Border.Background>
+                <Border.Effect>
+                        <DropShadowEffect Color="#000000" BlurRadius="28" Opacity="0.45" ShadowDepth="0"/>
+                </Border.Effect>
+                <Grid>
+                        <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0"
+                                        CornerRadius="18,18,0,0"
+                                        Background="#101A2F"
+                                        Padding="24,20">
+                                <StackPanel Orientation="Horizontal">
+                                        <Border Background="#2563EB"
+                                                        Width="12"
+                                                        Height="12"
+                                                        CornerRadius="6"
+                                                        VerticalAlignment="Center"/>
+                                        <StackPanel Margin="12,0,0,0">
+                                                <TextBlock Text="PulseGuard"
+                                                                   Foreground="#93C5FD"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold"
+                                                                   TextOptions.TextRenderingMode="ClearType"/>
+                                                <TextBlock x:Name="HeadingTextBlock"
+                                                                   FontSize="22"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F8FAFC"
+                                                                   TextWrapping="Wrap"
+                                                                   Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                </StackPanel>
+                        </Border>
+
+                        <StackPanel Grid.Row="1" Margin="24,16,24,24">
+                                <TextBlock x:Name="BodyTextBlock"
+                                                   FontSize="13"
+                                                   Foreground="#CBD5F5"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,0,0,20"/>
+
+                                <Border Background="#111C34"
+                                                BorderBrush="#1E2F49"
+                                                BorderThickness="1"
+                                                CornerRadius="12"
+                                                Padding="16"
+                                                Margin="0,0,0,24">
+                                        <StackPanel>
+                                                <TextBlock Text="Details"
+                                                                   FontSize="11"
+                                                                   Foreground="#60A5FA"
+                                                                   FontWeight="SemiBold"
+                                                                   Margin="0,0,0,6"
+                                                                   TextOptions.TextRenderingMode="ClearType"/>
+                                                <TextBlock x:Name="SuggestionTextBlock"
+                                                                   FontSize="12"
+                                                                   Foreground="#9FB3FF"
+                                                                   TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                </Border>
+
+                                <StackPanel Orientation="Horizontal"
+                                                        HorizontalAlignment="Right">
+                                        <Button Content="View logs"
+                                                        MinWidth="110"
+                                                        Margin="0,0,12,0"
+                                                        Style="{StaticResource PulseGuardButtonStyle}"
+                                                        Click="OnViewLogs"/>
+                                        <Button Content="Restart app"
+                                                        MinWidth="120"
+                                                        Margin="0,0,12,0"
+                                                        Style="{StaticResource PulseGuardPrimaryButtonStyle}"
+                                                        Click="OnRestart"/>
+                                        <Button Content="Not now"
+                                                        MinWidth="100"
+                                                        Style="{StaticResource PulseGuardGhostButtonStyle}"
+                                                        Click="OnDismiss"/>
+                                </StackPanel>
+                        </StackPanel>
+                </Grid>
+        </Border>
 </Window>
