@@ -116,6 +116,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private CancellationTokenSource? _phaseTransitionCancellation;
     private readonly TimeSpan _phaseTransitionLeadDuration = TimeSpan.FromMilliseconds(160);
     private readonly TimeSpan _phaseTransitionSettleDuration = TimeSpan.FromMilliseconds(220);
+    private const int DeletionUiYieldInterval = 750;
 
     public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService)
     {
@@ -937,16 +938,20 @@ public sealed partial class CleanupViewModel : ViewModelBase
             var deletionResult = await _cleanupService.DeleteAsync(models, progress, deletionOptions);
             stopwatch.Stop();
 
-            var entryLookup = deletionResult.Entries
-                .GroupBy(static entry => entry.Path, StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(static group => group.Key, static group => group.Last(), StringComparer.OrdinalIgnoreCase);
+            var entryLookup = await Task.Run(() => BuildDeletionEntryLookup(deletionResult), CancellationToken.None);
 
             var removalCandidates = new List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>();
             var categoriesTouched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var failureItems = new List<CleanupCelebrationFailureViewModel>();
+            var processedItems = 0;
 
             foreach (var tuple in itemsToDelete)
             {
+                if (++processedItems % DeletionUiYieldInterval == 0)
+                {
+                    await Task.Yield();
+                }
+
                 var path = tuple.item.Model.FullName;
                 if (!entryLookup.TryGetValue(path, out var entry))
                 {
@@ -1228,6 +1233,28 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         return entry.Reason.IndexOf("not found", StringComparison.OrdinalIgnoreCase) < 0;
+    }
+
+    private static Dictionary<string, CleanupDeletionEntry> BuildDeletionEntryLookup(CleanupDeletionResult result)
+    {
+        var lookup = new Dictionary<string, CleanupDeletionEntry>(StringComparer.OrdinalIgnoreCase);
+
+        if (result?.Entries is null || result.Entries.Count == 0)
+        {
+            return lookup;
+        }
+
+        foreach (var entry in result.Entries)
+        {
+            if (entry is null || string.IsNullOrWhiteSpace(entry.Path))
+            {
+                continue;
+            }
+
+            lookup[entry.Path] = entry;
+        }
+
+        return lookup;
     }
 
     private static string BuildCategoryListText(IEnumerable<string>? categories)
