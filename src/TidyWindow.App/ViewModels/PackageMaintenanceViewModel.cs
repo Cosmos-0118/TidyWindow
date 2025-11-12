@@ -30,6 +30,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     private const int WingetCannotUpgradeExitCode = -1978334956;
     private const int WingetUnknownVersionExitCode = -1978335189;
+    private const int WingetInstallerHashMismatchExitCode = -1978335215;
 
     private readonly List<PackageMaintenanceItemViewModel> _allPackages = new();
     private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -1118,6 +1119,16 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             ? result.LatestVersion
             : result.RequestedVersion;
 
+        if (result.ExitCode == WingetInstallerHashMismatchExitCode || ContainsWingetInstallerHashMismatchMessage(result))
+        {
+            var versionText = string.IsNullOrWhiteSpace(latestVersion)
+                ? "the latest available version"
+                : $"version {latestVersion}";
+
+            message = $"{packageDisplayName} could not be updated because winget reported an installer hash mismatch. Install the update manually to reach {versionText} or retry after the winget catalog refreshes.";
+            return true;
+        }
+
         if (result.ExitCode == WingetCannotUpgradeExitCode || ContainsNonActionableWingetMessage(result))
         {
             var versionText = string.IsNullOrWhiteSpace(latestVersion)
@@ -1210,6 +1221,42 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         return !string.IsNullOrWhiteSpace(result.Summary)
             && (result.Summary.IndexOf("version number cannot be determined", StringComparison.OrdinalIgnoreCase) >= 0
                 || result.Summary.IndexOf("include-unknown", StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
+    private static bool ContainsWingetInstallerHashMismatchMessage(PackageMaintenanceResult result)
+    {
+        static bool ContainsPhrase(IEnumerable<string> lines)
+        {
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (line.IndexOf("installer hash does not match", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("hash mismatch", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!result.Output.IsDefaultOrEmpty && result.Output.Length > 0 && ContainsPhrase(result.Output))
+        {
+            return true;
+        }
+
+        if (!result.Errors.IsDefaultOrEmpty && result.Errors.Length > 0 && ContainsPhrase(result.Errors))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(result.Summary)
+            && (result.Summary.IndexOf("installer hash", StringComparison.OrdinalIgnoreCase) >= 0
+                || result.Summary.IndexOf("hash mismatch", StringComparison.OrdinalIgnoreCase) >= 0);
     }
 
     private void SynchronizeCollection(ObservableCollection<PackageMaintenanceItemViewModel> target, IList<PackageMaintenanceItemViewModel> source)

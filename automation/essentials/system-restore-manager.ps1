@@ -138,11 +138,18 @@ function Normalize-TidyDrive {
         $trimmed = "${trimmed}:"
     }
 
+    if ($trimmed.Length -gt 2) {
+        $third = $trimmed[2]
+        if ($third -eq [char]'\' -or $third -eq [char]'/') {
+            $trimmed = $trimmed.Substring(0, 2)
+        }
+    }
+
     if ($trimmed.Length -lt 2 -or $trimmed[1] -ne ':') {
         throw "Drive value '$Drive' is not valid."
     }
 
-    $normalized = $trimmed.Substring(0, 2).ToUpperInvariant() + '\\'
+    $normalized = $trimmed.Substring(0, 2).ToUpperInvariant()
     return $normalized
 }
 
@@ -399,9 +406,12 @@ function Enable-TidyRestoreSupport {
         }
     }
 
+    $systemDrive = $normalizedDrives[0]
+    $systemDriveEnabled = $false
+
     for ($i = 0; $i -lt $normalizedDrives.Count; $i++) {
         $drive = $normalizedDrives[$i]
-        $targets = if ($i -eq 0) { @($drive) } else { @($normalizedDrives[0], $drive) }
+        $targets = if ($i -eq 0) { @($drive) } else { @($systemDrive, $drive) }
         $displayTargets = [string]::Join(', ', $targets)
         Write-TidyOutput -Message ("Enabling System Restore on {0}" -f $displayTargets)
         try {
@@ -410,11 +420,37 @@ function Enable-TidyRestoreSupport {
                 Enable-ComputerRestore -Drive $targetDrives -ErrorAction Stop
             } -Arguments @([object]$targets) -Description ("Enable System Restore {0}" -f $displayTargets) | Out-Null
             $anyChanges = $true
+            if ($drive -eq $systemDrive) {
+                $systemDriveEnabled = $true
+            }
         }
         catch {
             $errorText = $_.Exception.Message
             if ($errorText -and $errorText -match 'Include System Drive') {
-                Write-TidyError -Message ("System Restore reported that the system drive was missing while enabling protection on {0}. Verify that {1} remains included and retry." -f $displayTargets, $normalizedDrives[0])
+                if (-not $systemDriveEnabled) {
+                    Write-TidyOutput -Message ("System drive {0} is not yet protected. Attempting to enable it first." -f $systemDrive)
+                    try {
+                        Invoke-TidyCommand -Command {
+                            param($targetDrives)
+                            Enable-ComputerRestore -Drive $targetDrives -ErrorAction Stop
+                        } -Arguments @([object]@($systemDrive)) -Description ("Enable System Restore {0}" -f $systemDrive) | Out-Null
+                        $systemDriveEnabled = $true
+                        if ($drive -ne $systemDrive) {
+                            Invoke-TidyCommand -Command {
+                                param($targetDrives)
+                                Enable-ComputerRestore -Drive $targetDrives -ErrorAction Stop
+                            } -Arguments @([object]$targets) -Description ("Enable System Restore {0}" -f $displayTargets) | Out-Null
+                        }
+                        $anyChanges = $true
+                    }
+                    catch {
+                        $retryText = $_.Exception.Message
+                        Write-TidyError -Message ("Failed to enable System Restore on {0} after retrying system drive enablement. {1}" -f $displayTargets, $retryText)
+                    }
+                }
+                else {
+                    Write-TidyError -Message ("System Restore reported that the system drive was missing while enabling protection on {0}. Verify that {1} remains included and retry." -f $displayTargets, $systemDrive)
+                }
             }
             else {
                 Write-TidyError -Message ("Failed to enable System Restore on {0}. {1}" -f $displayTargets, $errorText)

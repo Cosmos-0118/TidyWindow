@@ -113,7 +113,8 @@ function Invoke-TidyCommand {
         [scriptblock] $Command,
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
-        [switch] $RequireSuccess
+        [switch] $RequireSuccess,
+        [int[]] $AcceptableExitCodes = @()
     )
 
     Write-TidyLog -Level Information -Message $Description
@@ -143,7 +144,14 @@ function Invoke-TidyCommand {
     }
 
     if ($RequireSuccess -and $exitCode -ne 0) {
-        throw "$Description failed with exit code $exitCode."
+        $acceptsExitCode = $false
+        if ($AcceptableExitCodes -and ($AcceptableExitCodes -contains $exitCode)) {
+            $acceptsExitCode = $true
+        }
+
+        if (-not $acceptsExitCode) {
+            throw "$Description failed with exit code $exitCode."
+        }
     }
 
     return $exitCode
@@ -710,11 +718,19 @@ try {
         }
         else {
             Write-TidyOutput -Message 'Running DISM StartComponentCleanup (safe component store cleanup).'
-            Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /StartComponentCleanup } -Description 'DISM StartComponentCleanup' -RequireSuccess | Out-Null
+            $cleanupExitCode = Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /StartComponentCleanup } -Description 'DISM StartComponentCleanup' -RequireSuccess -AcceptableExitCodes @(-2146498554)
+
+            if ($cleanupExitCode -eq -2146498554) {
+                Write-TidyOutput -Message 'DISM reported StartComponentCleanup is not applicable (often due to deployment being image-based). Continuing without error.'
+            }
 
             if ($ResetBase.IsPresent) {
                 Write-TidyOutput -Message 'Running DISM StartComponentCleanup with ResetBase (makes updates permanent).'
-                Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase } -Description 'DISM StartComponentCleanup /ResetBase' -RequireSuccess | Out-Null
+                $resetExitCode = Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /StartComponentCleanup /ResetBase } -Description 'DISM StartComponentCleanup /ResetBase' -RequireSuccess -AcceptableExitCodes @(-2146498554)
+
+                if ($resetExitCode -eq -2146498554) {
+                    Write-TidyOutput -Message 'DISM reported ResetBase is not applicable for this image. No action required.'
+                }
             }
         }
     }

@@ -1418,9 +1418,11 @@
                             Grid.Row="0"
                             Grid.Column="1"
                             Margin="16,0,0,0">
-                    <Border Style="{StaticResource CardBorderStyle}"
-                            Padding="20"
-                            Margin="0,0,0,20">
+            <Border Style="{StaticResource CardBorderStyle}"
+                Padding="20"
+                Margin="0,0,0,20"
+                MinHeight="320"
+                MaxHeight="320">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -1461,7 +1463,7 @@
                                       BorderThickness="0"
                                       Foreground="#F8FAFC"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                      ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                       ScrollViewer.CanContentScroll="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
@@ -1556,9 +1558,11 @@
                         </Grid>
                     </Border>
 
-                    <Border Style="{StaticResource CardBorderStyle}"
-                            Padding="20"
-                            Margin="0,0,0,20">
+            <Border Style="{StaticResource CardBorderStyle}"
+                Padding="20"
+                Margin="0,0,0,20"
+                MinHeight="320"
+                MaxHeight="320">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -1582,22 +1586,26 @@
                                     CornerRadius="10"
                                     Padding="14">
                                 <Grid>
-                                    <ContentControl Content="{Binding SelectedOperation}"
-                                                    ContentTemplate="{StaticResource OperationDetailsTemplate}">
-                                        <ContentControl.Style>
-                                            <Style TargetType="ContentControl">
-                                                <Setter Property="Visibility"
-                                                        Value="Visible"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedOperation}"
-                                                                 Value="{x:Null}">
-                                                        <Setter Property="Visibility"
-                                                                Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ContentControl.Style>
-                                    </ContentControl>
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Auto"
+                                                  CanContentScroll="False">
+                                        <ContentControl Content="{Binding SelectedOperation}"
+                                                        ContentTemplate="{StaticResource OperationDetailsTemplate}">
+                                            <ContentControl.Style>
+                                                <Style TargetType="ContentControl">
+                                                    <Setter Property="Visibility"
+                                                            Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedOperation}"
+                                                                     Value="{x:Null}">
+                                                            <Setter Property="Visibility"
+                                                                    Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ContentControl.Style>
+                                        </ContentControl>
+                                    </ScrollViewer>
 
                                     <StackPanel HorizontalAlignment="Center"
                                                 VerticalAlignment="Center">
@@ -1624,8 +1632,10 @@
                         </Grid>
                     </Border>
 
-                    <Border Style="{StaticResource CardBorderStyle}"
-                            Padding="20">
+            <Border Style="{StaticResource CardBorderStyle}"
+                Padding="20"
+                MinHeight="320"
+                MaxHeight="320">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -1649,7 +1659,8 @@
                                     CornerRadius="10"
                                     Padding="14">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                              HorizontalScrollBarVisibility="Disabled">
+                                              HorizontalScrollBarVisibility="Auto"
+                                              CanContentScroll="False">
                                     <Grid>
                                         <ContentControl Content="{Binding SelectedPackage}"
                                                         ContentTemplate="{StaticResource PackageDetailsTemplate}">

@@ -107,7 +107,8 @@ function Invoke-TidyCommand {
         [scriptblock] $Command,
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
-        [switch] $RequireSuccess
+        [switch] $RequireSuccess,
+        [int[]] $AcceptableExitCodes = @()
     )
 
     Write-TidyLog -Level Information -Message $Description
@@ -135,7 +136,14 @@ function Invoke-TidyCommand {
     }
 
     if ($RequireSuccess -and $exitCode -ne 0) {
-        throw "$Description failed with exit code $exitCode."
+        $acceptsExitCode = $false
+        if ($AcceptableExitCodes -and ($AcceptableExitCodes -contains $exitCode)) {
+            $acceptsExitCode = $true
+        }
+
+        if (-not $acceptsExitCode) {
+            throw "$Description failed with exit code $exitCode."
+        }
     }
 
     return $exitCode
@@ -236,7 +244,12 @@ try {
 
     if (-not $SkipSfc.IsPresent) {
         Write-TidyOutput -Message 'Running System File Checker (this can take 5-15 minutes).'
-        Invoke-TidyCommand -Command { sfc /scannow } -Description 'Running SFC /scannow.' -RequireSuccess | Out-Null
+        $sfcExit = Invoke-TidyCommand -Command { sfc /scannow } -Description 'Running SFC /scannow.' -RequireSuccess -AcceptableExitCodes @(1)
+
+        switch ($sfcExit) {
+            0 { Write-TidyOutput -Message 'SFC completed without finding integrity violations.' }
+            1 { Write-TidyOutput -Message 'SFC found and repaired integrity violations.' }
+        }
     }
     else {
         Write-TidyOutput -Message 'Skipping SFC scan per operator request.'

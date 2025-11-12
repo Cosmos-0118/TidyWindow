@@ -107,7 +107,8 @@ function Invoke-TidyCommand {
         [scriptblock] $Command,
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
-        [switch] $RequireSuccess
+        [switch] $RequireSuccess,
+        [int[]] $AcceptableExitCodes = @()
     )
 
     Write-TidyLog -Level Information -Message $Description
@@ -129,7 +130,14 @@ function Invoke-TidyCommand {
     }
 
     if ($RequireSuccess -and $exitCode -ne 0) {
-        throw "$Description failed with exit code $exitCode."
+        $acceptsExitCode = $false
+        if ($AcceptableExitCodes -and ($AcceptableExitCodes -contains $exitCode)) {
+            $acceptsExitCode = $true
+        }
+
+        if (-not $acceptsExitCode) {
+            throw "$Description failed with exit code $exitCode."
+        }
     }
 
     return $exitCode
@@ -480,7 +488,12 @@ function Invoke-SystemFileChecker {
     }
 
     Write-TidyOutput -Message 'Running System File Checker (SFC /scannow).' 
-    Invoke-TidyCommand -Command { sfc /scannow } -Description 'SFC Scan' -RequireSuccess | Out-Null
+    $sfcExitCode = Invoke-TidyCommand -Command { sfc /scannow } -Description 'SFC Scan' -RequireSuccess -AcceptableExitCodes @(1)
+
+    switch ($sfcExitCode) {
+        0 { Write-TidyOutput -Message 'System File Checker completed without finding integrity violations.' }
+        1 { Write-TidyOutput -Message 'System File Checker found and repaired integrity violations.' }
+    }
 }
 
 function Reset-WindowsUpdatePolicies {

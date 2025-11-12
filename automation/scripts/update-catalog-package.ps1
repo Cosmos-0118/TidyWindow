@@ -34,6 +34,14 @@ Import-Module $modulePath -Force
 $script:CommandPathCache = @{}
 $script:AnsiEscapeRegex = [System.Text.RegularExpressions.Regex]::new('\x1B\[[0-9;]*[A-Za-z]', [System.Text.RegularExpressions.RegexOptions]::Compiled)
 $script:WhitespaceCollapseRegex = [System.Text.RegularExpressions.Regex]::new('\s{2,}', [System.Text.RegularExpressions.RegexOptions]::Compiled)
+try {
+    $script:LegacyTextEncoding = [System.Text.Encoding]::GetEncoding(1252)
+}
+catch {
+    $script:LegacyTextEncoding = [System.Text.Encoding]::UTF8
+}
+$script:Utf8Encoding = [System.Text.Encoding]::UTF8
+$script:WingetInstallerHashMismatchExitCode = -1978335215
 
 function Get-CachedCommandPath {
     param(
@@ -95,6 +103,51 @@ function Remove-TidyAnsiSequences {
     }
 
     return $script:AnsiEscapeRegex.Replace($Text, '').Replace("`r", '').Trim()
+}
+
+function Normalize-TidyConsoleLine {
+    param(
+        [Parameter()]
+        [AllowNull()]
+        [string] $Text
+    )
+
+    if ($null -eq $Text) {
+        return $null
+    }
+
+    $clean = Remove-TidyAnsiSequences -Text ([string]$Text)
+    if ([string]::IsNullOrWhiteSpace($clean)) {
+        return $null
+    }
+
+    $normalized = $clean.Trim()
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $null
+    }
+
+    if ($script:LegacyTextEncoding.WebName -ne $script:Utf8Encoding.WebName) {
+        try {
+            $bytes = $script:LegacyTextEncoding.GetBytes($normalized)
+            $redecoded = $script:Utf8Encoding.GetString($bytes)
+            if (-not [string]::IsNullOrWhiteSpace($redecoded)) {
+                $normalized = $redecoded.Trim()
+            }
+        }
+        catch {
+            $normalized = $normalized.Trim()
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $null
+    }
+
+    if ($normalized.Length -le 3 -and $normalized -match '^[\-\|/\\]+$') {
+        return $null
+    }
+
+    return $normalized
 }
 
 function Get-TidyScoopRootCandidates {
@@ -869,7 +922,8 @@ function Invoke-ManagerUpdate {
         [string] $ManagerKey,
         [string] $PackageId,
         [string] $TargetVersion,
-        [string] $InstalledVersion
+        [string] $InstalledVersion,
+        [string] $DisplayName
     )
 
     $exe = Resolve-ManagerExecutable -Key $ManagerKey
@@ -880,6 +934,7 @@ function Invoke-ManagerUpdate {
 
     $normalizedInstalled = Normalize-VersionString -Value $InstalledVersion
     $normalizedTarget = Normalize-VersionString -Value $TargetVersion
+    $nameForSummary = if ([string]::IsNullOrWhiteSpace($DisplayName)) { $PackageId } else { $DisplayName }
 
     if ($ManagerKey -eq 'scoop' -and $hasTarget -and -not [string]::IsNullOrWhiteSpace($normalizedInstalled) -and -not [string]::IsNullOrWhiteSpace($normalizedTarget) -and ($normalizedInstalled -ne $normalizedTarget)) {
         $uninstallArgs = @('uninstall', $PackageId)
@@ -891,15 +946,22 @@ function Invoke-ManagerUpdate {
                 continue
             }
 
-            $message = [string]$entry
-            if ([string]::IsNullOrWhiteSpace($message)) {
-                continue
-            }
-
             if ($entry -is [System.Management.Automation.ErrorRecord]) {
-                [void]$errors.Add($message)
+                $message = Normalize-TidyConsoleLine -Text $entry.ToString()
+                if ([string]::IsNullOrWhiteSpace($message)) {
+                    continue
+                }
+
+                if (-not $errors.Contains($message)) {
+                    [void]$errors.Add($message)
+                }
             }
             else {
+                $message = Normalize-TidyConsoleLine -Text ([string]$entry)
+                if ([string]::IsNullOrWhiteSpace($message)) {
+                    continue
+                }
+
                 [void]$logs.Add($message)
             }
         }
@@ -957,25 +1019,61 @@ function Invoke-ManagerUpdate {
     $rawOutput = & $exe @arguments 2>&1
     $exitCode = $LASTEXITCODE
 
+    $hashMismatchDetected = $false
+    $hashMismatchLine = $null
+
     foreach ($entry in @($rawOutput)) {
         if ($null -eq $entry) {
             continue
         }
 
-        $message = [string]$entry
+        if ($entry -is [System.Management.Automation.ErrorRecord]) {
+            $message = Normalize-TidyConsoleLine -Text $entry.ToString()
+            if ([string]::IsNullOrWhiteSpace($message)) {
+                continue
+            }
+
+            if (-not $errors.Contains($message)) {
+                [void]$errors.Add($message)
+            }
+
+            if (-not $hashMismatchDetected -and $ManagerKey -eq 'winget' -and $message.IndexOf('installer hash does not match', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $hashMismatchDetected = $true
+                $hashMismatchLine = $message
+            }
+
+            continue
+        }
+
+        $message = Normalize-TidyConsoleLine -Text ([string]$entry)
         if ([string]::IsNullOrWhiteSpace($message)) {
             continue
         }
 
-        if ($entry -is [System.Management.Automation.ErrorRecord]) {
-            [void]$errors.Add($message)
+        if ($message.IndexOf('█') -ge 0) {
+            $hasTransferMetrics = ($message.IndexOf(' MB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+                -or ($message.IndexOf(' KB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+                -or ($message.IndexOf(' GB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0);
+            if ($hasTransferMetrics) {
+                continue
+            }
         }
-        else {
-            [void]$logs.Add($message)
+
+        if ($ManagerKey -eq 'winget' -and $message.IndexOf('installer hash does not match', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            $hashMismatchDetected = $true
+            $hashMismatchLine = $message
+            if (-not $errors.Contains($message)) {
+                [void]$errors.Add($message)
+            }
+            continue
         }
+
+        [void]$logs.Add($message)
     }
 
-    if ($exitCode -eq 0) {
+    $finalExitCode = $exitCode
+
+    if ($finalExitCode -eq 0) {
         if ($hasTarget) {
             $summary = "Update command completed for version $TargetVersion."
         }
@@ -984,12 +1082,29 @@ function Invoke-ManagerUpdate {
         }
     }
     else {
-        $summary = "Update command exited with code $exitCode."
+        $summary = "Update command exited with code $finalExitCode."
+    }
+
+    if ($ManagerKey -eq 'winget' -and $hashMismatchDetected) {
+        $desiredVersionText = if (-not [string]::IsNullOrWhiteSpace($normalizedTarget)) { " to reach version $normalizedTarget" } else { '' }
+        if ([string]::IsNullOrWhiteSpace($hashMismatchLine)) {
+            $hashMismatchLine = "Installer hash mismatch detected for package '$PackageId'."
+        }
+
+        if (-not $errors.Contains($hashMismatchLine)) {
+            [void]$errors.Add($hashMismatchLine)
+        }
+
+        if ($finalExitCode -eq 0) {
+            $finalExitCode = $script:WingetInstallerHashMismatchExitCode
+        }
+
+        $summary = "Winget reported an installer hash mismatch for '$nameForSummary'. Install the update manually$desiredVersionText or retry after the winget catalog refreshes."
     }
 
     return [pscustomobject]@{
         Attempted  = $true
-        ExitCode   = $exitCode
+        ExitCode   = $finalExitCode
         Logs       = $logs.ToArray()
         Errors     = $errors.ToArray()
         Executable = $exe
@@ -1104,7 +1219,7 @@ try {
             Reset-ScoopWorkspaceManifestIfOutdated -PackageId $PackageId -LatestVersion $latestBefore
         }
         $attempted = $true
-        $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId -TargetVersion $targetVersionValue -InstalledVersion $installedBefore
+    $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId -TargetVersion $targetVersionValue -InstalledVersion $installedBefore -DisplayName $DisplayName
         $exitCode = $executionInfo.ExitCode
 
         foreach ($line in @($executionInfo.Logs)) {
