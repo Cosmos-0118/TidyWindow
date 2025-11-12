@@ -21,9 +21,12 @@ public partial class InstallHubPage : Page
     private WrapPanel? _packageItemsHost;
     private bool _bundleLayoutScheduled;
     private bool _packageLayoutScheduled;
+    private double _lastBundleItemWidth = double.NaN;
+    private double _lastPackageItemWidth = double.NaN;
 
     private const double CompactLayoutBreakpoint = 1180d;
     private const double StackedLayoutBreakpoint = 980d;
+    private const double WidthChangeTolerance = 0.5d;
 
     public InstallHubPage(InstallHubViewModel viewModel)
     {
@@ -297,6 +300,7 @@ public partial class InstallHubPage : Page
         _bundleItemsHost ??= FindItemsHost<WrapPanel>(BundlesList);
         if (_bundleItemsHost is null)
         {
+            _lastBundleItemWidth = double.NaN;
             ScheduleBundleLayoutUpdate();
             return;
         }
@@ -304,12 +308,11 @@ public partial class InstallHubPage : Page
         var availableWidth = GetScrollableContentWidth(BundlesList);
         if (availableWidth <= 0)
         {
-            ScheduleBundleLayoutUpdate();
             return;
         }
 
         var targetWidth = CalculateAdaptiveItemWidth(availableWidth, 216d, 280d, 22d, 3);
-        if (!double.IsNaN(targetWidth))
+        if (!double.IsNaN(targetWidth) && ShouldUpdateWidth(ref _lastBundleItemWidth, targetWidth))
         {
             _bundleItemsHost.ItemWidth = targetWidth;
         }
@@ -325,6 +328,7 @@ public partial class InstallHubPage : Page
         _packageItemsHost ??= FindItemsHost<WrapPanel>(PackagesList);
         if (_packageItemsHost is null)
         {
+            _lastPackageItemWidth = double.NaN;
             SchedulePackageLayoutUpdate();
             return;
         }
@@ -332,12 +336,11 @@ public partial class InstallHubPage : Page
         var availableWidth = GetScrollableContentWidth(PackagesList);
         if (availableWidth <= 0)
         {
-            SchedulePackageLayoutUpdate();
             return;
         }
 
         var targetWidth = CalculateAdaptiveItemWidth(availableWidth, 236d, 360d, 22d, 3);
-        if (!double.IsNaN(targetWidth))
+        if (!double.IsNaN(targetWidth) && ShouldUpdateWidth(ref _lastPackageItemWidth, targetWidth))
         {
             _packageItemsHost.ItemWidth = targetWidth;
         }
@@ -355,7 +358,7 @@ public partial class InstallHubPage : Page
         {
             _bundleLayoutScheduled = false;
             UpdateBundlesLayout();
-        }, DispatcherPriority.Background);
+        }, DispatcherPriority.Loaded);
     }
 
     private void SchedulePackageLayoutUpdate()
@@ -370,7 +373,7 @@ public partial class InstallHubPage : Page
         {
             _packageLayoutScheduled = false;
             UpdatePackagesLayout();
-        }, DispatcherPriority.Background);
+        }, DispatcherPriority.Loaded);
     }
 
     private static double CalculateAdaptiveItemWidth(double availableWidth, double minWidth, double maxWidth, double spacing, int maxColumns)
@@ -415,6 +418,22 @@ public partial class InstallHubPage : Page
         }
 
         return FindVisualChild<T>(control);
+    }
+
+    private static bool ShouldUpdateWidth(ref double lastWidth, double nextWidth)
+    {
+        if (double.IsNaN(nextWidth))
+        {
+            return false;
+        }
+
+        if (double.IsNaN(lastWidth) || Math.Abs(lastWidth - nextWidth) > WidthChangeTolerance)
+        {
+            lastWidth = nextWidth;
+            return true;
+        }
+
+        return false;
     }
 
     private static T? FindVisualChild<T>(DependencyObject parent) where T : DependencyObject
