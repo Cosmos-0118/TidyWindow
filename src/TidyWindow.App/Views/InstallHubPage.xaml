@@ -5,6 +5,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:converters="clr-namespace:TidyWindow.App.Converters"
     xmlns:controls="clr-namespace:TidyWindow.App.Views"
+    xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
       mc:Ignorable="d"
       Title="Install hub"
       Background="Transparent">
@@ -368,10 +369,224 @@
         </Setter>
     </Style>
 
-    <LinearGradientBrush x:Key="InstallHubOverlayBrush" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Color="#B30F172A" Offset="0"/>
-        <GradientStop Color="#E61F2E48" Offset="1"/>
+    <LinearGradientBrush x:Key="InstallOverlayBackdropBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#B3121E33" Offset="0"/>
+        <GradientStop Color="#E62F3D5E" Offset="1"/>
     </LinearGradientBrush>
+
+    <LinearGradientBrush x:Key="InstallOverlayPanelBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#101B33" Offset="0"/>
+        <GradientStop Color="#0B1426" Offset="1"/>
+    </LinearGradientBrush>
+
+    <RadialGradientBrush x:Key="InstallOverlayPulseBrush" GradientOrigin="0.5,0.4" Center="0.5,0.5" RadiusX="0.9" RadiusY="0.9">
+        <GradientStop Color="#557C3AED" Offset="0"/>
+        <GradientStop Color="#06152C" Offset="1"/>
+    </RadialGradientBrush>
+
+    <DropShadowEffect x:Key="InstallOverlayShadowEffect"
+                      Color="#050A18"
+                      BlurRadius="34"
+                      ShadowDepth="0"
+                      Opacity="0.72"/>
+
+    <SolidColorBrush x:Key="InstallOverlayAccentBrush" Color="#7C3AED"/>
+    <SolidColorBrush x:Key="InstallOverlaySecondaryAccentBrush" Color="#38BDF8"/>
+    <SolidColorBrush x:Key="InstallOverlaySuccessBrush" Color="#22C55E"/>
+
+    <CubicEase x:Key="InstallOverlayEaseIn" EasingMode="EaseInOut"/>
+    <CubicEase x:Key="InstallOverlayEaseOut" EasingMode="EaseOut"/>
+
+    <DataTemplate x:Key="InstallOperationDetailsTemplate"
+                  DataType="{x:Type viewModels:InstallOperationItemViewModel}">
+        <StackPanel>
+            <TextBlock Text="{Binding PackageName}"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#F8FAFC"
+                       TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,8,0,0"
+                        VerticalAlignment="Center">
+                <Border Background="#1E293B"
+                        CornerRadius="6"
+                        Padding="8,3">
+                    <TextBlock Text="{Binding StatusLabel}"
+                               FontSize="12"
+                               FontWeight="SemiBold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground"
+                                        Value="#38BDF8"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusLabel}"
+                                                 Value="Installed">
+                                        <Setter Property="Foreground"
+                                                Value="#22C55E"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusLabel}"
+                                                 Value="Failed">
+                                        <Setter Property="Foreground"
+                                                Value="#F87171"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusLabel}"
+                                                 Value="Cancelled">
+                                        <Setter Property="Foreground"
+                                                Value="#FBBF24"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
+                <TextBlock Text="{Binding CompletedAt, StringFormat=Completed · {0:G}}"
+                           Margin="12,0,0,0"
+                           Foreground="#64748B"
+                           FontSize="12"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility"
+                                    Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                             Value="">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                             Value="{x:Null}">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Text="{Binding Attempts}"
+                           Margin="12,0,0,0"
+                           Foreground="#CBD5F5"
+                           FontSize="11"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility"
+                                    Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                             Value="">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                             Value="{x:Null}">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <TextBlock Text="{Binding Message}"
+                       Foreground="#CBD5F5"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Margin="0,10,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility"
+                                Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                         Value="">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                         Value="{x:Null}">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Border Margin="0,14,0,0"
+                    Background="#0F172A"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Padding"
+                                Value="14"/>
+                        <Setter Property="Visibility"
+                                Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasTranscript}"
+                                         Value="True">
+                                <Setter Property="Visibility"
+                                        Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding HasOutput, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Output"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding OutputLines}"
+                                  Margin="0,6,0,0"
+                                  Visibility="{Binding HasOutput, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           Foreground="#E2E8F0"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Separator Margin="0,8,0,8"
+                               Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Errors"
+                                   FontSize="12"
+                                   Foreground="#F87171"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding ErrorLines}"
+                                  Margin="0,6,0,0"
+                                  Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           Foreground="#FCA5A5"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </DataTemplate>
     </Page.Resources>
 
     <Grid>
@@ -437,12 +652,28 @@
                                   Grid.Column="1"
                                   Margin="16,0,0,28"
                                   VerticalAlignment="Bottom"
+                                  Visibility="Collapsed"
                                   Style="{StaticResource InstallQueueDrawerToggleStyle}"/>
                 </Grid>
 
-                <Grid x:Name="MainLayoutGrid"
-                      Grid.Row="1">
-                    <StackPanel x:Name="PrimaryColumnHost">
+                                <Grid x:Name="MainLayoutGrid"
+                                            Grid.Row="1">
+                                        <Grid.ColumnDefinitions>
+                                                <ColumnDefinition x:Name="PrimaryColumnDefinition"
+                                                                                    Width="3*"
+                                                                                    MinWidth="360"/>
+                                                <ColumnDefinition x:Name="SecondaryColumnDefinition"
+                                                                                    Width="2*"
+                                                                                    MinWidth="320"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel x:Name="PrimaryColumnHost"
+                                                                Grid.Row="0"
+                                                                Grid.Column="0"
+                                                                Margin="0,0,24,0">
                         <Border Style="{StaticResource InstallCardBorderStyle}"
                                 Margin="0,0,0,20">
                             <Grid>
@@ -852,51 +1083,12 @@
                             </Grid>
                         </Border>
                     </StackPanel>
-                </Grid>
 
-                <Border x:Name="QueueOverlay"
-                        Grid.Row="1"
-                        Panel.ZIndex="5">
-                    <Border.Style>
-                        <Style TargetType="Border">
-                            <Setter Property="Visibility" Value="Collapsed"/>
-                            <Setter Property="Opacity" Value="0"/>
-                            <Setter Property="IsHitTestVisible" Value="False"/>
-                            <Setter Property="RenderTransform">
-                                <Setter.Value>
-                                    <TranslateTransform X="48"/>
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsChecked, ElementName=QueueDrawerToggle}" Value="True">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Setter Property="Opacity" Value="1"/>
-                                    <Setter Property="IsHitTestVisible" Value="True"/>
-                                    <Setter Property="RenderTransform">
-                                        <Setter.Value>
-                                            <TranslateTransform X="0"/>
-                                        </Setter.Value>
-                                    </Setter>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Border.Style>
-                    <Grid Background="Transparent">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <Border Grid.Column="0"
-                                Background="#66050F1F"
-                                Cursor="Hand"
-                                MouseLeftButtonDown="QueueOverlayBackdrop_MouseLeftButtonDown"/>
-                        <Border Grid.Column="1"
-                                Style="{StaticResource InstallCardBorderStyle}"
-                                Width="520"
-                                MinWidth="380"
-                                MaxWidth="700"
-                                Margin="24,0,0,0"
-                                VerticalAlignment="Stretch">
+                    <StackPanel x:Name="SecondaryColumnHost"
+                                Grid.Row="0"
+                                Grid.Column="1">
+                        <Border Style="{StaticResource InstallCardBorderStyle}"
+                                Margin="0,0,0,20">
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto"/>
@@ -930,12 +1122,14 @@
 
                                 <ListView x:Name="OperationsList"
                                           Grid.Row="2"
-                                          Margin="0,18,0,0"
+                                          Margin="0,16,0,0"
                                           ItemsSource="{Binding Operations}"
+                                          SelectedItem="{Binding SelectedOperation, Mode=TwoWay}"
                                           Background="Transparent"
                                           BorderThickness="0"
                                           Padding="6,6,6,10"
                                           Foreground="#F8FAFC"
+                                          MaxHeight="420"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           ScrollViewer.CanContentScroll="True"
@@ -947,73 +1141,135 @@
                                     </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
-                                            <StackPanel>
-                                                <StackPanel Orientation="Horizontal"
-                                                            VerticalAlignment="Center">
-                                                    <TextBlock Text="{Binding PackageName}"
-                                                               FontWeight="SemiBold"
-                                                               TextWrapping="Wrap"
-                                                               MaxWidth="220"/>
-                                                    <TextBlock Text="{Binding StatusLabel}"
-                                                               Margin="10,0,0,0"
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding PackageName}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap"
+                                                                   MaxWidth="220"/>
+                                                        <TextBlock Text="{Binding StatusLabel}"
+                                                                   Margin="10,0,0,0"
+                                                                   FontSize="12"
+                                                                   FontWeight="SemiBold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground"
+                                                                            Value="#38BDF8"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                     Value="Installed">
+                                                                            <Setter Property="Foreground"
+                                                                                    Value="#22C55E"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                     Value="Failed">
+                                                                            <Setter Property="Foreground"
+                                                                                    Value="#F87171"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                     Value="Cancelled">
+                                                                            <Setter Property="Foreground"
+                                                                                    Value="#FBBF24"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding Message}"
+                                                               Foreground="#94A3B8"
                                                                FontSize="12"
-                                                               FontWeight="SemiBold">
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,6,0,0">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
-                                                                <Setter Property="Foreground" Value="#38BDF8"/>
+                                                                <Setter Property="Visibility"
+                                                                        Value="Visible"/>
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding StatusLabel}"
-                                                                                 Value="Installed">
-                                                                        <Setter Property="Foreground" Value="#22C55E"/>
+                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                 Value="">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
                                                                     </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding StatusLabel}"
-                                                                                 Value="Failed">
-                                                                        <Setter Property="Foreground" Value="#F87171"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding StatusLabel}"
-                                                                                 Value="Cancelled">
-                                                                        <Setter Property="Foreground" Value="#FBBF24"/>
+                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                 Value="{x:Null}">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Collapsed"/>
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
+
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,6,0,0">
+                                                        <TextBlock Text="{Binding Attempts}"
+                                                                   Foreground="#CBD5F5"
+                                                                   FontSize="11">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                     Value="">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                     Value="{x:Null}">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding CompletedAt, StringFormat={}{0:G}}"
+                                                                   Foreground="#475569"
+                                                                   FontSize="11"
+                                                                   Margin="10,0,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                     Value="">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                     Value="{x:Null}">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
                                                 </StackPanel>
 
-                                                <TextBlock Text="{Binding Message}"
-                                                           Foreground="#94A3B8"
-                                                           FontSize="12"
-                                                           TextWrapping="Wrap"
-                                                           Margin="0,6,0,0"/>
-                                                <TextBlock Text="{Binding Attempts}"
-                                                           Foreground="#64748B"
-                                                           FontSize="11"
-                                                           Margin="0,4,0,0">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding Attempts}" Value="">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                </DataTrigger>
-                                                                <DataTrigger Binding="{Binding Attempts}" Value="{x:Null}">
-                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-
-                                                <StackPanel Orientation="Horizontal"
-                                                            Margin="0,12,0,0"
-                                                            HorizontalAlignment="Right">
+                                                <StackPanel Grid.Column="1"
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
                                                     <Button Content="Cancel"
                                                             Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                             CommandParameter="{Binding}"
                                                             Style="{StaticResource InstallSecondaryButtonStyle}"
-                                                            IsEnabled="{Binding IsActive}"/>
+                                                            Padding="12,4"
+                                                            Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                 </StackPanel>
-                                            </StackPanel>
+                                            </Grid>
                                         </DataTemplate>
                                     </ListView.ItemTemplate>
                                 </ListView>
@@ -1022,19 +1278,459 @@
                                            Text="No installs queued yet. Queue a bundle or single package to get started."
                                            HorizontalAlignment="Center"
                                            Foreground="#64748B"
+                                           FontSize="12"
                                            Margin="0,16,0,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Setter Property="Visibility"
+                                                    Value="Collapsed"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Operations.Count}"
                                                              Value="0">
-                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Setter Property="Visibility"
+                                                            Value="Visible"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                            </Grid>
+                        </Border>
+
+                        <Border Style="{StaticResource InstallCardBorderStyle}"
+                                Background="#0B1626">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0">
+                                    <TextBlock Text="Operation details"
+                                               Foreground="#E2E8F0"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Inspect transcripts and results for the selected install"
+                                               Foreground="#64748B"
+                                               FontSize="11"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Border Grid.Row="1"
+                                        Margin="0,16,0,0"
+                                        Background="#020817"
+                                        CornerRadius="10"
+                                        BorderBrush="#13233A"
+                                        BorderThickness="1">
+                                    <Grid>
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                      HorizontalScrollBarVisibility="Disabled"
+                                                      MaxHeight="340">
+                                            <ContentControl Content="{Binding SelectedOperation}"
+                                                            ContentTemplate="{StaticResource InstallOperationDetailsTemplate}">
+                                                <ContentControl.Style>
+                                                    <Style TargetType="ContentControl">
+                                                        <Setter Property="Visibility"
+                                                                Value="Visible"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SelectedOperation}"
+                                                                         Value="{x:Null}">
+                                                                <Setter Property="Visibility"
+                                                                        Value="Collapsed"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ContentControl.Style>
+                                            </ContentControl>
+                                        </ScrollViewer>
+
+                                        <StackPanel HorizontalAlignment="Center"
+                                                    VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility"
+                                                            Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedOperation}"
+                                                                     Value="{x:Null}">
+                                                            <Setter Property="Visibility"
+                                                                    Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <TextBlock Text="Select an install to review its details"
+                                                       Foreground="#475569"
+                                                       FontSize="12"
+                                                       TextAlignment="Center"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Grid>
+
+                <Border x:Name="QueueOverlay"
+                        Grid.Row="1"
+                        Panel.ZIndex="5">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Setter Property="Opacity" Value="0"/>
+                            <Setter Property="IsHitTestVisible" Value="False"/>
+                            <Setter Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform X="72"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsVisible, ElementName=QueueDrawerToggle}" Value="False">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Setter Property="IsHitTestVisible" Value="False"/>
+                                </DataTrigger>
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsChecked, ElementName=QueueDrawerToggle}" Value="True"/>
+                                        <Condition Binding="{Binding IsVisible, ElementName=QueueDrawerToggle}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Setter Property="Opacity" Value="1"/>
+                                    <Setter Property="IsHitTestVisible" Value="True"/>
+                                    <Setter Property="RenderTransform">
+                                        <Setter.Value>
+                                            <TranslateTransform X="0"/>
+                                        </Setter.Value>
+                                    </Setter>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <Grid Background="{StaticResource InstallOverlayBackdropBrush}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0"
+                                Background="Transparent"
+                                Cursor="Hand"
+                                MouseLeftButtonDown="QueueOverlayBackdrop_MouseLeftButtonDown"/>
+                        <Border Grid.Column="1"
+                                Width="540"
+                                MinWidth="320"
+                                MaxWidth="720"
+                                Margin="24,0,24,0"
+                                VerticalAlignment="Stretch"
+                                CornerRadius="20"
+                                Background="{StaticResource InstallOverlayPanelBrush}"
+                                BorderBrush="#1E2D45"
+                                BorderThickness="1.5"
+                                Effect="{StaticResource InstallOverlayShadowEffect}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+
+                                <StackPanel Grid.Row="0"
+                                            Margin="24,24,24,0">
+                                    <TextBlock Text="Install queue"
+                                               Foreground="#F8FAFC"
+                                               FontSize="18"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Manage queued installs when the secondary column is hidden."
+                                               Foreground="#94A3B8"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+
+                                <ScrollViewer Grid.Row="1"
+                                              Margin="24,8,24,24"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel>
+                                        <Border Background="#101B33"
+                                                BorderBrush="#1E293B"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="20">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+
+                                                <StackPanel Grid.Row="0">
+                                                    <TextBlock Text="Queued installs"
+                                                               Foreground="#E2E8F0"
+                                                               FontSize="15"
+                                                               FontWeight="SemiBold"/>
+                                                    <TextBlock Text="Tap an entry to inspect status or cancel while on compact screens."
+                                                               Foreground="#64748B"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <WrapPanel Grid.Row="1"
+                                                           Margin="0,14,0,0"
+                                                           HorizontalAlignment="Left">
+                                                    <Button Content="Retry failed"
+                                                            Command="{Binding RetryFailedCommand}"
+                                                            Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                                    <Button Content="Clear completed"
+                                                            Command="{Binding ClearCompletedCommand}"
+                                                            Margin="8,0,0,0"
+                                                            Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                                </WrapPanel>
+
+                                                <ListView x:Name="OverlayOperationsList"
+                                                          Grid.Row="2"
+                                                          Margin="0,16,0,0"
+                                                          ItemsSource="{Binding Operations}"
+                                                          SelectedItem="{Binding SelectedOperation, Mode=TwoWay}"
+                                                          Background="Transparent"
+                                                          BorderThickness="0"
+                                                          Padding="4,4,4,10"
+                                                          Foreground="#F8FAFC"
+                                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                          ScrollViewer.CanContentScroll="True"
+                                                          VirtualizingPanel.IsVirtualizing="True"
+                                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                                          VirtualizingStackPanel.ScrollUnit="Pixel">
+                                                    <ListView.ItemContainerStyle>
+                                                        <StaticResource ResourceKey="InstallQueueItemStyle"/>
+                                                    </ListView.ItemContainerStyle>
+                                                    <ListView.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <StackPanel>
+                                                                    <StackPanel Orientation="Horizontal"
+                                                                                VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding PackageName}"
+                                                                                   FontWeight="SemiBold"
+                                                                                   TextWrapping="Wrap"
+                                                                                   MaxWidth="220"/>
+                                                                        <TextBlock Text="{Binding StatusLabel}"
+                                                                                   Margin="10,0,0,0"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="SemiBold">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Foreground"
+                                                                                            Value="#38BDF8"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                                     Value="Installed">
+                                                                                            <Setter Property="Foreground"
+                                                                                                    Value="#22C55E"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                                     Value="Failed">
+                                                                                            <Setter Property="Foreground"
+                                                                                                    Value="#F87171"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding StatusLabel}"
+                                                                                                     Value="Cancelled">
+                                                                                            <Setter Property="Foreground"
+                                                                                                    Value="#FBBF24"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+
+                                                                    <TextBlock Text="{Binding Message}"
+                                                                               Foreground="#94A3B8"
+                                                                               FontSize="12"
+                                                                               TextWrapping="Wrap"
+                                                                               Margin="0,6,0,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Visible"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                                 Value="">
+                                                                                        <Setter Property="Visibility"
+                                                                                                Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                                 Value="{x:Null}">
+                                                                                        <Setter Property="Visibility"
+                                                                                                Value="Collapsed"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+
+                                                                    <StackPanel Orientation="Horizontal"
+                                                                                Margin="0,6,0,0">
+                                                                        <TextBlock Text="{Binding Attempts}"
+                                                                                   Foreground="#CBD5F5"
+                                                                                   FontSize="11">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Visible"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                                     Value="">
+                                                                                            <Setter Property="Visibility"
+                                                                                                    Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                                     Value="{x:Null}">
+                                                                                            <Setter Property="Visibility"
+                                                                                                    Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                        <TextBlock Text="{Binding CompletedAt, StringFormat={}{0:G}}"
+                                                                                   Foreground="#475569"
+                                                                                   FontSize="11"
+                                                                                   Margin="10,0,0,0">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Visibility"
+                                                                                            Value="Visible"/>
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                                     Value="">
+                                                                                            <Setter Property="Visibility"
+                                                                                                    Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}"
+                                                                                                     Value="{x:Null}">
+                                                                                            <Setter Property="Visibility"
+                                                                                                    Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                    </StackPanel>
+                                                                </StackPanel>
+
+                                                                <StackPanel Grid.Column="1"
+                                                                            Orientation="Horizontal"
+                                                                            VerticalAlignment="Center">
+                                                                    <Button Content="Cancel"
+                                                                            Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            Style="{StaticResource InstallSecondaryButtonStyle}"
+                                                                            Padding="12,4"
+                                                                            Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                </StackPanel>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ListView.ItemTemplate>
+                                                </ListView>
+
+                                                <TextBlock Grid.Row="3"
+                                                           Text="No installs queued yet. Queue a bundle or single package to get started."
+                                                           HorizontalAlignment="Center"
+                                                           Foreground="#64748B"
+                                                           FontSize="12"
+                                                           Margin="0,12,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility"
+                                                                    Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Operations.Count}"
+                                                                             Value="0">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </Border>
+
+                                        <Border Background="#0F172A"
+                                                BorderBrush="#1E293B"
+                                                BorderThickness="1"
+                                                CornerRadius="14"
+                                                Padding="20"
+                                                Margin="0,20,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="Operation details"
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"/>
+                                                <TextBlock Text="Scroll through the transcript or errors for the selected install."
+                                                           Foreground="#64748B"
+                                                           FontSize="11"
+                                                           TextWrapping="Wrap"
+                                                           Margin="0,6,0,0"/>
+                                                <Border Background="#020817"
+                                                        BorderBrush="#13233A"
+                                                        BorderThickness="1"
+                                                        CornerRadius="10"
+                                                        Padding="14"
+                                                        Margin="0,16,0,0">
+                                                    <Grid>
+                                                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                                      HorizontalScrollBarVisibility="Disabled"
+                                                                      MaxHeight="320">
+                                                            <ContentControl Content="{Binding SelectedOperation}"
+                                                                            ContentTemplate="{StaticResource InstallOperationDetailsTemplate}">
+                                                                <ContentControl.Style>
+                                                                    <Style TargetType="ContentControl">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding SelectedOperation}"
+                                                                                         Value="{x:Null}">
+                                                                                <Setter Property="Visibility"
+                                                                                        Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </ContentControl.Style>
+                                                            </ContentControl>
+                                                        </ScrollViewer>
+                                                        <StackPanel HorizontalAlignment="Center"
+                                                                    VerticalAlignment="Center">
+                                                            <StackPanel.Style>
+                                                                <Style TargetType="StackPanel">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding SelectedOperation}"
+                                                                                     Value="{x:Null}">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </StackPanel.Style>
+                                                            <TextBlock Text="Select an install to review its details"
+                                                                       Foreground="#475569"
+                                                                       FontSize="12"
+                                                                       TextAlignment="Center"/>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </ScrollViewer>
                             </Grid>
                         </Border>
                     </Grid>
@@ -1043,10 +1739,22 @@
         </ScrollViewer>
 
         <ContentControl x:Name="InstallHubLoadingOverlay"
-                        Panel.ZIndex="5"
+                        Panel.ZIndex="6"
                         Focusable="False"
                         HorizontalAlignment="Stretch"
                         VerticalAlignment="Stretch">
+            <ContentControl.Style>
+                <Style TargetType="ContentControl">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Setter Property="IsHitTestVisible" Value="False"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="IsHitTestVisible" Value="True"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </ContentControl.Style>
             <ContentControl.Template>
                 <ControlTemplate TargetType="ContentControl">
                     <Grid x:Name="OverlayRoot"
@@ -1054,89 +1762,175 @@
                           Visibility="Collapsed"
                           Opacity="0"
                           IsHitTestVisible="False">
-                        <Grid Background="{StaticResource InstallHubOverlayBrush}">
+                        <Grid Background="{StaticResource InstallOverlayBackdropBrush}">
                             <Border HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
-                                    Padding="28"
-                                    CornerRadius="20"
-                                    Background="#0F172A"
-                                    BorderBrush="#1F2E46"
-                                    BorderThickness="1.5">
-                                <Border.Effect>
-                                    <DropShadowEffect Color="#33000000"
-                                                      BlurRadius="26"
-                                                      ShadowDepth="0"
-                                                      Opacity="0.85"/>
-                                </Border.Effect>
+                                    Padding="36,30"
+                                    CornerRadius="28"
+                                    Background="{StaticResource InstallOverlayPanelBrush}"
+                                    BorderBrush="#1E2F4B"
+                                    BorderThickness="1.5"
+                                    Effect="{StaticResource InstallOverlayShadowEffect}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="240"/>
+                                        <ColumnDefinition Width="24"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
 
-                                    <Grid Width="100"
-                                          Height="100"
-                                          Margin="0,0,24,0"
+                                    <Grid Grid.Column="0"
                                           HorizontalAlignment="Center"
                                           VerticalAlignment="Center">
-                                        <Ellipse x:Name="LoadingPulse"
-                                                 Width="100"
-                                                 Height="100"
-                                                 Stroke="#2238BDF8"
-                                                 StrokeThickness="3"
-                                                 Fill="#121E32"/>
-                                        <Path x:Name="LoadingArc"
-                                              Stroke="#38BDF8"
-                                              StrokeThickness="5"
-                                              StrokeStartLineCap="Round"
-                                              StrokeEndLineCap="Round"
-                                              Data="M50,10 A40,40 0 1 1 49,10"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              RenderTransformOrigin="0.5,0.5">
-                                            <Path.RenderTransform>
-                                                <RotateTransform Angle="0"/>
-                                            </Path.RenderTransform>
-                                            <Path.OpacityMask>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                    <GradientStop Color="#00FFFFFF" Offset="0"/>
-                                                    <GradientStop Color="#FFFFFFFF" Offset="0.5"/>
-                                                    <GradientStop Color="#FFFFFFFF" Offset="0.85"/>
-                                                    <GradientStop Color="#00FFFFFF" Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Path.OpacityMask>
-                                        </Path>
+                                        <Grid Width="220"
+                                              Height="220">
+                                            <Ellipse Width="220"
+                                                     Height="220"
+                                                     Fill="#0C1A2E"
+                                                     Stroke="#1C2D47"
+                                                     StrokeThickness="1.5"/>
+                                            <Ellipse Width="180"
+                                                     Height="180"
+                                                     Stroke="#243753"
+                                                     StrokeThickness="1.2"
+                                                     StrokeDashArray="12 18">
+                                                <Ellipse.RenderTransform>
+                                                    <RotateTransform x:Name="InstallOuterRingRotate"
+                                                                     Angle="0"/>
+                                                </Ellipse.RenderTransform>
+                                            </Ellipse>
+                                            <Ellipse Width="146"
+                                                     Height="146"
+                                                     Stroke="{StaticResource InstallOverlayAccentBrush}"
+                                                     StrokeThickness="1.8"
+                                                     StrokeDashArray="8 14"
+                                                     Opacity="0.85">
+                                                <Ellipse.RenderTransform>
+                                                    <RotateTransform x:Name="InstallInnerRingRotate"
+                                                                     Angle="0"/>
+                                                </Ellipse.RenderTransform>
+                                            </Ellipse>
+                                            <Ellipse Width="112"
+                                                     Height="112"
+                                                     Fill="{StaticResource InstallOverlayPulseBrush}"
+                                                     Opacity="0.6">
+                                                <Ellipse.RenderTransform>
+                                                    <ScaleTransform x:Name="InstallPulseScaleTransform"
+                                                                    ScaleX="1"
+                                                                    ScaleY="1"/>
+                                                </Ellipse.RenderTransform>
+                                            </Ellipse>
+                                            <Grid Width="112"
+                                                  Height="112"
+                                                  RenderTransformOrigin="0.5,0.5">
+                                                <Grid.RenderTransform>
+                                                    <RotateTransform x:Name="InstallOrbitRotate"
+                                                                     Angle="0"/>
+                                                </Grid.RenderTransform>
+                                                <Border Width="16"
+                                                        Height="16"
+                                                        CornerRadius="8"
+                                                        Background="{StaticResource InstallOverlayAccentBrush}"
+                                                        BorderBrush="#101A2C"
+                                                        BorderThickness="1"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Top"
+                                                        Margin="0,-6,0,0"/>
+                                                <Border Width="20"
+                                                        Height="20"
+                                                        CornerRadius="10"
+                                                        Background="{StaticResource InstallOverlaySecondaryAccentBrush}"
+                                                        BorderBrush="#10283E"
+                                                        BorderThickness="1"
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        Margin="0,0,-8,0"/>
+                                                <Border Width="12"
+                                                        Height="12"
+                                                        CornerRadius="6"
+                                                        Background="{StaticResource InstallOverlaySuccessBrush}"
+                                                        BorderBrush="#123522"
+                                                        BorderThickness="1"
+                                                        HorizontalAlignment="Center"
+                                                        VerticalAlignment="Bottom"
+                                                        Margin="0,0,0,-8"/>
+                                            </Grid>
+                                        </Grid>
                                     </Grid>
 
-                                    <StackPanel Grid.Column="1"
+                                    <Rectangle Grid.Column="1"
+                                               Width="1"
+                                               RadiusX="0.5"
+                                               RadiusY="0.5"
+                                               Fill="#1E314F"
+                                               Opacity="0.45"/>
+
+                                    <StackPanel Grid.Column="2"
                                                 VerticalAlignment="Center">
                                         <TextBlock Text="Preparing install hub"
-                                                   FontSize="20"
+                                                   FontSize="22"
                                                    FontWeight="SemiBold"
                                                    Foreground="#F8FAFC"/>
-                                        <TextBlock Text="Fetching catalog entries and queue status..."
+                                        <TextBlock Text="Fetching catalog entries, syncing bundles, and measuring queue state..."
                                                    FontSize="13"
                                                    Foreground="#94A3B8"
-                                                   TextWrapping="Wrap"
-                                                   Margin="0,6,0,0"/>
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel Margin="0,18,0,0">
+                                            <StackPanel Orientation="Horizontal"
+                                                        Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="{StaticResource InstallOverlayAccentBrush}"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Loading package definitions from the local cache"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal"
+                                                        Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="{StaticResource InstallOverlaySecondaryAccentBrush}"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Evaluating saved bundle presets and queue state"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal"
+                                                        Margin="0,4,0,0">
+                                                <Ellipse Width="6"
+                                                         Height="6"
+                                                         Fill="{StaticResource InstallOverlaySuccessBrush}"
+                                                         VerticalAlignment="Center"/>
+                                                <TextBlock Text="Reconciling in-flight operations before rendering the catalog"
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="12"/>
+                                            </StackPanel>
+                                        </StackPanel>
                                         <Border Height="6"
                                                 CornerRadius="3"
-                                                Background="#19263C"
-                                                Margin="0,6,0,0">
+                                                Background="#152339"
+                                                Margin="0,22,0,0">
                                             <Grid ClipToBounds="True">
-                                                <Rectangle x:Name="LoadingBar"
-                                                           Width="160"
+                                                <Rectangle x:Name="InstallProgressPulse"
+                                                           Width="200"
                                                            Height="6"
-                                                           Fill="#38BDF8">
+                                                           Fill="{StaticResource InstallOverlaySecondaryAccentBrush}">
                                                     <Rectangle.RenderTransform>
-                                                        <TranslateTransform X="-160"/>
+                                                        <TranslateTransform x:Name="InstallProgressTranslate"
+                                                                            X="-200"/>
                                                     </Rectangle.RenderTransform>
                                                 </Rectangle>
                                             </Grid>
                                         </Border>
+                                        <TextBlock Text="Hang tight—UI unlocks as soon as the install queue is ready."
+                                                   FontSize="12"
+                                                   Foreground="#64748B"
+                                                   Margin="0,14,0,0"
+                                                   TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Grid>
                             </Border>
@@ -1144,55 +1938,81 @@
                     </Grid>
 
                     <ControlTemplate.Triggers>
-                        <DataTrigger Binding="{Binding IsLoading}" Value="True">
-                            <Setter TargetName="OverlayRoot" Property="Visibility" Value="Visible"/>
-                            <Setter TargetName="OverlayRoot" Property="IsHitTestVisible" Value="True"/>
+                        <DataTrigger Binding="{Binding Path=DataContext.IsLoading, RelativeSource={RelativeSource TemplatedParent}}"
+                                     Value="True">
+                            <Setter TargetName="OverlayRoot"
+                                    Property="Visibility"
+                                    Value="Visible"/>
+                            <Setter TargetName="OverlayRoot"
+                                    Property="IsHitTestVisible"
+                                    Value="True"/>
                             <DataTrigger.EnterActions>
-                                <BeginStoryboard x:Name="OverlayFadeInStoryboard">
+                                <BeginStoryboard x:Name="InstallOverlayFadeInStoryboard">
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="OverlayRoot"
                                                          Storyboard.TargetProperty="Opacity"
                                                          To="1"
-                                                         Duration="0:0:0.55"
-                                                         EasingFunction="{StaticResource InstallHubEaseIn}"/>
+                                                         Duration="0:0:0.45"
+                                                         EasingFunction="{StaticResource InstallOverlayEaseIn}"/>
                                     </Storyboard>
                                 </BeginStoryboard>
-                                <BeginStoryboard x:Name="SpinnerStoryboard">
+                                <BeginStoryboard x:Name="InstallOverlayMotionStoryboard">
                                     <Storyboard RepeatBehavior="Forever">
-                                        <DoubleAnimation Storyboard.TargetName="LoadingArc"
-                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                        <DoubleAnimation Storyboard.TargetName="InstallOuterRingRotate"
+                                                         Storyboard.TargetProperty="Angle"
                                                          From="0"
                                                          To="360"
-                                                         Duration="0:0:1.4"/>
-                                        <DoubleAnimation Storyboard.TargetName="LoadingPulse"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         From="0.1"
-                                                         To="0.45"
-                                                         AutoReverse="True"
-                                                         Duration="0:0:1.2"/>
-                                        <DoubleAnimation Storyboard.TargetName="LoadingBar"
-                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
-                                                         From="-160"
-                                                         To="160"
-                                                         Duration="0:0:1.6"
+                                                         Duration="0:0:6"/>
+                                        <DoubleAnimation Storyboard.TargetName="InstallInnerRingRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="360"
+                                                         To="0"
+                                                         Duration="0:0:4.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="InstallOrbitRotate"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0"
+                                                         To="360"
+                                                         Duration="0:0:3.1"/>
+                                        <DoubleAnimation Storyboard.TargetName="InstallPulseScaleTransform"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         From="1"
+                                                         To="1.28"
+                                                         Duration="0:0:1.2"
+                                                         AutoReverse="True"/>
+                                        <DoubleAnimation Storyboard.TargetName="InstallPulseScaleTransform"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         From="1"
+                                                         To="1.28"
+                                                         Duration="0:0:1.2"
+                                                         AutoReverse="True"/>
+                                        <DoubleAnimation Storyboard.TargetName="InstallProgressTranslate"
+                                                         Storyboard.TargetProperty="X"
+                                                         From="-200"
+                                                         To="200"
+                                                         Duration="0:0:1.9"
                                                          AutoReverse="True"/>
                                     </Storyboard>
                                 </BeginStoryboard>
                             </DataTrigger.EnterActions>
                             <DataTrigger.ExitActions>
-                                <StopStoryboard BeginStoryboardName="SpinnerStoryboard"/>
+                                <StopStoryboard BeginStoryboardName="InstallOverlayMotionStoryboard"/>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <DoubleAnimation Storyboard.TargetName="OverlayRoot"
                                                          Storyboard.TargetProperty="Opacity"
                                                          To="0"
-                                                         Duration="0:0:0.55"
-                                                         EasingFunction="{StaticResource InstallHubEaseOut}"/>
+                                                         Duration="0:0:0.45"
+                                                         EasingFunction="{StaticResource InstallOverlayEaseOut}"/>
                                         <ObjectAnimationUsingKeyFrames Storyboard.TargetName="OverlayRoot"
                                                                        Storyboard.TargetProperty="Visibility">
-                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.55"
+                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.45"
                                                                     Value="{x:Static Visibility.Collapsed}"/>
                                         </ObjectAnimationUsingKeyFrames>
+                                        <BooleanAnimationUsingKeyFrames Storyboard.TargetName="OverlayRoot"
+                                                                        Storyboard.TargetProperty="IsHitTestVisible">
+                                            <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                                                     Value="False"/>
+                                        </BooleanAnimationUsingKeyFrames>
                                     </Storyboard>
                                 </BeginStoryboard>
                             </DataTrigger.ExitActions>

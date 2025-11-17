@@ -90,6 +90,9 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isLoading;
 
+    [ObservableProperty]
+    private InstallOperationItemViewModel? _selectedOperation;
+
     public Task EnsureLoadedAsync()
     {
         if (_catalogInitialized)
@@ -353,6 +356,11 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             {
                 Operations.Remove(item);
             }
+
+            if (SelectedOperation?.Id == snapshot.Id)
+            {
+                SelectedOperation = null;
+            }
         }
 
         _activityLog.LogInformation("Install hub", $"Cleared {removed.Count} completed operation(s).");
@@ -613,7 +621,6 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         viewModel.Update(snapshot);
         _snapshotCache[snapshot.Id] = snapshot;
-
         UpdatePackageQueueStates();
     }
 
@@ -926,6 +933,24 @@ public sealed partial class InstallOperationItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _canRetry;
 
+    [ObservableProperty]
+    private IReadOnlyList<string> _outputLines = Array.Empty<string>();
+
+    [ObservableProperty]
+    private IReadOnlyList<string> _errorLines = Array.Empty<string>();
+
+    [ObservableProperty]
+    private bool _hasOutput;
+
+    [ObservableProperty]
+    private bool _hasErrors;
+
+    public bool HasTranscript => HasOutput || HasErrors;
+
+    partial void OnHasOutputChanged(bool value) => OnPropertyChanged(nameof(HasTranscript));
+
+    partial void OnHasErrorsChanged(bool value) => OnPropertyChanged(nameof(HasTranscript));
+
     public void Update(InstallQueueOperationSnapshot snapshot)
     {
         StatusLabel = snapshot.Status switch
@@ -943,5 +968,13 @@ public sealed partial class InstallOperationItemViewModel : ObservableObject
         CompletedAt = snapshot.CompletedAt;
         IsActive = snapshot.IsActive;
         CanRetry = snapshot.CanRetry;
+
+        var outputs = snapshot.Output.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
+        var errors = snapshot.Errors.Where(line => !string.IsNullOrWhiteSpace(line)).ToArray();
+
+        OutputLines = outputs;
+        ErrorLines = errors;
+        HasOutput = outputs.Length > 0;
+        HasErrors = errors.Length > 0;
     }
 }

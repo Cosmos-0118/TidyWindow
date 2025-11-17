@@ -25,11 +25,14 @@ public partial class InstallHubPage : Page
     private double _lastPackageItemWidth = double.NaN;
     private bool _isStackLayout;
     private bool _useCompactMargin;
+    private ItemsControl? _operationsList;
+    private StackPanel? _secondaryColumnHost;
 
     private const double CompactLayoutBreakpoint = 1180d;
     private const double StackedLayoutBreakpoint = 980d;
     private const double WidthChangeTolerance = 0.5d;
     private const double LayoutHysteresis = 48d;
+    private const double SecondaryColumnMinWidth = 320d;
 
     public InstallHubPage(InstallHubViewModel viewModel)
     {
@@ -121,7 +124,7 @@ public partial class InstallHubPage : Page
 
         AttachScrollHandler(BundlesList);
         AttachScrollHandler(PackagesList);
-        AttachScrollHandler(OperationsList);
+        AttachScrollHandler(GetOperationsList());
         _scrollHandlersAttached = true;
     }
 
@@ -145,7 +148,10 @@ public partial class InstallHubPage : Page
 
         BundlesList.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         PackagesList.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
-        OperationsList.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+        if (GetOperationsList() is UIElement operationsList)
+        {
+            operationsList.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
+        }
         _scrollHandlersAttached = false;
     }
 
@@ -282,6 +288,7 @@ public partial class InstallHubPage : Page
         }
 
         UpdateAdaptiveLists();
+        UpdateLayoutState();
     }
 
     private void BundlesList_Loaded(object sender, RoutedEventArgs e)
@@ -428,6 +435,82 @@ public partial class InstallHubPage : Page
     private void QueueOverlayBackdrop_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         QueueDrawerToggle.IsChecked = false;
+    }
+
+    private void UpdateLayoutState()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        var primaryMargin = _isStackLayout ? new Thickness(0) : new Thickness(0, 0, 24, 0);
+        if (!ThicknessEquals(PrimaryColumnHost.Margin, primaryMargin))
+        {
+            PrimaryColumnHost.Margin = primaryMargin;
+        }
+
+        var secondaryHost = GetSecondaryColumnHost();
+
+        if (_isStackLayout)
+        {
+            PrimaryColumnDefinition.Width = new GridLength(1, GridUnitType.Star);
+            SecondaryColumnDefinition.Width = new GridLength(0, GridUnitType.Pixel);
+            SecondaryColumnDefinition.MinWidth = 0;
+
+            if (secondaryHost is not null && secondaryHost.Visibility != Visibility.Collapsed)
+            {
+                secondaryHost.Visibility = Visibility.Collapsed;
+            }
+
+            if (QueueDrawerToggle.Visibility != Visibility.Visible)
+            {
+                QueueDrawerToggle.Visibility = Visibility.Visible;
+            }
+        }
+        else
+        {
+            PrimaryColumnDefinition.Width = new GridLength(3, GridUnitType.Star);
+            SecondaryColumnDefinition.Width = new GridLength(2, GridUnitType.Star);
+            SecondaryColumnDefinition.MinWidth = SecondaryColumnMinWidth;
+
+            if (secondaryHost is not null && secondaryHost.Visibility != Visibility.Visible)
+            {
+                secondaryHost.Visibility = Visibility.Visible;
+            }
+
+            if (QueueDrawerToggle.IsChecked == true)
+            {
+                QueueDrawerToggle.IsChecked = false;
+            }
+
+            if (QueueDrawerToggle.Visibility != Visibility.Collapsed)
+            {
+                QueueDrawerToggle.Visibility = Visibility.Collapsed;
+            }
+        }
+    }
+
+    private ItemsControl? GetOperationsList()
+    {
+        if (_operationsList is not null)
+        {
+            return _operationsList;
+        }
+
+        _operationsList = FindName("OperationsList") as ItemsControl;
+        return _operationsList;
+    }
+
+    private StackPanel? GetSecondaryColumnHost()
+    {
+        if (_secondaryColumnHost is not null)
+        {
+            return _secondaryColumnHost;
+        }
+
+        _secondaryColumnHost = FindName("SecondaryColumnHost") as StackPanel;
+        return _secondaryColumnHost;
     }
 
     private static double GetScrollableContentWidth(ItemsControl control)
