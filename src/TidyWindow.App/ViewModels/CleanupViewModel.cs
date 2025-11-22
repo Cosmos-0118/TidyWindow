@@ -935,6 +935,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         UseRecycleBin = true;
         GenerateCleanupReport = false;
+        SkipLockedItems = true;
+        RepairPermissionsBeforeDelete = false;
+        ScheduleLockedItemsForReboot = false;
 
         BuildPendingDeletionRisks(itemsToDelete);
 
@@ -1284,9 +1287,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         LockingProcesses.Clear();
         for (var i = 0; i < processes.Count; i++)
         {
-            var vm = new CleanupLockProcessViewModel(processes[i]);
-            vm.PropertyChanged += OnLockingProcessPropertyChanged;
-            LockingProcesses.Add(vm);
+            LockingProcesses.Add(new CleanupLockProcessViewModel(processes[i]));
         }
 
         if (processes.Count == 0)

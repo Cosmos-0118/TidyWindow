@@ -9,6 +9,8 @@
         xmlns:controls="clr-namespace:TidyWindow.App.Views"
             mc:Ignorable="d"
             Title="Cleanup"
+            UseLayoutRounding="True"
+            SnapsToDevicePixels="True"
             Background="{DynamicResource CleanupBackdropBrush}">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -397,6 +399,120 @@
                                         Value="{x:Static Visibility.Collapsed}"/>
             </ObjectAnimationUsingKeyFrames>
         </Storyboard>
+        <Storyboard x:Key="ConfirmationOverlayEnterStoryboard"
+                    x:Shared="False">
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0"
+                                        Value="{x:Static Visibility.Visible}"/>
+            </ObjectAnimationUsingKeyFrames>
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                         Value="True"/>
+            </BooleanAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.24">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+        <Storyboard x:Key="ConfirmationOverlayExitStoryboard"
+                    x:Shared="False">
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="0"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0.2"
+                                         Value="False"/>
+            </BooleanAnimationUsingKeyFrames>
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0.2"
+                                        Value="{x:Static Visibility.Collapsed}"/>
+            </ObjectAnimationUsingKeyFrames>
+        </Storyboard>
+        <Storyboard x:Key="ConfirmationPanelEnterStoryboard"
+                    x:Shared="False">
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0"
+                                        Value="{x:Static Visibility.Visible}"/>
+            </ObjectAnimationUsingKeyFrames>
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                         Value="True"/>
+            </BooleanAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="1"
+                             Duration="0:0:0.26">
+                <DoubleAnimation.EasingFunction>
+                    <QuarticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                             To="1"
+                             Duration="0:0:0.26">
+                <DoubleAnimation.EasingFunction>
+                    <QuarticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                             To="1"
+                             Duration="0:0:0.26">
+                <DoubleAnimation.EasingFunction>
+                    <QuarticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
+                             To="0"
+                             Duration="0:0:0.26">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+        <Storyboard x:Key="ConfirmationPanelExitStoryboard"
+                    x:Shared="False">
+            <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                <DiscreteBooleanKeyFrame KeyTime="0:0:0"
+                                         Value="False"/>
+            </BooleanAnimationUsingKeyFrames>
+            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                             To="0"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleX)"
+                             To="0.92"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[0].(ScaleTransform.ScaleY)"
+                             To="0.92"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TransformGroup.Children)[1].(TranslateTransform.Y)"
+                             To="14"
+                             Duration="0:0:0.2">
+                <DoubleAnimation.EasingFunction>
+                    <QuadraticEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                <DiscreteObjectKeyFrame KeyTime="0:0:0.2"
+                                        Value="{x:Static Visibility.Collapsed}"/>
+            </ObjectAnimationUsingKeyFrames>
+        </Storyboard>
         <Style x:Key="PhaseTransitionOverlayStyle"
                TargetType="Border">
             <Setter Property="Visibility"
@@ -405,6 +521,11 @@
                     Value="0"/>
             <Setter Property="IsHitTestVisible"
                     Value="False"/>
+            <Setter Property="CacheMode">
+            <Setter.Value>
+                <BitmapCache EnableClearType="False"/>
+            </Setter.Value>
+            </Setter>
             <Setter Property="Background"
                     Value="{StaticResource CleanupPhaseOverlayBackdropBrush}"/>
             <Style.Triggers>
@@ -421,6 +542,11 @@
         </Style>
         <Style x:Key="PhaseTransitionPanelStyle"
                TargetType="Border">
+            <Setter Property="CacheMode">
+                <Setter.Value>
+                    <BitmapCache EnableClearType="False"/>
+                </Setter.Value>
+            </Setter>
             <Setter Property="RenderTransformOrigin"
                     Value="0.5,0.5"/>
             <Setter Property="RenderTransform">
@@ -492,6 +618,67 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="ConfirmationOverlayStyle"
+               TargetType="Border">
+            <Setter Property="Visibility"
+                    Value="Collapsed"/>
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="IsHitTestVisible"
+                    Value="False"/>
+            <Setter Property="CacheMode">
+                <Setter.Value>
+                    <BitmapCache EnableClearType="False"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsConfirmationSheetVisible}"
+                             Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard Storyboard="{StaticResource ConfirmationOverlayEnterStoryboard}"/>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard Storyboard="{StaticResource ConfirmationOverlayExitStoryboard}"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="ConfirmationPanelStyle"
+               TargetType="Border">
+            <Setter Property="Visibility"
+                    Value="Collapsed"/>
+            <Setter Property="Opacity"
+                    Value="0"/>
+            <Setter Property="IsHitTestVisible"
+                    Value="False"/>
+            <Setter Property="RenderTransformOrigin"
+                    Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TransformGroup>
+                        <ScaleTransform ScaleX="0.92"
+                                        ScaleY="0.92"/>
+                        <TranslateTransform Y="14"/>
+                    </TransformGroup>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="CacheMode">
+                <Setter.Value>
+                    <BitmapCache EnableClearType="False"/>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsConfirmationSheetVisible}"
+                             Value="True">
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard Storyboard="{StaticResource ConfirmationPanelEnterStoryboard}"/>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard Storyboard="{StaticResource ConfirmationPanelExitStoryboard}"/>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="PhaseContainerBaseStyle"
                TargetType="Border">
             <Setter Property="Visibility"
@@ -500,6 +687,11 @@
                     Value="0"/>
             <Setter Property="IsHitTestVisible"
                     Value="False"/>
+            <Setter Property="CacheMode">
+            <Setter.Value>
+                <BitmapCache EnableClearType="False"/>
+            </Setter.Value>
+            </Setter>
             <Setter Property="RenderTransformOrigin"
                     Value="0.5,0"/>
             <Setter Property="RenderTransform">
@@ -561,6 +753,11 @@
                     Value="0"/>
             <Setter Property="IsHitTestVisible"
                     Value="False"/>
+            <Setter Property="CacheMode">
+            <Setter.Value>
+                <BitmapCache EnableClearType="False"/>
+            </Setter.Value>
+            </Setter>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsCelebrationPhase}"
                              Value="True">
@@ -584,6 +781,11 @@
             <Setter Property="RenderTransform">
                 <Setter.Value>
                     <TranslateTransform Y="12"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="CacheMode">
+                <Setter.Value>
+                    <BitmapCache EnableClearType="False"/>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
@@ -747,6 +949,7 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       CanContentScroll="False"
+                      IsDeferredScrollingEnabled="True"
                       PanningMode="VerticalOnly">
         <StackPanel MinWidth="760">
         <controls:PageTitleBar Title="Cleanup operations"
@@ -1513,6 +1716,9 @@
                                       ScrollViewer.CanContentScroll="True"
                                       ScrollViewer.IsDeferredScrollingEnabled="True"
                                       VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                      VirtualizingPanel.IsContainerVirtualizable="True"
+                                      VirtualizingPanel.ScrollUnit="Pixel"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                       VirtualizingPanel.CacheLength="1"
                                       VirtualizingPanel.CacheLengthUnit="Page">
@@ -1691,6 +1897,9 @@
                                               ScrollViewer.CanContentScroll="True"
                                               ScrollViewer.IsDeferredScrollingEnabled="True"
                                               VirtualizingPanel.IsVirtualizing="True"
+                                              VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                              VirtualizingPanel.IsContainerVirtualizable="True"
+                                              VirtualizingPanel.ScrollUnit="Pixel"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               VirtualizingPanel.CacheLength="2"
                                               VirtualizingPanel.CacheLengthUnit="Page">
@@ -1910,10 +2119,10 @@
     </ScrollViewer>
 
     <Border Background="#AA020B1F"
-        Visibility="{Binding IsConfirmationSheetVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
         HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch"
-        Panel.ZIndex="2">
+        Panel.ZIndex="2"
+        Style="{StaticResource ConfirmationOverlayStyle}">
                 <Border HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Background="{StaticResource CleanupSurfaceBrush}"
@@ -1923,7 +2132,8 @@
                     Padding="32"
                     MinWidth="760"
                     MaxWidth="1260"
-                    Effect="{StaticResource SurfaceShadowEffect}">
+                    Effect="{StaticResource SurfaceShadowEffect}"
+                    Style="{StaticResource ConfirmationPanelStyle}">
                 <StackPanel>
                     <TextBlock Text="Phase 3 — Confirm cleanup"
                                FontSize="18"
@@ -2138,84 +2348,126 @@
                                     Command="{Binding RefreshLockingProcessesCommand}"
                                     Style="{StaticResource FlatButtonStyle}"
                                     Margin="0,0,8,0"/>
-                            <Button Content="Select all"
-                                    Command="{Binding SelectAllLockingProcessesCommand}"
+                            <Button x:Name="ViewLockingAppsButton"
+                                    Content="{Binding LockingProcessButtonLabel}"
+                                    Command="{Binding ShowLockingProcessesCommand}"
                                     Style="{StaticResource FlatButtonStyle}"
-                                    Margin="0,0,8,0"/>
-                            <Button Content="Clear selection"
-                                    Command="{Binding ClearLockingProcessSelectionsCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"/>
+                                    IsEnabled="{Binding IsLockingProcessPanelVisible}"
+                                    Margin="0"/>
                         </StackPanel>
-                        <ItemsControl ItemsSource="{Binding LockingProcesses}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border CornerRadius="10"
-                                            Padding="12"
-                                            Margin="0,0,0,8"
-                                            Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                            BorderBrush="{StaticResource CleanupBorderBrush}"
-                                            BorderThickness="1">
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal"
-                                                        VerticalAlignment="Center">
-                                                <CheckBox Content="{Binding DisplayName}"
-                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                          Style="{StaticResource App.CheckBoxStyle}"
-                                                          FontSize="13"
-                                                          Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                                <Border Background="#332DD4BF"
-                                                        CornerRadius="8"
-                                                        Padding="8,2"
-                                                        Margin="8,0,0,0"
-                                                        Visibility="{Binding IsService, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="Service"
-                                                               FontSize="11"
-                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                                </Border>
-                                                <Border Background="#33F87171"
-                                                        CornerRadius="8"
-                                                        Padding="8,2"
-                                                        Margin="8,0,0,0"
-                                                        Visibility="{Binding IsCritical, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="Critical"
-                                                               FontSize="11"
-                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                                </Border>
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding ImpactSummary}"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                       Margin="0,4,0,0"/>
-                                            <TextBlock Text="{Binding Description}"
-                                                       FontSize="11"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                       Margin="0,2,0,0"
-                                                       TextWrapping="Wrap"/>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    Margin="0,12,0,0">
-                            <Button Content="Close selected apps"
-                                    Command="{Binding CloseSelectedLockingProcessesCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"/>
-                            <Button Content="Force close selected"
-                                    Command="{Binding ForceCloseSelectedLockingProcessesCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"
-                                    Margin="8,0,0,0"/>
-                            <Button Content="Close all apps"
-                                    Command="{Binding CloseAllLockingProcessesCommand}"
-                                    Style="{StaticResource FlatButtonStyle}"
-                                    Margin="8,0,0,0"/>
-                        </StackPanel>
-                        <TextBlock Text="Unsaved work may be lost when closing these apps. Force close should be a last resort."
-                                   FontSize="11"
-                                   Foreground="{StaticResource CleanupMutedTextBrush}"
-                                   Margin="0,6,0,0"
-                                   TextWrapping="Wrap"/>
+                        <Popup Placement="Bottom"
+                               PlacementTarget="{Binding ElementName=ViewLockingAppsButton}"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade"
+                               StaysOpen="False"
+                               IsOpen="{Binding IsLockingProcessPopupOpen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                            <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="16"
+                                    MaxWidth="520">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal"
+                                                VerticalAlignment="Center">
+                                        <TextBlock Text="Apps currently locking these files"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                        <Button Content="Close"
+                                                Command="{Binding HideLockingProcessesCommand}"
+                                                Style="{StaticResource FlatButtonStyle}"
+                                                Margin="12,0,0,0"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,8,0,0">
+                                        <Button Content="Select all"
+                                                Command="{Binding SelectAllLockingProcessesCommand}"
+                                                Style="{StaticResource FlatButtonStyle}"
+                                                Margin="0,0,8,0"/>
+                                        <Button Content="Clear selection"
+                                                Command="{Binding ClearLockingProcessSelectionsCommand}"
+                                                Style="{StaticResource FlatButtonStyle}"/>
+                                    </StackPanel>
+                                    <ScrollViewer Margin="0,12,0,0"
+                                                  MaxHeight="360"
+                                                  VerticalScrollBarVisibility="Auto"
+                                                  HorizontalScrollBarVisibility="Disabled">
+                                        <ItemsControl ItemsSource="{Binding LockingProcesses}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border CornerRadius="10"
+                                                            Padding="12"
+                                                            Margin="0,0,0,8"
+                                                            Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                                                            BorderThickness="1">
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        VerticalAlignment="Center">
+                                                                <CheckBox Content="{Binding DisplayName}"
+                                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                          Style="{StaticResource App.CheckBoxStyle}"
+                                                                          FontSize="13"
+                                                                          Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                                <Border Background="#332DD4BF"
+                                                                        CornerRadius="8"
+                                                                        Padding="8,2"
+                                                                        Margin="8,0,0,0"
+                                                                        Visibility="{Binding IsService, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <TextBlock Text="Service"
+                                                                               FontSize="11"
+                                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                                </Border>
+                                                                <Border Background="#33F87171"
+                                                                        CornerRadius="8"
+                                                                        Padding="8,2"
+                                                                        Margin="8,0,0,0"
+                                                                        Visibility="{Binding IsCritical, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <TextBlock Text="Critical"
+                                                                               FontSize="11"
+                                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding ImpactSummary}"
+                                                                       FontSize="12"
+                                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                                       Margin="0,4,0,0"/>
+                                                            <TextBlock Text="{Binding Description}"
+                                                                       FontSize="11"
+                                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                                       Margin="0,2,0,0"
+                                                                       TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,12,0,0">
+                                        <Button Content="Close selected apps"
+                                                Command="{Binding CloseSelectedLockingProcessesCommand}"
+                                                Style="{StaticResource FlatButtonStyle}"/>
+                                        <Button Content="Force close selected"
+                                                Command="{Binding ForceCloseSelectedLockingProcessesCommand}"
+                                                Style="{StaticResource FlatButtonStyle}"
+                                                Margin="8,0,0,0"/>
+                                        <Button Content="Close all apps"
+                                                Command="{Binding CloseAllLockingProcessesCommand}"
+                                                Style="{StaticResource FlatButtonStyle}"
+                                                Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                    <TextBlock Text="Unsaved work may be lost when closing these apps. Force close should be a last resort."
+                                               FontSize="11"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               Margin="0,6,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </Popup>
                             </StackPanel>
                         </StackPanel>
                         <StackPanel Grid.Column="1"
@@ -2289,56 +2541,56 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        Margin="0,24,0,0">
+                                <Button Content="Back to review"
+                                        Command="{Binding DismissDeletionConfirmationCommand}"
+                                        Style="{StaticResource FlatButtonStyle}"
+                                        Background="{StaticResource CleanupSurfaceBrush}"
+                                        Margin="0"/>
+                                <Button Content="Run cleanup"
+                                        Command="{Binding ConfirmCleanupCommand}"
+                                        Background="{StaticResource CleanupAccentBrushSecondary}"
+                                        Foreground="#041225"
+                                        FontWeight="Semibold"
+                                        Padding="18,10"
+                                        Cursor="Hand"
+                                        BorderThickness="0"
+                                        Margin="12,0,0,0">
+                                    <Button.Template>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border x:Name="ConfirmRunBorder"
+                                                    Background="{TemplateBinding Background}"
+                                                    CornerRadius="8"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                  VerticalAlignment="Center"/>
+                                            </Border>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsEnabled"
+                                                         Value="False">
+                                                    <Setter TargetName="ConfirmRunBorder"
+                                                            Property="Opacity"
+                                                            Value="0.6"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver"
+                                                         Value="True">
+                                                    <Setter TargetName="ConfirmRunBorder"
+                                                            Property="Background"
+                                                            Value="#2DD4BF"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Button.Template>
+                                    <Button.IsEnabled>
+                                        <Binding Path="IsBusy"
+                                                 Converter="{StaticResource InverseBooleanConverter}"/>
+                                    </Button.IsEnabled>
+                                </Button>
+                            </StackPanel>
                         </StackPanel>
                     </Grid>
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                Margin="0,24,0,0">
-            <Button Content="Back to review"
-                Command="{Binding DismissDeletionConfirmationCommand}"
-                Style="{StaticResource FlatButtonStyle}"
-        Background="{StaticResource CleanupSurfaceBrush}"
-                Margin="0"/>
-                        <Button Content="Run cleanup"
-                                Command="{Binding ConfirmCleanupCommand}"
-                Background="{StaticResource CleanupAccentBrushSecondary}"
-                Foreground="#041225"
-                                FontWeight="Semibold"
-                                Padding="18,10"
-                                Cursor="Hand"
-                                BorderThickness="0"
-                                Margin="12,0,0,0">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="ConfirmRunBorder"
-                                            Background="{TemplateBinding Background}"
-                                            CornerRadius="8"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter TargetName="ConfirmRunBorder"
-                                                    Property="Opacity"
-                                                    Value="0.6"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="ConfirmRunBorder"
-                                                    Property="Background"
-                            Value="#2DD4BF"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                            <Button.IsEnabled>
-                                <Binding Path="IsBusy"
-                                         Converter="{StaticResource InverseBooleanConverter}"/>
-                            </Button.IsEnabled>
-                        </Button>
-                    </StackPanel>
                 </StackPanel>
             </Border>
         </Border>
