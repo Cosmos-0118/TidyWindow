@@ -26,7 +26,8 @@ public sealed class PackageMaintenanceViewModelTests
             Attempted: true,
             Output: ImmutableArray<string>.Empty,
             Errors: ImmutableArray<string>.Empty,
-            ExitCode: -1978335215);
+            ExitCode: -1978335215,
+            LogFilePath: null);
 
         var method = typeof(PackageMaintenanceViewModel).GetMethod(
             "TryGetNonActionableMaintenanceMessage",

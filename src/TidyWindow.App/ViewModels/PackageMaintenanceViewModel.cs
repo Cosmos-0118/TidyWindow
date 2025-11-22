@@ -31,6 +31,24 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private const int WingetCannotUpgradeExitCode = -1978334956;
     private const int WingetUnknownVersionExitCode = -1978335189;
     private const int WingetInstallerHashMismatchExitCode = -1978335215;
+    private const int InstallerBusyMaxWaitAttempts = 6;
+    private static readonly TimeSpan InstallerBusyInitialDelay = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan InstallerBusyMaximumDelay = TimeSpan.FromSeconds(60);
+    private static readonly ImmutableHashSet<int> InstallerBusyExitCodes = ImmutableHashSet.Create(
+        1618,
+        unchecked((int)0x80070652));
+    private static readonly string[] InstallerBusyMessageMarkers =
+    {
+        "another installation is already in progress",
+        "another installation is in progress",
+        "another installer is already running",
+        "please complete the other installation",
+        "wait for the other installation",
+        "error_install_already_running",
+        "0x80070652",
+        "0x00000652",
+        "msiexec is already running"
+    };
 
     private readonly List<PackageMaintenanceItemViewModel> _allPackages = new();
     private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -484,97 +502,128 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} started for '{item.DisplayName}'.", contextDetails);
 
-        try
+        var waitAttempts = 0;
+
+        while (true)
         {
-            var payload = new PackageMaintenanceRequest(
-                request.Item.Manager,
-                request.PackageId,
-                request.Item.DisplayName,
-                request.RequiresAdministrator,
-                request.TargetVersion);
-
-            PackageMaintenanceResult result = request.Kind switch
+            try
             {
-                MaintenanceOperationKind.Update => await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false),
-                MaintenanceOperationKind.ForceRemove => await _maintenanceService.ForceRemoveAsync(payload).ConfigureAwait(false),
-                _ => await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false)
-            };
+                var payload = new PackageMaintenanceRequest(
+                    request.Item.Manager,
+                    request.PackageId,
+                    request.Item.DisplayName,
+                    request.RequiresAdministrator,
+                    request.TargetVersion);
 
-            var message = string.IsNullOrWhiteSpace(result.Summary)
-                ? BuildDefaultCompletionMessage(request.Kind, result.Success)
-                : result.Summary.Trim();
-
-            var isNonActionableFailure = false;
-            MaintenanceSuppressionEntry? suppressionEntry = null;
-            var suppressionRemoved = false;
-
-            if (!result.Success && TryGetNonActionableMaintenanceMessage(result, item.DisplayName, out var friendlyMessage))
-            {
-                message = friendlyMessage;
-                isNonActionableFailure = true;
-                suppressionEntry = RegisterNonActionableSuppression(request, item, result, message);
-            }
-            else if (result.Success)
-            {
-                suppressionRemoved = TryClearSuppression(result, item, request);
-            }
-
-            await RunOnUiThreadAsync(() =>
-            {
-                operation.UpdateTranscript(result.Output, result.Errors);
-                operation.MarkCompleted(result.Success, message);
-                item.IsBusy = false;
-                item.IsQueued = false;
-                item.QueueStatus = message;
-                item.ApplyMaintenanceResult(result);
-                item.ApplyOperationResult(result.Success, message);
-                if (suppressionEntry is not null)
+                PackageMaintenanceResult result = request.Kind switch
                 {
-                    item.ApplySuppression(suppressionEntry);
-                    AddSuppressionWarning(item, suppressionEntry);
-                }
-                else if (suppressionRemoved)
+                    MaintenanceOperationKind.Update => await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false),
+                    MaintenanceOperationKind.ForceRemove => await _maintenanceService.ForceRemoveAsync(payload).ConfigureAwait(false),
+                    _ => await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false)
+                };
+
+                if (!result.Success
+                    && waitAttempts < InstallerBusyMaxWaitAttempts
+                    && TryDetectInstallerBusy(result, out var busyReason))
                 {
-                    item.ClearSuppression();
-                    RemoveSuppressionWarnings(item.DisplayName);
+                    waitAttempts++;
+                    var delay = CalculateInstallerBusyDelay(waitAttempts);
+                    var waitMessage = BuildInstallerBusyWaitMessage(busyReason, waitAttempts, delay);
+                    await EnterInstallerBusyWaitAsync(request, waitMessage, delay, progressMessage).ConfigureAwait(false);
+                    continue;
                 }
-            }).ConfigureAwait(false);
 
-            await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+                var message = string.IsNullOrWhiteSpace(result.Summary)
+                    ? BuildDefaultCompletionMessage(request.Kind, result.Success)
+                    : result.Summary.Trim();
 
-            var resultDetails = BuildResultDetails(result);
-            if (result.Success)
-            {
-                _activityLog.LogSuccess("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' completed: {message}", resultDetails);
+                var isNonActionableFailure = false;
+                MaintenanceSuppressionEntry? suppressionEntry = null;
+                var suppressionRemoved = false;
+
+                if (!result.Success && TryGetNonActionableMaintenanceMessage(result, item.DisplayName, out var friendlyMessage))
+                {
+                    message = friendlyMessage;
+                    isNonActionableFailure = true;
+                    suppressionEntry = RegisterNonActionableSuppression(request, item, result, message);
+                }
+                else if (result.Success)
+                {
+                    suppressionRemoved = TryClearSuppression(result, item, request);
+                }
+
+                await RunOnUiThreadAsync(() =>
+                {
+                    operation.UpdateTranscript(result.Output, result.Errors);
+                    operation.LogFilePath = result.LogFilePath;
+                    operation.MarkCompleted(result.Success, message);
+                    item.IsBusy = false;
+                    item.IsQueued = false;
+                    item.QueueStatus = message;
+                    item.ApplyMaintenanceResult(result);
+                    item.ApplyOperationResult(result.Success, message);
+                    if (suppressionEntry is not null)
+                    {
+                        item.ApplySuppression(suppressionEntry);
+                        AddSuppressionWarning(item, suppressionEntry);
+                    }
+                    else if (suppressionRemoved)
+                    {
+                        item.ClearSuppression();
+                        RemoveSuppressionWarnings(item.DisplayName);
+                    }
+                }).ConfigureAwait(false);
+
+                await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+
+                var resultDetails = BuildResultDetails(result);
+                if (result.Success)
+                {
+                    _activityLog.LogSuccess("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' completed: {message}", resultDetails);
+                }
+                else if (isNonActionableFailure)
+                {
+                    _activityLog.LogWarning("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' requires manual action: {message}", resultDetails);
+                }
+                else
+                {
+                    _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", resultDetails);
+                }
+
+                return;
             }
-            else if (isNonActionableFailure)
+            catch (Exception ex)
             {
-                _activityLog.LogWarning("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' requires manual action: {message}", resultDetails);
+                if (waitAttempts < InstallerBusyMaxWaitAttempts
+                    && TryDetectInstallerBusy(ex, out var busyReason))
+                {
+                    waitAttempts++;
+                    var delay = CalculateInstallerBusyDelay(waitAttempts);
+                    var waitMessage = BuildInstallerBusyWaitMessage(busyReason, waitAttempts, delay);
+                    await EnterInstallerBusyWaitAsync(request, waitMessage, delay, progressMessage).ConfigureAwait(false);
+                    continue;
+                }
+
+                var message = string.IsNullOrWhiteSpace(ex.Message)
+                    ? BuildDefaultCompletionMessage(request.Kind, success: false)
+                    : ex.Message.Trim();
+
+                await RunOnUiThreadAsync(() =>
+                {
+                    operation.UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray.Create(message));
+                    operation.LogFilePath = null;
+                    operation.MarkCompleted(false, message);
+                    item.IsBusy = false;
+                    item.IsQueued = false;
+                    item.QueueStatus = message;
+                    item.ApplyOperationResult(false, message);
+                }).ConfigureAwait(false);
+
+                await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+
+                _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", new[] { ex.ToString() });
+                return;
             }
-            else
-            {
-                _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", resultDetails);
-            }
-        }
-        catch (Exception ex)
-        {
-            var message = string.IsNullOrWhiteSpace(ex.Message)
-                ? BuildDefaultCompletionMessage(request.Kind, success: false)
-                : ex.Message.Trim();
-
-            await RunOnUiThreadAsync(() =>
-            {
-                operation.UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray.Create(message));
-                operation.MarkCompleted(false, message);
-                item.IsBusy = false;
-                item.IsQueued = false;
-                item.QueueStatus = message;
-                item.ApplyOperationResult(false, message);
-            }).ConfigureAwait(false);
-
-            await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
-
-            _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", new[] { ex.ToString() });
         }
     }
 
@@ -1079,6 +1128,11 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             lines.Add($"Latest version: {result.LatestVersion}");
         }
 
+        if (!string.IsNullOrWhiteSpace(result.LogFilePath))
+        {
+            lines.Add($"Log file: {result.LogFilePath}");
+        }
+
         if (!result.Output.IsDefaultOrEmpty && result.Output.Length > 0)
         {
             lines.Add("--- Output ---");
@@ -1508,6 +1562,190 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         return string.IsNullOrWhiteSpace(item.InstallPackageId) ? null : item.InstallPackageId;
     }
 
+    private static bool TryDetectInstallerBusy(PackageMaintenanceResult result, out string reason)
+    {
+        if (result is null)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (InstallerBusyExitCodes.Contains(result.ExitCode))
+        {
+            reason = $"Installer reported exit code {result.ExitCode}.";
+            return true;
+        }
+
+        foreach (var candidate in EnumerateInstallerBusyCandidates(result.Summary, result.Errors, result.Output))
+        {
+            if (TryMatchInstallerBusyText(candidate, out reason))
+            {
+                return true;
+            }
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    private static bool TryDetectInstallerBusy(Exception? exception, out string reason)
+    {
+        if (exception is null)
+        {
+            reason = string.Empty;
+            return false;
+        }
+
+        if (exception is System.ComponentModel.Win32Exception win32 && InstallerBusyExitCodes.Contains(win32.NativeErrorCode))
+        {
+            reason = $"Installer reported exit code {win32.NativeErrorCode}.";
+            return true;
+        }
+
+        foreach (var message in EnumerateExceptionMessages(exception))
+        {
+            if (TryMatchInstallerBusyText(message, out reason))
+            {
+                return true;
+            }
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    private static IEnumerable<string> EnumerateInstallerBusyCandidates(string? summary, ImmutableArray<string> errors, ImmutableArray<string> output)
+    {
+        if (!string.IsNullOrWhiteSpace(summary))
+        {
+            yield return summary.Trim();
+        }
+
+        if (!errors.IsDefaultOrEmpty)
+        {
+            foreach (var line in errors)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    yield return line.Trim();
+                }
+            }
+        }
+
+        if (!output.IsDefaultOrEmpty)
+        {
+            foreach (var line in output)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    yield return line.Trim();
+                }
+            }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateExceptionMessages(Exception? exception)
+    {
+        while (exception is not null)
+        {
+            if (!string.IsNullOrWhiteSpace(exception.Message))
+            {
+                yield return exception.Message.Trim();
+            }
+
+            exception = exception.InnerException;
+        }
+    }
+
+    private static bool TryMatchInstallerBusyText(string? text, out string reason)
+    {
+        reason = string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var candidate = text.Trim();
+        foreach (var marker in InstallerBusyMessageMarkers)
+        {
+            if (candidate.IndexOf(marker, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                reason = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static TimeSpan CalculateInstallerBusyDelay(int attemptNumber)
+    {
+        if (attemptNumber <= 0)
+        {
+            attemptNumber = 1;
+        }
+
+        var seconds = InstallerBusyInitialDelay.TotalSeconds * attemptNumber;
+        if (seconds < InstallerBusyInitialDelay.TotalSeconds)
+        {
+            seconds = InstallerBusyInitialDelay.TotalSeconds;
+        }
+
+        seconds = Math.Min(seconds, InstallerBusyMaximumDelay.TotalSeconds);
+        return TimeSpan.FromSeconds(seconds);
+    }
+
+    private static string BuildInstallerBusyWaitMessage(string? detectedReason, int attemptNumber, TimeSpan delay)
+    {
+        var baseText = string.IsNullOrWhiteSpace(detectedReason)
+            ? "Another installer is already running."
+            : detectedReason.Trim();
+
+        var seconds = Math.Max(1, (int)Math.Round(delay.TotalSeconds));
+        return $"{baseText} Retrying in {seconds}s (attempt {attemptNumber} of {InstallerBusyMaxWaitAttempts}).";
+    }
+
+    private async Task EnterInstallerBusyWaitAsync(
+        MaintenanceOperationRequest request,
+        string waitMessage,
+        TimeSpan delay,
+        string resumeMessage)
+    {
+        if (request is null)
+        {
+            return;
+        }
+
+        var operation = request.Operation;
+        var item = request.Item;
+
+        await RunOnUiThreadAsync(() =>
+        {
+            operation.MarkWaiting(waitMessage);
+            item.QueueStatus = waitMessage;
+            item.IsQueued = true;
+            item.IsBusy = true;
+            item.LastOperationMessage = waitMessage;
+        }).ConfigureAwait(false);
+
+        await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(waitMessage)).ConfigureAwait(false);
+
+        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' waiting: {waitMessage}");
+
+        await Task.Delay(delay).ConfigureAwait(false);
+
+        await RunOnUiThreadAsync(() =>
+        {
+            operation.MarkResumed(resumeMessage);
+            item.QueueStatus = resumeMessage;
+            item.LastOperationMessage = resumeMessage;
+        }).ConfigureAwait(false);
+
+        await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(resumeMessage)).ConfigureAwait(false);
+
+        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' resuming after wait.");
+    }
+
     private sealed record MaintenanceOperationRequest(
         PackageMaintenanceItemViewModel Item,
         MaintenanceOperationKind Kind,
@@ -1627,6 +1865,7 @@ public enum MaintenanceOperationKind
 public enum MaintenanceOperationStatus
 {
     Pending,
+    Waiting,
     Running,
     Succeeded,
     Failed
@@ -1661,17 +1900,20 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
     public string StatusDisplay => Status switch
     {
         MaintenanceOperationStatus.Pending => "Queued",
+        MaintenanceOperationStatus.Waiting => "Waiting",
         MaintenanceOperationStatus.Running => "Running",
         MaintenanceOperationStatus.Succeeded => "Completed",
         MaintenanceOperationStatus.Failed => "Failed",
         _ => Status.ToString()
     };
 
-    public bool IsPendingOrRunning => Status is MaintenanceOperationStatus.Pending or MaintenanceOperationStatus.Running;
+    public bool IsPendingOrRunning => Status is MaintenanceOperationStatus.Pending or MaintenanceOperationStatus.Running or MaintenanceOperationStatus.Waiting;
 
     public bool IsActive => IsPendingOrRunning;
 
     public bool HasErrors => !Errors.IsDefaultOrEmpty && Errors.Length > 0;
+
+    public bool HasLogFile => !string.IsNullOrWhiteSpace(LogFilePath);
 
     public IReadOnlyList<string> DisplayLines => HasErrors ? Errors : Output;
 
@@ -1696,6 +1938,9 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
     [ObservableProperty]
     private ImmutableArray<string> _errors = ImmutableArray<string>.Empty;
 
+    [ObservableProperty]
+    private string? _logFilePath;
+
     public void MarkQueued(string message)
     {
         Status = MaintenanceOperationStatus.Pending;
@@ -1704,6 +1949,7 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
         StartedAt = null;
         CompletedAt = null;
         UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray<string>.Empty);
+        LogFilePath = null;
     }
 
     public void MarkStarted(string message)
@@ -1711,6 +1957,18 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
         Status = MaintenanceOperationStatus.Running;
         Message = message;
         StartedAt = DateTimeOffset.UtcNow;
+    }
+
+    public void MarkWaiting(string message)
+    {
+        Status = MaintenanceOperationStatus.Waiting;
+        Message = message;
+    }
+
+    public void MarkResumed(string message)
+    {
+        Status = MaintenanceOperationStatus.Running;
+        Message = message;
     }
 
     public void MarkCompleted(bool success, string message)
@@ -1742,6 +2000,11 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
     {
         OnPropertyChanged(nameof(DisplayLines));
         OnPropertyChanged(nameof(HasErrors));
+    }
+
+    partial void OnLogFilePathChanged(string? oldValue, string? newValue)
+    {
+        OnPropertyChanged(nameof(HasLogFile));
     }
 }
 

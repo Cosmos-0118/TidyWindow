@@ -247,7 +247,8 @@ public sealed class PackageMaintenanceService
             payload.Attempted,
             output,
             errors,
-            payload.ExitCode ?? 0);
+            payload.ExitCode ?? 0,
+            payload.LogFile);
     }
 
     private sealed class PackageMaintenanceScriptResult
@@ -281,6 +282,8 @@ public sealed class PackageMaintenanceService
         public List<string>? Output { get; set; }
 
         public List<string>? Errors { get; set; }
+
+        public string? LogFile { get; set; }
     }
 }
 
@@ -305,4 +308,5 @@ public sealed record PackageMaintenanceResult(
     bool Attempted,
     ImmutableArray<string> Output,
     ImmutableArray<string> Errors,
-    int ExitCode);
+    int ExitCode,
+    string? LogFilePath);

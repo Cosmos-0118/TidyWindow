@@ -42,6 +42,7 @@ catch {
 }
 $script:Utf8Encoding = [System.Text.Encoding]::UTF8
 $script:WingetInstallerHashMismatchExitCode = -1978335215
+$script:WingetNoVersionFoundExitCode    = -1978335209
 
 function Get-CachedCommandPath {
     param(
@@ -195,10 +196,191 @@ function Get-TidyScoopRootCandidates {
     return $roots
 }
 
+function Get-TidySafePathSegment {
+    param([string] $Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return 'unknown'
+    }
+
+    $segment = $Value.Trim()
+    $segment = $segment -replace '[\\/:*?"<>|]+', '-'
+    $segment = $segment -replace '\s+', '-'
+    $segment = $segment -replace '-{2,}', '-'
+
+    if ($segment.Length -gt 48) {
+        $segment = $segment.Substring(0, 48)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($segment)) {
+        return 'unknown'
+    }
+
+    return $segment
+}
+
+function Get-TidyLogRoot {
+    if ($script:TidyLogRootPath) {
+        return $script:TidyLogRootPath
+    }
+
+    $base = [Environment]::GetFolderPath('LocalApplicationData')
+    if ([string]::IsNullOrWhiteSpace($base)) {
+        $base = $scriptDirectory
+    }
+
+    $path = Join-Path -Path $base -ChildPath 'TidyWindow'
+    $path = Join-Path -Path $path -ChildPath 'MaintenanceLogs'
+
+    try {
+        $script:TidyLogRootPath = [System.IO.Path]::GetFullPath($path)
+    }
+    catch {
+        $script:TidyLogRootPath = $null
+    }
+
+    return $script:TidyLogRootPath
+}
+
+function Initialize-TidyLogFile {
+    if ($script:TidyLogInitialized) {
+        return
+    }
+
+    $script:TidyLogInitialized = $true
+    $root = Get-TidyLogRoot
+    if ([string]::IsNullOrWhiteSpace($root)) {
+        return
+    }
+
+    try {
+        if (-not (Test-Path -Path $root)) {
+            [void](New-Item -ItemType Directory -Path $root -Force)
+        }
+    }
+    catch {
+        return
+    }
+
+    $timestamp = Get-Date -Format 'yyyyMMdd-HHmmssfff'
+    $managerSegment = if (-not [string]::IsNullOrWhiteSpace($script:NormalizedManagerOverride)) {
+        Get-TidySafePathSegment -Value $script:NormalizedManagerOverride
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($Manager)) {
+        Get-TidySafePathSegment -Value $Manager
+    }
+    else {
+        'manager'
+    }
+
+    $packageSegment = if (-not [string]::IsNullOrWhiteSpace($PackageId)) {
+        Get-TidySafePathSegment -Value $PackageId
+    }
+    else {
+        'package'
+    }
+
+    $logName = "$timestamp-$managerSegment-$packageSegment.log"
+    $script:CurrentLogFilePath = Join-Path -Path $root -ChildPath $logName
+}
+
+function Write-TidyLogFileLine {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Message,
+        [string] $Level = 'INFO'
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        return
+    }
+
+    Initialize-TidyLogFile
+    if ([string]::IsNullOrWhiteSpace($script:CurrentLogFilePath)) {
+        return
+    }
+
+    $timestamp = (Get-Date).ToString('u')
+    $line = "[$timestamp][$Level] $Message"
+
+    try {
+        Add-Content -Path $script:CurrentLogFilePath -Value $line -Encoding UTF8
+    }
+    catch {
+        # Swallow log write failures to avoid impacting maintenance runs.
+    }
+}
+
+function Add-TidyBufferedLine {
+    param(
+        [Parameter(Mandatory = $true)]
+        [AllowEmptyCollection()]
+        [System.Collections.Generic.List[string]] $Buffer,
+        [Parameter(Mandatory = $true)]
+        [string] $Message,
+        [int] $MaxEntries = 250
+    )
+
+    if ($Buffer.Count -ge $MaxEntries) {
+        $Buffer.RemoveAt(0)
+    }
+
+    [void]$Buffer.Add($Message)
+}
+
+function Trim-TidyLogMessage {
+    param([string] $Message)
+
+    if ($Message.Length -le 300) {
+        return $Message
+    }
+
+    return $Message.Substring(0, 300).Trim() + '…'
+}
+
+function Test-TidyProgressLine {
+    param([string] $Message)
+
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        return $false
+    }
+
+    $hasTransferMetrics = (
+        ($Message.IndexOf(' MB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+        ($Message.IndexOf(' KB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+        ($Message.IndexOf(' GB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+    )
+
+    if (-not $hasTransferMetrics) {
+        return $false
+    }
+
+    $questionMarks = ($Message.Length - $Message.Replace('?', '').Length)
+    if ($questionMarks -ge 4) {
+        return $true
+    }
+
+    if ($Message.IndexOf('G??', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        return $true
+    }
+
+    if ($Message -match '^(?:[A-Za-z]{1}\?\?){4,}') {
+        return $true
+    }
+
+    return $false
+}
+
 $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:ResultPayload = $null
+$script:TidyMaxOutputLines = 250
+$script:TidyMaxErrorLines = 200
+$script:TidyLogRootPath = $null
+$script:TidyLogInitialized = $false
+$script:CurrentLogFilePath = $null
+$script:NormalizedManagerOverride = $null
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
 
 if ($script:UsingResultFile) {
@@ -222,8 +404,14 @@ function Write-TidyOutput {
         return
     }
 
-    [void]$script:TidyOutputLines.Add($Message)
-    Write-Output $Message
+    $normalized = Trim-TidyLogMessage -Message $Message.Trim()
+    if (Test-TidyProgressLine -Message $normalized) {
+        return
+    }
+
+    Add-TidyBufferedLine -Buffer $script:TidyOutputLines -Message $normalized -MaxEntries $script:TidyMaxOutputLines
+    Write-Output $normalized
+    Write-TidyLogFileLine -Message $normalized -Level 'INFO'
 }
 
 function Write-TidyError {
@@ -237,8 +425,10 @@ function Write-TidyError {
     }
 
     $script:OperationSucceeded = $false
-    [void]$script:TidyErrorLines.Add($Message)
-    Write-Output "[ERROR] $Message"
+    $normalized = Trim-TidyLogMessage -Message $Message.Trim()
+    Add-TidyBufferedLine -Buffer $script:TidyErrorLines -Message $normalized -MaxEntries $script:TidyMaxErrorLines
+    Write-Output "[ERROR] $normalized"
+    Write-TidyLogFileLine -Message $normalized -Level 'ERROR'
 }
 
 function Save-TidyResult {
@@ -962,6 +1152,10 @@ function Invoke-ManagerUpdate {
                     continue
                 }
 
+                if (Test-TidyProgressLine -Message $message) {
+                    continue
+                }
+
                 [void]$logs.Add($message)
             }
         }
@@ -1021,6 +1215,8 @@ function Invoke-ManagerUpdate {
 
     $hashMismatchDetected = $false
     $hashMismatchLine = $null
+    $versionNotFoundDetected = $false
+    $versionNotFoundLine = $null
 
     foreach ($entry in @($rawOutput)) {
         if ($null -eq $entry) {
@@ -1042,6 +1238,11 @@ function Invoke-ManagerUpdate {
                 $hashMismatchLine = $message
             }
 
+            if (-not $versionNotFoundDetected -and $ManagerKey -eq 'winget' -and $message.IndexOf('No version found matching', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                $versionNotFoundDetected = $true
+                $versionNotFoundLine = $message
+            }
+
             continue
         }
 
@@ -1050,13 +1251,24 @@ function Invoke-ManagerUpdate {
             continue
         }
 
+        if (Test-TidyProgressLine -Message $message) {
+            continue
+        }
+
         if ($message.IndexOf('█') -ge 0) {
-            $hasTransferMetrics = ($message.IndexOf(' MB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
-                -or ($message.IndexOf(' KB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
-                -or ($message.IndexOf(' GB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0);
+            $hasTransferMetrics = (
+                ($message.IndexOf(' MB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                ($message.IndexOf(' KB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+                ($message.IndexOf(' GB / ', [System.StringComparison]::OrdinalIgnoreCase) -ge 0)
+            )
             if ($hasTransferMetrics) {
                 continue
             }
+        }
+
+        if (-not $versionNotFoundDetected -and $ManagerKey -eq 'winget' -and $message.IndexOf('No version found matching', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+            $versionNotFoundDetected = $true
+            $versionNotFoundLine = $message
         }
 
         if ($ManagerKey -eq 'winget' -and $message.IndexOf('installer hash does not match', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
@@ -1083,6 +1295,27 @@ function Invoke-ManagerUpdate {
     }
     else {
         $summary = "Update command exited with code $finalExitCode."
+    }
+
+    if ($ManagerKey -eq 'winget' -and $versionNotFoundDetected) {
+        if ([string]::IsNullOrWhiteSpace($versionNotFoundLine)) {
+            $versionNotFoundLine = "Winget could not find a matching version for package '$PackageId'."
+        }
+
+        if (-not $errors.Contains($versionNotFoundLine)) {
+            [void]$errors.Add($versionNotFoundLine)
+        }
+
+        if ($hasTarget -and -not [string]::IsNullOrWhiteSpace($TargetVersion)) {
+            $summary = "Winget could not find version $TargetVersion for '$nameForSummary'."
+        }
+        else {
+            $summary = "Winget could not find a matching version for '$nameForSummary'."
+        }
+
+        if ($finalExitCode -eq 0) {
+            $finalExitCode = $script:WingetNoVersionFoundExitCode
+        }
     }
 
     if ($ManagerKey -eq 'winget' -and $hashMismatchDetected) {
@@ -1135,6 +1368,8 @@ switch ($managerKey) {
     'scoop' { }
     default { throw "Unsupported package manager '$Manager'." }
 }
+
+$script:NormalizedManagerOverride = $normalizedManager
 
 $needsElevation = $RequiresAdmin.IsPresent -or $managerKey -in @('winget', 'choco')
 
@@ -1276,7 +1511,9 @@ try {
             }
         }
         elseif ($statusAfter -eq 'UpToDate' -and $exitCode -ne 0) {
-            $summary = "Package '$DisplayName' appears updated but command returned exit code $exitCode."
+            if ([string]::IsNullOrWhiteSpace($summary)) {
+                $summary = "Package '$DisplayName' appears updated but command returned exit code $exitCode."
+            }
         }
         elseif ($statusAfter -eq 'UpdateAvailable') {
             $canTreatAsSuccess = ($exitCode -eq 0) -and ($script:TidyErrorLines.Count -eq 0)
@@ -1379,6 +1616,7 @@ try {
         arguments        = if ($attempted -and $executionInfo) { $executionInfo.Arguments } else { @() }
         output           = $script:TidyOutputLines
         errors           = $script:TidyErrorLines
+        logFile          = if ($script:CurrentLogFilePath -and (Test-Path -Path $script:CurrentLogFilePath)) { $script:CurrentLogFilePath } else { $null }
     }
 
     $script:OperationSucceeded = $script:ResultPayload.succeeded
@@ -1413,6 +1651,7 @@ catch {
             arguments        = if ($executionInfo) { $executionInfo.Arguments } else { @() }
             output           = $script:TidyOutputLines
             errors           = $script:TidyErrorLines
+            logFile          = if ($script:CurrentLogFilePath -and (Test-Path -Path $script:CurrentLogFilePath)) { $script:CurrentLogFilePath } else { $null }
         }
     }
 
