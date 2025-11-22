@@ -20,9 +20,9 @@ internal sealed class CleanupScanner
         _definitionProvider = definitionProvider ?? throw new ArgumentNullException(nameof(definitionProvider));
     }
 
-    public Task<CleanupReport> ScanAsync(bool includeDownloads, int previewCount, CleanupItemKind itemKind, CancellationToken cancellationToken)
+    public Task<CleanupReport> ScanAsync(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, CancellationToken cancellationToken)
     {
-        var definitions = _definitionProvider.GetDefinitions(includeDownloads);
+        var definitions = _definitionProvider.GetDefinitions(includeDownloads, includeBrowserHistory);
         if (definitions.Count == 0)
         {
             return Task.FromResult(CleanupReport.Empty);

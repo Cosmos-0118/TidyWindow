@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -42,6 +44,10 @@ public interface IResourceLockService
 /// </summary>
 public sealed class ResourceLockService : IResourceLockService
 {
+    private const int GracefulCloseWaitMilliseconds = 4000;
+    private const int ForceCloseWaitMilliseconds = 2500;
+    private static readonly TimeSpan ProcessStartTolerance = TimeSpan.FromSeconds(2);
+
     public Task<IReadOnlyList<ResourceLockInfo>> InspectAsync(IEnumerable<string> resourcePaths, CancellationToken cancellationToken = default)
     {
         if (!OperatingSystem.IsWindows())
@@ -158,12 +164,18 @@ public sealed class ResourceLockService : IResourceLockService
                 return new ResourceCloseResult(true, $"Requested shutdown for {uniqueProcesses.Length} app(s).", uniqueProcesses.Length);
             }
 
-            if (result == NativeMethods.ERROR_FAIL_APP)
+            if (result == NativeMethods.ERROR_FAIL_NOACTION_REBOOT)
             {
-                return new ResourceCloseResult(false, "One or more apps refused to close (save your work and try force close).", uniqueProcesses.Length);
+                return new ResourceCloseResult(false, "Windows marked at least one locking app as critical; restart Windows to close it.", uniqueProcesses.Length);
             }
 
-            return new ResourceCloseResult(false, $"Closing apps failed with 0x{result:X}.", uniqueProcesses.Length);
+            var fallback = TryFallbackCloseProcesses(handles, mode, result, cancellationToken);
+            if (fallback is not null)
+            {
+                return fallback;
+            }
+
+            return new ResourceCloseResult(false, BuildRmFailureMessage(result), uniqueProcesses.Length);
         }
         finally
         {
@@ -240,6 +252,209 @@ public sealed class ResourceLockService : IResourceLockService
         }
     }
 
+    private static string BuildRmFailureMessage(int errorCode)
+    {
+        return errorCode switch
+        {
+            NativeMethods.ERROR_FAIL_SHUTDOWN => "Windows could not close some of the selected apps. Try force close or restart Windows.",
+            NativeMethods.ERROR_FAIL_RESTART => "Windows could not restart the apps it closed earlier.",
+            NativeMethods.ERROR_CANCELLED => "Closing apps was cancelled before Windows finished.",
+            NativeMethods.ERROR_SEM_TIMEOUT => "Windows timed out while trying to close the selected apps.",
+            NativeMethods.ERROR_BAD_ARGUMENTS => "Windows rejected the shutdown request because it considered the parameters invalid.",
+            NativeMethods.ERROR_WRITE_FAULT => "Windows encountered a write fault while closing the selected apps.",
+            NativeMethods.ERROR_OUTOFMEMORY => "Windows ran out of memory while attempting to close the apps.",
+            NativeMethods.ERROR_INVALID_HANDLE => "Windows lost the Restart Manager session handle before it could close the apps.",
+            _ => BuildDefaultErrorMessage(errorCode)
+        };
+    }
+
+    private static string BuildDefaultErrorMessage(int errorCode)
+    {
+        try
+        {
+            var exceptionMessage = new Win32Exception(errorCode).Message;
+            if (!string.IsNullOrWhiteSpace(exceptionMessage))
+            {
+                return $"Closing apps failed: {exceptionMessage} (0x{errorCode:X}).";
+            }
+        }
+        catch
+        {
+            // Ignore lookup failures; we will fall back to hex.
+        }
+
+        return $"Closing apps failed with 0x{errorCode:X}.";
+    }
+
+    private static ResourceCloseResult? TryFallbackCloseProcesses(IReadOnlyList<ResourceLockHandle> handles, ResourceCloseMode mode, int rmErrorCode, CancellationToken cancellationToken)
+    {
+        if (handles.Count == 0)
+        {
+            return null;
+        }
+
+        var (attempted, closed, remaining) = CloseProcessesDirectly(handles, mode, cancellationToken);
+        if (attempted == 0)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+        builder.Append($"Windows Restart Manager returned 0x{rmErrorCode:X}. ");
+
+        if (remaining.Count == 0)
+        {
+            builder.Append(mode == ResourceCloseMode.Force
+                ? $"Terminated {closed} blocking process(es) directly."
+                : $"Closed {closed} blocking process(es) by sending close messages.");
+            return new ResourceCloseResult(true, builder.ToString(), attempted);
+        }
+
+        builder.Append(mode == ResourceCloseMode.Force
+            ? $"Terminated {closed} of {attempted} process(es); still running: "
+            : $"Requested close for {attempted} process(es); still running: ");
+        builder.Append(string.Join(", ", remaining.Take(3)));
+        if (remaining.Count > 3)
+        {
+            builder.Append(", ...");
+        }
+
+        builder.Append('.');
+        return new ResourceCloseResult(false, builder.ToString(), attempted);
+    }
+
+    private static (int Attempted, int Closed, List<string> Remaining) CloseProcessesDirectly(IReadOnlyList<ResourceLockHandle> handles, ResourceCloseMode mode, CancellationToken cancellationToken)
+    {
+        var attempted = 0;
+        var closed = 0;
+        var remaining = new List<string>();
+
+        foreach (var handle in handles)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var process = TryGetProcess(handle);
+            if (process is null)
+            {
+                continue;
+            }
+
+            var descriptor = DescribeProcess(process);
+            using (process)
+            {
+                attempted++;
+                var succeeded = mode == ResourceCloseMode.Force
+                    ? TryKillProcess(process)
+                    : TryCloseProcessGracefully(process);
+
+                if (succeeded)
+                {
+                    closed++;
+                }
+                else
+                {
+                    remaining.Add(descriptor);
+                }
+            }
+        }
+
+        return (attempted, closed, remaining);
+    }
+
+    private static Process? TryGetProcess(ResourceLockHandle handle)
+    {
+        try
+        {
+            var process = Process.GetProcessById(handle.ProcessId);
+            if (process.HasExited)
+            {
+                process.Dispose();
+                return null;
+            }
+
+            if (handle.ProcessStartTimeUtc.HasValue)
+            {
+                try
+                {
+                    var startTimeUtc = process.StartTime.ToUniversalTime();
+                    if ((startTimeUtc - handle.ProcessStartTimeUtc.Value).Duration() > ProcessStartTolerance)
+                    {
+                        process.Dispose();
+                        return null;
+                    }
+                }
+                catch
+                {
+                    // Unable to read start time; fall back to PID-only verification.
+                }
+            }
+
+            return process;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool TryCloseProcessGracefully(Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return true;
+            }
+
+            if (!process.CloseMainWindow())
+            {
+                return process.HasExited;
+            }
+
+            return process.WaitForExit(GracefulCloseWaitMilliseconds);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryKillProcess(Process process)
+    {
+        try
+        {
+            if (process.HasExited)
+            {
+                return true;
+            }
+
+            process.Kill(entireProcessTree: true);
+            return process.WaitForExit(ForceCloseWaitMilliseconds);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static string DescribeProcess(Process process)
+    {
+        try
+        {
+            var name = process.ProcessName;
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return $"PID {process.Id}";
+            }
+
+            return $"{name} (PID {process.Id})";
+        }
+        catch
+        {
+            return $"PID {process.Id}";
+        }
+    }
+
     private sealed class ProcessLockAccumulator
     {
         private readonly NativeMethods.RM_PROCESS_INFO _processInfo;
@@ -301,7 +516,15 @@ public sealed class ResourceLockService : IResourceLockService
     private static class NativeMethods
     {
         public const int ERROR_MORE_DATA = 234;
-        public const int ERROR_FAIL_APP = 350; // RM-specific constant
+        public const int ERROR_FAIL_NOACTION_REBOOT = 350;
+        public const int ERROR_FAIL_SHUTDOWN = 351;
+        public const int ERROR_FAIL_RESTART = 352;
+        public const int ERROR_CANCELLED = 1223;
+        public const int ERROR_SEM_TIMEOUT = 121;
+        public const int ERROR_BAD_ARGUMENTS = 160;
+        public const int ERROR_WRITE_FAULT = 29;
+        public const int ERROR_OUTOFMEMORY = 14;
+        public const int ERROR_INVALID_HANDLE = 6;
 
         [Flags]
         public enum RM_SHUTDOWN_TYPE : uint

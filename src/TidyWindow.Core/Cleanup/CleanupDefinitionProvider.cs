@@ -12,7 +12,7 @@ internal sealed class CleanupDefinitionProvider
     private static readonly string ProgramData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
     private static readonly string WindowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
 
-    public IReadOnlyList<CleanupTargetDefinition> GetDefinitions(bool includeDownloads)
+    public IReadOnlyList<CleanupTargetDefinition> GetDefinitions(bool includeDownloads, bool includeBrowserHistory)
     {
         var definitions = new List<CleanupTargetDefinition>
         {
@@ -32,8 +32,11 @@ internal sealed class CleanupDefinitionProvider
         definitions.AddRange(GetChromeCacheDefinitions());
         definitions.AddRange(GetFirefoxCacheDefinitions());
         definitions.AddRange(GetTeamsCacheDefinitions());
-        definitions.AddRange(GetEdgeHistoryDefinitions());
-        definitions.AddRange(GetChromeHistoryDefinitions());
+        if (includeBrowserHistory)
+        {
+            definitions.AddRange(GetEdgeHistoryDefinitions());
+            definitions.AddRange(GetChromeHistoryDefinitions());
+        }
         definitions.AddRange(GetAdditionalSafeTargets());
 
         definitions.AddRange(new[]
@@ -279,7 +282,15 @@ internal sealed class CleanupDefinitionProvider
     private static IReadOnlyList<(string FileName, string LabelSuffix, string Notes)> ChromiumHistoryFiles { get; } = new[]
     {
         ("History", "Browsing history", "Clears site visit history. Close the browser before cleaning."),
+        ("History-journal", "History journal", "Removes the SQLite journal so history cannot be restored."),
+        ("History-wal", "History WAL", "Removes the write-ahead log to wipe pending browser history."),
+        ("History-shm", "History shared memory", "Removes the SQLite shared-memory file for browser history."),
+        ("History Provider Cache", "History provider cache", "Clears omnibox history suggestions."),
+        ("History Provider Cache-journal", "History provider cache journal", "Removes the journal for the history provider cache."),
+        ("History Provider Cache-wal", "History provider cache WAL", "Removes outstanding cached history provider entries."),
+        ("History Provider Cache-shm", "History provider cache shared memory", "Clears residual provider cache state."),
         ("Visited Links", "Visited links cache", "Removes colored/auto-complete visited link hints."),
+        ("Visited Links-journal", "Visited links journal", "Removes the journal file for visited links cache."),
         ("Network Action Predictor", "Prediction data", "Clears predictive navigation data for the profile."),
     };
 

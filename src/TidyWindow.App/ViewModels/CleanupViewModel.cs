@@ -189,6 +189,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly MainViewModel _mainViewModel;
     private readonly IPrivilegeService _privilegeService;
     private readonly IResourceLockService _resourceLockService;
+    private readonly IBrowserCleanupService _browserCleanupService;
 
     private const int PreviewCountMinimumValue = 10;
     private const int PreviewCountMaximumValue = 100_000;
@@ -211,12 +212,13 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
     private DateTime? _minimumAgeThresholdUtc;
 
-    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService, IResourceLockService resourceLockService)
+    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService, IResourceLockService resourceLockService, IBrowserCleanupService browserCleanupService)
     {
         _cleanupService = cleanupService;
         _mainViewModel = mainViewModel;
         _privilegeService = privilegeService;
         _resourceLockService = resourceLockService;
+        _browserCleanupService = browserCleanupService;
 
         ItemKindOptions = new List<CleanupItemKindOption>
         {
@@ -271,6 +273,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _includeDownloads = true;
+
+    [ObservableProperty]
+    private bool _includeBrowserHistory = true;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -810,7 +815,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             ClearTargets();
             CurrentPage = 1;
 
-            var report = await _cleanupService.PreviewAsync(IncludeDownloads, PreviewCount, SelectedItemKind);
+            var report = await _cleanupService.PreviewAsync(IncludeDownloads, IncludeBrowserHistory, PreviewCount, SelectedItemKind);
             var filteredTargets = FilterPreviewTargets(report.Targets)
                 .OrderByDescending(static t => t.TotalSizeBytes)
                 .ToList();
@@ -1474,22 +1479,37 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
         }
 
-        var models = itemsToDelete.Select(static tuple => tuple.item.Model).ToList();
-        if (models.Count == 0)
-        {
-            _mainViewModel.SetStatusMessage("Cleanup cancelled — nothing remains selected.");
-            return;
-        }
+        var manualBrowserEntries = new List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item, CleanupDeletionEntry entry)>();
+        BrowserHistoryHandleResult browserHistoryResult = BrowserHistoryHandleResult.Empty;
 
         try
         {
             IsDeleting = true;
             IsBusy = true;
+
+            if (_browserCleanupService is not null)
+            {
+                browserHistoryResult = await HandleEdgeHistoryAsync(itemsToDelete, CancellationToken.None);
+                manualBrowserEntries.AddRange(browserHistoryResult.Entries);
+            }
+
+            var handledItems = new HashSet<CleanupPreviewItemViewModel>(manualBrowserEntries.Select(static entry => entry.item));
+            var models = itemsToDelete
+                .Where(tuple => !handledItems.Contains(tuple.item))
+                .Select(static tuple => tuple.item.Model)
+                .ToList();
+
+            if (models.Count == 0 && manualBrowserEntries.Count == 0)
+            {
+                _mainViewModel.SetStatusMessage("Cleanup cancelled — nothing remains selected.");
+                return;
+            }
+
             DeletionProgressTotal = models.Count;
             DeletionProgressCurrent = 0;
             DeletionStatusMessage = totalSizeMb > 0
-                ? $"Removing {models.Count:N0} item(s) • {totalSizeMb:F2} MB"
-                : $"Removing {models.Count:N0} item(s)";
+                ? $"Removing {itemsToDelete.Count:N0} item(s) • {totalSizeMb:F2} MB"
+                : $"Removing {itemsToDelete.Count:N0} item(s)";
 
             var progressStopwatch = Stopwatch.StartNew();
             var lastProgressReported = -1;
@@ -1532,7 +1552,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
             var deletionResult = await _cleanupService.DeleteAsync(models, progress, deletionOptions);
             stopwatch.Stop();
 
-            var entryLookup = await Task.Run(() => BuildDeletionEntryLookup(deletionResult), CancellationToken.None);
+            var combinedResult = manualBrowserEntries.Count == 0
+                ? deletionResult
+                : new CleanupDeletionResult(manualBrowserEntries.Select(static tuple => tuple.entry).Concat(deletionResult.Entries));
+
+            var entryLookup = await Task.Run(() => BuildDeletionEntryLookup(combinedResult), CancellationToken.None);
 
             var removalCandidates = new List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>();
             var categoriesTouched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -1641,12 +1665,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
             OnPropertyChanged(nameof(SelectionSummaryText));
             OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
 
-            var deletionSummary = deletionResult.ToStatusMessage();
+            var deletionSummary = combinedResult.ToStatusMessage();
+            if (browserHistoryResult.Warnings.Count > 0)
+            {
+                deletionSummary += " • Edge cleanup: " + string.Join(", ", browserHistoryResult.Warnings);
+            }
             string? reportPath = null;
             string? reportError = null;
             if (generateReport)
             {
-                reportPath = TryGenerateCleanupReport(deletionResult, out reportError);
+                reportPath = TryGenerateCleanupReport(combinedResult, out reportError);
                 if (!string.IsNullOrWhiteSpace(reportPath))
                 {
                     deletionSummary += $" • Report saved to {reportPath}";
@@ -1659,9 +1687,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
             _mainViewModel.SetStatusMessage(deletionSummary);
 
-            if (deletionResult.HasErrors && deletionResult.Errors.Count > 0)
+            if (combinedResult.HasErrors && combinedResult.Errors.Count > 0)
             {
-                DeletionStatusMessage = deletionSummary + " • " + deletionResult.Errors[0];
+                DeletionStatusMessage = deletionSummary + " • " + combinedResult.Errors[0];
             }
             else
             {
@@ -1671,7 +1699,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             if (showCelebration)
             {
                 await ShowCleanupCelebrationAsync(
-                    deletionResult,
+                    combinedResult,
                     categoriesTouched,
                     failureItems,
                     stopwatch.Elapsed,
@@ -1703,6 +1731,85 @@ public sealed partial class CleanupViewModel : ViewModelBase
             OnPropertyChanged(nameof(SelectionSummaryText));
             OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         }
+    }
+
+    private async Task<BrowserHistoryHandleResult> HandleEdgeHistoryAsync(
+        IReadOnlyList<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> items,
+        CancellationToken cancellationToken)
+    {
+        if (items is null || items.Count == 0)
+        {
+            return BrowserHistoryHandleResult.Empty;
+        }
+
+        var grouped = new Dictionary<string, List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var tuple in items)
+        {
+            if (tuple.item is null || !string.Equals(tuple.item.Classification, "History", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var candidatePath = tuple.item.Model.FullName;
+            if (!BrowserHistoryHelper.TryGetEdgeProfileDirectory(candidatePath, out var profileDirectory))
+            {
+                continue;
+            }
+
+            if (!grouped.TryGetValue(profileDirectory, out var list))
+            {
+                list = new List<(CleanupTargetGroupViewModel, CleanupPreviewItemViewModel)>();
+                grouped[profileDirectory] = list;
+            }
+
+            list.Add(tuple);
+        }
+
+        if (grouped.Count == 0)
+        {
+            return BrowserHistoryHandleResult.Empty;
+        }
+
+        var entries = new List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item, CleanupDeletionEntry entry)>();
+        var warnings = new List<string>();
+
+        foreach (var kvp in grouped)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var result = await _browserCleanupService.ClearEdgeHistoryAsync(kvp.Key, cancellationToken).ConfigureAwait(false);
+            if (result.IsSuccess)
+            {
+                foreach (var tuple in kvp.Value)
+                {
+                    var entry = new CleanupDeletionEntry(
+                        tuple.item.Model.FullName,
+                        tuple.item.Model.SizeBytes,
+                        tuple.item.IsDirectory,
+                        CleanupDeletionDisposition.Deleted,
+                        "Cleared safely via Microsoft Edge API.");
+                    entries.Add((tuple.group, tuple.item, entry));
+                }
+            }
+            else
+            {
+                warnings.Add(result.Message);
+            }
+        }
+
+        return entries.Count == 0 && warnings.Count == 0
+            ? BrowserHistoryHandleResult.Empty
+            : new BrowserHistoryHandleResult(entries, warnings);
+    }
+
+    private sealed record BrowserHistoryHandleResult(
+        IReadOnlyList<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item, CleanupDeletionEntry entry)> Entries,
+        IReadOnlyList<string> Warnings)
+    {
+        public static BrowserHistoryHandleResult Empty { get; } = new(
+            Array.Empty<(CleanupTargetGroupViewModel, CleanupPreviewItemViewModel, CleanupDeletionEntry)>(),
+            Array.Empty<string>());
     }
 
     private string? TryGenerateCleanupReport(CleanupDeletionResult result, out string? error)
@@ -2157,6 +2264,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private void ResetFilters()
     {
         IncludeDownloads = true;
+        IncludeBrowserHistory = true;
         SelectedItemKind = CleanupItemKind.Both;
         SelectedExtensionFilterMode = CleanupExtensionFilterMode.None;
         SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
@@ -2788,15 +2896,22 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     private bool MatchesFilters(CleanupPreviewItemViewModel item)
     {
+        if (item is null)
+        {
+            return false;
+        }
+
+        var isHistoryItem = IsHistoryClassification(item);
+
         switch (SelectedItemKind)
         {
             case CleanupItemKind.Files when item.IsDirectory:
                 return false;
-            case CleanupItemKind.Folders when !item.IsDirectory:
+            case CleanupItemKind.Folders when !item.IsDirectory && !isHistoryItem:
                 return false;
         }
 
-        if (_minimumAgeThresholdUtc is { } thresholdUtc && !ShouldBypassAgeFilter(item))
+        if (_minimumAgeThresholdUtc is { } thresholdUtc && !isHistoryItem)
         {
             var lastModifiedUtc = item.Model.LastModifiedUtc;
             if (lastModifiedUtc != DateTime.MinValue && lastModifiedUtc > thresholdUtc)
@@ -2834,7 +2949,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         };
     }
 
-    private static bool ShouldBypassAgeFilter(CleanupPreviewItemViewModel item)
+    private static bool IsHistoryClassification(CleanupPreviewItemViewModel item)
     {
         if (item is null)
         {

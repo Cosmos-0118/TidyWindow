@@ -67,6 +67,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<IHighFrictionPromptService, HighFrictionPromptService>();
                 services.AddSingleton<BackgroundPresenceService>();
                 services.AddSingleton<PulseGuardService>();
+                services.AddSingleton<IBrowserCleanupService, BrowserCleanupService>();
 
                 services.AddSingleton<PowerShellInvoker>();
                 services.AddSingleton<PackageManagerDetector>();

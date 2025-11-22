@@ -191,6 +191,84 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="CleanupSliderStyle" TargetType="Slider">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Slider">
+                        <Grid Margin="0,4,0,0">
+                            <Track x:Name="PART_Track"
+                                   Maximum="{TemplateBinding Maximum}"
+                                   Minimum="{TemplateBinding Minimum}"
+                                   Value="{TemplateBinding Value}"
+                                   IsDirectionReversed="{TemplateBinding IsDirectionReversed}"
+                                   Orientation="Horizontal"
+                                   Height="24">
+                                <Track.DecreaseRepeatButton>
+                                    <RepeatButton Command="Slider.DecreaseSmall"
+                                                  Background="Transparent"
+                                                  BorderThickness="0"
+                                                  Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="8"
+                                                        CornerRadius="4"
+                                                        Background="{StaticResource CleanupProgressBrush}"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.DecreaseRepeatButton>
+                                <Track.IncreaseRepeatButton>
+                                    <RepeatButton Command="Slider.IncreaseSmall"
+                                                  Background="Transparent"
+                                                  BorderThickness="0"
+                                                  Focusable="False">
+                                        <RepeatButton.Template>
+                                            <ControlTemplate TargetType="RepeatButton">
+                                                <Border Height="8"
+                                                        CornerRadius="4"
+                                                        Background="{StaticResource CleanupSurfaceHighlightBrush}"/>
+                                            </ControlTemplate>
+                                        </RepeatButton.Template>
+                                    </RepeatButton>
+                                </Track.IncreaseRepeatButton>
+                                <Track.Thumb>
+                                    <Thumb Width="22"
+                                           Height="22"
+                                           Focusable="False">
+                                        <Thumb.Template>
+                                            <ControlTemplate TargetType="Thumb">
+                                                <Border x:Name="ThumbRoot"
+                                                        Width="{TemplateBinding Width}"
+                                                        Height="{TemplateBinding Height}"
+                                                        CornerRadius="11"
+                                                        Background="{StaticResource CleanupAccentBrush}"
+                                                        BorderThickness="2"
+                                                        BorderBrush="{StaticResource CleanupSurfaceElevatedBrush}">
+                                                    <Border.Effect>
+                                                        <DropShadowEffect BlurRadius="10"
+                                                                          Opacity="0.35"
+                                                                          ShadowDepth="0"/>
+                                                    </Border.Effect>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource CleanupAccentBrushSecondary}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsDragging" Value="True">
+                                                        <Setter TargetName="ThumbRoot" Property="BorderBrush" Value="{StaticResource CleanupAccentBrush}"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Thumb.Template>
+                                    </Thumb>
+                                </Track.Thumb>
+                            </Track>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="FlatButtonStyle"
                TargetType="Button">
             <Setter Property="Cursor"
@@ -1037,16 +1115,25 @@
                                            FontSize="14"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                <TextBlock Text="Include Downloads to mirror the quick toggle (D)."
+                                <TextBlock Text="Choose whether to scan downloads or browser history."
                                            FontSize="12"
                                            Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,8"/>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Content="Include Downloads"
-                                          FontSize="13"
-                                          Foreground="{StaticResource CleanupSoftTextBrush}"
-                                          IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
+                                <StackPanel>
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Include Downloads"
+                                              FontSize="13"
+                                              Foreground="{StaticResource CleanupSoftTextBrush}"
+                                              IsChecked="{Binding IncludeDownloads, Mode=TwoWay}"/>
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Include browser history"
+                                              FontSize="13"
+                                              Foreground="{StaticResource CleanupSoftTextBrush}"
+                                              Margin="0,8,0,0"
+                                              ToolTip="Use the secure WebView2 API to clear Edge profiles when enabled."
+                                              IsChecked="{Binding IncludeBrowserHistory, Mode=TwoWay}"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -1116,29 +1203,55 @@
                                            Foreground="{StaticResource CleanupMutedTextBrush}"
                                            TextWrapping="Wrap"
                                            Margin="0,4,0,8"/>
-                <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
-                    Maximum="{Binding PreviewCountMaximum, Mode=OneWay}"
-                                        Value="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TickFrequency="5"
-                                        IsSnapToTickEnabled="True"
-                                        Margin="0,0,0,8"/>
-                                <StackPanel Orientation="Horizontal"
-                                            VerticalAlignment="Center"
-                                            Margin="0,0,0,8">
-                                    <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                             Width="64"
-                                             Style="{StaticResource App.TextBoxStyle}"
-                                             HorizontalContentAlignment="Center"
-                                             Margin="0,0,12,0"/>
-                                    <TextBlock FontSize="12"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"
-                                               VerticalAlignment="Center">
-                                        <Run Text="Range: "/>
-                                        <Run Text="{Binding PreviewCountMinimum}"/>
-                                        <Run Text=" - "/>
-                                        <Run Text="{Binding PreviewCountMaximum}"/>
-                                    </TextBlock>
-                                </StackPanel>
+                                <Grid Margin="0,4,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="220"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0"
+                                                Margin="0,0,20,0">
+                                        <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
+                                                Maximum="{Binding PreviewCountMaximum, Mode=OneWay}"
+                                                Value="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                IsSnapToTickEnabled="True"
+                                                Style="{StaticResource CleanupSliderStyle}"/>
+                                        <TextBlock FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   Margin="0,6,0,0">
+                                            <Run Text="Range: "/>
+                                            <Run Text="{Binding PreviewCountMinimum}"/>
+                                            <Run Text=" - "/>
+                                            <Run Text="{Binding PreviewCountMaximum}"/>
+                                        </TextBlock>
+                                    </StackPanel>
+                                    <Border Grid.Column="1"
+                                            Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="16,14">
+                                        <StackPanel>
+                                            <TextBlock Text="Preview cap"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                     Style="{StaticResource App.TextBoxStyle}"
+                                                     FontSize="26"
+                                                     FontWeight="SemiBold"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     HorizontalContentAlignment="Center"
+                                                     Padding="4"
+                                                     MinHeight="48"/>
+                                            <TextBlock Text="items"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       HorizontalAlignment="Center"
+                                                       Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
                                 <WrapPanel>
                                     <Button Style="{StaticResource ChipButtonStyle}"
                                             Content="25"

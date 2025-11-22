@@ -27,9 +27,9 @@ public sealed class CleanupService
         _scanner = scanner ?? throw new ArgumentNullException(nameof(scanner));
     }
 
-    public Task<CleanupReport> PreviewAsync(bool includeDownloads, int previewCount, CleanupItemKind itemKind = CleanupItemKind.Files, CancellationToken cancellationToken = default)
+    public Task<CleanupReport> PreviewAsync(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind = CleanupItemKind.Files, CancellationToken cancellationToken = default)
     {
-        return _scanner.ScanAsync(includeDownloads, previewCount, itemKind, cancellationToken);
+        return _scanner.ScanAsync(includeDownloads, includeBrowserHistory, previewCount, itemKind, cancellationToken);
     }
 
     public Task<CleanupDeletionResult> DeleteAsync(

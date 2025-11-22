@@ -15,7 +15,7 @@ public sealed class CleanupScriptTests
 
         var service = new CleanupService();
 
-        var report = await service.PreviewAsync(includeDownloads: false, previewCount: 5);
+        var report = await service.PreviewAsync(includeDownloads: false, includeBrowserHistory: true, previewCount: 5);
 
         Assert.NotNull(report);
         Assert.NotEmpty(report.Targets);
@@ -31,7 +31,7 @@ public sealed class CleanupScriptTests
 
         var service = new CleanupService();
 
-        var report = await service.PreviewAsync(includeDownloads: true, previewCount: 1);
+        var report = await service.PreviewAsync(includeDownloads: true, includeBrowserHistory: true, previewCount: 1);
 
         Assert.NotNull(report);
         Assert.NotEmpty(report.Targets);
