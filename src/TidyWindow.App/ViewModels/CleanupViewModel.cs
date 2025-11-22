@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
+using TidyWindow.App.ViewModels.Preview;
 using TidyWindow.Core.Cleanup;
 using WindowsClipboard = System.Windows.Clipboard;
 
@@ -198,6 +199,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private const int MaxLockInspectionSampleTotal = 600;
 
     private readonly HashSet<string> _activeExtensions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CleanupPreviewFilter _previewFilter;
+    private readonly PreviewPagingController _previewPagingController;
     private int _previewCount = DefaultPreviewCount;
     private static readonly string[] _sensitiveRoots = BuildSensitiveRoots();
     private List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>? _pendingDeletionItems;
@@ -219,6 +222,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
         _privilegeService = privilegeService;
         _resourceLockService = resourceLockService;
         _browserCleanupService = browserCleanupService;
+
+        _previewFilter = new CleanupPreviewFilter
+        {
+            SelectedItemKind = _selectedItemKind,
+            ExtensionFilterMode = _selectedExtensionFilterMode,
+            MinimumAgeThresholdUtc = _minimumAgeThresholdUtc
+        };
+        _previewPagingController = new PreviewPagingController(() => SelectedTarget, _previewFilter);
+        _previewPagingController.StateChanged += OnPreviewPagingStateChanged;
 
         ItemKindOptions = new List<CleanupItemKindOption>
         {
@@ -436,7 +448,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public ObservableCollection<CleanupTargetGroupViewModel> Targets { get; } = new();
 
-    public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems { get; } = new();
+    public ObservableCollection<CleanupPreviewItemViewModel> FilteredItems => _previewPagingController.FilteredItems;
 
     public ObservableCollection<CleanupDeletionRiskViewModel> PendingDeletionRisks { get; } = new();
 
@@ -496,108 +508,95 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
     }
 
-    // Paging state for preview
-    private int _currentPage = 1;
-    private int _pageSize = 100;
-    private int _totalFilteredItems = 0;
     public int CurrentPage
     {
-        get => _currentPage;
+        get => _previewPagingController.CurrentPage;
         set
         {
-            var totalPages = TotalPages;
-            if (value < 1)
+            if (_previewPagingController.TrySetCurrentPage(value))
             {
-                value = 1;
-            }
-            else if (value > totalPages)
-            {
-                value = totalPages;
-            }
-
-            if (_currentPage != value)
-            {
-                _currentPage = value;
                 OnPropertyChanged(nameof(CurrentPage));
-                RefreshFilteredItems();
             }
         }
     }
+
     public int PageSize
     {
-        get => _pageSize;
+        get => _previewPagingController.PageSize;
         set
         {
-            if (value < 1) value = 1;
-            if (_pageSize != value)
+            if (_previewPagingController.TrySetPageSize(value))
             {
-                _pageSize = value;
                 OnPropertyChanged(nameof(PageSize));
-                CurrentPage = 1;
-                RefreshFilteredItems();
-                OnPropertyChanged(nameof(PageDisplay));
-                OnPropertyChanged(nameof(TotalPages));
-                OnPropertyChanged(nameof(CanGoToPreviousPage));
-                OnPropertyChanged(nameof(CanGoToNextPage));
             }
         }
     }
-    public int TotalPages => ComputeTotalPages(_totalFilteredItems);
 
-    public string PageDisplay => _totalFilteredItems == 0
-        ? "Page 0 of 0"
-        : $"Page {CurrentPage} of {TotalPages}";
+    public int TotalPages => _previewPagingController.TotalPages;
 
-    private int ComputeTotalPages(int itemCount)
-    {
-        if (itemCount <= 0)
-        {
-            return 1;
-        }
-
-        var pageSize = Math.Max(PageSize, 1);
-        return (itemCount + pageSize - 1) / pageSize;
-    }
+    public string PageDisplay => _previewPagingController.PageDisplay;
 
     private void ResetCurrentPage()
     {
-        if (_currentPage == 1)
-        {
-            return;
-        }
-
-        _currentPage = 1;
-        OnPropertyChanged(nameof(CurrentPage));
+        _previewPagingController.ResetCurrentPage();
     }
-    public bool CanGoToPreviousPage => CurrentPage > 1;
-    public bool CanGoToNextPage => CurrentPage < TotalPages;
 
-    [ObservableProperty]
-    private int _selectRangeStartPage = 1;
+    public bool CanGoToPreviousPage => _previewPagingController.CanGoToPreviousPage;
 
-    [ObservableProperty]
-    private int _selectRangeEndPage = 1;
+    public bool CanGoToNextPage => _previewPagingController.CanGoToNextPage;
 
-    [ObservableProperty]
-    private CleanupPreviewSortMode _previewSortMode = CleanupPreviewSortMode.Impact;
+    public int SelectRangeStartPage
+    {
+        get => _previewPagingController.SelectRangeStartPage;
+        set
+        {
+            if (_previewPagingController.TrySetSelectRangeStartPage(value))
+            {
+                OnPropertyChanged(nameof(SelectRangeStartPage));
+            }
+        }
+    }
+
+    public int SelectRangeEndPage
+    {
+        get => _previewPagingController.SelectRangeEndPage;
+        set
+        {
+            if (_previewPagingController.TrySetSelectRangeEndPage(value))
+            {
+                OnPropertyChanged(nameof(SelectRangeEndPage));
+            }
+        }
+    }
+
+    public CleanupPreviewSortMode PreviewSortMode
+    {
+        get => _previewPagingController.PreviewSortMode;
+        set
+        {
+            if (_previewPagingController.TrySetPreviewSortMode(value))
+            {
+                OnPropertyChanged(nameof(PreviewSortMode));
+            }
+        }
+    }
 
     [RelayCommand]
     private void NextPage()
     {
-        if (CurrentPage < TotalPages)
-            CurrentPage++;
+        if (!_previewPagingController.TryGoToNextPage())
+        {
+            return;
+        }
     }
 
     [RelayCommand]
     private void PreviousPage()
     {
-        if (CurrentPage > 1)
-            CurrentPage--;
-    }
-
-    partial void OnPreviewSortModeChanged(CleanupPreviewSortMode value)
-    {
-        RefreshFilteredItems();
+        if (!_previewPagingController.TryGoToPreviousPage())
+        {
+            return;
+        }
     }
 
     public IReadOnlyList<CleanupItemKindOption> ItemKindOptions { get; }
@@ -2140,7 +2139,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         var totalPages = TotalPages;
-        if (_totalFilteredItems == 0 || totalPages <= 0)
+        if (_previewPagingController.TotalFilteredItems == 0 || totalPages <= 0)
         {
             return;
         }
@@ -2167,7 +2166,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         using (target.BeginSelectionUpdate())
         {
-            foreach (var item in target.Items.Where(MatchesFilters))
+            foreach (var item in target.Items.Where(_previewFilter.Matches))
             {
                 if (index >= startIndex && index < endExclusive)
                 {
@@ -2185,7 +2184,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     private bool CanSelectAcrossPages()
     {
-        return SelectedTarget is not null && _totalFilteredItems > 0;
+        return SelectedTarget is not null && _previewPagingController.TotalFilteredItems > 0;
     }
 
     [RelayCommand(CanExecute = nameof(CanClearCurrentSelection))]
@@ -2235,7 +2234,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
         else
         {
-            items = group.Items.Where(MatchesFilters);
+            items = group.Items.Where(_previewFilter.Matches);
         }
 
         using (group.BeginSelectionUpdate())
@@ -2251,7 +2250,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     {
         foreach (var group in Targets)
         {
-            if (group.Items.Any(MatchesFilters))
+            if (group.Items.Any(_previewFilter.Matches))
             {
                 return true;
             }
@@ -2480,6 +2479,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     partial void OnSelectedItemKindChanged(CleanupItemKind value)
     {
+        _previewFilter.SelectedItemKind = value;
         RefreshFilteredItems();
     }
 
@@ -2539,6 +2539,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     partial void OnSelectedExtensionFilterModeChanged(CleanupExtensionFilterMode value)
     {
+        _previewFilter.ExtensionFilterMode = value;
         RebuildExtensionCache();
         OnPropertyChanged(nameof(IsExtensionSelectorEnabled));
         RefreshFilteredItems();
@@ -2556,22 +2557,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
         RefreshFilteredItems();
     }
 
-    partial void OnSelectRangeStartPageChanged(int value)
-    {
-        SelectPageRangeCommand.NotifyCanExecuteChanged();
-    }
-
-    partial void OnSelectRangeEndPageChanged(int value)
-    {
-        SelectPageRangeCommand.NotifyCanExecuteChanged();
-    }
-
     partial void OnSelectedAgeFilterChanged(CleanupAgeFilterOption? value)
     {
-        _minimumAgeThresholdUtc = value is { Days: > 0 } option
-            ? DateTime.UtcNow - TimeSpan.FromDays(option.Days)
-            : null;
-
+        _minimumAgeThresholdUtc = value is null || value.Days <= 0
+            ? null
+            : DateTime.UtcNow - TimeSpan.FromDays(value.Days);
+        _previewFilter.MinimumAgeThresholdUtc = _minimumAgeThresholdUtc;
         RefreshFilteredItems();
     }
 
@@ -2782,7 +2773,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         SelectedTarget = null;
-        FilteredItems.Clear();
+        _previewPagingController.Reset();
         HideRefreshToast();
         OnPropertyChanged(nameof(SelectedItemCount));
         OnPropertyChanged(nameof(SelectedItemSizeMegabytes));
@@ -2836,56 +2827,23 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     private void RefreshFilteredItems()
     {
-        FilteredItems.Clear();
-        if (SelectedTarget is null)
-        {
-            _totalFilteredItems = 0;
-            ResetCurrentPage();
-            OnPropertyChanged(nameof(HasFilteredResults));
-            OnPropertyChanged(nameof(ExtensionStatusText));
-            OnPropertyChanged(nameof(PageDisplay));
-            OnPropertyChanged(nameof(TotalPages));
-            OnPropertyChanged(nameof(CanGoToPreviousPage));
-            OnPropertyChanged(nameof(CanGoToNextPage));
-            SelectAllCurrentCommand.NotifyCanExecuteChanged();
-            ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
-            SelectAllPagesCommand.NotifyCanExecuteChanged();
-            SelectPageRangeCommand.NotifyCanExecuteChanged();
-            return;
-        }
-        // Get all filtered items, but only show current page
-        var filteredQuery = SelectedTarget.Items.Where(MatchesFilters);
-        filteredQuery = PreviewSortMode switch
-        {
-            CleanupPreviewSortMode.Impact => filteredQuery.OrderByDescending(static item => item.SizeBytes),
-            CleanupPreviewSortMode.Newest => filteredQuery.OrderByDescending(static item => item.LastModifiedLocal),
-            CleanupPreviewSortMode.Risk => filteredQuery.OrderBy(static item => item.Confidence),
-            _ => filteredQuery
-        };
+        _previewPagingController.Refresh();
+    }
 
-        var filtered = filteredQuery.ToList();
-        _totalFilteredItems = filtered.Count;
-
-        var totalPages = ComputeTotalPages(_totalFilteredItems);
-        var pageSize = Math.Max(PageSize, 1);
-        var currentPage = Math.Clamp(_currentPage, 1, totalPages);
-        if (currentPage != _currentPage)
-        {
-            _currentPage = currentPage;
-            OnPropertyChanged(nameof(CurrentPage));
-        }
-
-        var skip = (currentPage - 1) * pageSize;
-        foreach (var item in filtered.Skip(skip).Take(pageSize))
-        {
-            FilteredItems.Add(item);
-        }
-        OnPropertyChanged(nameof(HasFilteredResults));
-        OnPropertyChanged(nameof(ExtensionStatusText));
+    private void OnPreviewPagingStateChanged(object? sender, EventArgs e)
+    {
+        OnPropertyChanged(nameof(CurrentPage));
+        OnPropertyChanged(nameof(PageSize));
         OnPropertyChanged(nameof(PageDisplay));
         OnPropertyChanged(nameof(TotalPages));
         OnPropertyChanged(nameof(CanGoToPreviousPage));
         OnPropertyChanged(nameof(CanGoToNextPage));
+        OnPropertyChanged(nameof(SelectRangeStartPage));
+        OnPropertyChanged(nameof(SelectRangeEndPage));
+        OnPropertyChanged(nameof(PreviewSortMode));
+        OnPropertyChanged(nameof(HasFilteredResults));
+        OnPropertyChanged(nameof(FilteredItems));
+        OnPropertyChanged(nameof(ExtensionStatusText));
         OnPropertyChanged(nameof(SelectionSummaryText));
         OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         SelectAllCurrentCommand.NotifyCanExecuteChanged();
@@ -2894,85 +2852,27 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
-    private bool MatchesFilters(CleanupPreviewItemViewModel item)
-    {
-        if (item is null)
-        {
-            return false;
-        }
-
-        var isHistoryItem = IsHistoryClassification(item);
-
-        switch (SelectedItemKind)
-        {
-            case CleanupItemKind.Files when item.IsDirectory:
-                return false;
-            case CleanupItemKind.Folders when !item.IsDirectory && !isHistoryItem:
-                return false;
-        }
-
-        if (_minimumAgeThresholdUtc is { } thresholdUtc && !isHistoryItem)
-        {
-            var lastModifiedUtc = item.Model.LastModifiedUtc;
-            if (lastModifiedUtc != DateTime.MinValue && lastModifiedUtc > thresholdUtc)
-            {
-                return false;
-            }
-        }
-
-        if (item.IsDirectory)
-        {
-            if (SelectedItemKind == CleanupItemKind.Files)
-            {
-                return false;
-            }
-
-            if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.IncludeOnly && _activeExtensions.Count > 0)
-            {
-                return false;
-            }
-
-            return true;
-        }
-
-        if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.None || _activeExtensions.Count == 0)
-        {
-            return true;
-        }
-
-        var extension = NormalizeExtension(item.Extension);
-        return SelectedExtensionFilterMode switch
-        {
-            CleanupExtensionFilterMode.IncludeOnly => _activeExtensions.Contains(extension),
-            CleanupExtensionFilterMode.Exclude => !_activeExtensions.Contains(extension),
-            _ => true
-        };
-    }
-
-    private static bool IsHistoryClassification(CleanupPreviewItemViewModel item)
-    {
-        if (item is null)
-        {
-            return false;
-        }
-
-        return string.Equals(item.Classification, "History", StringComparison.OrdinalIgnoreCase);
-    }
-
     private void RebuildExtensionCache()
     {
         _activeExtensions.Clear();
 
-        if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.None)
+        if (SelectedExtensionFilterMode != CleanupExtensionFilterMode.None)
         {
-            return;
-        }
-
-        if (SelectedExtensionProfile?.Extensions is { } presetExtensions)
-        {
-            foreach (var preset in presetExtensions)
+            if (SelectedExtensionProfile?.Extensions is { } presetExtensions)
             {
-                var normalized = NormalizeExtension(preset);
+                foreach (var preset in presetExtensions)
+                {
+                    var normalized = NormalizeExtension(preset);
+                    if (!string.IsNullOrEmpty(normalized))
+                    {
+                        _activeExtensions.Add(normalized);
+                    }
+                }
+            }
+
+            foreach (var entry in ParseExtensions(CustomExtensionInput))
+            {
+                var normalized = NormalizeExtension(entry);
                 if (!string.IsNullOrEmpty(normalized))
                 {
                     _activeExtensions.Add(normalized);
@@ -2980,14 +2880,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
         }
 
-        foreach (var entry in ParseExtensions(CustomExtensionInput))
-        {
-            var normalized = NormalizeExtension(entry);
-            if (!string.IsNullOrEmpty(normalized))
-            {
-                _activeExtensions.Add(normalized);
-            }
-        }
+        _previewFilter.SetActiveExtensions(_activeExtensions);
     }
 
     private static string FormatSize(double megabytes)
@@ -3111,17 +3004,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     private static string NormalizeExtension(string? extension)
     {
-        if (string.IsNullOrWhiteSpace(extension))
-        {
-            return string.Empty;
-        }
-
-        var trimmed = extension.Trim();
-        if (!trimmed.StartsWith(".", StringComparison.Ordinal))
-        {
-            trimmed = "." + trimmed;
-        }
-
-        return trimmed.ToLowerInvariant();
+        return CleanupPreviewFilter.NormalizeExtension(extension);
     }
 }
