@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -337,6 +338,13 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
             return;
         }
 
+        if (!DriverMaintenanceCapabilityEvaluator.SupportsReset(infReference))
+        {
+            AppendOperationMessage($"Reset skipped because {label} does not expose an installable INF.", DriverOperationLogLevel.Warning);
+            _mainViewModel.SetStatusMessage("This driver cannot be reset via pnputil.");
+            return;
+        }
+
         await ExecuteMaintenanceAsync(
             () => _driverUpdateService.ReinstallDriverAsync(infReference),
             $"Reinstalling {label} via pnputil...",
@@ -356,6 +364,13 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         if (string.IsNullOrWhiteSpace(infReference))
         {
             _mainViewModel.SetStatusMessage("No driver package reference is available to roll back.");
+            return;
+        }
+
+        if (!DriverMaintenanceCapabilityEvaluator.SupportsRollback(infReference))
+        {
+            AppendOperationMessage($"Rollback skipped because {label} is managed by Windows as an inbox driver.", DriverOperationLogLevel.Warning);
+            _mainViewModel.SetStatusMessage("Rollback is only available for OEM driver packages.");
             return;
         }
 
@@ -403,20 +418,26 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         HealthInsights.Clear();
         GpuGuidance.Clear();
 
-        var healthInsights = BuildHealthInsights(result.InstalledDrivers);
+        var healthInsights = result.HealthInsights.Count > 0
+            ? result.HealthInsights
+            : BuildHealthInsightsFallback(result.InstalledDrivers);
+
         foreach (var insight in healthInsights)
         {
             HealthInsights.Add(new DriverHealthInsightViewModel(insight));
         }
 
-        var gpuGuidance = BuildGpuGuidance(result.InstalledDrivers, result.Updates);
+        var gpuGuidance = result.GpuGuidance.Count > 0
+            ? result.GpuGuidance
+            : BuildGpuGuidanceFallback(result.InstalledDrivers, result.Updates);
+
         foreach (var guidance in gpuGuidance)
         {
             GpuGuidance.Add(new GpuVendorGuidanceViewModel(guidance));
         }
     }
 
-    private static IReadOnlyList<DriverHealthInsight> BuildHealthInsights(IReadOnlyList<InstalledDriverInfo> installedDrivers)
+    private static IReadOnlyList<DriverHealthInsight> BuildHealthInsightsFallback(IReadOnlyList<InstalledDriverInfo> installedDrivers)
     {
         if (installedDrivers is null || installedDrivers.Count == 0)
         {
@@ -458,7 +479,7 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
             .ToArray();
     }
 
-    private static IReadOnlyList<GpuVendorGuidance> BuildGpuGuidance(IReadOnlyList<InstalledDriverInfo> installedDrivers, IReadOnlyList<DriverUpdateInfo> updateCandidates)
+    private static IReadOnlyList<GpuVendorGuidance> BuildGpuGuidanceFallback(IReadOnlyList<InstalledDriverInfo> installedDrivers, IReadOnlyList<DriverUpdateInfo> updateCandidates)
     {
         var vendors = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -602,7 +623,7 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         }
     }
 
-    private async Task ExecuteMaintenanceAsync(
+    private async Task<bool> ExecuteMaintenanceAsync(
         Func<Task<DriverMaintenanceResult>> operation,
         string statusMessage,
         string contextLabel,
@@ -610,7 +631,7 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
     {
         if (operation is null)
         {
-            return;
+            return false;
         }
 
         var resolvedInfLabel = string.IsNullOrWhiteSpace(targetInfPath) ? "unknown INF" : targetInfPath;
@@ -627,12 +648,14 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
             _mainViewModel.SetStatusMessage(statusMessage);
             var result = await operation().ConfigureAwait(false);
             ApplyMaintenanceResult(result, contextLabel);
+            return result.Success;
         }
         catch (Exception ex)
         {
             AppendOperationMessage($"Driver maintenance failed: {ex.Message}", DriverOperationLogLevel.Warning);
             _mainViewModel.SetStatusMessage($"Driver maintenance failed: {ex.Message}");
             LogDriverActivity($"Driver maintenance failed for {contextLabel}: {ex.Message}", BuildMaintenanceFailureDetails(contextLabel, resolvedInfLabel, ex), ActivityLogLevel.Warning);
+            return false;
         }
         finally
         {
@@ -1054,7 +1077,11 @@ public sealed partial class DriverUpdateItemViewModel : ObservableObject
 
     public bool CanInstall => Status == DriverUpdateStatus.UpdateAvailable && !string.IsNullOrWhiteSpace(UpdateId);
 
-    public bool HasDriverActions => CanInstall || HasInstalledInfPath;
+    public bool CanReset => DriverMaintenanceCapabilityEvaluator.SupportsReset(_info.InstalledInfPath);
+
+    public bool CanRollback => DriverMaintenanceCapabilityEvaluator.SupportsRollback(_info.InstalledInfPath);
+
+    public bool HasDriverActions => CanInstall || CanReset || CanRollback;
 
     public string UpdateIdentifierDisplay => string.IsNullOrWhiteSpace(UpdateId)
         ? ""
@@ -1174,7 +1201,11 @@ public sealed class InstalledDriverItemViewModel
         ? "No hardware IDs"
         : string.Join(Environment.NewLine, _info.HardwareIds);
 
-    public bool CanMaintain => !string.IsNullOrWhiteSpace(InfName);
+    public bool CanReset => DriverMaintenanceCapabilityEvaluator.SupportsReset(_info.InfName);
+
+    public bool CanRollback => DriverMaintenanceCapabilityEvaluator.SupportsRollback(_info.InfName);
+
+    public bool CanMaintain => CanReset || CanRollback;
 }
 
 public sealed class DriverHealthInsightViewModel
@@ -1201,15 +1232,6 @@ public sealed class DriverHealthInsightViewModel
     public DriverHealthSeverity Severity => _insight.Severity;
 }
 
-public enum DriverHealthSeverity
-{
-    Advisory,
-    Warning,
-    Critical
-}
-
-public sealed record DriverHealthInsight(string? DeviceName, string Issue, string? Detail, string? InfName, DriverHealthSeverity Severity);
-
 public sealed class GpuVendorGuidanceViewModel
 {
     private readonly GpuVendorGuidance _guidance;
@@ -1228,6 +1250,68 @@ public sealed class GpuVendorGuidanceViewModel
     public Uri SupportUri => _guidance.SupportUri;
 }
 
-public sealed record GpuVendorGuidance(string VendorKey, string VendorLabel, string Message, string LinkLabel, Uri SupportUri);
-
 internal sealed record GpuVendorGuidanceDescriptor(string VendorLabel, string Message, string LinkLabel, Uri SupportUri);
+
+internal static class DriverMaintenanceCapabilityEvaluator
+{
+    public static bool SupportsReset(string? infReference)
+        => TryGetInfToken(infReference, out _);
+
+    public static bool SupportsRollback(string? infReference)
+        => TryGetInfToken(infReference, out var infName) && LooksLikeOemInf(infName);
+
+    private static bool TryGetInfToken(string? infReference, out string infName)
+    {
+        infName = string.Empty;
+        if (string.IsNullOrWhiteSpace(infReference))
+        {
+            return false;
+        }
+
+        var trimmed = infReference.Trim();
+        var fileName = Path.GetFileName(trimmed);
+        if (string.IsNullOrWhiteSpace(fileName) || !fileName.EndsWith(".inf", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        infName = fileName;
+        return true;
+    }
+
+    private static bool LooksLikeOemInf(string infName)
+    {
+        if (string.IsNullOrWhiteSpace(infName))
+        {
+            return false;
+        }
+
+        var nameWithoutExtension = Path.GetFileNameWithoutExtension(infName);
+        if (string.IsNullOrWhiteSpace(nameWithoutExtension))
+        {
+            return false;
+        }
+
+        if (!nameWithoutExtension.StartsWith("oem", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var suffix = nameWithoutExtension.Substring(3);
+        if (suffix.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var ch in suffix)
+        {
+            if (!char.IsDigit(ch))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+

@@ -89,6 +89,13 @@
             <Setter Property="BorderBrush" Value="#334155"/>
             <Setter Property="Foreground" Value="#94A3B8"/>
         </Style>
+        <Style x:Key="DriverDangerActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource DriverActionButtonStyle}">
+            <Setter Property="Background" Value="#DC2626"/>
+            <Setter Property="BorderBrush" Value="#B91C1C"/>
+            <Setter Property="Foreground" Value="#FEF2F2"/>
+        </Style>
     </UserControl.Resources>
 
     <StackPanel>
@@ -265,17 +272,17 @@
                                         CommandParameter="{Binding}"
                                         Visibility="{Binding CanInstall, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         IsEnabled="{Binding DataContext.CanRunDriverOperations, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
-                                <Button Content="Reinstall driver"
+                                <Button Content="Reset driver"
                                         Style="{StaticResource DriverSecondaryActionButtonStyle}"
                                         Command="{Binding DataContext.ReinstallDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}"
-                                        Visibility="{Binding HasInstalledInfPath, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    Visibility="{Binding CanReset, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         IsEnabled="{Binding DataContext.CanRunDriverOperations, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                 <Button Content="Rollback driver"
                                         Style="{StaticResource DriverSecondaryActionButtonStyle}"
                                         Command="{Binding DataContext.RollbackDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                         CommandParameter="{Binding}"
-                                        Visibility="{Binding HasInstalledInfPath, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                    Visibility="{Binding CanRollback, Converter={StaticResource BooleanToVisibilityConverter}}"
                                         IsEnabled="{Binding DataContext.CanRunDriverOperations, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                             </WrapPanel>
                         </StackPanel>
@@ -441,18 +448,20 @@
                                         <Run Text="Problem code "/>
                                         <Run Text="{Binding ProblemCode, Mode=OneWay}"/>
                                     </TextBlock>
-                                    <WrapPanel Margin="0,12,0,0"
+                                        <WrapPanel Margin="0,12,0,0"
                                                Visibility="{Binding CanMaintain, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <Button Content="Reinstall driver"
-                                                Style="{StaticResource DriverActionButtonStyle}"
-                                                Command="{Binding DataContext.ReinstallDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                IsEnabled="{Binding DataContext.CanRunDriverOperations, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                        <Button Content="Reset driver"
+                                            Style="{StaticResource DriverActionButtonStyle}"
+                                            Command="{Binding DataContext.ReinstallDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Visibility="{Binding CanReset, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                            IsEnabled="{Binding DataContext.CanRunDriverOperations, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                         <Button Content="Rollback driver"
-                                                Style="{StaticResource DriverSecondaryActionButtonStyle}"
-                                                Command="{Binding DataContext.RollbackDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                                CommandParameter="{Binding}"
-                                                IsEnabled="{Binding DataContext.CanRunDriverOperations, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                                            Style="{StaticResource DriverSecondaryActionButtonStyle}"
+                                            Command="{Binding DataContext.RollbackDriverCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                            CommandParameter="{Binding}"
+                                            Visibility="{Binding CanRollback, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                            IsEnabled="{Binding DataContext.CanRunDriverOperations, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>

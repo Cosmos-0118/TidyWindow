@@ -102,7 +102,9 @@ public sealed class DriverUpdateService
                 0,
                 0,
                 Array.Empty<string>(),
-                Array.Empty<DriverUpdateSkipSummary>());
+                Array.Empty<DriverUpdateSkipSummary>(),
+                Array.Empty<DriverHealthInsight>(),
+                Array.Empty<GpuVendorGuidance>());
         }
 
         DriverUpdatePayload? payload;
@@ -120,6 +122,8 @@ public sealed class DriverUpdateService
         var filters = MapFilters(payload?.AppliedFilters);
         var generatedAt = ResolveTimestamp(payload?.GeneratedAtUtc) ?? DateTimeOffset.UtcNow;
         var skipSummaries = MapSkipSummaries(payload?.SkipSummaries);
+        var healthInsights = MapHealthInsights(payload?.HealthInsights);
+        var gpuGuidance = MapGpuGuidance(payload?.GpuGuidance);
 
         var warningsBuffer = new List<string>(NormalizeWarnings(result.Errors));
         if ((payload?.SkippedOptional ?? 0) > 0 && !(payload?.IncludeOptional ?? false))
@@ -143,7 +147,9 @@ public sealed class DriverUpdateService
             payload?.SkippedOptional ?? 0,
             payload?.SkippedByFilters ?? 0,
             payload?.SkipDetails is null ? Array.Empty<string>() : NormalizeWarnings(payload.SkipDetails),
-            skipSummaries);
+            skipSummaries,
+            healthInsights,
+            gpuGuidance);
     }
 
     public async Task<DriverUpdateInstallResult> InstallUpdatesAsync(IReadOnlyCollection<DriverUpdateInstallRequest> requests, CancellationToken cancellationToken = default)
@@ -178,14 +184,78 @@ public sealed class DriverUpdateService
             throw new ArgumentException("A valid INF reference is required.", nameof(infReference));
         }
 
-        var resolvedPath = ResolveInfReference(infReference);
-        var plans = new[]
+        var package = ResolveDriverPackageReference(infReference);
+        var log = new List<string>
         {
-            new[] { "/add-driver", resolvedPath, "/install" },
-            new[] { "/add-driver", resolvedPath }
+            $"Original INF reference: {package.OriginalInput}"
         };
 
-        return await RunPnPUtilAsync(resolvedPath, "Reinstall driver", plans, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(package.PublishedName))
+        {
+            log.Add($"Published name detected: {package.PublishedName}");
+        }
+
+        var installSource = package.InfPath;
+        if (!string.IsNullOrWhiteSpace(installSource))
+        {
+            log.Add($"Resolved INF path: {installSource}");
+        }
+
+        string? exportDirectory = null;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(installSource) || !File.Exists(installSource))
+            {
+                if (string.IsNullOrWhiteSpace(package.PublishedName))
+                {
+                    log.Add("Unable to resolve an installable INF path for reinstall.");
+                    return new DriverMaintenanceResult(false, "Reinstall driver", package.OriginalInput, false, NormalizeLogLines(log));
+                }
+
+                exportDirectory = CreateDriverExportDirectory();
+                log.Add($"Exporting driver package {package.PublishedName} to {exportDirectory}.");
+
+                var exportArgs = new[] { "/export-driver", package.PublishedName, exportDirectory };
+                var (exportExitCode, exportLines) = await ExecuteProcessAsync("pnputil.exe", exportArgs, cancellationToken).ConfigureAwait(false);
+                foreach (var line in exportLines)
+                {
+                    log.Add($"Export: {line}");
+                }
+
+                log.Add($"Export: pnputil exited with code {exportExitCode}.");
+
+                if (exportExitCode != 0)
+                {
+                    log.Add($"pnputil failed to export {package.PublishedName}. Unable to continue.");
+                    return new DriverMaintenanceResult(false, "Reinstall driver", package.PublishedName, false, NormalizeLogLines(log));
+                }
+
+                installSource = Directory
+                    .EnumerateFiles(exportDirectory, "*.inf", SearchOption.AllDirectories)
+                    .FirstOrDefault();
+
+                if (string.IsNullOrWhiteSpace(installSource))
+                {
+                    log.Add("Export completed but no INF file was located in the export directory.");
+                    return new DriverMaintenanceResult(false, "Reinstall driver", package.PublishedName, false, NormalizeLogLines(log));
+                }
+
+                log.Add($"Reinstalling from exported INF: {installSource}");
+            }
+
+            var plans = new[]
+            {
+                new[] { "/add-driver", installSource!, "/install" },
+                new[] { "/add-driver", installSource! }
+            };
+
+            return await RunPnPUtilAsync(installSource!, "Reinstall driver", plans, cancellationToken, log).ConfigureAwait(false);
+        }
+        finally
+        {
+            TryDeleteDirectory(exportDirectory);
+        }
     }
 
     public async Task<DriverMaintenanceResult> RollbackDriverAsync(string? infReference, CancellationToken cancellationToken = default)
@@ -195,14 +265,38 @@ public sealed class DriverUpdateService
             throw new ArgumentException("A valid INF reference is required.", nameof(infReference));
         }
 
-        var resolvedPath = ResolveInfReference(infReference);
-        var plans = new[]
+        var package = ResolveDriverPackageReference(infReference);
+        var log = new List<string>
         {
-            new[] { "/delete-driver", resolvedPath, "/uninstall", "/force" },
-            new[] { "/delete-driver", resolvedPath, "/force" }
+            $"Original INF reference: {package.OriginalInput}"
         };
 
-        return await RunPnPUtilAsync(resolvedPath, "Rollback driver", plans, cancellationToken).ConfigureAwait(false);
+        if (!string.IsNullOrWhiteSpace(package.InfPath))
+        {
+            log.Add($"Resolved INF path: {package.InfPath}");
+        }
+
+        var deleteTarget = package.PublishedName;
+        if (string.IsNullOrWhiteSpace(deleteTarget))
+        {
+            deleteTarget = ExtractPublishedInfName(Path.GetFileName(package.InfPath ?? package.OriginalInput));
+        }
+
+        if (string.IsNullOrWhiteSpace(deleteTarget))
+        {
+            log.Add("Rollback requires an OEM-published INF name (oem#.inf).");
+            return new DriverMaintenanceResult(false, "Rollback driver", package.OriginalInput, false, NormalizeLogLines(log));
+        }
+
+        log.Add($"Using published name {deleteTarget} for rollback.");
+
+        var plans = new[]
+        {
+            new[] { "/delete-driver", deleteTarget, "/uninstall", "/force" },
+            new[] { "/delete-driver", deleteTarget, "/force" }
+        };
+
+        return await RunPnPUtilAsync(deleteTarget, "Rollback driver", plans, cancellationToken, log).ConfigureAwait(false);
     }
 
     private static IReadOnlyList<DriverUpdateInfo> MapUpdates(IEnumerable<DriverUpdateJson>? entries)
@@ -440,6 +534,76 @@ public sealed class DriverUpdateService
                 reason,
                 reasonCode,
                 updateId));
+        }
+
+        return results;
+    }
+
+    private static IReadOnlyList<DriverHealthInsight> MapHealthInsights(IEnumerable<DriverHealthInsightJson>? entries)
+    {
+        if (entries is null)
+        {
+            return Array.Empty<DriverHealthInsight>();
+        }
+
+        var results = new List<DriverHealthInsight>();
+        foreach (var entry in entries)
+        {
+            if (entry is null)
+            {
+                continue;
+            }
+
+            var issue = Normalize(entry.Issue);
+            if (string.IsNullOrWhiteSpace(issue))
+            {
+                continue;
+            }
+
+            var severity = DriverHealthSeverity.Advisory;
+            if (!string.IsNullOrWhiteSpace(entry.Severity) && Enum.TryParse(entry.Severity, true, out DriverHealthSeverity parsed))
+            {
+                severity = parsed;
+            }
+
+            results.Add(new DriverHealthInsight(
+                Normalize(entry.DeviceName),
+                issue!,
+                Normalize(entry.Detail),
+                Normalize(entry.InfName),
+                severity));
+        }
+
+        return results;
+    }
+
+    private static IReadOnlyList<GpuVendorGuidance> MapGpuGuidance(IEnumerable<GpuVendorGuidanceJson>? entries)
+    {
+        if (entries is null)
+        {
+            return Array.Empty<GpuVendorGuidance>();
+        }
+
+        var results = new List<GpuVendorGuidance>();
+        foreach (var entry in entries)
+        {
+            if (entry is null)
+            {
+                continue;
+            }
+
+            var vendorKey = Normalize(entry.VendorKey);
+            var vendorLabel = Normalize(entry.VendorLabel);
+            var message = Normalize(entry.Message);
+            var linkLabel = Normalize(entry.LinkLabel);
+            var supportUri = TryCreateUri(entry.SupportUri);
+
+            if (string.IsNullOrWhiteSpace(vendorKey) || string.IsNullOrWhiteSpace(vendorLabel) || string.IsNullOrWhiteSpace(message) || string.IsNullOrWhiteSpace(linkLabel) || supportUri is null)
+            {
+                continue;
+            }
+
+            results.Add(new GpuVendorGuidance(vendorKey!, vendorLabel!, message!, linkLabel!, supportUri));
         }
 
         return results;
@@ -761,43 +925,201 @@ public sealed class DriverUpdateService
         }
     }
 
-    private static string ResolveInfReference(string infReference)
+    private static DriverPackageReference ResolveDriverPackageReference(string infReference)
     {
         var trimmed = infReference.Trim();
         if (trimmed.Length == 0)
         {
-            return infReference;
+            return new DriverPackageReference(infReference, null, null);
         }
+
+        var publishedName = ExtractPublishedInfName(trimmed);
 
         if (Path.IsPathRooted(trimmed) && File.Exists(trimmed))
         {
-            return trimmed;
+            return new DriverPackageReference(trimmed, publishedName ?? ExtractPublishedInfName(Path.GetFileName(trimmed)), trimmed);
         }
 
         var windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (!string.IsNullOrWhiteSpace(windowsDirectory))
         {
-            var candidate = Path.Combine(windowsDirectory, "INF", trimmed);
-            if (File.Exists(candidate))
+            var normalizedFileName = NormalizeInfFileName(trimmed);
+            if (!string.IsNullOrWhiteSpace(normalizedFileName))
             {
-                return candidate;
+                var candidate = Path.Combine(windowsDirectory, "INF", normalizedFileName);
+                if (File.Exists(candidate))
+                {
+                    return new DriverPackageReference(trimmed, ExtractPublishedInfName(normalizedFileName) ?? publishedName, candidate);
+                }
+
+                var driverStoreMatch = TryResolveFromDriverStore(windowsDirectory, normalizedFileName);
+                if (!string.IsNullOrWhiteSpace(driverStoreMatch))
+                {
+                    return new DriverPackageReference(trimmed, ExtractPublishedInfName(normalizedFileName) ?? publishedName, driverStoreMatch);
+                }
             }
         }
 
-        return trimmed;
+        return new DriverPackageReference(trimmed, publishedName, null);
+    }
+
+    private static string NormalizeInfFileName(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return value;
+        }
+
+        var fileName = Path.GetFileName(value.Trim());
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            fileName = value.Trim();
+        }
+
+        if (!Path.HasExtension(fileName))
+        {
+            fileName += ".inf";
+        }
+
+        return fileName;
+    }
+
+    private static string? TryResolveFromDriverStore(string windowsDirectory, string fileName)
+    {
+        if (string.IsNullOrWhiteSpace(windowsDirectory) || string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        var driverStoreRoot = Path.Combine(windowsDirectory, "System32", "DriverStore");
+        if (!Directory.Exists(driverStoreRoot))
+        {
+            return null;
+        }
+
+        static string? Probe(string root, string pattern)
+        {
+            if (!Directory.Exists(root))
+            {
+                return null;
+            }
+
+            try
+            {
+                return Directory
+                    .EnumerateFiles(root, pattern, SearchOption.AllDirectories)
+                    .FirstOrDefault();
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+        }
+
+        var fileRepositoryRoot = Path.Combine(driverStoreRoot, "FileRepository");
+        var resolved = Probe(fileRepositoryRoot, fileName)
+                      ?? Probe(driverStoreRoot, fileName);
+
+        return resolved;
+    }
+
+    private static string? ExtractPublishedInfName(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var fileName = Path.GetFileName(value.Trim());
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return null;
+        }
+
+        return LooksLikeOemPublishedName(fileName) ? fileName : null;
+    }
+
+    private static bool LooksLikeOemPublishedName(string value)
+    {
+        if (!value.EndsWith(".inf", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var withoutExtension = Path.GetFileNameWithoutExtension(value);
+        if (!withoutExtension.StartsWith("oem", StringComparison.OrdinalIgnoreCase) || withoutExtension.Length <= 3)
+        {
+            return false;
+        }
+
+        var suffix = withoutExtension.Substring(3);
+        if (suffix.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var ch in suffix)
+        {
+            if (!char.IsDigit(ch))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static string CreateDriverExportDirectory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "TidyWindow", "DriverExports");
+        Directory.CreateDirectory(root);
+        var target = Path.Combine(root, Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(target);
+        return target;
+    }
+
+    private static void TryDeleteDirectory(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch
+        {
+            // Best-effort cleanup only.
+        }
     }
 
     private const int PnPUtilNoMoreData = 259;
     private const int PnPUtilNotOemInf = unchecked((int)0xE000024C);
 
-    private static async Task<DriverMaintenanceResult> RunPnPUtilAsync(string infPath, string operation, IReadOnlyList<string[]> commandPlans, CancellationToken cancellationToken)
+    private static async Task<DriverMaintenanceResult> RunPnPUtilAsync(
+        string operationTarget,
+        string operation,
+        IReadOnlyList<string[]> commandPlans,
+        CancellationToken cancellationToken,
+        IEnumerable<string>? prefaceLines = null)
     {
         if (commandPlans is null || commandPlans.Count == 0)
         {
             throw new ArgumentException("At least one pnputil command plan is required.", nameof(commandPlans));
         }
 
-        var output = new List<string>();
+        var output = prefaceLines is null
+            ? new List<string>()
+            : new List<string>(prefaceLines);
         var usedFallback = false;
         var totalPlans = commandPlans.Count;
         var planIndex = 0;
@@ -827,7 +1149,7 @@ public sealed class DriverUpdateService
 
             if (exitCode == 0)
             {
-                return new DriverMaintenanceResult(true, operation, infPath, usedFallback, NormalizeLogLines(output));
+                return new DriverMaintenanceResult(true, operation, operationTarget, usedFallback, NormalizeLogLines(output));
             }
 
             if (exitCode == PnPUtilNoMoreData)
@@ -847,8 +1169,8 @@ public sealed class DriverUpdateService
             usedFallback = true;
         }
 
-        output.Add($"{operation} failed for {infPath}. Last pnputil exit code: {lastExitCode}.");
-        return new DriverMaintenanceResult(false, operation, infPath, usedFallback, NormalizeLogLines(output));
+        output.Add($"{operation} failed for {operationTarget}. Last pnputil exit code: {lastExitCode}.");
+        return new DriverMaintenanceResult(false, operation, operationTarget, usedFallback, NormalizeLogLines(output));
     }
 
     private static async Task<(int ExitCode, IReadOnlyList<string> Output)> ExecuteProcessAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
@@ -1464,6 +1786,8 @@ public sealed class DriverUpdateService
         public List<DriverUpdateJson>? Updates { get; set; }
         public List<InstalledDriverJson>? InstalledDrivers { get; set; }
         public List<DriverSkipSummaryJson>? SkipSummaries { get; set; }
+        public List<DriverHealthInsightJson>? HealthInsights { get; set; }
+        public List<GpuVendorGuidanceJson>? GpuGuidance { get; set; }
     }
 
     private sealed class DriverUpdateJson
@@ -1577,6 +1901,24 @@ public sealed class DriverUpdateService
         public string? ReasonCode { get; set; }
         public string? UpdateId { get; set; }
     }
+
+    private sealed class DriverHealthInsightJson
+    {
+        public string? DeviceName { get; set; }
+        public string? Issue { get; set; }
+        public string? Detail { get; set; }
+        public string? InfName { get; set; }
+        public string? Severity { get; set; }
+    }
+
+    private sealed class GpuVendorGuidanceJson
+    {
+        public string? VendorKey { get; set; }
+        public string? VendorLabel { get; set; }
+        public string? Message { get; set; }
+        public string? LinkLabel { get; set; }
+        public string? SupportUri { get; set; }
+    }
 }
 
 public enum DriverUpdateStatus
@@ -1653,7 +1995,9 @@ public sealed record DriverUpdateScanResult(
     int SkippedOptional,
     int SkippedByFilters,
     IReadOnlyList<string> SkipDetails,
-    IReadOnlyList<DriverUpdateSkipSummary> SkipSummaries);
+    IReadOnlyList<DriverUpdateSkipSummary> SkipSummaries,
+    IReadOnlyList<DriverHealthInsight> HealthInsights,
+    IReadOnlyList<GpuVendorGuidance> GpuGuidance);
 
 public sealed record DriverUpdateBadgeHints(
     string AvailabilityState,
@@ -1678,6 +2022,27 @@ public sealed record DriverUpdateSkipSummary(
     string Reason,
     string ReasonCode,
     string? UpdateId);
+
+public sealed record DriverHealthInsight(
+    string? DeviceName,
+    string Issue,
+    string? Detail,
+    string? InfName,
+    DriverHealthSeverity Severity);
+
+public enum DriverHealthSeverity
+{
+    Advisory,
+    Warning,
+    Critical
+}
+
+public sealed record GpuVendorGuidance(
+    string VendorKey,
+    string VendorLabel,
+    string Message,
+    string LinkLabel,
+    Uri SupportUri);
 
 public sealed record DriverUpdateInstallRequest(string UpdateId, string? Title);
 
@@ -1711,3 +2076,5 @@ public sealed record DriverMaintenanceResult(
     string TargetInfPath,
     bool UsedFallbackPlan,
     IReadOnlyList<string> Messages);
+
+internal sealed record DriverPackageReference(string OriginalInput, string? PublishedName, string? InfPath);

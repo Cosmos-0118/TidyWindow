@@ -129,11 +129,94 @@ function Convert-TidyDateString {
     }
 }
 
+function ConvertTo-TidyArray {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $false, Position = 0, ValueFromPipeline = $true)]
+        $InputObject
+    )
+
+    begin {
+        $buffer = [System.Collections.Generic.List[object]]::new()
+    }
+
+    process {
+        if ($null -eq $InputObject) {
+            return
+        }
+
+        if ($InputObject -is [string]) {
+            $buffer.Add($InputObject)
+            return
+        }
+
+        if ($InputObject -is [System.Collections.IEnumerable]) {
+            foreach ($item in $InputObject) {
+                if ($null -ne $item) {
+                    $buffer.Add($item)
+                }
+            }
+
+            return
+        }
+
+        $buffer.Add($InputObject)
+    }
+
+    end {
+        return $buffer.ToArray()
+    }
+}
+
+function Get-UpdateCategories {
+    param([object] $Update)
+
+    if ($null -eq $Update) {
+        return [object[]]@()
+    }
+
+    try {
+        $categories = $Update.Categories
+    }
+    catch {
+        return [object[]]@()
+    }
+
+    if (-not $categories) {
+        return [object[]]@()
+    }
+
+    return [object[]]($categories | ConvertTo-TidyArray)
+}
+
+function Get-UpdatePropertyValue {
+    param(
+        [object] $Update,
+        [string] $PropertyName
+    )
+
+    if ($null -eq $Update -or [string]::IsNullOrWhiteSpace($PropertyName)) {
+        return $null
+    }
+
+    $property = $Update.PSObject.Properties[$PropertyName]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    try {
+        return $property.Value
+    }
+    catch {
+        return $null
+    }
+}
+
 function Normalize-HardwareIds {
     param([object] $Input)
 
     $results = [System.Collections.Generic.List[string]]::new()
-    foreach ($candidate in @($Input)) {
+    foreach ($candidate in ($Input | ConvertTo-TidyArray)) {
         if ($null -eq $candidate) { continue }
         $text = $candidate.ToString().Trim()
         if (-not [string]::IsNullOrWhiteSpace($text)) {
@@ -216,11 +299,9 @@ function Resolve-DriverClass {
     }
 
     if (-not $candidates -and $Update) {
-        if ($Update.Categories) {
-            foreach ($category in @($Update.Categories)) {
-                if ($category -and -not [string]::IsNullOrWhiteSpace($category.Name)) {
-                    $candidates += $category.Name
-                }
+        foreach ($category in (Get-UpdateCategories -Update $Update)) {
+            if ($category -and -not [string]::IsNullOrWhiteSpace($category.Name)) {
+                $candidates += $category.Name
             }
         }
     }
@@ -325,6 +406,157 @@ function New-BadgeHints {
     }
 }
 
+$script:DisplayAdapterClassGuid = '{4d36e968-e325-11ce-bfc1-08002be10318}'
+$script:GpuVendorGuidanceCatalog = @{
+    AMD = @{
+        vendorLabel = 'AMD Radeon'
+        message     = 'AMD releases Adrenalin packages more frequently than Windows Update. Use AMD Auto-Detect to pull the latest display and chipset drivers directly.'
+        linkLabel   = 'Open AMD Auto-Detect'
+        supportUri  = 'https://www.amd.com/en/support'
+    }
+    NVIDIA = @{
+        vendorLabel = 'NVIDIA GeForce'
+        message     = 'NVIDIA publishes Game Ready and Studio drivers via GeForce Experience. Launch their download center to stay ahead of Windows Update.'
+        linkLabel   = 'Open NVIDIA Drivers'
+        supportUri  = 'https://www.nvidia.com/Download/index.aspx'
+    }
+    Intel = @{
+        vendorLabel = 'Intel Arc / Iris / UHD'
+        message     = 'Intel Driver & Support Assistant keeps GPU and chipset packages current, including quarterly Arc releases.'
+        linkLabel   = 'Open Intel DSA'
+        supportUri  = 'https://www.intel.com/content/www/us/en/support/detect.html'
+    }
+}
+
+function New-DriverHealthInsight {
+    param(
+        [string] $DeviceName,
+        [string] $Issue,
+        [string] $Detail,
+        [string] $InfName,
+        [string] $Severity
+    )
+
+    return [pscustomobject]@{
+        deviceName = if ([string]::IsNullOrWhiteSpace($DeviceName)) { 'Unknown device' } else { $DeviceName }
+        issue      = if ([string]::IsNullOrWhiteSpace($Issue)) { 'Unspecified issue' } else { $Issue }
+        detail     = if ([string]::IsNullOrWhiteSpace($Detail)) { $null } else { $Detail }
+        infName    = if ([string]::IsNullOrWhiteSpace($InfName)) { $null } else { $InfName }
+        severity   = if ([string]::IsNullOrWhiteSpace($Severity)) { 'Advisory' } else { $Severity }
+    }
+}
+
+function Get-DriverHealthInsights {
+    param([object[]] $InstalledDrivers)
+
+    $results = [System.Collections.Generic.List[psobject]]::new()
+    if (-not $InstalledDrivers) {
+        return $results.ToArray()
+    }
+
+    foreach ($driver in ($InstalledDrivers | ConvertTo-TidyArray)) {
+        if ($null -eq $driver) { continue }
+
+        $problemCode = $driver.problemCode
+        if ($null -ne $problemCode -and [int]$problemCode -gt 0) {
+            $issue = "Problem code $problemCode"
+            $detail = if ([string]::IsNullOrWhiteSpace($driver.status)) { 'Device reported an issue.' } else { $driver.status }
+            $severity = if ($problemCode -in @(43, 52)) { 'Critical' } else { 'Warning' }
+            [void]$results.Add((New-DriverHealthInsight -DeviceName $driver.deviceName -Issue $issue -Detail $detail -InfName $driver.infName -Severity $severity))
+            continue
+        }
+
+        if ($driver.signed -eq $false) {
+            [void]$results.Add((New-DriverHealthInsight -DeviceName $driver.deviceName -Issue 'Driver signature missing' -Detail 'Unsigned drivers may fail to load or pass Smart App Control.' -InfName $driver.infName -Severity 'Advisory'))
+        }
+    }
+
+    return $results.ToArray()
+}
+
+function Normalize-GpuVendorKey {
+    param([string] $Text)
+
+    if ([string]::IsNullOrWhiteSpace($Text)) {
+        return $null
+    }
+
+    $value = $Text.Trim()
+    if ($value -match 'AMD' -or $value -match 'RADEON' -or $value -match 'ADVANCED\s+MICRO\s+DEVICES') {
+        return 'AMD'
+    }
+
+    if ($value -match 'NVIDIA' -or $value -match 'GEFORCE') {
+        return 'NVIDIA'
+    }
+
+    if ($value -match 'INTEL') {
+        return 'Intel'
+    }
+
+    return $null
+}
+
+function Should-TreatAsDisplayDriver {
+    param(
+        [string] $DriverClass,
+        [string] $ClassGuid
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($DriverClass) -and $DriverClass.IndexOf('display', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+        return $true
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ClassGuid) -and $ClassGuid.Equals($script:DisplayAdapterClassGuid, [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $true
+    }
+
+    return $false
+}
+
+function Get-GpuGuidanceItems {
+    param(
+        [object[]] $InstalledDrivers,
+        [object[]] $UpdateCandidates
+    )
+
+    $vendors = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($driver in ($InstalledDrivers | ConvertTo-TidyArray)) {
+        if ($null -eq $driver) { continue }
+        if (-not (Should-TreatAsDisplayDriver -DriverClass $null -ClassGuid $driver.classGuid)) { continue }
+        $vendorKey = Normalize-GpuVendorKey -Text $driver.manufacturer
+        if ($vendorKey) { [void]$vendors.Add($vendorKey) }
+    }
+
+    foreach ($update in ($UpdateCandidates | ConvertTo-TidyArray)) {
+        if ($null -eq $update) { continue }
+        if (-not (Should-TreatAsDisplayDriver -DriverClass $update.driverClass -ClassGuid $null)) { continue }
+        $vendorSource = if (-not [string]::IsNullOrWhiteSpace($update.normalizedVendor)) { $update.normalizedVendor } else { $update.manufacturer }
+        $vendorKey = Normalize-GpuVendorKey -Text $vendorSource
+        if ($vendorKey) { [void]$vendors.Add($vendorKey) }
+    }
+
+    if ($vendors.Count -eq 0) {
+        return @()
+    }
+
+    $results = [System.Collections.Generic.List[psobject]]::new()
+    foreach ($vendor in $vendors) {
+        if (-not $script:GpuVendorGuidanceCatalog.ContainsKey($vendor)) { continue }
+        $descriptor = $script:GpuVendorGuidanceCatalog[$vendor]
+        [void]$results.Add([pscustomobject]@{
+            vendorKey   = $vendor
+            vendorLabel = $descriptor.vendorLabel
+            message     = $descriptor.message
+            linkLabel   = $descriptor.linkLabel
+            supportUri  = $descriptor.supportUri
+        })
+    }
+
+    return $results.ToArray()
+}
+
 function Should-SkipUpdateByFilters {
     param(
         [string] $DriverClass,
@@ -365,7 +597,7 @@ function Get-InstalledDriverInventory {
         return [pscustomobject]@{ Lookup = $lookup; Inventory = $inventory }
     }
 
-    foreach ($entry in @($installed)) {
+    foreach ($entry in ($installed | ConvertTo-TidyArray)) {
         if ($null -eq $entry) { continue }
 
         $hardwareIds = Normalize-HardwareIds -Input $entry.HardwareID
@@ -442,7 +674,7 @@ function Resolve-VersionString {
         return $Primary.ToString().Trim()
     }
 
-    foreach ($source in @($FallbackSources)) {
+    foreach ($source in ($FallbackSources | ConvertTo-TidyArray)) {
         if ($null -eq $source) { continue }
         $text = $source.ToString().Trim()
         if (-not [string]::IsNullOrWhiteSpace($text)) {
@@ -502,7 +734,11 @@ try {
         Write-TidyOutput -Message ("Cataloged {0} installed driver record(s)." -f $installedDrivers.Count)
     }
 
-    if ($null -eq $result -or $null -eq $result.Updates -or $result.Updates.Count -eq 0) {
+    $healthInsights = Get-DriverHealthInsights -InstalledDrivers $installedDrivers
+
+    [object[]]$availableUpdates = $result.Updates | ConvertTo-TidyArray
+    if ($availableUpdates.Length -eq 0) {
+        $gpuGuidance = Get-GpuGuidanceItems -InstalledDrivers $installedDrivers -UpdateCandidates @()
         Write-TidyOutput -Message 'No driver updates are currently offered by Windows Update.'
         $payload = [pscustomobject]@{
             schemaVersion    = '1.2.0'
@@ -519,6 +755,8 @@ try {
                 blockVendors         = $normalizedBlockVendors
             }
             installedDrivers = $installedDrivers.ToArray()
+            healthInsights   = $healthInsights
+            vendorGuidance   = $gpuGuidance
         }
         $jsonPayload = $payload | ConvertTo-Json -Depth 6 -Compress
         Write-Output $jsonPayload
@@ -531,7 +769,7 @@ try {
     $filterSkipReasons = [System.Collections.Generic.List[string]]::new()
     $skipSummaries = [System.Collections.Generic.List[psobject]]::new()
 
-    foreach ($update in @($result.Updates)) {
+    foreach ($update in $availableUpdates) {
         if ($null -eq $update) { continue }
 
         $isOptional = $false
@@ -556,9 +794,20 @@ try {
         if ($driverInfo -and $driverInfo.HardwareIDs) {
             $hardwareIds = Normalize-HardwareIds -Input $driverInfo.HardwareIDs
         }
-        elseif ($update.Categories) {
-            $hardwareIds = Normalize-HardwareIds -Input $update.Categories
+        else {
+            $categoryFallback = Get-UpdateCategories -Update $update
+            if ($categoryFallback) {
+                $hardwareIds = Normalize-HardwareIds -Input $categoryFallback
+            }
         }
+
+        $hardwareIds = @($hardwareIds | ConvertTo-TidyArray)
+
+        $updateTitle = Get-UpdatePropertyValue -Update $update -PropertyName 'Title'
+        $updateDescription = Get-UpdatePropertyValue -Update $update -PropertyName 'Description'
+        $updateLastDeploymentChange = Get-UpdatePropertyValue -Update $update -PropertyName 'LastDeploymentChangeTime'
+        $updatePublisher = Get-UpdatePropertyValue -Update $update -PropertyName 'Publisher'
+        $updateMoreInfoUrls = Get-UpdatePropertyValue -Update $update -PropertyName 'MoreInfoUrls'
 
         $driverClass = Resolve-DriverClass -Update $update -DriverInfo $driverInfo
 
@@ -570,7 +819,7 @@ try {
             }
         }
 
-        if (-not $matched -and $hardwareIds.Count -gt 0) {
+        if (-not $matched -and $hardwareIds.Length -gt 0) {
             foreach ($entry in $lookup.GetEnumerator()) {
                 foreach ($hardwareId in $hardwareIds) {
                     if ($entry.Key.StartsWith($hardwareId, [System.StringComparison]::OrdinalIgnoreCase)) {
@@ -599,8 +848,8 @@ try {
             if ($driverInfo -and -not [string]::IsNullOrWhiteSpace($driverInfo.Description)) {
                 $deviceName = $driverInfo.Description.Trim()
             }
-            elseif (-not [string]::IsNullOrWhiteSpace($update.Title)) {
-                $deviceName = $update.Title.Trim()
+            elseif (-not [string]::IsNullOrWhiteSpace($updateTitle)) {
+                $deviceName = $updateTitle.Trim()
             }
             else {
                 $deviceName = 'Unknown device'
@@ -612,24 +861,24 @@ try {
             $availableVersion = Resolve-VersionString -Primary $driverInfo.DriverVerVersion -FallbackSources @()
         }
 
-        if (-not $availableVersion) {
-            $availableVersion = Resolve-VersionString -Primary (Extract-VersionFromDescription -Description $update.Description) -FallbackSources @()
+        if (-not $availableVersion -and $updateDescription) {
+            $availableVersion = Resolve-VersionString -Primary (Extract-VersionFromDescription -Description $updateDescription) -FallbackSources @()
         }
 
         $availableDate = $null
         if ($driverInfo -and $driverInfo.DriverVerDate) {
             $availableDate = Convert-TidyDateString -Value $driverInfo.DriverVerDate
         }
-        elseif ($update.LastDeploymentChangeTime) {
-            $availableDate = Convert-TidyDateString -Value $update.LastDeploymentChangeTime
+        elseif ($updateLastDeploymentChange) {
+            $availableDate = Convert-TidyDateString -Value $updateLastDeploymentChange
         }
 
         $manufacturer = $currentManufacturer
         if ([string]::IsNullOrWhiteSpace($manufacturer) -and $driverInfo) {
             $manufacturer = Resolve-VersionString -Primary $driverInfo.Manufacturer -FallbackSources @($driverInfo.ProviderName)
         }
-        if ([string]::IsNullOrWhiteSpace($manufacturer) -and $update.Publisher) {
-            $manufacturer = $update.Publisher.Trim()
+        if ([string]::IsNullOrWhiteSpace($manufacturer) -and $updatePublisher) {
+            $manufacturer = $updatePublisher.Trim()
         }
 
         $normalizedVendor = Normalize-VendorName -Vendor $manufacturer
@@ -644,10 +893,10 @@ try {
 
         if ($isOptional -and -not $IncludeOptional.IsPresent) {
             $skippedOptional++
-            $skipEntry = New-SkipSummaryEntry -Title $update.Title -DeviceName $deviceName -Manufacturer $manufacturer -DriverClass $driverClass -IsOptional $true -Reason 'Optional update excluded by policy.' -ReasonCode 'OptionalFilter' -UpdateId $updateId
+            $skipEntry = New-SkipSummaryEntry -Title $updateTitle -DeviceName $deviceName -Manufacturer $manufacturer -DriverClass $driverClass -IsOptional $true -Reason 'Optional update excluded by policy.' -ReasonCode 'OptionalFilter' -UpdateId $updateId
             [void]$skipSummaries.Add($skipEntry)
             if (-not [string]::IsNullOrWhiteSpace($skipEntry.reason)) {
-                [void]$filterSkipReasons.Add('{0}: {1}' -f ($skipEntry.deviceName), $skipEntry.reason)
+                [void]$filterSkipReasons.Add(('{0}: {1}' -f $skipEntry.deviceName, $skipEntry.reason))
             }
             continue
         }
@@ -655,16 +904,16 @@ try {
         $filterReason = Should-SkipUpdateByFilters -DriverClass $driverClass -VendorName $manufacturer
         if ($filterReason) {
             $skippedByFilters++
-            $skipContextTitle = if (-not [string]::IsNullOrWhiteSpace($update.Title)) { $update.Title.Trim() } else { 'Unknown update' }
-            [void]$filterSkipReasons.Add('{0}: {1}' -f $skipContextTitle, $filterReason)
-            $skipEntry = New-SkipSummaryEntry -Title $update.Title -DeviceName $deviceName -Manufacturer $manufacturer -DriverClass $driverClass -IsOptional $isOptional -Reason $filterReason -ReasonCode 'PolicyFilter' -UpdateId $updateId
+            $skipContextTitle = if (-not [string]::IsNullOrWhiteSpace($updateTitle)) { $updateTitle.Trim() } else { 'Unknown update' }
+            [void]$filterSkipReasons.Add(('{0}: {1}' -f $skipContextTitle, $filterReason))
+            $skipEntry = New-SkipSummaryEntry -Title $updateTitle -DeviceName $deviceName -Manufacturer $manufacturer -DriverClass $driverClass -IsOptional $isOptional -Reason $filterReason -ReasonCode 'PolicyFilter' -UpdateId $updateId
             [void]$skipSummaries.Add($skipEntry)
             Write-TidyOutput -Message ("Skipping driver '{0}' due to filter: {1}" -f $deviceName, $filterReason)
             continue
         }
 
         $categoryNames = [System.Collections.Generic.List[string]]::new()
-        foreach ($category in @($update.Categories)) {
+        foreach ($category in (Get-UpdateCategories -Update $update)) {
             if ($null -eq $category) { continue }
             $name = $category.Name
             if ([string]::IsNullOrWhiteSpace($name)) { continue }
@@ -672,7 +921,7 @@ try {
         }
 
         $infoUrls = [System.Collections.Generic.List[string]]::new()
-        foreach ($url in @($update.MoreInfoUrls)) {
+        foreach ($url in ($updateMoreInfoUrls | ConvertTo-TidyArray)) {
             if ($null -eq $url) { continue }
             $text = $url.ToString().Trim()
             if (-not [string]::IsNullOrWhiteSpace($text)) {
@@ -698,7 +947,7 @@ try {
         $badgeHints = New-BadgeHints -VersionComparison $versionComparison -IsOptional $isOptional -DriverClass $driverClass -Manufacturer $manufacturer
 
         $updates.Add([pscustomobject]@{
-                title                = $update.Title
+            title                = if ([string]::IsNullOrWhiteSpace($updateTitle)) { $null } else { $updateTitle.Trim() }
                 deviceName           = $deviceName
                 manufacturer         = $manufacturer
                 hardwareIds          = $hardwareIds
@@ -707,7 +956,7 @@ try {
                 currentVersionDate   = $currentDate
                 availableVersion     = if ($availableVersion) { $availableVersion } else { $null }
                 availableVersionDate = $availableDate
-                description          = if ([string]::IsNullOrWhiteSpace($update.Description)) { $null } else { $update.Description.Trim() }
+                description          = if ([string]::IsNullOrWhiteSpace($updateDescription)) { $null } else { $updateDescription.Trim() }
                 categories           = $categoryNames.ToArray()
                 informationUrls      = $infoUrls.ToArray()
                 driverClass          = if ([string]::IsNullOrWhiteSpace($driverClass)) { $null } else { $driverClass }
@@ -724,7 +973,9 @@ try {
             })
     }
 
-    $count = $updates.Count
+    $updatesArray = $updates.ToArray()
+    $gpuGuidance = Get-GpuGuidanceItems -InstalledDrivers $installedDrivers -UpdateCandidates $updatesArray
+    $count = $updatesArray.Count
     if ($count -eq 0) {
         Write-TidyOutput -Message 'No driver updates matched the requested filters.'
         if ($skippedOptional -gt 0 -and -not $IncludeOptional.IsPresent) {
@@ -745,21 +996,23 @@ try {
     }
 
     $payload = [pscustomobject]@{
-    schemaVersion   = '1.2.0'
-        generatedAtUtc  = (Get-Date).ToUniversalTime().ToString('o')
-        includeOptional = [bool]$IncludeOptional
-        updates         = $updates.ToArray()
-        skippedOptional = $skippedOptional
+        schemaVersion    = '1.2.0'
+        generatedAtUtc   = (Get-Date).ToUniversalTime().ToString('o')
+        includeOptional  = [bool]$IncludeOptional
+        updates          = $updatesArray
+        skippedOptional  = $skippedOptional
         skippedByFilters = $skippedByFilters
-        skipDetails     = $filterSkipReasons.ToArray()
-        skipSummaries   = $skipSummaries.ToArray()
-        appliedFilters  = [pscustomobject]@{
+        skipDetails      = $filterSkipReasons.ToArray()
+        skipSummaries    = $skipSummaries.ToArray()
+        appliedFilters   = [pscustomobject]@{
             includeDriverClasses = $normalizedIncludeDriverClasses
             excludeDriverClasses = $normalizedExcludeDriverClasses
             allowVendors         = $normalizedAllowVendors
             blockVendors         = $normalizedBlockVendors
         }
         installedDrivers = $installedDrivers.ToArray()
+        healthInsights   = $healthInsights
+        vendorGuidance   = $gpuGuidance
     }
 
     $jsonPayload = $payload | ConvertTo-Json -Depth 8 -Compress
@@ -768,7 +1021,16 @@ try {
 }
 catch {
     $script:OperationSucceeded = $false
-    Write-TidyError -Message $_
+    $lineNumber = $_.InvocationInfo?.ScriptLineNumber
+    $scriptPosition = $_.InvocationInfo?.PositionMessage
+    $message = if ($lineNumber) { "Driver scan failed at line ${lineNumber}: $($_.Exception.Message)" } else { $_.Exception.Message }
+    Write-TidyError -Message $message
+    if ($scriptPosition) {
+        Write-TidyError -Message $scriptPosition
+    }
+    if ($_.ScriptStackTrace) {
+        Write-TidyError -Message $_.ScriptStackTrace
+    }
 }
 finally {
     try {
