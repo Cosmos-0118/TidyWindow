@@ -1722,6 +1722,16 @@
                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                       VirtualizingPanel.CacheLength="1"
                                       VirtualizingPanel.CacheLengthUnit="Page">
+                                <ListView.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel
+                                            VirtualizingPanel.IsVirtualizing="True"
+                                            VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                            VirtualizingPanel.IsContainerVirtualizable="True"
+                                            VirtualizingPanel.VirtualizationMode="Recycling"
+                                            VirtualizingPanel.ScrollUnit="Pixel"/>
+                                    </ItemsPanelTemplate>
+                                </ListView.ItemsPanel>
                                 <ListView.ItemContainerStyle>
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="HorizontalContentAlignment"
@@ -1903,6 +1913,16 @@
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               VirtualizingPanel.CacheLength="2"
                                               VirtualizingPanel.CacheLengthUnit="Page">
+                                        <ListView.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <VirtualizingStackPanel
+                                                    VirtualizingPanel.IsVirtualizing="True"
+                                                    VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                                    VirtualizingPanel.IsContainerVirtualizable="True"
+                                                    VirtualizingPanel.VirtualizationMode="Recycling"
+                                                    VirtualizingPanel.ScrollUnit="Pixel"/>
+                                            </ItemsPanelTemplate>
+                                        </ListView.ItemsPanel>
                                         <ListView.ItemContainerStyle>
                                             <Style TargetType="ListViewItem">
                                                 <Setter Property="HorizontalContentAlignment"

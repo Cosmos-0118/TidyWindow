@@ -790,10 +790,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
             CurrentPage = 1;
 
             var report = await _cleanupService.PreviewAsync(IncludeDownloads, PreviewCount, SelectedItemKind);
-            var totalItems = report.TotalItemCount;
+            var filteredTargets = FilterPreviewTargets(report.Targets)
+                .OrderByDescending(static t => t.TotalSizeBytes)
+                .ToList();
+
+            var totalItems = filteredTargets.Sum(static target => target.ItemCount);
             var newItems = _hasCompletedPreview ? Math.Max(0, totalItems - _lastPreviewTotalItemCount) : 0;
             _lastPreviewTotalItemCount = totalItems;
-            foreach (var target in report.Targets.OrderByDescending(t => t.TotalSizeBytes))
+
+            foreach (var target in filteredTargets)
             {
                 AddTargetGroup(new CleanupTargetGroupViewModel(target));
             }
@@ -816,7 +821,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 ? "No cleanup targets detected."
                 : $"Preview ready: {SummaryText}";
 
-            var warningCount = report.Targets.Sum(static target => target.Warnings.Count);
+            var warningCount = filteredTargets.Sum(static target => target.Warnings.Count);
             if (warningCount > 0)
             {
                 status += warningCount == 1
@@ -2848,6 +2853,56 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             yield return token;
         }
+    }
+
+    private IEnumerable<CleanupTargetReport> FilterPreviewTargets(IEnumerable<CleanupTargetReport> targets)
+    {
+        if (targets is null)
+        {
+            yield break;
+        }
+
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var target in targets)
+        {
+            if (target is null)
+            {
+                continue;
+            }
+
+            if (target.ItemCount <= 0 || target.Preview.Count == 0)
+            {
+                continue;
+            }
+
+            var key = BuildTargetIdentity(target);
+            if (!seen.Add(key))
+            {
+                continue;
+            }
+
+            yield return target;
+        }
+    }
+
+    private static string BuildTargetIdentity(CleanupTargetReport target)
+    {
+        if (!string.IsNullOrWhiteSpace(target.Path))
+        {
+            return target.Path.Trim();
+        }
+
+        var category = target.Category?.Trim() ?? string.Empty;
+        var classification = target.Classification?.Trim() ?? string.Empty;
+        if (!string.IsNullOrEmpty(category) || !string.IsNullOrEmpty(classification))
+        {
+            return string.IsNullOrEmpty(classification)
+                ? category
+                : $"{category}|{classification}";
+        }
+
+        return Guid.NewGuid().ToString("N");
     }
 
     private static string[] BuildSensitiveRoots()
