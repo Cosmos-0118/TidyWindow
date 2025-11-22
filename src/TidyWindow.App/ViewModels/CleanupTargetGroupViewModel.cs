@@ -25,7 +25,7 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
     {
         Model = model;
         Items = new ObservableCollection<CleanupPreviewItemViewModel>(
-            model.Preview.Select(item => new CleanupPreviewItemViewModel(item)));
+            model.Preview.Select(item => new CleanupPreviewItemViewModel(item, model.Classification)));
 
         Items.CollectionChanged += OnItemsCollectionChanged;
         foreach (var item in Items)
@@ -301,12 +301,15 @@ public sealed partial class CleanupTargetGroupViewModel : ObservableObject, IDis
 
 public sealed partial class CleanupPreviewItemViewModel : ObservableObject
 {
-    internal CleanupPreviewItemViewModel(CleanupPreviewItem model)
+    internal CleanupPreviewItemViewModel(CleanupPreviewItem model, string? classification)
     {
         Model = model;
+        Classification = string.IsNullOrWhiteSpace(classification) ? "Other" : classification.Trim();
     }
 
     public CleanupPreviewItem Model { get; }
+
+    public string Classification { get; }
 
     public string Name => Model.Name;
 

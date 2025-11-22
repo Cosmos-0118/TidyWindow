@@ -1245,77 +1245,29 @@
 
                             <Border Style="{StaticResource AdvancedCardStyle}">
                                 <StackPanel>
-                                    <TextBlock Text="Page range selection"
+                                    <TextBlock Text="History age filter"
                                                FontSize="13"
                                                FontWeight="SemiBold"
                                                Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                    <TextBlock Text="Apply range selects after categories load; useful for deep dives."
+                                    <TextBlock Text="Choose how far back to sweep browser history, cache entries, and other recent traces."
                                                FontSize="12"
                                                Foreground="{StaticResource CleanupMutedTextBrush}"
                                                Margin="0,4,0,8"
                                                TextWrapping="Wrap"/>
-                                    <StackPanel Orientation="Horizontal"
-                                                Margin="0,0,0,8"
-                                                VerticalAlignment="Center">
-                                        <TextBlock Text="Pages"
-                                                                                                     Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,8,0"/>
-                                        <TextBox Text="{Binding SelectRangeStartPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Width="48"
-                                                 Style="{StaticResource App.TextBoxStyle}"
-                                                 HorizontalContentAlignment="Center"
-                                                 Margin="0,0,6,0"/>
-                                        <TextBlock Text="-"
-                                                                                                     Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,6,0"/>
-                                        <TextBox Text="{Binding SelectRangeEndPage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 Width="48"
-                                                 Style="{StaticResource App.TextBoxStyle}"
-                                                 HorizontalContentAlignment="Center"
-                                                 Margin="0,0,8,0"/>
-                                        <Button Content="Select range"
-                                                Command="{Binding SelectPageRangeCommand}"
-                        Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                                Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                Padding="14,6"
-                                                Cursor="Hand"
-                                                BorderThickness="0"
-                                                Margin="0"
-                                                ToolTip="Select every filtered item within the inclusive page range.">
-                                            <Button.Template>
-                                                <ControlTemplate TargetType="Button">
-                                                    <Border x:Name="SelectRangeBorder"
-                                                            Background="{TemplateBinding Background}"
-                                                            CornerRadius="8"
-                                                            Padding="{TemplateBinding Padding}">
-                                                        <ContentPresenter HorizontalAlignment="Center"
-                                                                          VerticalAlignment="Center"/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsEnabled"
-                                                                 Value="False">
-                                                            <Setter TargetName="SelectRangeBorder"
-                                                                    Property="Opacity"
-                                                                    Value="0.5"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver"
-                                                                 Value="True">
-                                                            <Setter TargetName="SelectRangeBorder"
-                                                                    Property="Background"
-                                                                    Value="{StaticResource CleanupAccentBrush}"/>
-                                                            <Setter Property="Foreground"
-                                                                    Value="#041225"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Button.Template>
-                                        </Button>
-                                    </StackPanel>
-                                    <TextBlock Text="For all filtered items, use Select all pages below."
+                                    <ComboBox ItemsSource="{Binding AgeFilterOptions}"
+                                              SelectedItem="{Binding SelectedAgeFilter, Mode=TwoWay}"
+                                              Style="{StaticResource App.ComboBoxStyle}"
+                                              DisplayMemberPath="Label"/>
+                                    <TextBlock Text="{Binding SelectedAgeFilter.Description}"
                                                FontSize="11"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               Margin="0,6,0,0"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="Browser history databases clear entirely when selected, even if they include recent visits."
+                                               FontSize="11"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               Margin="0,6,0,0"
+                                               TextWrapping="Wrap"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>

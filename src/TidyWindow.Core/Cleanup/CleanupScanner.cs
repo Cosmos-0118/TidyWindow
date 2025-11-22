@@ -71,6 +71,11 @@ internal sealed class CleanupScanner
             return new CleanupTargetReport(definition.Category, definition.RawPath ?? string.Empty, false, 0, 0, Array.Empty<CleanupPreviewItem>(), definition.Notes, true, definition.Classification, warnings);
         }
 
+        if (definition.TargetType == CleanupTargetType.File)
+        {
+            return BuildFileReport(definition, resolvedPath, itemKind, warnings);
+        }
+
         if (!Directory.Exists(resolvedPath))
         {
             warnings.Add("Directory not found when scanning for cleanup items.");
@@ -260,6 +265,50 @@ internal sealed class CleanupScanner
             dryRun: true,
             definition.Classification,
             warnings);
+    }
+
+    private static CleanupTargetReport BuildFileReport(CleanupTargetDefinition definition, string resolvedPath, CleanupItemKind itemKind, List<string> warnings)
+    {
+        if (!File.Exists(resolvedPath))
+        {
+            warnings.Add("File not found when scanning for cleanup items.");
+            return new CleanupTargetReport(definition.Category, resolvedPath, false, 0, 0, Array.Empty<CleanupPreviewItem>(), definition.Notes, true, definition.Classification, warnings);
+        }
+
+        if (itemKind == CleanupItemKind.Folders)
+        {
+            return new CleanupTargetReport(definition.Category, resolvedPath, true, 0, 0, Array.Empty<CleanupPreviewItem>(), definition.Notes, true, definition.Classification, warnings);
+        }
+
+        var info = new FileInfo(resolvedPath);
+        var lastModifiedUtc = info.LastWriteTimeUtc;
+        var nowUtc = DateTime.UtcNow;
+        var previewItem = new CleanupPreviewItem(
+            info.Name,
+            info.FullName,
+            info.Length,
+            lastModifiedUtc,
+            isDirectory: false,
+            Path.GetExtension(info.FullName),
+            info.Attributes.HasFlag(FileAttributes.Hidden),
+            info.Attributes.HasFlag(FileAttributes.System),
+            IsRecentlyModified(lastModifiedUtc, nowUtc),
+            confidence: 0.65,
+            signals: Array.Empty<string>(),
+            info.LastAccessTimeUtc,
+            info.CreationTimeUtc);
+
+        return new CleanupTargetReport(
+            definition.Category,
+            resolvedPath,
+            exists: true,
+            itemCount: 1,
+            totalSizeBytes: info.Length,
+            preview: new[] { previewItem },
+            notes: definition.Notes,
+            dryRun: true,
+            classification: definition.Classification,
+            warnings: warnings);
     }
 
     private static IReadOnlyList<CleanupPreviewItem> CombinePreviews(TopN<CleanupPreviewItem> files, TopN<CleanupPreviewItem> directories, int previewCount)

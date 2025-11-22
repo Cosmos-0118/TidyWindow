@@ -51,6 +51,11 @@ public sealed record CleanupPreviewSortOption(CleanupPreviewSortMode Mode, strin
     public override string ToString() => Label;
 }
 
+public sealed record CleanupAgeFilterOption(int Days, string Label, string Description)
+{
+    public override string ToString() => Label;
+}
+
 public enum CleanupPhase
 {
     Setup,
@@ -204,6 +209,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly TimeSpan _phaseTransitionSettleDuration = TimeSpan.FromMilliseconds(220);
     private const int DeletionUiYieldInterval = 750;
     private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
+    private DateTime? _minimumAgeThresholdUtc;
 
     public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService, IResourceLockService resourceLockService)
     {
@@ -243,7 +249,17 @@ public sealed partial class CleanupViewModel : ViewModelBase
             new(CleanupPreviewSortMode.Risk, "Risk score", "Review items with lower confidence signals before deleting.")
         };
 
+        AgeFilterOptions = new List<CleanupAgeFilterOption>
+        {
+            new(0, "Include all items", "Show every result regardless of the last modified date."),
+            new(7, "Older than 7 days", "Hide files touched in the last week."),
+            new(30, "Older than 30 days", "Great for trimming browser history and recent downloads."),
+            new(90, "Older than 90 days", "Focus on quarterly clutter only."),
+            new(180, "Older than 180 days", "Surface only long-lived files you likely forgot about."),
+        };
+
         SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
+        SelectedAgeFilter = AgeFilterOptions.FirstOrDefault();
         RebuildExtensionCache();
         CelebrationFailures.CollectionChanged += OnCelebrationFailuresCollectionChanged;
         PendingDeletionCategories = new ReadOnlyObservableCollection<string>(_pendingDeletionCategories);
@@ -273,6 +289,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     [ObservableProperty]
     private CleanupExtensionProfile? _selectedExtensionProfile;
+
+    [ObservableProperty]
+    private CleanupAgeFilterOption? _selectedAgeFilter;
 
     [ObservableProperty]
     private string _customExtensionInput = string.Empty;
@@ -583,6 +602,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public IReadOnlyList<CleanupExtensionProfile> ExtensionProfiles { get; }
 
     public IReadOnlyList<CleanupPreviewSortOption> SortOptions { get; }
+
+    public IReadOnlyList<CleanupAgeFilterOption> AgeFilterOptions { get; }
 
     public event EventHandler? AdministratorRestartRequested;
 
@@ -2437,6 +2458,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnSelectedAgeFilterChanged(CleanupAgeFilterOption? value)
+    {
+        _minimumAgeThresholdUtc = value is { Days: > 0 } option
+            ? DateTime.UtcNow - TimeSpan.FromDays(option.Days)
+            : null;
+
+        RefreshFilteredItems();
+    }
+
     private void OnGroupSelectionChanged(object? sender, EventArgs e)
     {
         OnPropertyChanged(nameof(SelectedItemCount));
@@ -2766,6 +2796,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 return false;
         }
 
+        if (_minimumAgeThresholdUtc is { } thresholdUtc && !ShouldBypassAgeFilter(item))
+        {
+            var lastModifiedUtc = item.Model.LastModifiedUtc;
+            if (lastModifiedUtc != DateTime.MinValue && lastModifiedUtc > thresholdUtc)
+            {
+                return false;
+            }
+        }
+
         if (item.IsDirectory)
         {
             if (SelectedItemKind == CleanupItemKind.Files)
@@ -2793,6 +2832,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
             CleanupExtensionFilterMode.Exclude => !_activeExtensions.Contains(extension),
             _ => true
         };
+    }
+
+    private static bool ShouldBypassAgeFilter(CleanupPreviewItemViewModel item)
+    {
+        if (item is null)
+        {
+            return false;
+        }
+
+        return string.Equals(item.Classification, "History", StringComparison.OrdinalIgnoreCase);
     }
 
     private void RebuildExtensionCache()
