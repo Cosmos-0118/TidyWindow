@@ -984,6 +984,11 @@ public sealed class InstallBundleItemViewModel
     }
 
     private int _cachedCount;
+
+    public override string ToString()
+    {
+        return Name;
+    }
 }
 
 public sealed partial class InstallPackageItemViewModel : ObservableObject

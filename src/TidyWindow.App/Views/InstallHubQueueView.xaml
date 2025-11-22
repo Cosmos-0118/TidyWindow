@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.Resources>
@@ -10,17 +11,23 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="InstallHubResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
+            <x:Array x:Key="QueueHeroChipTexts"
+                     Type="{x:Type sys:String}">
+                <sys:String>Monitor pending installs</sys:String>
+                <sys:String>Retry failures</sys:String>
+                <sys:String>Inspect transcripts</sys:String>
+            </x:Array>
         </ResourceDictionary>
     </UserControl.Resources>
     <Grid>
-        <ScrollViewer x:Name="QueueScrollViewer"
-                  Margin="32,0,32,24"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      HorizontalContentAlignment="Stretch"
-                      PanningMode="VerticalOnly">
-            <Grid MaxWidth="1360"
-                  HorizontalAlignment="Center">
+          <ScrollViewer x:Name="QueueScrollViewer"
+                    Margin="32,0,32,24"
+                    VerticalScrollBarVisibility="Auto"
+                    HorizontalScrollBarVisibility="Disabled"
+                    HorizontalContentAlignment="Center"
+                    PanningMode="VerticalOnly">
+            <Grid MaxWidth="1180"
+                HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -30,20 +37,27 @@
                         Padding="28"
                         Margin="0,0,0,24">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
 
                         <StackPanel>
                             <TextBlock Text="Install queue"
                                        FontSize="22"
                                        FontWeight="SemiBold"
                                        Foreground="#F8FAFC"/>
-                            <TextBlock Text="Monitor pending installs, retry failures, and inspect transcripts"
-                                       Foreground="#94A3B8"
-                                       FontSize="13"
-                                       Margin="0,6,0,0"/>
+                            <ItemsControl Margin="0,8,0,0"
+                                          ItemsSource="{StaticResource QueueHeroChipTexts}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel IsItemsHost="True"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource InstallInfoChipStyle}">
+                                            <TextBlock Text="{Binding}" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                             <WrapPanel Margin="0,18,0,0">
                                 <Border Style="{StaticResource InstallBadgeStyle}">
                                     <TextBlock Text="{Binding Operations.Count, StringFormat={}{0} entries}"
@@ -118,23 +132,6 @@
                             </WrapPanel>
                         </StackPanel>
 
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    VerticalAlignment="Center">
-                            <Button Content="Retry failed"
-                                    Command="{Binding RetryFailedCommand}"
-                                    Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                            <Button Content="Clear completed"
-                                    Margin="10,0,0,0"
-                                    Command="{Binding ClearCompletedCommand}"
-                                    Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                            <ToggleButton x:Name="QueueDrawerToggle"
-                                          Content="View details"
-                                          Margin="10,0,0,0"
-                                          Visibility="Collapsed"
-                                          Style="{StaticResource InstallSecondaryToggleButtonStyle}"/>
-                        </StackPanel>
                     </Grid>
                 </Border>
 
@@ -163,16 +160,41 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <StackPanel Grid.Row="0"
-                                            Margin="0,0,0,14">
+                                <Grid Grid.Row="0"
+                                      Margin="0,0,0,14">
+                                    <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <StackPanel>
                                     <TextBlock Text="Queue timeline"
-                                               FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"/>
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
                                     <TextBlock Text="Latest operations appear first. Use filters above to clear or retry."
-                                               Foreground="#94A3B8"
-                                               FontSize="12"/>
-                                </StackPanel>
+                                           Foreground="#94A3B8"
+                                           FontSize="12"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top">
+                                    <Button Content="Retry failed"
+                                        Command="{Binding RetryFailedCommand}"
+                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                    <Button Content="Clear completed"
+                                        Margin="10,0,0,0"
+                                        Command="{Binding ClearCompletedCommand}"
+                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                    <ToggleButton x:Name="QueueDrawerToggle"
+                                              Content="View details"
+                                              Margin="10,0,0,0"
+                                              Visibility="Collapsed"
+                                              Style="{StaticResource InstallSecondaryToggleButtonStyle}"/>
+                                    </StackPanel>
+                                </Grid>
 
                                 <Grid Grid.Row="1">
                                     <ItemsControl ItemsSource="{StaticResource InstallHubQueueSkeletonItems}"

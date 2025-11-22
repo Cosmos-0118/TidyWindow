@@ -132,6 +132,18 @@
         <Setter Property="Margin" Value="0,0,8,8"/>
     </Style>
 
+    <Style x:Key="InstallInfoChipStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource InstallBadgeStyle}">
+        <Setter Property="Background" Value="#14213D"/>
+        <Setter Property="BorderBrush" Value="#233554"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="10,4"/>
+        <Setter Property="Margin" Value="0,0,10,10"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
+
     <Style x:Key="InstallCardBorderStyle"
            TargetType="Border">
         <Setter Property="Background" Value="#111827"/>

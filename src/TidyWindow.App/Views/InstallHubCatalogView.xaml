@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.Resources>
@@ -20,550 +21,579 @@
                 <Setter Property="Padding" Value="16"/>
                 <Setter Property="Margin" Value="0,14,0,0"/>
             </Style>
+            <x:Array x:Key="CatalogHeroChipTexts"
+                     Type="{x:Type sys:String}">
+                <sys:String>Filter packages</sys:String>
+                <sys:String>Multi-select bundles</sys:String>
+                <sys:String>Queue or export presets</sys:String>
+            </x:Array>
         </ResourceDictionary>
     </UserControl.Resources>
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
 
-        <Border Style="{StaticResource InstallCardBorderStyle}"
-                Padding="28"
-                Margin="0,0,0,24">
-            <Grid>
+    <Grid>
+        <ScrollViewer Margin="32,0,32,24"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      PanningMode="VerticalOnly">
+            <Grid MaxWidth="1180"
+                  HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="Browse the full catalog"
-                                   FontSize="22"
-                                   FontWeight="SemiBold"
-                                   Foreground="#F8FAFC"/>
-                        <TextBlock Text="Filter packages, multi-select, then queue or export the curated preset"
-                                   Foreground="#94A3B8"
-                                   Margin="0,6,0,0"
-                                   FontSize="13"
-                                   TextWrapping="Wrap"/>
-                        <WrapPanel Margin="0,18,0,0">
-                            <Border Style="{StaticResource InstallBadgeStyle}">
-                                <TextBlock Text="{Binding Packages.Count, StringFormat={}{0} result(s)}"
-                                           Foreground="#93C5FD"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"/>
+                <Border Grid.Row="0"
+                        Style="{StaticResource InstallCardBorderStyle}"
+                        Padding="28"
+                        Margin="0,0,0,24">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0">
+
+                            <StackPanel>
+                                <TextBlock Text="Browse the full catalog"
+                                           FontSize="22"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
+                                <ItemsControl Margin="0,8,0,0"
+                                              ItemsSource="{StaticResource CatalogHeroChipTexts}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel IsItemsHost="True"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Style="{StaticResource InstallInfoChipStyle}">
+                                                <TextBlock Text="{Binding}"
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <WrapPanel Margin="0,18,0,0">
+                                    <Border Style="{StaticResource InstallBadgeStyle}">
+                                        <TextBlock Text="{Binding Packages.Count, StringFormat={}{0} result(s)}"
+                                                   Foreground="#93C5FD"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"/>
+                                    </Border>
+                                    <Border Style="{StaticResource InstallBadgeStyle}"
+                                            Background="#1B2A44">
+                                        <TextBlock Text="Virtualized list"
+                                                   Foreground="#38BDF8"
+                                                   FontSize="11"
+                                                   FontWeight="SemiBold"/>
+                                    </Border>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Grid>
+
+                        <WrapPanel Grid.Row="1"
+                                   Margin="0,26,0,0"
+                                   ItemWidth="240"
+                                   HorizontalAlignment="Left">
+                            <Border Style="{StaticResource InstallFilterCardStyle}"
+                                    Margin="0,0,16,16"
+                                    Padding="18"
+                                    Width="240">
+                                <StackPanel>
+                                    <TextBlock Text="Queued installs"
+                                               Foreground="#94A3B8"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding QueuedOperationCount}"
+                                               FontSize="26"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               Margin="0,4,0,0"/>
+                                    <TextBlock Text="Awaiting automation"
+                                               Foreground="#64748B"
+                                               FontSize="11"/>
+                                </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource InstallBadgeStyle}"
-                                    Background="#1B2A44">
-                                <TextBlock Text="Virtualized list"
-                                           Foreground="#38BDF8"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"/>
+
+                            <Border Style="{StaticResource InstallFilterCardStyle}"
+                                    Margin="0,0,16,16"
+                                    Padding="18"
+                                    Width="240">
+                                <StackPanel>
+                                    <TextBlock Text="Active runs"
+                                               Foreground="#94A3B8"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding RunningOperationCount}"
+                                               FontSize="26"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               Margin="0,4,0,0"/>
+                                    <TextBlock Text="Currently installing"
+                                               Foreground="#64748B"
+                                               FontSize="11"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource InstallFilterCardStyle}"
+                                    Margin="0,0,16,16"
+                                    Padding="18"
+                                    Width="240">
+                                <StackPanel>
+                                    <TextBlock Text="Visible packages"
+                                               Foreground="#94A3B8"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="{Binding Packages.Count}"
+                                               FontSize="26"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"
+                                               Margin="0,4,0,0"/>
+                                    <TextBlock Text="Matched by filters"
+                                               Foreground="#64748B"
+                                               FontSize="11"/>
+                                </StackPanel>
                             </Border>
                         </WrapPanel>
-                    </StackPanel>
 
-                    <StackPanel Grid.Column="1"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Right">
-                        <Button Content="Queue selected"
-                                Command="{Binding QueueSelectionCommand}"
-                                Style="{StaticResource InstallAccentButtonStyle}"/>
-                        <Button Content="Export selection"
-                                Margin="10,0,0,0"
-                                Command="{Binding ExportSelectionCommand}"
-                                Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                        <Button Content="Import preset"
-                                Margin="10,0,0,0"
-                                Command="{Binding ImportPresetCommand}"
-                                Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                    </StackPanel>
-                </Grid>
+                        <Border Grid.Row="2"
+                                Margin="0,28,0,0"
+                                Background="#0B1626"
+                                CornerRadius="14"
+                                BorderBrush="#1E293B"
+                                BorderThickness="1"
+                                Padding="20">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                <Grid Grid.Row="1"
-                      Margin="0,26,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Row="0"
+                                            Grid.Column="0">
+                                    <TextBlock Text="Filters"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="Combine curated bundles with text search to focus on the right apps"
+                                               Foreground="#94A3B8"
+                                               FontSize="12"
+                                               Margin="0,2,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
 
-                    <Border Style="{StaticResource InstallFilterCardStyle}"
-                            Grid.Column="0"
-                            Margin="0,0,18,0"
-                            Padding="18">
-                        <StackPanel>
-                            <TextBlock Text="Queued installs"
-                                       Foreground="#94A3B8"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding QueuedOperationCount}"
-                                       FontSize="26"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"
-                                       Margin="0,4,0,0"/>
-                            <TextBlock Text="Awaiting automation"
+                                <Button Grid.Row="0"
+                                        Grid.Column="1"
+                                        Content="Reset filters"
+                                        Command="{Binding ResetCatalogFiltersCommand}"
+                                        Style="{StaticResource InstallSecondaryButtonStyle}"
+                                        HorizontalAlignment="Right"/>
+
+                                <WrapPanel Grid.Row="1"
+                                           Grid.ColumnSpan="2"
+                                           Margin="0,14,0,0">
+                                    <Border>
+                                        <Border.Style>
+                                            <Style TargetType="Border"
+                                                   BasedOn="{StaticResource InstallBadgeStyle}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SelectedBundle}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Bundle"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,0,6,0"/>
+                                            <TextBlock Text="{Binding SelectedBundle.Name, TargetNullValue=All packages}"
+                                                       Foreground="#F8FAFC"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border>
+                                        <Border.Style>
+                                            <Style TargetType="Border"
+                                                   BasedOn="{StaticResource InstallBadgeStyle}">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding SearchText}" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Search"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,0,6,0"/>
+                                            <TextBlock Text="{Binding SearchText}"
+                                                       Foreground="#F8FAFC"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </Border>
+                                </WrapPanel>
+
+                                <WrapPanel Grid.Row="2"
+                                           Grid.ColumnSpan="2"
+                                           Margin="0,16,0,0">
+                                    <Border Style="{StaticResource InstallFilterCardStyle}"
+                                            Padding="16"
+                                            Margin="0,0,16,16"
+                                            Width="280">
+                                        <StackPanel>
+                                            <TextBlock Text="Search catalog"
+                                                       Foreground="#CBD5F5"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="Filter by package name, identifier, or summary"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,10"/>
+                                            <TextBox Style="{StaticResource App.TextBoxStyle}"
+                                                     ToolTip="Filter by package name, identifier, or summary"
+                                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Style="{StaticResource InstallFilterCardStyle}"
+                                            Padding="16"
+                                            Margin="0,0,16,16"
+                                            Width="280">
+                                        <StackPanel>
+                                            <TextBlock Text="Filter by bundle"
+                                                       Foreground="#CBD5F5"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="Use curated bundles to narrow to related tooling"
+                                                       Foreground="#64748B"
+                                                       FontSize="11"
+                                                       Margin="0,2,0,10"/>
+                                            <ComboBox ItemsSource="{Binding Bundles}"
+                                                      SelectedItem="{Binding SelectedBundle, Mode=TwoWay}"
+                                                      Style="{StaticResource App.ComboBoxStyle}"
+                                                      DisplayMemberPath="Name"
+                                                      TextSearch.TextPath="Name"/>
+                                        </StackPanel>
+                                    </Border>
+                                </WrapPanel>
+
+                                <Border Grid.Row="3"
+                                        Grid.ColumnSpan="2"
+                                        Margin="0,18,0,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border"
+                                               BasedOn="{StaticResource InstallFilterCardStyle}">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasActiveOperations}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <StackPanel>
+                                        <TextBlock Text="Installs in progress"
+                                                   Foreground="#38BDF8"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"/>
+                                        <TextBlock Text="Queued packages are highlighted so you can avoid duplicates."
+                                                   Foreground="#94A3B8"
+                                                   FontSize="11"
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <Grid x:Name="CatalogLayoutGrid"
+                      Grid.Row="1">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Border x:Name="CatalogListCard"
+                            Style="{StaticResource InstallCardBorderStyle}"
+                            Padding="20"
+                            Grid.Row="0">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <Grid Grid.Row="0"
+                                  Margin="0,0,0,16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Catalog results"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="Select packages, then queue or export them"
+                                               Foreground="#94A3B8"
+                                               FontSize="12"/>
+                                    <WrapPanel Margin="0,10,0,0">
+                                        <Border Style="{StaticResource InstallBadgeStyle}">
+                                            <TextBlock Text="{Binding Packages.Count, StringFormat={}{0} match(es)}"
+                                                       Foreground="#93C5FD"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Style="{StaticResource InstallBadgeStyle}"
+                                                Background="#1B2A44">
+                                            <TextBlock Text="{Binding QueuedOperationCount, StringFormat=Queued · {0}}"
+                                                       Foreground="#38BDF8"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Style="{StaticResource InstallBadgeStyle}"
+                                                Background="#1F2937">
+                                            <TextBlock Text="{Binding RunningOperationCount, StringFormat=Running · {0}}"
+                                                       Foreground="#22D3EE"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                    </WrapPanel>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            HorizontalAlignment="Right">
+                                    <Button Content="Queue selected"
+                                            Command="{Binding QueueSelectionCommand}"
+                                            Style="{StaticResource InstallAccentButtonStyle}"/>
+                                    <Button Content="Reset filters"
+                                            Margin="10,0,0,0"
+                                            Command="{Binding ResetCatalogFiltersCommand}"
+                                            Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <Grid Grid.Row="1">
+                                <ItemsControl ItemsSource="{StaticResource InstallHubPackageSkeletonItems}"
+                                              ItemTemplate="{StaticResource InstallHubPackageSkeletonTemplate}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ItemsControl.Style>
+                                </ItemsControl>
+
+                                <ListView x:Name="CatalogListView"
+                                          ItemsSource="{Binding Packages}"
+                                          Background="Transparent"
+                                          BorderThickness="0"
+                                          Padding="0"
+                                          Foreground="#F8FAFC"
+                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.CanContentScroll="True"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingStackPanel.ScrollUnit="Pixel">
+                                    <ListView.Style>
+                                        <Style TargetType="ListView">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLoading}" Value="True">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListView.Style>
+                                    <ListView.ItemContainerStyle>
+                                        <Style TargetType="ListViewItem">
+                                            <Setter Property="Padding" Value="0"/>
+                                            <Setter Property="Margin" Value="0,0,0,14"/>
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                                            <Setter Property="Focusable" Value="False"/>
+                                        </Style>
+                                    </ListView.ItemContainerStyle>
+                                    <ListView.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Background="#0F172A"
+                                                    BorderBrush="#1E293B"
+                                                    BorderThickness="1"
+                                                    CornerRadius="12"
+                                                    Padding="16">
+                                                <StackPanel>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox Grid.Column="0"
+                                                                  Style="{StaticResource App.CheckBoxStyle}"
+                                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                  VerticalAlignment="Top"
+                                                                  Margin="0,2,12,0"/>
+                                                        <StackPanel Grid.Column="1">
+                                                            <TextBlock Text="{Binding Definition.Name}"
+                                                                       FontSize="16"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#F8FAFC"
+                                                                       TextWrapping="Wrap"/>
+                                                            <TextBlock Text="{Binding Definition.Id}"
+                                                                       Foreground="#64748B"
+                                                                       FontSize="11"
+                                                                       Margin="0,4,0,0"/>
+                                                        </StackPanel>
+                                                        <Button Grid.Column="2"
+                                                                Content="Queue"
+                                                                Command="{Binding DataContext.QueuePackageCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}"
+                                                                Style="{StaticResource InstallAccentButtonStyle}"
+                                                                MinWidth="96"
+                                                                IsEnabled="{Binding IsQueued, Converter={StaticResource InverseBooleanConverter}}"/>
+                                                    </Grid>
+
+                                                    <WrapPanel Margin="0,12,0,0">
+                                                        <Border Style="{StaticResource InstallBadgeStyle}">
+                                                            <TextBlock Text="{Binding ManagerLabel}"
+                                                                       Foreground="#38BDF8"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"/>
+                                                        </Border>
+                                                        <Border Style="{StaticResource InstallBadgeStyle}"
+                                                                Background="#1F2937"
+                                                                Visibility="{Binding RequiresAdmin, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Admin"
+                                                                       Foreground="#F97316"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"/>
+                                                        </Border>
+                                                        <Border Style="{StaticResource InstallBadgeStyle}"
+                                                                Background="#1B2A44"
+                                                                Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Queued"
+                                                                       Foreground="#22C55E"
+                                                                       FontSize="11"
+                                                                       FontWeight="SemiBold"/>
+                                                        </Border>
+                                                    </WrapPanel>
+
+                                                    <TextBlock Text="{Binding Summary}"
+                                                               Foreground="#94A3B8"
+                                                               FontSize="12"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,10,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Summary}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Summary}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+
+                                                    <TextBlock Text="{Binding TagDisplay}"
+                                                               Foreground="#CBD5F5"
+                                                               FontSize="11"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,8,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding TagDisplay}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding TagDisplay}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+
+                                                    <TextBlock Text="{Binding LastStatus}"
+                                                               Foreground="#94A3B8"
+                                                               FontSize="11"
+                                                               Margin="0,10,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding LastStatus}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding LastStatus}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ListView.ItemTemplate>
+                                </ListView>
+                            </Grid>
+
+                            <TextBlock Grid.Row="2"
+                                       Text="No packages match your filters."
                                        Foreground="#64748B"
-                                       FontSize="11"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource InstallFilterCardStyle}"
-                            Grid.Column="1"
-                            Margin="9,0,9,0"
-                            Padding="18">
-                        <StackPanel>
-                            <TextBlock Text="Active runs"
-                                       Foreground="#94A3B8"
                                        FontSize="12"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding RunningOperationCount}"
-                                       FontSize="26"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"
-                                       Margin="0,4,0,0"/>
-                            <TextBlock Text="Currently installing"
-                                       Foreground="#64748B"
-                                       FontSize="11"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource InstallFilterCardStyle}"
-                            Grid.Column="2"
-                            Margin="18,0,0,0"
-                            Padding="18">
-                        <StackPanel>
-                            <TextBlock Text="Visible packages"
-                                       Foreground="#94A3B8"
-                                       FontSize="12"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="{Binding Packages.Count}"
-                                       FontSize="26"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"
-                                       Margin="0,4,0,0"/>
-                            <TextBlock Text="Matched by filters"
-                                       Foreground="#64748B"
-                                       FontSize="11"/>
-                        </StackPanel>
+                                       HorizontalAlignment="Center"
+                                       Margin="0,14,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding Packages.Count}"
+                                                         Value="0">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Border>
                 </Grid>
             </Grid>
-        </Border>
-
-        <Grid x:Name="CatalogLayoutGrid"
-              Grid.Row="1">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="FiltersColumnDefinition" Width="320" MinWidth="260"/>
-                <ColumnDefinition x:Name="CatalogSpacerColumnDefinition" Width="24"/>
-                <ColumnDefinition x:Name="CatalogListColumnDefinition" Width="*" MinWidth="320"/>
-            </Grid.ColumnDefinitions>
-
-            <Border x:Name="FiltersCard"
-                    Style="{StaticResource InstallCardBorderStyle}"
-                    Padding="24"
-                    Grid.Row="0"
-                    Grid.RowSpan="2"
-                    Grid.Column="0">
-                <StackPanel>
-                    <TextBlock Text="Filters"
-                               FontSize="16"
-                               FontWeight="SemiBold"
-                               Foreground="#F8FAFC"/>
-                    <TextBlock Text="Combine curated bundles with text search to focus on the right apps"
-                               Foreground="#94A3B8"
-                               FontSize="12"
-                               Margin="0,2,0,8"
-                               TextWrapping="Wrap"/>
-
-                    <WrapPanel Margin="0,12,0,4">
-                        <Border>
-                            <Border.Style>
-                                <Style TargetType="Border" BasedOn="{StaticResource InstallBadgeStyle}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedBundle}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Bundle"
-                                           Foreground="#94A3B8"
-                                           FontSize="11"
-                                           Margin="0,0,6,0"/>
-                                <TextBlock Text="{Binding SelectedBundle.Name, TargetNullValue=All packages}"
-                                           Foreground="#F8FAFC"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border>
-                            <Border.Style>
-                                <Style TargetType="Border" BasedOn="{StaticResource InstallBadgeStyle}">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SearchText}" Value="">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Border.Style>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Search"
-                                           Foreground="#94A3B8"
-                                           FontSize="11"
-                                           Margin="0,0,6,0"/>
-                                <TextBlock Text="{Binding SearchText}"
-                                           Foreground="#F8FAFC"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"/>
-                            </StackPanel>
-                        </Border>
-                    </WrapPanel>
-
-                    <Border Style="{StaticResource InstallFilterCardStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Search catalog"
-                                       Foreground="#CBD5F5"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="Filter by package name, identifier, or summary"
-                                       Foreground="#64748B"
-                                       FontSize="11"
-                                       Margin="0,2,0,10"/>
-                            <TextBox Style="{StaticResource App.TextBoxStyle}"
-                                     ToolTip="Filter by package name, identifier, or summary"
-                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Style="{StaticResource InstallFilterCardStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Filter by bundle"
-                                       Foreground="#CBD5F5"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="Use curated bundles to narrow to related tooling"
-                                       Foreground="#64748B"
-                                       FontSize="11"
-                                       Margin="0,2,0,10"/>
-                            <ComboBox ItemsSource="{Binding Bundles}"
-                                      SelectedItem="{Binding SelectedBundle, Mode=TwoWay}"
-                                      Style="{StaticResource App.ComboBoxStyle}"
-                                      DisplayMemberPath="Name"
-                                      TextSearch.TextPath="Name"/>
-                        </StackPanel>
-                    </Border>
-
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource InstallFilterCardStyle}">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasActiveOperations}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <StackPanel>
-                            <TextBlock Text="Installs in progress"
-                                       Foreground="#38BDF8"
-                                       FontSize="13"
-                                       FontWeight="SemiBold"/>
-                            <TextBlock Text="Queued packages are highlighted so you can avoid duplicates."
-                                       Foreground="#94A3B8"
-                                       FontSize="11"
-                                       Margin="0,6,0,0"
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-                    </Border>
-
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                Margin="0,18,0,0">
-                        <Button Content="Reset filters"
-                                Command="{Binding ResetCatalogFiltersCommand}"
-                                Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <Border x:Name="CatalogListCard"
-                    Style="{StaticResource InstallCardBorderStyle}"
-                    Padding="20"
-                    Grid.Row="0"
-                    Grid.RowSpan="2"
-                    Grid.Column="2">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-
-                    <Grid Grid.Row="0"
-                          Margin="0,0,0,16">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Catalog results"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"/>
-                            <TextBlock Text="Select packages, then queue or export them"
-                                       Foreground="#94A3B8"
-                                       FontSize="12"/>
-                            <WrapPanel Margin="0,10,0,0">
-                                <Border Style="{StaticResource InstallBadgeStyle}">
-                                    <TextBlock Text="{Binding Packages.Count, StringFormat={}{0} match(es)}"
-                                               Foreground="#93C5FD"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"/>
-                                </Border>
-                                <Border Style="{StaticResource InstallBadgeStyle}"
-                                        Background="#1B2A44">
-                                    <TextBlock Text="{Binding QueuedOperationCount, StringFormat=Queued · {0}}"
-                                               Foreground="#38BDF8"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"/>
-                                </Border>
-                                <Border Style="{StaticResource InstallBadgeStyle}"
-                                        Background="#1F2937">
-                                    <TextBlock Text="{Binding RunningOperationCount, StringFormat=Running · {0}}"
-                                               Foreground="#22D3EE"
-                                               FontSize="11"
-                                               FontWeight="SemiBold"/>
-                                </Border>
-                            </WrapPanel>
-                        </StackPanel>
-                        <StackPanel Grid.Column="1"
-                                    Orientation="Horizontal"
-                                    HorizontalAlignment="Right">
-                            <Button Content="Queue selected"
-                                    Command="{Binding QueueSelectionCommand}"
-                                    Style="{StaticResource InstallAccentButtonStyle}"/>
-                            <Button Content="Reset filters"
-                                    Margin="10,0,0,0"
-                                    Command="{Binding ResetCatalogFiltersCommand}"
-                                    Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                        </StackPanel>
-                    </Grid>
-
-                    <Grid Grid.Row="1">
-                        <ItemsControl ItemsSource="{StaticResource InstallHubPackageSkeletonItems}"
-                                      ItemTemplate="{StaticResource InstallHubPackageSkeletonTemplate}">
-                            <ItemsControl.Style>
-                                <Style TargetType="ItemsControl">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsLoading}" Value="True">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </ItemsControl.Style>
-                        </ItemsControl>
-
-                        <ListView x:Name="CatalogListView"
-                                  ItemsSource="{Binding Packages}"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  Padding="0"
-                                  Foreground="#F8FAFC"
-                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  ScrollViewer.CanContentScroll="True"
-                                  VirtualizingPanel.IsVirtualizing="True"
-                                  VirtualizingPanel.VirtualizationMode="Recycling"
-                                  VirtualizingStackPanel.ScrollUnit="Pixel">
-                            <ListView.Style>
-                                <Style TargetType="ListView">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsLoading}" Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </ListView.Style>
-                            <ListView.ItemContainerStyle>
-                                <Style TargetType="ListViewItem">
-                                    <Setter Property="Padding" Value="0"/>
-                                    <Setter Property="Margin" Value="0,0,0,14"/>
-                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                    <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-                                    <Setter Property="Focusable" Value="False"/>
-                                </Style>
-                            </ListView.ItemContainerStyle>
-                            <ListView.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="#0F172A"
-                                            BorderBrush="#1E293B"
-                                            BorderThickness="1"
-                                            CornerRadius="12"
-                                            Padding="16">
-                                        <StackPanel>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <CheckBox Grid.Column="0"
-                                                          Style="{StaticResource App.CheckBoxStyle}"
-                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                          VerticalAlignment="Top"
-                                                          Margin="0,2,12,0"/>
-                                                <StackPanel Grid.Column="1">
-                                                    <TextBlock Text="{Binding Definition.Name}"
-                                                               FontSize="16"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#F8FAFC"
-                                                               TextWrapping="Wrap"/>
-                                                    <TextBlock Text="{Binding Definition.Id}"
-                                                               Foreground="#64748B"
-                                                               FontSize="11"
-                                                               Margin="0,4,0,0"/>
-                                                </StackPanel>
-                                                <Button Grid.Column="2"
-                                                        Content="Queue"
-                                                        Command="{Binding DataContext.QueuePackageCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource InstallAccentButtonStyle}"
-                                                        MinWidth="96"
-                                                        IsEnabled="{Binding IsQueued, Converter={StaticResource InverseBooleanConverter}}"/>
-                                            </Grid>
-
-                                            <WrapPanel Margin="0,12,0,0">
-                                                <Border Style="{StaticResource InstallBadgeStyle}">
-                                                    <TextBlock Text="{Binding ManagerLabel}"
-                                                               Foreground="#38BDF8"
-                                                               FontSize="11"
-                                                               FontWeight="SemiBold"/>
-                                                </Border>
-                                                <Border Style="{StaticResource InstallBadgeStyle}"
-                                                        Background="#1F2937"
-                                                        Visibility="{Binding RequiresAdmin, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="Admin"
-                                                               Foreground="#F97316"
-                                                               FontSize="11"
-                                                               FontWeight="SemiBold"/>
-                                                </Border>
-                                                <Border Style="{StaticResource InstallBadgeStyle}"
-                                                        Background="#1B2A44"
-                                                        Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="Queued"
-                                                               Foreground="#22C55E"
-                                                               FontSize="11"
-                                                               FontWeight="SemiBold"/>
-                                                </Border>
-                                            </WrapPanel>
-
-                                            <TextBlock Text="{Binding Summary}"
-                                                       Foreground="#94A3B8"
-                                                       FontSize="12"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,10,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Summary}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Summary}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-
-                                            <TextBlock Text="{Binding TagDisplay}"
-                                                       Foreground="#CBD5F5"
-                                                       FontSize="11"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,8,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding TagDisplay}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding TagDisplay}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-
-                                            <TextBlock Text="{Binding LastStatus}"
-                                                       Foreground="#94A3B8"
-                                                       FontSize="11"
-                                                       Margin="0,10,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding LastStatus}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding LastStatus}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ListView.ItemTemplate>
-                        </ListView>
-                    </Grid>
-
-                    <TextBlock Grid.Row="2"
-                               Text="No packages match your filters."
-                               Foreground="#64748B"
-                               FontSize="12"
-                               HorizontalAlignment="Center"
-                               Margin="0,14,0,0">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding Packages.Count}"
-                                                 Value="0">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-                </Grid>
-            </Border>
-        </Grid>
+        </ScrollViewer>
     </Grid>
 </UserControl>

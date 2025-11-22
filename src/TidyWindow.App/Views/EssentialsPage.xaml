@@ -718,9 +718,9 @@
                 <StackPanel x:Name="OperationsHeaderActionHost"
                         Grid.Row="0"
                         Grid.Column="1"
-                        Orientation="Vertical"
                         HorizontalAlignment="Right"
-                        VerticalAlignment="Center">
+                        VerticalAlignment="Top"
+                        Margin="24,0,0,0">
                     <StackPanel x:Name="OperationsHeaderActionPanel"
                         Orientation="Horizontal"
                         HorizontalAlignment="Right">
@@ -734,7 +734,7 @@
                         Command="{Binding ClearCompletedCommand}"
                         Style="{StaticResource EssentialsSecondaryButtonStyle}"/>
                     </StackPanel>
-                                </StackPanel>
+                </StackPanel>
                 </Grid>
 
                             <ListView x:Name="OperationsListView"
