@@ -1,0 +1,14 @@
+during startup:
+lot of startup apps run at the same time and make system lag.
+
+is there a way to run startup apps one by one. so we use less cpu and less lag?
+
+but before that our app should be the first one to startup after boot.or reboot.
+
+create a dedicated page for this. also show all the apps that run in startup so user can set priority.
+
+amd user can give them numberw like 1 - 2 - 3. so in that order we startup apps.
+
+user can also set to ignore app if its very important.
+
+so by this with a simple toggle user can control all startup apps.

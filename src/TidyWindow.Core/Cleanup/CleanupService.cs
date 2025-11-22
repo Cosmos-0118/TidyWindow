@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -153,8 +156,47 @@ public sealed class CleanupService
                 continue;
             }
 
+            var repairedPermissions = false;
+            if (IsUnauthorizedAccessError(failure) && options.TakeOwnershipOnAccessDenied)
+            {
+                repairedPermissions = TryRepairPermissions(normalizedPath, isDirectory);
+                if (repairedPermissions && TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out failure))
+                {
+                    entries.Add(new CleanupDeletionEntry(
+                        normalizedPath,
+                        Math.Max(item.SizeBytes, 0),
+                        isDirectory,
+                        CleanupDeletionDisposition.Deleted,
+                        "Deleted after repairing permissions."));
+                    continue;
+                }
+            }
+
             if (IsInUseError(failure))
             {
+                if (!options.SkipLockedItems)
+                {
+                    if (options.AllowDeleteOnReboot && TryScheduleDeleteOnReboot(normalizedPath))
+                    {
+                        entries.Add(new CleanupDeletionEntry(
+                            normalizedPath,
+                            Math.Max(item.SizeBytes, 0),
+                            isDirectory,
+                            CleanupDeletionDisposition.Deleted,
+                            "Scheduled for removal after restart."));
+                        continue;
+                    }
+
+                    entries.Add(new CleanupDeletionEntry(
+                        normalizedPath,
+                        Math.Max(item.SizeBytes, 0),
+                        isDirectory,
+                        CleanupDeletionDisposition.Failed,
+                        "Deletion blocked because another process is using the item.",
+                        failure));
+                    continue;
+                }
+
                 entries.Add(new CleanupDeletionEntry(
                     normalizedPath,
                     Math.Max(item.SizeBytes, 0),
@@ -166,6 +208,22 @@ public sealed class CleanupService
             }
 
             var reason = failure?.Message ?? "Deletion failed";
+            if (repairedPermissions && IsUnauthorizedAccessError(failure))
+            {
+                reason = "Permission repair failed — delete still blocked.";
+            }
+
+            if (options.AllowDeleteOnReboot && TryScheduleDeleteOnReboot(normalizedPath))
+            {
+                entries.Add(new CleanupDeletionEntry(
+                    normalizedPath,
+                    Math.Max(item.SizeBytes, 0),
+                    isDirectory,
+                    CleanupDeletionDisposition.Deleted,
+                    "Scheduled for removal after restart."));
+                continue;
+            }
+
             entries.Add(new CleanupDeletionEntry(normalizedPath, Math.Max(item.SizeBytes, 0), isDirectory, CleanupDeletionDisposition.Failed, reason, failure));
         }
 
@@ -273,6 +331,73 @@ public sealed class CleanupService
         return false;
     }
 
+    private static bool IsUnauthorizedAccessError(Exception? exception) => exception is UnauthorizedAccessException;
+
+    private static bool TryRepairPermissions(string path, bool isDirectory)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            using var identity = WindowsIdentity.GetCurrent();
+            var user = identity?.User;
+            if (user is null)
+            {
+                return false;
+            }
+
+            if (isDirectory)
+            {
+                var directoryInfo = new DirectoryInfo(path);
+                var security = directoryInfo.GetAccessControl(AccessControlSections.All);
+                security.SetOwner(user);
+                var rule = new FileSystemAccessRule(
+                    user,
+                    FileSystemRights.FullControl,
+                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
+                    PropagationFlags.None,
+                    AccessControlType.Allow);
+                security.AddAccessRule(rule);
+                directoryInfo.SetAccessControl(security);
+            }
+            else
+            {
+                var fileInfo = new FileInfo(path);
+                var security = fileInfo.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access);
+                security.SetOwner(user);
+                var rule = new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow);
+                security.AddAccessRule(rule);
+                fileInfo.SetAccessControl(security);
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static bool TryScheduleDeleteOnReboot(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            return NativeMethods.MoveFileEx(path, null, NativeMethods.MoveFileFlags.MOVEFILE_DELAY_UNTIL_REBOOT);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     private static FileAttributes? TryGetAttributes(string path)
     {
         try
@@ -307,5 +432,22 @@ public sealed class CleanupService
         {
             cancellationToken.ThrowIfCancellationRequested();
         }
+    }
+
+    private static class NativeMethods
+    {
+        [Flags]
+        public enum MoveFileFlags : uint
+        {
+            MOVEFILE_REPLACE_EXISTING = 0x1,
+            MOVEFILE_COPY_ALLOWED = 0x2,
+            MOVEFILE_DELAY_UNTIL_REBOOT = 0x4,
+            MOVEFILE_WRITE_THROUGH = 0x8,
+            MOVEFILE_CREATE_HARDLINK = 0x10,
+            MOVEFILE_FAIL_IF_NOT_TRACKABLE = 0x20
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        public static extern bool MoveFileEx(string lpExistingFileName, string? lpNewFileName, MoveFileFlags dwFlags);
     }
 }

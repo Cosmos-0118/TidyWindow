@@ -1914,15 +1914,15 @@
         HorizontalAlignment="Stretch"
         VerticalAlignment="Stretch"
         Panel.ZIndex="2">
-            <Border HorizontalAlignment="Center"
+                <Border HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     Background="{StaticResource CleanupSurfaceBrush}"
                     BorderBrush="{StaticResource CleanupBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="18"
-                    Padding="28"
-                    Width="680"
-                    MaxWidth="760"
+                    Padding="32"
+                    MinWidth="760"
+                    MaxWidth="1260"
                     Effect="{StaticResource SurfaceShadowEffect}">
                 <StackPanel>
                     <TextBlock Text="Phase 3 — Confirm cleanup"
@@ -1971,7 +1971,14 @@
                             </StackPanel>
                         </Border>
                     </WrapPanel>
-                    <StackPanel Margin="0,0,0,12">
+                    <Grid Margin="0,12,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="3*"/>
+                            <ColumnDefinition Width="2*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0"
+                                    Margin="0,0,20,0">
+                            <StackPanel Margin="0,0,0,12">
                         <TextBlock Text="Categories selected"
                                    FontSize="12"
                                    Foreground="{StaticResource CleanupMutedTextBrush}"/>
@@ -2029,8 +2036,8 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                    </StackPanel>
-                    <StackPanel Margin="0,8,0,0">
+                            </StackPanel>
+                            <StackPanel Margin="0,12,0,0">
                         <TextBlock Text="Risk callouts"
                                    FontSize="14"
                                    FontWeight="SemiBold"
@@ -2100,8 +2107,119 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                    </StackPanel>
-                    <StackPanel Margin="0,8,0,0">
+                            </StackPanel>
+                            <StackPanel Margin="0,16,0,0">
+                        <StackPanel.Style>
+                            <Style TargetType="StackPanel">
+                                <Setter Property="Visibility"
+                                        Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsLockingProcessPanelVisible}"
+                                                 Value="True">
+                                        <Setter Property="Visibility"
+                                                Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </StackPanel.Style>
+                        <TextBlock Text="Apps currently locking these files"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                        <TextBlock Text="{Binding LockingProcessSummary}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   Margin="0,4,0,0"
+                                   TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,8,0,12">
+                            <Button Content="Rescan"
+                                    Command="{Binding RefreshLockingProcessesCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="Select all"
+                                    Command="{Binding SelectAllLockingProcessesCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"
+                                    Margin="0,0,8,0"/>
+                            <Button Content="Clear selection"
+                                    Command="{Binding ClearLockingProcessSelectionsCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"/>
+                        </StackPanel>
+                        <ItemsControl ItemsSource="{Binding LockingProcesses}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border CornerRadius="10"
+                                            Padding="12"
+                                            Margin="0,0,0,8"
+                                            Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                                            BorderThickness="1">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal"
+                                                        VerticalAlignment="Center">
+                                                <CheckBox Content="{Binding DisplayName}"
+                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                          Style="{StaticResource App.CheckBoxStyle}"
+                                                          FontSize="13"
+                                                          Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                <Border Background="#332DD4BF"
+                                                        CornerRadius="8"
+                                                        Padding="8,2"
+                                                        Margin="8,0,0,0"
+                                                        Visibility="{Binding IsService, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Service"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                </Border>
+                                                <Border Background="#33F87171"
+                                                        CornerRadius="8"
+                                                        Padding="8,2"
+                                                        Margin="8,0,0,0"
+                                                        Visibility="{Binding IsCritical, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Critical"
+                                                               FontSize="11"
+                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                                </Border>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding ImpactSummary}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                            <TextBlock Text="{Binding Description}"
+                                                       FontSize="11"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       Margin="0,2,0,0"
+                                                       TextWrapping="Wrap"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,12,0,0">
+                            <Button Content="Close selected apps"
+                                    Command="{Binding CloseSelectedLockingProcessesCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"/>
+                            <Button Content="Force close selected"
+                                    Command="{Binding ForceCloseSelectedLockingProcessesCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"
+                                    Margin="8,0,0,0"/>
+                            <Button Content="Close all apps"
+                                    Command="{Binding CloseAllLockingProcessesCommand}"
+                                    Style="{StaticResource FlatButtonStyle}"
+                                    Margin="8,0,0,0"/>
+                        </StackPanel>
+                        <TextBlock Text="Unsaved work may be lost when closing these apps. Force close should be a last resort."
+                                   FontSize="11"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   Margin="0,6,0,0"
+                                   TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Margin="0,0,0,0">
                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                   Content="Send to Recycle Bin when possible"
                                   IsChecked="{Binding UseRecycleBin, Mode=TwoWay}"
@@ -2111,6 +2229,22 @@
                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                   Content="Generate cleanup report"
                                   IsChecked="{Binding GenerateCleanupReport, Mode=TwoWay}"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                  FontSize="13"/>
+                           <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                  Content="Skip files that are still locked"
+                                  IsChecked="{Binding SkipLockedItems, Mode=TwoWay}"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                  FontSize="13"
+                                  Margin="0,8,0,0"/>
+                           <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                  Content="Repair permissions before deleting (force delete)"
+                                  IsChecked="{Binding RepairPermissionsBeforeDelete, Mode=TwoWay}"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                  FontSize="13"/>
+                           <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                  Content="Schedule locked items for deletion after restart"
+                                  IsChecked="{Binding ScheduleLockedItemsForReboot, Mode=TwoWay}"
                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                   FontSize="13"/>
                         <TextBlock Text="Reports save under Documents\TidyWindow\Reports."
@@ -2131,7 +2265,32 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                    </StackPanel>
+                        <TextBlock Text="Force delete and reboot scheduling can remove files in use — use these only when you're sure the files are safe to delete."
+                                   FontSize="11"
+                                   Foreground="#FBBF24"
+                                   Margin="24,4,0,0"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility"
+                                            Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding RepairPermissionsBeforeDelete}"
+                                                     Value="True">
+                                            <Setter Property="Visibility"
+                                                    Value="Visible"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ScheduleLockedItemsForReboot}"
+                                                     Value="True">
+                                            <Setter Property="Visibility"
+                                                    Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        </StackPanel>
+                    </Grid>
                     <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Margin="0,24,0,0">

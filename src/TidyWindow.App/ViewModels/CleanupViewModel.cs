@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -96,15 +97,99 @@ public sealed partial class CleanupCelebrationFailureViewModel : ObservableObjec
     private bool _isRetrying;
 }
 
+public sealed partial class CleanupLockProcessViewModel : ObservableObject
+{
+    private static readonly IReadOnlyList<string> EmptyPaths = Array.Empty<string>();
+
+    public CleanupLockProcessViewModel(ResourceLockInfo info)
+    {
+        if (info is null)
+        {
+            throw new ArgumentNullException(nameof(info));
+        }
+
+        Handle = info.Handle;
+        DisplayName = string.IsNullOrWhiteSpace(info.DisplayName)
+            ? $"Process {info.ProcessId}"
+            : info.DisplayName;
+        Description = string.IsNullOrWhiteSpace(info.Description)
+            ? "Application"
+            : info.Description;
+        IsService = info.IsService;
+        IsCritical = info.IsCritical;
+        IsRestartable = info.IsRestartable;
+        ResourcePaths = info.ResourcePaths?.Count > 0 ? info.ResourcePaths : EmptyPaths;
+    }
+
+    public ResourceLockHandle Handle { get; }
+
+    public int ProcessId => Handle.ProcessId;
+
+    public string DisplayName { get; }
+
+    public string Description { get; }
+
+    public bool IsService { get; }
+
+    public bool IsCritical { get; }
+
+    public bool IsRestartable { get; }
+
+    public IReadOnlyList<string> ResourcePaths { get; }
+
+    public int ImpactedItemCount => ResourcePaths.Count;
+
+    public string ImpactSummary
+    {
+        get
+        {
+            if (ImpactedItemCount == 0)
+            {
+                return "Potentially locking selected files";
+            }
+
+            if (ImpactedItemCount == 1)
+            {
+                return TrimPath(ResourcePaths[0]);
+            }
+
+            return $"Impacting {ImpactedItemCount:N0} selected items";
+        }
+    }
+
+    [ObservableProperty]
+    private bool _isSelected = true;
+
+    private static string TrimPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return "Selected item";
+        }
+
+        const int prefixLength = 22;
+        const int suffixLength = 18;
+        if (path.Length <= prefixLength + suffixLength + 3)
+        {
+            return path;
+        }
+
+        return string.Concat(path.AsSpan(0, prefixLength), "…", path.AsSpan(path.Length - suffixLength));
+    }
+}
+
 public sealed partial class CleanupViewModel : ViewModelBase
 {
     private readonly CleanupService _cleanupService;
     private readonly MainViewModel _mainViewModel;
     private readonly IPrivilegeService _privilegeService;
+    private readonly IResourceLockService _resourceLockService;
 
     private const int PreviewCountMinimumValue = 10;
     private const int PreviewCountMaximumValue = 100_000;
     private const int DefaultPreviewCount = 50;
+    private const int MaxLockInspectionItemsPerCategory = 32;
+    private const int MaxLockInspectionSampleTotal = 600;
 
     private readonly HashSet<string> _activeExtensions = new(StringComparer.OrdinalIgnoreCase);
     private int _previewCount = DefaultPreviewCount;
@@ -114,15 +199,18 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private bool _hasCompletedPreview;
     private CancellationTokenSource? _refreshToastCancellation;
     private CancellationTokenSource? _phaseTransitionCancellation;
+    private CancellationTokenSource? _lockInspectionCancellation;
     private readonly TimeSpan _phaseTransitionLeadDuration = TimeSpan.FromMilliseconds(160);
     private readonly TimeSpan _phaseTransitionSettleDuration = TimeSpan.FromMilliseconds(220);
     private const int DeletionUiYieldInterval = 750;
+    private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
 
-    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService)
+    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService, IResourceLockService resourceLockService)
     {
         _cleanupService = cleanupService;
         _mainViewModel = mainViewModel;
         _privilegeService = privilegeService;
+        _resourceLockService = resourceLockService;
 
         ItemKindOptions = new List<CleanupItemKindOption>
         {
@@ -162,6 +250,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         CelebrationCategories = new ReadOnlyObservableCollection<string>(_celebrationCategories);
         _pendingDeletionCategories.CollectionChanged += OnPendingDeletionCategoriesCollectionChanged;
         _celebrationCategories.CollectionChanged += OnCelebrationCategoriesCollectionChanged;
+        LockingProcesses.CollectionChanged += OnLockingProcessesCollectionChanged;
     }
 
     [ObservableProperty]
@@ -228,6 +317,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private bool _generateCleanupReport;
 
     [ObservableProperty]
+    private bool _skipLockedItems = true;
+
+    [ObservableProperty]
+    private bool _repairPermissionsBeforeDelete;
+
+    [ObservableProperty]
+    private bool _scheduleLockedItemsForReboot;
+
+    [ObservableProperty]
     private CleanupPhase _currentPhase = CleanupPhase.Setup;
 
     [ObservableProperty]
@@ -278,6 +376,37 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private string _phaseTransitionMessage = string.Empty;
 
+    [ObservableProperty]
+    private bool _isLockInspectionInProgress;
+
+    [ObservableProperty]
+    private bool _isClosingLockingProcesses;
+
+    [ObservableProperty]
+    private string _lockInspectionStatusMessage = string.Empty;
+
+    [ObservableProperty]
+    private bool _isLockingProcessPopupOpen;
+
+    partial void OnIsLockInspectionInProgressChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsLockingProcessPanelVisible));
+        OnPropertyChanged(nameof(LockingProcessSummary));
+        OnPropertyChanged(nameof(LockingProcessButtonLabel));
+    }
+
+    partial void OnLockInspectionStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(LockingProcessSummary));
+    }
+
+    partial void OnIsClosingLockingProcessesChanged(bool value)
+    {
+        CloseSelectedLockingProcessesCommand.NotifyCanExecuteChanged();
+        ForceCloseSelectedLockingProcessesCommand.NotifyCanExecuteChanged();
+        CloseAllLockingProcessesCommand.NotifyCanExecuteChanged();
+    }
+
     private readonly ObservableCollection<string> _pendingDeletionCategories = new();
     private readonly ObservableCollection<string> _celebrationCategories = new();
 
@@ -289,9 +418,59 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public ObservableCollection<CleanupCelebrationFailureViewModel> CelebrationFailures { get; } = new();
 
+    public ObservableCollection<CleanupLockProcessViewModel> LockingProcesses { get; } = new();
+
     public ReadOnlyObservableCollection<string> PendingDeletionCategories { get; }
 
     public ReadOnlyObservableCollection<string> CelebrationCategories { get; }
+
+    public bool HasLockingProcesses => LockingProcesses.Count > 0;
+
+    public bool IsLockingProcessPanelVisible => IsLockInspectionInProgress || HasLockingProcesses || !string.IsNullOrWhiteSpace(LockInspectionStatusMessage);
+
+    public string LockingProcessSummary
+    {
+        get
+        {
+            if (IsLockInspectionInProgress)
+            {
+                return string.IsNullOrWhiteSpace(LockInspectionStatusMessage)
+                    ? "Scanning for running apps…"
+                    : LockInspectionStatusMessage;
+            }
+
+            if (!HasLockingProcesses)
+            {
+                return string.IsNullOrWhiteSpace(LockInspectionStatusMessage)
+                    ? "No running apps are locking the selected files."
+                    : LockInspectionStatusMessage;
+            }
+
+            var blockingAppCount = LockingProcesses.Count;
+            var impactedItems = LockingProcesses.Sum(static vm => Math.Max(1, vm.ImpactedItemCount));
+            var appLabel = blockingAppCount == 1 ? "app" : "apps";
+            var itemLabel = impactedItems == 1 ? "item" : "items";
+            return $"{blockingAppCount:N0} {appLabel} may be locking {impactedItems:N0} {itemLabel}.";
+        }
+    }
+
+    public string LockingProcessButtonLabel
+    {
+        get
+        {
+            if (IsLockInspectionInProgress)
+            {
+                return "Scanning…";
+            }
+
+            if (HasLockingProcesses)
+            {
+                return $"View apps ({LockingProcesses.Count:N0})";
+            }
+
+            return "View apps";
+        }
+    }
 
     // Paging state for preview
     private int _currentPage = 1;
@@ -730,7 +909,10 @@ public sealed partial class CleanupViewModel : ViewModelBase
         var deletionOptions = new CleanupDeletionOptions
         {
             PreferRecycleBin = useRecycleBin,
-            AllowPermanentDeleteFallback = true
+            AllowPermanentDeleteFallback = true,
+            SkipLockedItems = SkipLockedItems,
+            TakeOwnershipOnAccessDenied = RepairPermissionsBeforeDelete,
+            AllowDeleteOnReboot = ScheduleLockedItemsForReboot
         };
 
         await ExecuteDeletionAsync(snapshot, deletionOptions, generateReport);
@@ -758,10 +940,17 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         IsConfirmationSheetVisible = true;
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
+
+        BeginLockInspection(itemsToDelete);
     }
 
     private void ClearPendingDeletionState()
     {
+        CancelLockInspection();
+        LockingProcesses.Clear();
+        LockInspectionStatusMessage = string.Empty;
+        IsLockingProcessPopupOpen = false;
+        UpdateLockingProcessSummary();
         _pendingDeletionItems = null;
         if (IsConfirmationSheetVisible)
         {
@@ -777,6 +966,384 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(HasPendingDeletionRisks));
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
+    }
+
+    private void BeginLockInspection(List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> itemsToInspect)
+    {
+        CancelLockInspection();
+        IsLockingProcessPopupOpen = false;
+
+        if (itemsToInspect is null || itemsToInspect.Count == 0)
+        {
+            LockingProcesses.Clear();
+            LockInspectionStatusMessage = string.Empty;
+            UpdateLockingProcessSummary();
+            return;
+        }
+
+        var sample = BuildLockInspectionSample(itemsToInspect);
+        if (sample.Paths.Count == 0)
+        {
+            LockingProcesses.Clear();
+            LockInspectionStatusMessage = "No valid file paths selected for lock inspection.";
+            UpdateLockingProcessSummary();
+            return;
+        }
+
+        LockingProcesses.Clear();
+        UpdateLockingProcessSummary();
+
+        var cts = new CancellationTokenSource();
+        _lockInspectionCancellation = cts;
+        IsLockInspectionInProgress = true;
+        _lastLockInspectionStats = sample.Stats;
+        LockInspectionStatusMessage = BuildLockInspectionScanMessage(sample.Stats);
+
+        _ = InspectLockingProcessesAsync(sample, cts);
+    }
+
+    private LockInspectionSample BuildLockInspectionSample(List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> itemsToInspect)
+    {
+        if (itemsToInspect is null || itemsToInspect.Count == 0)
+        {
+            return new LockInspectionSample(Array.Empty<string>(), new LockInspectionSampleStats(0, 0, 0));
+        }
+
+        var validItems = itemsToInspect
+            .Where(static tuple => !string.IsNullOrWhiteSpace(tuple.item.Model.FullName))
+            .ToList();
+
+        if (validItems.Count == 0)
+        {
+            return new LockInspectionSample(Array.Empty<string>(), new LockInspectionSampleStats(0, 0, 0));
+        }
+
+        long totalBytes = 0;
+        foreach (var entry in validItems)
+        {
+            totalBytes += Math.Max(0L, entry.item.Model.SizeBytes);
+        }
+
+        var candidateItems = new List<CleanupPreviewItemViewModel>();
+        foreach (var group in validItems.GroupBy(static tuple => tuple.group.Category ?? string.Empty, StringComparer.OrdinalIgnoreCase))
+        {
+            var prioritized = group
+                .Select(static tuple => tuple.item)
+                .OrderByDescending(static item => Math.Max(1L, item.Model.SizeBytes))
+                .ThenByDescending(static item => item.Model.LastModifiedUtc)
+                .Take(MaxLockInspectionItemsPerCategory);
+
+            candidateItems.AddRange(prioritized);
+        }
+
+        candidateItems = candidateItems
+            .OrderByDescending(static item => Math.Max(1L, item.Model.SizeBytes))
+            .ThenByDescending(static item => item.Model.LastModifiedUtc)
+            .ToList();
+
+        var uniquePaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var selectedItems = new List<CleanupPreviewItemViewModel>();
+        long sampledBytes = 0;
+
+        foreach (var item in candidateItems)
+        {
+            var path = item.Model.FullName;
+            if (string.IsNullOrWhiteSpace(path) || !uniquePaths.Add(path))
+            {
+                continue;
+            }
+
+            selectedItems.Add(item);
+            sampledBytes += Math.Max(0L, item.Model.SizeBytes);
+
+            if (selectedItems.Count >= MaxLockInspectionSampleTotal)
+            {
+                break;
+            }
+        }
+
+        var selectedPaths = selectedItems.Select(static item => item.Model.FullName).ToList();
+        var coverageFraction = totalBytes > 0
+            ? Math.Min(1.0, sampledBytes / (double)totalBytes)
+            : selectedItems.Count / (double)validItems.Count;
+
+        var stats = new LockInspectionSampleStats(validItems.Count, selectedPaths.Count, coverageFraction);
+        return new LockInspectionSample(selectedPaths, stats);
+    }
+
+    private static string BuildLockInspectionScanMessage(LockInspectionSampleStats stats)
+    {
+        if (stats.TotalItems <= 0)
+        {
+            return "Scanning selected items for locking apps…";
+        }
+
+        var itemLabel = stats.TotalItems == 1 ? "item" : "items";
+        if (stats.SampledItems >= stats.TotalItems)
+        {
+            return $"Scanning {stats.SampledItems:N0} selected {itemLabel} for locking apps…";
+        }
+
+        var coveragePercent = Math.Clamp(stats.CoverageFraction * 100, 0, 100);
+        return coveragePercent > 0
+            ? $"Scanning {stats.SampledItems:N0} of {stats.TotalItems:N0} selected {itemLabel} (~{coveragePercent:0}% of total size)…"
+            : $"Scanning {stats.SampledItems:N0} of {stats.TotalItems:N0} selected {itemLabel} for locking apps…";
+    }
+
+    private static string BuildLockInspectionCoverageSuffix(LockInspectionSampleStats stats)
+    {
+        if (stats.TotalItems <= 0 || stats.SampledItems >= stats.TotalItems)
+        {
+            return string.Empty;
+        }
+
+        var coveragePercent = Math.Clamp(stats.CoverageFraction * 100, 0, 100);
+        return coveragePercent > 0
+            ? $" (~{coveragePercent:0}% of selected size)"
+            : $" ({stats.SampledItems:N0}/{stats.TotalItems:N0} items sampled)";
+    }
+
+    private async Task InspectLockingProcessesAsync(LockInspectionSample sample, CancellationTokenSource cancellationSource)
+    {
+        try
+        {
+            var token = cancellationSource.Token;
+            var paths = sample.Paths;
+            if (paths.Count == 0)
+            {
+                UpdateLockingProcesses(Array.Empty<ResourceLockInfo>());
+                LockInspectionStatusMessage = "No valid file paths selected for lock inspection.";
+                return;
+            }
+
+            var processes = await _resourceLockService.InspectAsync(paths, token);
+            UpdateLockingProcesses(processes);
+
+            var suffix = BuildLockInspectionCoverageSuffix(sample.Stats);
+            LockInspectionStatusMessage = processes.Count == 0
+                ? $"No running apps are locking the sampled files{suffix}."
+                : $"Select apps below to close before running cleanup{suffix}.";
+        }
+        catch (OperationCanceledException)
+        {
+            // Selection changed quickly; ignore.
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.SetStatusMessage($"Detecting locking apps failed: {ex.Message}");
+            LockInspectionStatusMessage = "Unable to inspect running apps.";
+            UpdateLockingProcesses(Array.Empty<ResourceLockInfo>());
+        }
+        finally
+        {
+            if (ReferenceEquals(_lockInspectionCancellation, cancellationSource))
+            {
+                cancellationSource.Dispose();
+                _lockInspectionCancellation = null;
+                IsLockInspectionInProgress = false;
+                UpdateLockingProcessSummary();
+            }
+        }
+    }
+
+    private void CancelLockInspection()
+    {
+        var existing = Interlocked.Exchange(ref _lockInspectionCancellation, null);
+        if (existing is null)
+        {
+            return;
+        }
+
+        try
+        {
+            existing.Cancel();
+        }
+        catch
+        {
+            // Suppress cancellation races.
+        }
+        finally
+        {
+            existing.Dispose();
+        }
+
+        IsLockInspectionInProgress = false;
+    }
+
+    [RelayCommand]
+    private void RefreshLockingProcesses()
+    {
+        if (_pendingDeletionItems is null || _pendingDeletionItems.Count == 0)
+        {
+            _mainViewModel.SetStatusMessage("Select items to inspect before rescanning for locking apps.");
+            return;
+        }
+
+        BeginLockInspection(_pendingDeletionItems);
+    }
+
+    [RelayCommand]
+    private void SelectAllLockingProcesses()
+    {
+        foreach (var process in LockingProcesses)
+        {
+            process.IsSelected = true;
+        }
+    }
+
+    [RelayCommand]
+    private void ClearLockingProcessSelections()
+    {
+        foreach (var process in LockingProcesses)
+        {
+            process.IsSelected = false;
+        }
+    }
+
+    private bool CanCloseSelectedLockingProcesses() => !IsClosingLockingProcesses && LockingProcesses.Any(static vm => vm.IsSelected);
+
+    [RelayCommand(CanExecute = nameof(CanCloseSelectedLockingProcesses))]
+    private async Task CloseSelectedLockingProcessesAsync()
+    {
+        var targets = LockingProcesses.Where(static vm => vm.IsSelected).ToList();
+        await CloseLockingProcessesAsync(targets, ResourceCloseMode.Graceful);
+    }
+
+    private bool CanForceCloseSelectedLockingProcesses() => CanCloseSelectedLockingProcesses();
+
+    [RelayCommand(CanExecute = nameof(CanForceCloseSelectedLockingProcesses))]
+    private async Task ForceCloseSelectedLockingProcessesAsync()
+    {
+        var targets = LockingProcesses.Where(static vm => vm.IsSelected).ToList();
+        await CloseLockingProcessesAsync(targets, ResourceCloseMode.Force);
+    }
+
+    private bool CanCloseAllLockingProcesses() => !IsClosingLockingProcesses && HasLockingProcesses;
+
+    [RelayCommand(CanExecute = nameof(CanCloseAllLockingProcesses))]
+    private async Task CloseAllLockingProcessesAsync()
+    {
+        var targets = LockingProcesses.ToList();
+        await CloseLockingProcessesAsync(targets, ResourceCloseMode.Graceful);
+    }
+
+    [RelayCommand]
+    private void ShowLockingProcesses()
+    {
+        if (!IsLockingProcessPanelVisible)
+        {
+            return;
+        }
+
+        IsLockingProcessPopupOpen = true;
+    }
+
+    [RelayCommand]
+    private void HideLockingProcesses()
+    {
+        IsLockingProcessPopupOpen = false;
+    }
+
+    private async Task CloseLockingProcessesAsync(IReadOnlyList<CleanupLockProcessViewModel> targets, ResourceCloseMode mode)
+    {
+        if (targets is null || targets.Count == 0)
+        {
+            _mainViewModel.SetStatusMessage("Select at least one app to close.");
+            return;
+        }
+
+        IsClosingLockingProcesses = true;
+        try
+        {
+            var handles = targets.Select(static vm => vm.Handle).ToList();
+            var result = await _resourceLockService.CloseAsync(handles, mode);
+            _mainViewModel.SetStatusMessage(result.Message);
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.SetStatusMessage($"Closing apps failed: {ex.Message}");
+        }
+        finally
+        {
+            IsClosingLockingProcesses = false;
+        }
+
+        if (_pendingDeletionItems is not null && _pendingDeletionItems.Count > 0)
+        {
+            BeginLockInspection(_pendingDeletionItems);
+        }
+    }
+
+    private void UpdateLockingProcesses(IReadOnlyList<ResourceLockInfo> processes)
+    {
+        foreach (var process in LockingProcesses)
+        {
+            process.PropertyChanged -= OnLockingProcessPropertyChanged;
+        }
+
+        LockingProcesses.Clear();
+        for (var i = 0; i < processes.Count; i++)
+        {
+            var vm = new CleanupLockProcessViewModel(processes[i]);
+            vm.PropertyChanged += OnLockingProcessPropertyChanged;
+            LockingProcesses.Add(vm);
+        }
+
+        if (processes.Count == 0)
+        {
+            UpdateLockingProcessSummary();
+        }
+    }
+
+    private void OnLockingProcessesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (e is not null)
+        {
+            if (e.OldItems is not null)
+            {
+                foreach (CleanupLockProcessViewModel item in e.OldItems)
+                {
+                    item.PropertyChanged -= OnLockingProcessPropertyChanged;
+                }
+            }
+
+            if (e.NewItems is not null)
+            {
+                foreach (CleanupLockProcessViewModel item in e.NewItems)
+                {
+                    item.PropertyChanged += OnLockingProcessPropertyChanged;
+                }
+            }
+        }
+
+        UpdateLockingProcessSummary();
+        CloseSelectedLockingProcessesCommand.NotifyCanExecuteChanged();
+        ForceCloseSelectedLockingProcessesCommand.NotifyCanExecuteChanged();
+        CloseAllLockingProcessesCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnLockingProcessPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.Equals(e.PropertyName, nameof(CleanupLockProcessViewModel.IsSelected), StringComparison.Ordinal))
+        {
+            CloseSelectedLockingProcessesCommand.NotifyCanExecuteChanged();
+            ForceCloseSelectedLockingProcessesCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private void UpdateLockingProcessSummary()
+    {
+        OnPropertyChanged(nameof(HasLockingProcesses));
+        OnPropertyChanged(nameof(IsLockingProcessPanelVisible));
+        OnPropertyChanged(nameof(LockingProcessSummary));
+        OnPropertyChanged(nameof(LockingProcessButtonLabel));
+    }
+
+    private sealed record LockInspectionSample(IReadOnlyList<string> Paths, LockInspectionSampleStats Stats);
+
+    private readonly record struct LockInspectionSampleStats(int TotalItems, int SampledItems, double CoverageFraction)
+    {
+        public bool HasCoverage => CoverageFraction > 0;
     }
 
     private void BuildPendingDeletionRisks(IEnumerable<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> items)

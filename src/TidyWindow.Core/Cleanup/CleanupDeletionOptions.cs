@@ -49,6 +49,25 @@ public sealed record CleanupDeletionOptions
     /// </summary>
     public bool AllowPermanentDeleteFallback { get; init; } = true;
 
+    /// <summary>
+    /// Skips items that are currently locked by another process when <c>true</c>. When <c>false</c>,
+    /// the deletion pipeline will attempt additional recovery steps before falling back to scheduling
+    /// deletion on reboot (if enabled).
+    /// </summary>
+    public bool SkipLockedItems { get; init; } = true;
+
+    /// <summary>
+    /// Attempts to take ownership and grant delete permissions when the filesystem reports
+    /// an access denied error.
+    /// </summary>
+    public bool TakeOwnershipOnAccessDenied { get; init; }
+
+    /// <summary>
+    /// Schedules stubborn files for deletion on the next reboot when they remain locked after all
+    /// retries complete.
+    /// </summary>
+    public bool AllowDeleteOnReboot { get; init; }
+
     internal CleanupDeletionOptions Sanitize()
     {
         var retryCount = MaxRetryCount < 0 ? 0 : MaxRetryCount;

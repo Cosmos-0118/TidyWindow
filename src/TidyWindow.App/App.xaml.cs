@@ -72,6 +72,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<PackageManagerDetector>();
                 services.AddSingleton<PackageManagerInstaller>();
                 services.AddSingleton<CleanupService>();
+                services.AddSingleton<IResourceLockService, ResourceLockService>();
                 services.AddSingleton<DeepScanService>();
                 services.AddSingleton<InstallCatalogService>();
                 services.AddSingleton<InstallQueue>();

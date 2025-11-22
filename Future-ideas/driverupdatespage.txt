@@ -1,0 +1,8 @@
+driver updates page is useless i fell. undows automatially gives proper updates what the use to 
+this page?
+
+if we add like a reinstall button. then maybe. its useful? go through the driver update feature.
+
+and rewrite this file on your insight. tell me how can we improve? is it possible to check and 
+install amd or nvidia graphics driver too?
+is it possible to reinstall drivers using windows?
