@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
+using TidyWindow.App.ViewModels.Filters;
 using TidyWindow.App.ViewModels.Preview;
 using TidyWindow.Core.Cleanup;
 using WindowsClipboard = System.Windows.Clipboard;
@@ -198,9 +199,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private const int MaxLockInspectionItemsPerCategory = 32;
     private const int MaxLockInspectionSampleTotal = 600;
 
-    private readonly HashSet<string> _activeExtensions = new(StringComparer.OrdinalIgnoreCase);
     private readonly CleanupPreviewFilter _previewFilter;
     private readonly PreviewPagingController _previewPagingController;
+    private readonly CleanupExtensionFilterModel _extensionFilterModel;
     private int _previewCount = DefaultPreviewCount;
     private static readonly string[] _sensitiveRoots = BuildSensitiveRoots();
     private List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>? _pendingDeletionItems;
@@ -226,7 +227,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         _previewFilter = new CleanupPreviewFilter
         {
             SelectedItemKind = _selectedItemKind,
-            ExtensionFilterMode = _selectedExtensionFilterMode,
+            ExtensionFilterMode = CleanupExtensionFilterMode.None,
             MinimumAgeThresholdUtc = _minimumAgeThresholdUtc
         };
         _previewPagingController = new PreviewPagingController(() => SelectedTarget, _previewFilter);
@@ -239,14 +240,14 @@ public sealed partial class CleanupViewModel : ViewModelBase
             new(CleanupItemKind.Both, "Files and folders")
         };
 
-        ExtensionFilterOptions = new List<CleanupExtensionFilterOption>
+        var extensionFilterOptions = new List<CleanupExtensionFilterOption>
         {
             new(CleanupExtensionFilterMode.None, "No extension filter", "Show every item regardless of extension."),
             new(CleanupExtensionFilterMode.IncludeOnly, "Include only", "Keep the extensions listed below."),
             new(CleanupExtensionFilterMode.Exclude, "Exclude", "Hide the extensions listed below.")
         };
 
-        ExtensionProfiles = new List<CleanupExtensionProfile>
+        var extensionProfiles = new List<CleanupExtensionProfile>
         {
             new("Documents", "Common document formats", new[] { ".pdf", ".doc", ".docx", ".ppt", ".pptx", ".txt", ".rtf" }),
             new("Spreadsheets", "Spreadsheet data", new[] { ".xls", ".xlsx", ".ods", ".csv" }),
@@ -255,6 +256,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
             new("Archives", "Compressed archives", new[] { ".zip", ".rar", ".7z", ".tar", ".gz" }),
             new("Logs", "Plain-text logs", new[] { ".log" })
         };
+
+        _extensionFilterModel = new CleanupExtensionFilterModel(extensionFilterOptions, extensionProfiles);
+        _extensionFilterModel.PropertyChanged += OnExtensionFilterPropertyChanged;
+        _extensionFilterModel.FilterChanged += OnExtensionFilterChanged;
+        _previewFilter.ExtensionFilterMode = _extensionFilterModel.Mode;
+        _previewFilter.SetActiveExtensions(_extensionFilterModel.ActiveExtensions);
 
         SortOptions = new List<CleanupPreviewSortOption>
         {
@@ -274,7 +281,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         SelectedExtensionProfile = ExtensionProfiles.FirstOrDefault();
         SelectedAgeFilter = AgeFilterOptions.FirstOrDefault();
-        RebuildExtensionCache();
         CelebrationFailures.CollectionChanged += OnCelebrationFailuresCollectionChanged;
         PendingDeletionCategories = new ReadOnlyObservableCollection<string>(_pendingDeletionCategories);
         CelebrationCategories = new ReadOnlyObservableCollection<string>(_celebrationCategories);
@@ -302,16 +308,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private CleanupItemKind _selectedItemKind = CleanupItemKind.Both;
 
     [ObservableProperty]
-    private CleanupExtensionFilterMode _selectedExtensionFilterMode = CleanupExtensionFilterMode.None;
-
-    [ObservableProperty]
-    private CleanupExtensionProfile? _selectedExtensionProfile;
-
-    [ObservableProperty]
     private CleanupAgeFilterOption? _selectedAgeFilter;
-
-    [ObservableProperty]
-    private string _customExtensionInput = string.Empty;
 
     [ObservableProperty]
     private bool _isDeleting;
@@ -536,11 +533,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public string PageDisplay => _previewPagingController.PageDisplay;
 
-    private void ResetCurrentPage()
-    {
-        _previewPagingController.ResetCurrentPage();
-    }
-
     public bool CanGoToPreviousPage => _previewPagingController.CanGoToPreviousPage;
 
     public bool CanGoToNextPage => _previewPagingController.CanGoToNextPage;
@@ -601,13 +593,31 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public IReadOnlyList<CleanupItemKindOption> ItemKindOptions { get; }
 
-    public IReadOnlyList<CleanupExtensionFilterOption> ExtensionFilterOptions { get; }
+    public IReadOnlyList<CleanupExtensionFilterOption> ExtensionFilterOptions => _extensionFilterModel.FilterOptions;
 
-    public IReadOnlyList<CleanupExtensionProfile> ExtensionProfiles { get; }
+    public IReadOnlyList<CleanupExtensionProfile> ExtensionProfiles => _extensionFilterModel.Profiles;
 
     public IReadOnlyList<CleanupPreviewSortOption> SortOptions { get; }
 
     public IReadOnlyList<CleanupAgeFilterOption> AgeFilterOptions { get; }
+
+    public CleanupExtensionFilterMode SelectedExtensionFilterMode
+    {
+        get => _extensionFilterModel.Mode;
+        set => _extensionFilterModel.Mode = value;
+    }
+
+    public CleanupExtensionProfile? SelectedExtensionProfile
+    {
+        get => _extensionFilterModel.SelectedProfile;
+        set => _extensionFilterModel.SelectedProfile = value;
+    }
+
+    public string CustomExtensionInput
+    {
+        get => _extensionFilterModel.CustomInput;
+        set => _extensionFilterModel.CustomInput = value ?? string.Empty;
+    }
 
     public event EventHandler? AdministratorRestartRequested;
 
@@ -623,7 +633,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public bool IsCelebrationPhase => CurrentPhase == CleanupPhase.Celebration;
 
-    public bool IsExtensionSelectorEnabled => SelectedExtensionFilterMode != CleanupExtensionFilterMode.None;
+    public bool IsExtensionSelectorEnabled => _extensionFilterModel.IsSelectorEnabled;
 
     public bool HasCelebrationFailures => CelebrationFailures.Count > 0;
 
@@ -635,25 +645,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     public string CelebrationCategoryListDisplay => string.IsNullOrWhiteSpace(CelebrationCategoryList) ? "—" : CelebrationCategoryList;
 
-    public string ExtensionStatusText
-    {
-        get
-        {
-            if (SelectedExtensionFilterMode == CleanupExtensionFilterMode.None)
-            {
-                return "Extension filter disabled.";
-            }
-
-            if (_activeExtensions.Count == 0)
-            {
-                return "No extensions configured yet.";
-            }
-
-            var verb = SelectedExtensionFilterMode == CleanupExtensionFilterMode.IncludeOnly ? "Including" : "Excluding";
-            var formatted = string.Join(", ", _activeExtensions.OrderBy(static x => x));
-            return $"{verb} {formatted}";
-        }
-    }
+    public string ExtensionStatusText => _extensionFilterModel.ExtensionStatusText;
 
     public int PreviewCount
     {
@@ -2537,23 +2529,37 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
     }
 
-    partial void OnSelectedExtensionFilterModeChanged(CleanupExtensionFilterMode value)
+    private void OnExtensionFilterPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        _previewFilter.ExtensionFilterMode = value;
-        RebuildExtensionCache();
-        OnPropertyChanged(nameof(IsExtensionSelectorEnabled));
-        RefreshFilteredItems();
+        if (e.PropertyName == nameof(CleanupExtensionFilterModel.Mode))
+        {
+            _previewFilter.ExtensionFilterMode = _extensionFilterModel.Mode;
+            OnPropertyChanged(nameof(SelectedExtensionFilterMode));
+            OnPropertyChanged(nameof(IsExtensionSelectorEnabled));
+        }
+        else if (e.PropertyName == nameof(CleanupExtensionFilterModel.SelectedProfile))
+        {
+            OnPropertyChanged(nameof(SelectedExtensionProfile));
+        }
+        else if (e.PropertyName == nameof(CleanupExtensionFilterModel.CustomInput))
+        {
+            OnPropertyChanged(nameof(CustomExtensionInput));
+        }
+
+        if (e.PropertyName == nameof(CleanupExtensionFilterModel.ExtensionStatusText))
+        {
+            OnPropertyChanged(nameof(ExtensionStatusText));
+        }
+
+        if (e.PropertyName == nameof(CleanupExtensionFilterModel.IsSelectorEnabled))
+        {
+            OnPropertyChanged(nameof(IsExtensionSelectorEnabled));
+        }
     }
 
-    partial void OnSelectedExtensionProfileChanged(CleanupExtensionProfile? value)
+    private void OnExtensionFilterChanged(object? sender, EventArgs e)
     {
-        RebuildExtensionCache();
-        RefreshFilteredItems();
-    }
-
-    partial void OnCustomExtensionInputChanged(string value)
-    {
-        RebuildExtensionCache();
+        _previewFilter.SetActiveExtensions(_extensionFilterModel.ActiveExtensions);
         RefreshFilteredItems();
     }
 
@@ -2830,6 +2836,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
         _previewPagingController.Refresh();
     }
 
+    private void ResetCurrentPage()
+    {
+        _previewPagingController.ResetCurrentPage();
+        OnPropertyChanged(nameof(CurrentPage));
+    }
+
     private void OnPreviewPagingStateChanged(object? sender, EventArgs e)
     {
         OnPropertyChanged(nameof(CurrentPage));
@@ -2852,37 +2864,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
         SelectPageRangeCommand.NotifyCanExecuteChanged();
     }
 
-    private void RebuildExtensionCache()
-    {
-        _activeExtensions.Clear();
-
-        if (SelectedExtensionFilterMode != CleanupExtensionFilterMode.None)
-        {
-            if (SelectedExtensionProfile?.Extensions is { } presetExtensions)
-            {
-                foreach (var preset in presetExtensions)
-                {
-                    var normalized = NormalizeExtension(preset);
-                    if (!string.IsNullOrEmpty(normalized))
-                    {
-                        _activeExtensions.Add(normalized);
-                    }
-                }
-            }
-
-            foreach (var entry in ParseExtensions(CustomExtensionInput))
-            {
-                var normalized = NormalizeExtension(entry);
-                if (!string.IsNullOrEmpty(normalized))
-                {
-                    _activeExtensions.Add(normalized);
-                }
-            }
-        }
-
-        _previewFilter.SetActiveExtensions(_activeExtensions);
-    }
-
     private static string FormatSize(double megabytes)
     {
         if (megabytes >= 1024d)
@@ -2896,20 +2877,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         return $"{megabytes * 1024d:F0} KB";
-    }
-
-    private static IEnumerable<string> ParseExtensions(string? value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            yield break;
-        }
-
-        var tokens = value.Split(new[] { ',', ';', '|', ' ' }, StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-        foreach (var token in tokens)
-        {
-            yield return token;
-        }
     }
 
     private IEnumerable<CleanupTargetReport> FilterPreviewTargets(IEnumerable<CleanupTargetReport> targets)

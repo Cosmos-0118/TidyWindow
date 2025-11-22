@@ -1,9 +1,59 @@
-its a simple idea but very powerful:
+Project Oblivion – deep uninstall hub
+----------------------------------
 
-a app uninstaller page:
+Core promise
+- Surface every installed application (classic, MSIX/Appx, Store, portable, services) and erase 100% of its footprint when the user confirms.
+- “Thanos snap” means we pause/terminate processes, remove auto-start hooks, delete files, tear down services, scheduled tasks, drivers, registry keys, and cached data so nothing lingers.
 
--detects literally all apps instralled in the system even hidden ones - a proper search.
+Data sources & detection
+1. **Inventory sweep** (new automation script): merge data from `winget list`, `Get-Package`, Appx/Store catalog, `HKLM/HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall`, `WOW6432Node`, `Program Files`, `ProgramData`, `%LocalAppData%`, Scoop buckets, Chocolatey/lib, and Services.
+2. **Linkage graph**: for each app we capture
+	- Install roots + size
+	- Running processes + services
+	- Scheduled tasks, startup entries, shell extensions, drivers
+	- Registry keys + environment variables (PATH injection)
+	- Related logs/cache folders
+3. **Confidence badges**: “Manager-managed”, “Portable”, “Store”, “Unknown provider” so users know how we identified it.
 
-- and gives a option to delete apps. literally selete everything related to app. even thing there should be no trace of app eben existed.
+UI flow (take cues from Cleanup’s multi-phase layout)
+1. **Discover phase**
+	- Hero cards summarizing total apps, hidden apps, largest footprint.
+	- Search + filters (manager, install size, last used, vendor, confidence).
+	- Selecting an app opens a right-side insight panel with the linkage graph (tabs: Overview, Files, Registry, Autoruns, Processes).
+2. **Prepare phase** (modal or second page)
+	- Show the kill plan: “Stop 3 services, terminate 2 processes, unregister 1 driver, delete 5 folders (1.2 GB).”
+	- Toggle for “Safe uninstall” (run vendor uninstaller first) vs “Snap everything immediately.”
+	- Display warnings if elevated rights are required.
+3. **Snap phase**
+	- Progress tracker similar to Cleanup’s tasks view: each step (Terminate processes → Run uninstaller → Remove leftovers → Sanity scan) has real-time logs.
+	- Allow pausing or backing out before the destructive step.
+4. **Aftermath**
+	- Success card summarizing freed space and artifacts removed.
+	- Offer “Create cleanup report” and “Watch for re-install traces.”
 
-- take inspiration form cleanup page. just to get a idea on the ui.
+Deletion pipeline (“Thanos snap”)
+1. Elevation + checkpoint: request admin, create a system restore point (optional toggle).
+2. **Process freeze**: call `taskkill` / `Stop-Process`, `sc stop`, `net stop`, `Get-AppxPackage` suspend. Kill background tasks, scheduled jobs, services.
+3. **Primary uninstall**: prefer manager-native commands (winget uninstall, msiexec /x, choco uninstall, scoop uninstall, `Remove-AppxPackage`). Log exit codes.
+4. **Residual purge**:
+	- Delete install directories, ProgramData, AppData, Temp caches, `%ProgramFiles%\Common Files` entries.
+	- Remove registry keys (Uninstall, Services, Run, RunOnce, Explorer extensions, CLSIDs, shell overlays, notifications).
+	- Clean shortcuts, context-menu handlers, firewall rules, drivers (via `pnputil` if tagged), scheduled tasks, environment variables.
+5. **Verification sweep**: re-run detection to confirm zero traces; if artifacts remain, offer a “Force delete” button with full path list.
+
+Safety & UX clarity
+- Require explicit confirmation with typed app name before running the snap pipeline.
+- Show exactly what will be removed (tree view) so power users can deselect components (e.g., keep config files).
+- Keep logs and allow exporting the plan for auditing.
+
+Implementation steps
+1. Build `automation/scripts/get-installed-app-footprint.ps1` to emit the consolidated graph and trust level.
+2. Create `automation/scripts/remove-app-footprint.ps1` handling the snap pipeline with dry-run + execution modes.
+3. Add `DeepUninstallViewModel` that orchestrates discovery, selection, and stepper state.
+4. Create `DeepUninstallPage.xaml` modeled after Cleanup: responsive layout, stepper header, insight panel, progress timeline.
+5. Integrate with Activity Log + telemetry so we can alert if any stage fails.
+
+Stretch goals
+- Add diff viewer comparing two machines or snapshots.
+- Allow scheduling routine sweeps for bloatware.
+- Provide `tidywindow.exe /deepuninstall <AppId>` CLI entry point for scripting.

@@ -127,6 +127,18 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 -   `dotnet build src/TidyWindow.sln`
 -   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
+## Install Hub Rework
+
+Reference: `Future-ideas/installhubpagerework.txt` (grounded in current `Views/InstallHubPage.xaml` + `InstallHubViewModel`).
+
+[ ] Step 9.6: Introduce a `CurrentInstallHubPivot` enum and related state in `ViewModels/InstallHubViewModel.cs` so navigation between Bundles, Catalog, and Queue is VM-driven and testable.
+[ ] Step 9.7: Split the monolithic page into `Views/InstallHubBundlesView.xaml`, `Views/InstallHubCatalogView.xaml`, and `Views/InstallHubQueueView.xaml`, each reusing the shared view model.
+[ ] Step 9.8: Rebuild the Bundles view with hero text, bundle cards, and quick actions (queue bundle, view details, open queue chip) while respecting the existing `_headline` binding and bundle metadata.
+[ ] Step 9.9: Recreate the Catalog view as a responsive, virtualized browser with Essentials-style breakpoints, filters, and multi-select queueing that leverages `QueueSelection` and `VirtualizingStackPanel` recycling.
+[ ] Step 9.10: Move queue/history UX into its own page that reuses `InstallOperationItemViewModel`, exposes retry/cancel/clear commands, and supports the responsive drawer-to-button behavior described in the notes.
+[ ] Step 9.11: Remove legacy entrance `Storyboard` resources (`InstallBundleCardItemStyle`, `InstallPackageCardItemStyle`, `InstallQueueItemStyle`) and replace with skeleton/loading states while keeping the existing throttled overlay animation only.
+[ ] Step 9.12: Add responsive layout helpers (borrowed from `Views/EssentialsPage.xaml`) plus empty states and queue telemetry badges so the hub scales from single-column to split-view layouts without dropped frames.
+
 ## PulseGuard Watchdog & Notifications
 
 PulseGuard is the smart watchdog that keeps a pulse on automation logs, surfaces actionable insights, and keeps the app helpful without becoming noisy.
@@ -136,4 +148,63 @@ PulseGuard is the smart watchdog that keeps a pulse on automation logs, surfaces
 [x] Step 10.3: Implement background (system tray) mode with a toggle in settings, including tray icon states, auto-start behavior, and graceful shutdown hooks.
 [x] Step 10.4: Build notification pipeline that queues toast notifications, enforces cooldown rules, and differentiates success summaries from actionable alerts.
 [x] Step 10.5: Surface high-friction scenarios (e.g., legacy PowerShell, post-install restarts) as targeted prompts with "View logs" and "Restart app" actions.
-[ ] Step 10.6: Add unit and UI automation coverage validating log parsing, notification throttling, and background-mode lifecycle transitions.
+
+## Driver Updates Experience
+
+Reference: `Future-ideas/driverupdatespage.txt` plus `automation/essentials/driver-update-detect.ps1`.
+
+[ ] Step 11.1: Extend `driver-update-detect.ps1` output contract (or adapter DTO) so the UI can display badges for update availability, downgrade risk, vendor/class, optional flag, and skip reasons without extra transforms.
+[ ] Step 11.2: Build a modular Driver Updates UI (e.g., `Views/DriverUpdates/DriverUpdatesShell.xaml` hosting `DriverUpdatesListView.xaml`, `DriverUpdatesFiltersView.xaml`, and `DriverUpdatesInsightsView.xaml`) wired to the refreshed `DriverUpdatesViewModel` so each surface stays focused and independently testable.
+[ ] Step 11.3: Implement Windows Update install actions via `Microsoft.Update.Session.CreateUpdateInstaller`, respecting include/optional toggles and queue integration.
+[ ] Step 11.4: Add reinstall/rollback helpers that call `pnputil` (and fallbacks for older builds) using `installedInfPath` from the script payload, surfacing logs in the UI.
+[ ] Step 11.5: Provide GPU-specific guidance (links or future vendor CLI hooks) plus health insights for problem codes/unsigned drivers so the page remains useful even when WU shows zero updates.
+
+## Version Control Hub
+
+Reference: `Future-ideas/idea.txt` (Version Control Page concept).
+
+[ ] Step 12.1: Enhance `automation/scripts/get-package-inventory.ps1` and related DTOs to emit duplicate installs, install roots, PATH ownership data, and pin metadata for reuse by the new view model.
+[ ] Step 12.2: Create `VersionControlSnapshot` models and a dedicated `VersionControlViewModel` that groups anomalies (update available, duplicates, pins, manual upgrades) and exposes filterable collections.
+[ ] Step 12.3: Compose the Version Control UI from smaller views—`Views/VersionControl/VersionControlShell.xaml` plus dedicated `AnomaliesView.xaml`, `AllPackagesView.xaml`, and `ActionsDrawerView.xaml`—reusing Install Hub responsive helpers so tabs remain light-weight.
+[ ] Step 12.4: Wire per-package actions (update, switch version, clear pin, set PATH owner, open location) to existing maintenance commands, and expose export/report sharing.
+[ ] Step 12.5: Link from the Maintenance page so users can pivot into the Version Control hub for deep audits while keeping Maintenance focused on quick updates.
+
+## Project Oblivion Deep Uninstall
+
+Reference: `Future-ideas/idea2.txt` (Project Oblivion blueprint).
+
+[ ] Step 13.1: Author `automation/scripts/get-installed-app-footprint.ps1` to emit the consolidated linkage graph (install roots, services, autoruns, logs, confidence badges).
+[ ] Step 13.2: Implement `automation/scripts/remove-app-footprint.ps1` handling the staged pipeline (process freeze, native uninstall, residual purge, verification) with dry-run + execution modes.
+[ ] Step 13.3: Create `DeepUninstallViewModel` and a set of focused views (`Views/DeepUninstall/DeepUninstallShell.xaml` hosting `DiscoverView.xaml`, `PreparePlanView.xaml`, `SnapProgressView.xaml`, `AftermathView.xaml`) to mirror Cleanup-style multiphase navigation with confirmations and artifact previews.
+[ ] Step 13.4: Persist backups (registry keys, startup items) and expose restore/undo, typed confirmations, and report export for auditing; integrate telemetry/activity logging for each stage.
+[ ] Step 13.5: Hook Project Oblivion into Maintenance/Startup modules so uninstalling an app also clears associated startup entries and surfaces follow-up scans.
+
+## Settings Control Center Redesign
+
+Reference: `Future-ideas/idea4.txt` (Settings Redesign blueprint).
+
+[ ] Step 14.1: Introduce `Views/SettingsShellPage.xaml` + `SettingsShellViewModel` hosting a nav rail and content frame that loads discrete `Settings*.xaml` pages.
+[ ] Step 14.2: Split the current settings monolith into scoped views (`SettingsGeneralPage`, `SettingsAutomationPage`, `SettingsNotificationsPage`, `SettingsIntegrationsPage`, `SettingsDataPage`, `SettingsLabsPage`) each with dedicated view models and responsive layouts.
+[ ] Step 14.3: Build `AutomationScheduleService` to persist per-task schedules (JSON under `%ProgramData%/TidyWindow/`) and surface shared scheduler UI (upcoming runs, last status, run-now actions).
+[ ] Step 14.4: Wire feature modules (Maintenance, Cleanup, Install Hub, Driver Updates, Version Control, Project Oblivion) to register automation metadata and respond to schedule changes.
+[ ] Step 14.5: Add search/help affordances, reset/export buttons, and telemetry so the new control center becomes the canonical home for automation, notifications, integrations, and safety policies.
+
+## Registry Optimizer Rework
+
+Reference: `Future-ideas/idea5.txt` (Registry Optimizer blueprint) and `newregistoryadditions.txt`.
+
+[ ] Step 15.1: Convert the registry tweak backlog into a structured catalog JSON (category, risk, scripts, keys) plus persistence stores for user state and history logs.
+[ ] Step 15.2: Implement `RegistryStateService` + state persistence (`%AppData%/TidyWindow/registry-optimizer-state.json`) that tracks desired/detected states and hydrates the UI on launch.
+[ ] Step 15.3: Build the new multi-pane UI as discrete controls (`Views/RegistryOptimizer/RegistryOptimizerShell.xaml` plus `CategoryNavView.xaml`, `CatalogPageView.xaml`, `TweakDetailsDrawer.xaml`, `ActionLogView.xaml`) with paging, search, and badges for applied/different states.
+[ ] Step 15.4: Wire apply/revert flows through existing automation runners, ensuring backups (.reg snapshots) are captured, stored, and reusable for rollbacks; log the last 20 operations.
+[ ] Step 15.5: Add tests for catalog validation, apply/revert flows (stub registry provider), and update `docs/automation.md` with the new optimizer behavior/support matrix.
+
+## Startup Controller
+
+Reference: `Future-ideas/startupcontroller.txt` (Startup Controller concept).
+
+[ ] Step 16.1: Create `automation/scripts/get-startup-footprint.ps1` to enumerate Run keys, Startup folders, scheduled tasks, services, and AppX startup tasks with impact data.
+[ ] Step 16.2: Develop `StartupControllerService` (Windows service or scheduled task) that runs at boot, reads a stored schedule, launches items in waves, and logs telemetry.
+[ ] Step 16.3: Build `StartupControllerViewModel` plus modular views (`Views/StartupController/StartupControllerShell.xaml`, `StartupOverviewCardView.xaml`, `StartupListView.xaml`, `DiagnosticsTimelineView.xaml`, `ProfileManagerView.xaml`) so reorderable lists, sliders, and diagnostics remain isolated and maintainable.
+[ ] Step 16.4: Implement apply/reset logic that safely disables native startup entries, stores backups, writes schedule JSON, and offers a panic "Restore defaults" action.
+[ ] Step 16.5: Integrate with Project Oblivion and Activity Log so startup changes stay in sync with installs/uninstalls and users can export/import profiles.

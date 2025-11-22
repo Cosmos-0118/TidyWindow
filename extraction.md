@@ -17,10 +17,11 @@
     -   Update `CleanupViewModel` to delegate `RefreshFilteredItems` and page commands to the controller.
     -   _Done 2025-11-22:_ Added `PreviewPagingController`, `CleanupPreviewFilter`, and `IPreviewFilter`, rewired `CleanupViewModel` to delegate paging/filters, and marked checklist complete.
 
--   [ ] **Extraction 2 – Extension Filter Configuration**
+-   [x] **Extraction 2 – Extension Filter Configuration**
 
     -   Relocate `_activeExtensions`, `RebuildExtensionCache`, `ParseExtensions`, and related properties to `CleanupExtensionFilterModel` under `ViewModels/Filters/`.
     -   Model should raise events when the extension set changes so the paging controller can re-filter without tightly coupling to `CleanupViewModel`.
+    -   _Done 2025-11-22:_ Added `CleanupExtensionFilterModel`, wired `CleanupViewModel` properties/commands to that model, and now refresh paging via model change events instead of the old `_activeExtensions` cache.
 
 -   [ ] **Extraction 3 – Selection Management**
 
