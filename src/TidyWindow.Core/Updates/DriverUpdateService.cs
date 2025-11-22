@@ -787,6 +787,9 @@ public sealed class DriverUpdateService
         return trimmed;
     }
 
+    private const int PnPUtilNoMoreData = 259;
+    private const int PnPUtilNotOemInf = unchecked((int)0xE000024C);
+
     private static async Task<DriverMaintenanceResult> RunPnPUtilAsync(string infPath, string operation, IReadOnlyList<string[]> commandPlans, CancellationToken cancellationToken)
     {
         if (commandPlans is null || commandPlans.Count == 0)
@@ -796,24 +799,56 @@ public sealed class DriverUpdateService
 
         var output = new List<string>();
         var usedFallback = false;
+        var totalPlans = commandPlans.Count;
+        var planIndex = 0;
+        var lastExitCode = 0;
 
         foreach (var plan in commandPlans)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            planIndex++;
+            var planLabel = $"Plan {planIndex}/{totalPlans}";
+            var commandLine = $"pnputil {string.Join(' ', plan)}";
+            output.Add($"{planLabel}: Executing {commandLine}");
+
             var (exitCode, lines) = await ExecuteProcessAsync("pnputil.exe", plan, cancellationToken).ConfigureAwait(false);
-            output.AddRange(lines);
+            lastExitCode = exitCode;
+
+            foreach (var line in lines)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    output.Add($"{planLabel}: {line.Trim()}");
+                }
+            }
+
+            output.Add($"{planLabel}: pnputil exited with code {exitCode}.");
 
             if (exitCode == 0)
             {
-                return new DriverMaintenanceResult(true, operation, infPath, usedFallback, NormalizeWarnings(output));
+                return new DriverMaintenanceResult(true, operation, infPath, usedFallback, NormalizeLogLines(output));
+            }
+
+            if (exitCode == PnPUtilNoMoreData)
+            {
+                output.Add($"{planLabel}: Windows reports the driver is already current. This is expected for inbox packages. Retrying without /install.");
+            }
+            else if (exitCode == PnPUtilNotOemInf)
+            {
+                output.Add($"{planLabel}: Windows blocks removing inbox (non-OEM) driver packages. Rollback is unavailable for this INF.");
+            }
+
+            if (planIndex < totalPlans)
+            {
+                output.Add($"{planLabel}: Attempting fallback plan...");
             }
 
             usedFallback = true;
         }
 
-        output.Add($"{operation} failed for {infPath}. See pnputil output for details.");
-        return new DriverMaintenanceResult(false, operation, infPath, usedFallback, NormalizeWarnings(output));
+        output.Add($"{operation} failed for {infPath}. Last pnputil exit code: {lastExitCode}.");
+        return new DriverMaintenanceResult(false, operation, infPath, usedFallback, NormalizeLogLines(output));
     }
 
     private static async Task<(int ExitCode, IReadOnlyList<string> Output)> ExecuteProcessAsync(string fileName, IReadOnlyList<string> arguments, CancellationToken cancellationToken)
@@ -1356,6 +1391,20 @@ public sealed class DriverUpdateService
             .Where(static warning => !string.IsNullOrWhiteSpace(warning))
             .Select(static warning => warning!)
             .Distinct(StringComparer.Ordinal)
+            .ToArray();
+    }
+
+    private static string[] NormalizeLogLines(IEnumerable<string?> lines)
+    {
+        if (lines is null)
+        {
+            return Array.Empty<string>();
+        }
+
+        return lines
+            .Select(static line => line?.Trim())
+            .Where(static line => !string.IsNullOrWhiteSpace(line))
+            .Select(static line => line!)
             .ToArray();
     }
 

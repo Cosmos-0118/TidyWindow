@@ -12,6 +12,14 @@
             <GradientStop Color="#152C4C" Offset="0"/>
             <GradientStop Color="#0B162A" Offset="1"/>
         </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DriverStatusBadgeBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#2563EB" Offset="0"/>
+            <GradientStop Color="#22D3EE" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DriverChipBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1E3A8A" Offset="0"/>
+            <GradientStop Color="#0EA5E9" Offset="1"/>
+        </LinearGradientBrush>
         <DropShadowEffect x:Key="CardShadowEffect"
                           Color="#000000"
                           ShadowDepth="0"
@@ -24,6 +32,7 @@
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="Padding" Value="24,20"/>
             <Setter Property="Margin" Value="0,12,0,12"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
             <Setter Property="Effect" Value="{StaticResource CardShadowEffect}"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Style.Triggers>
@@ -34,25 +43,26 @@
             </Style.Triggers>
         </Style>
         <Style x:Key="InstalledDriverCardStyle" TargetType="Border" BasedOn="{StaticResource DriverCardStyle}">
-            <Setter Property="Width" Value="360"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="Margin" Value="0,12,16,12"/>
+            <Setter Property="Padding" Value="22"/>
+            <Setter Property="Margin" Value="0,12,0,12"/>
         </Style>
         <Style x:Key="StatusTagStyle" TargetType="Border">
-            <Setter Property="Background" Value="#1E293B"/>
-            <Setter Property="BorderBrush" Value="#334155"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{StaticResource DriverStatusBadgeBrush}"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="8,2"/>
             <Setter Property="Margin" Value="12,0,0,0"/>
+            <Setter Property="TextElement.Foreground" Value="#F8FAFC"/>
         </Style>
         <Style x:Key="DriverChipStyle" TargetType="Border">
-            <Setter Property="Background" Value="#14263F"/>
-            <Setter Property="BorderBrush" Value="#1F3656"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="{StaticResource DriverChipBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="#38BDF8"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="8,4"/>
             <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="TextElement.Foreground" Value="#ECFEFF"/>
         </Style>
         <Style x:Key="DriverActionButtonStyle" TargetType="Button">
             <Setter Property="Margin" Value="0,8,8,0"/>
@@ -122,14 +132,12 @@
                                 <Border Style="{StaticResource StatusTagStyle}">
                                     <TextBlock Text="{Binding AvailabilityBadgeState}"
                                                FontSize="12"
-                                               FontWeight="SemiBold"
-                                               Foreground="#38BDF8"/>
+                                               FontWeight="SemiBold"/>
                                 </Border>
                                 <Border Style="{StaticResource StatusTagStyle}"
                                         Visibility="{Binding ShowOptionalBadge, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <TextBlock Text="{Binding OptionalBadgeLabel}"
-                                               FontSize="12"
-                                               Foreground="#94A3B8"/>
+                                               FontSize="12"/>
                                 </Border>
                                 <Border Style="{StaticResource StatusTagStyle}"
                                         Visibility="{Binding IsDowngradeRisk, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -293,19 +301,17 @@
                     <Border Style="{StaticResource StatusTagStyle}"
                             Margin="12,0,0,0">
                         <TextBlock Text="{Binding InstalledDrivers.Count}"
-                                   FontSize="12"
-                                   Foreground="#94A3B8"/>
+                                   FontSize="12"/>
                     </Border>
                 </StackPanel>
 
                 <ItemsControl x:Name="InstalledDriversItemsControl"
-                              ItemsSource="{Binding InstalledDrivers}">
+                              ItemsSource="{Binding InstalledDrivers}"
+                              Margin="0,4,0,0">
                     <ItemsControl.ItemsPanel>
-                        <ItemsPanelTemplate>
-                            <WrapPanel ItemWidth="360"
-                                       MinWidth="360"
-                                       HorizontalAlignment="Stretch"/>
-                        </ItemsPanelTemplate>
+                            <ItemsPanelTemplate>
+                                <StackPanel/>
+                            </ItemsPanelTemplate>
                     </ItemsControl.ItemsPanel>
                     <ItemsControl.ItemTemplate>
                         <DataTemplate DataType="{x:Type vm:InstalledDriverItemViewModel}">
@@ -322,8 +328,7 @@
                                         <Border Style="{StaticResource StatusTagStyle}"
                                                 Margin="12,0,0,0">
                                             <TextBlock Text="{Binding SignedDisplay}"
-                                                       FontSize="11"
-                                                       Foreground="#CBD5F5"/>
+                                                       FontSize="11"/>
                                         </Border>
                                     </StackPanel>
 
@@ -388,13 +393,11 @@
                                     <WrapPanel Margin="0,4,0,0">
                                         <Border Style="{StaticResource DriverChipStyle}">
                                             <TextBlock Text="{Binding ClassGuid, TargetNullValue=Unknown class}"
-                                                       FontSize="11"
-                                                       Foreground="#CBD5F5"/>
+                                                       FontSize="11"/>
                                         </Border>
                                         <Border Style="{StaticResource DriverChipStyle}">
                                             <TextBlock Text="{Binding SignedDisplay}"
-                                                       FontSize="11"
-                                                       Foreground="#CBD5F5"/>
+                                                       FontSize="11"/>
                                         </Border>
                                     </WrapPanel>
 

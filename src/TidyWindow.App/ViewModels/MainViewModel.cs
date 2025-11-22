@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
@@ -67,6 +68,30 @@ public sealed partial class MainViewModel : ViewModelBase
         if (!string.Equals(resolved, "Ready", StringComparison.OrdinalIgnoreCase))
         {
             _activityLogService.LogInformation("Status", resolved);
+        }
+    }
+
+    public void LogActivityInformation(string source, string message, IEnumerable<string>? details = null)
+    {
+        _activityLogService.LogInformation(source, message, details);
+    }
+
+    public void LogActivity(ActivityLogLevel level, string source, string message, IEnumerable<string>? details = null)
+    {
+        switch (level)
+        {
+            case ActivityLogLevel.Success:
+                _activityLogService.LogSuccess(source, message, details);
+                break;
+            case ActivityLogLevel.Warning:
+                _activityLogService.LogWarning(source, message, details);
+                break;
+            case ActivityLogLevel.Error:
+                _activityLogService.LogError(source, message, details);
+                break;
+            default:
+                _activityLogService.LogInformation(source, message, details);
+                break;
         }
     }
 

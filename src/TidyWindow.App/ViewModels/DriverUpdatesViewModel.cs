@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
@@ -19,6 +20,7 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
     private const int OperationLogLimit = 12;
     private const int MaxHealthInsights = 10;
     private const string DisplayAdapterClassGuid = "{4d36e968-e325-11ce-bfc1-08002be10318}";
+    private const string DriverActivitySource = "Driver updates";
 
     private static readonly IReadOnlyDictionary<string, GpuVendorGuidanceDescriptor> GpuGuidanceCatalog = new Dictionary<string, GpuVendorGuidanceDescriptor>(StringComparer.OrdinalIgnoreCase)
     {
@@ -338,7 +340,8 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         await ExecuteMaintenanceAsync(
             () => _driverUpdateService.ReinstallDriverAsync(infReference),
             $"Reinstalling {label} via pnputil...",
-            label).ConfigureAwait(false);
+            label,
+            infReference).ConfigureAwait(false);
     }
 
     [RelayCommand]
@@ -359,7 +362,8 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         await ExecuteMaintenanceAsync(
             () => _driverUpdateService.RollbackDriverAsync(infReference),
             $"Rolling back {label} via pnputil...",
-            label).ConfigureAwait(false);
+            label,
+            infReference).ConfigureAwait(false);
     }
 
     private string? BuildFilterSummary(DriverFilterSummary? filters)
@@ -598,12 +602,24 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         }
     }
 
-    private async Task ExecuteMaintenanceAsync(Func<Task<DriverMaintenanceResult>> operation, string statusMessage, string contextLabel)
+    private async Task ExecuteMaintenanceAsync(
+        Func<Task<DriverMaintenanceResult>> operation,
+        string statusMessage,
+        string contextLabel,
+        string? targetInfPath = null)
     {
         if (operation is null)
         {
             return;
         }
+
+        var resolvedInfLabel = string.IsNullOrWhiteSpace(targetInfPath) ? "unknown INF" : targetInfPath;
+        var requestHeadline = string.IsNullOrWhiteSpace(contextLabel)
+            ? "Driver maintenance requested"
+            : $"Driver maintenance requested for {contextLabel}";
+
+        AppendOperationMessage($"Driver maintenance requested: {statusMessage} Target: {contextLabel} ({resolvedInfLabel}).");
+        LogDriverActivity(requestHeadline, BuildMaintenanceRequestDetails(statusMessage, contextLabel, resolvedInfLabel));
 
         try
         {
@@ -614,8 +630,9 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            AppendOperationMessage($"Driver maintenance failed: {ex.Message}");
+            AppendOperationMessage($"Driver maintenance failed: {ex.Message}", DriverOperationLogLevel.Warning);
             _mainViewModel.SetStatusMessage($"Driver maintenance failed: {ex.Message}");
+            LogDriverActivity($"Driver maintenance failed for {contextLabel}: {ex.Message}", BuildMaintenanceFailureDetails(contextLabel, resolvedInfLabel, ex), ActivityLogLevel.Warning);
         }
         finally
         {
@@ -652,15 +669,25 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
             ? $"{result.Operation} completed for {contextLabel}."
             : $"{result.Operation} failed for {contextLabel}.";
 
-        AppendOperationMessage(headline);
+        AppendOperationMessage(headline, result.Success ? DriverOperationLogLevel.Success : DriverOperationLogLevel.Warning);
+        if (!string.IsNullOrWhiteSpace(result.TargetInfPath))
+        {
+            AppendOperationMessage($"Target INF path: {result.TargetInfPath}");
+        }
+
         AppendOperationMessages(result.Messages);
+        if ((result.Messages?.Count ?? 0) == 0)
+        {
+            AppendOperationMessage("pnputil did not return any output. Check Event Viewer logs if something looks off.", DriverOperationLogLevel.Warning);
+        }
 
         if (result.UsedFallbackPlan)
         {
-            AppendOperationMessage("Used fallback pnputil plan during driver maintenance.");
+            AppendOperationMessage("Used fallback pnputil plan during driver maintenance.", DriverOperationLogLevel.Warning);
         }
 
         _mainViewModel.SetStatusMessage(headline);
+        LogDriverActivity(headline, BuildMaintenanceLogDetails(result, contextLabel), result.Success ? ActivityLogLevel.Success : ActivityLogLevel.Warning);
     }
 
     private void AppendOperationMessages(IEnumerable<string> messages)
@@ -676,19 +703,118 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
         }
     }
 
-    private void AppendOperationMessage(string? message)
+    private void AppendOperationMessage(string? message, DriverOperationLogLevel level = DriverOperationLogLevel.Info)
     {
         if (string.IsNullOrWhiteSpace(message))
         {
             return;
         }
 
-        OperationMessages.Insert(0, message.Trim());
+        var trimmed = message.Trim();
+        var formatted = level switch
+        {
+            DriverOperationLogLevel.Success => $"✅ {trimmed}",
+            DriverOperationLogLevel.Warning => $"⚠️ {trimmed}",
+            _ => $"ℹ️ {trimmed}"
+        };
+
+        RunOnUiThread(() => AppendOperationMessageCore(formatted));
+    }
+
+    private void AppendOperationMessageCore(string message)
+    {
+        OperationMessages.Insert(0, message);
 
         while (OperationMessages.Count > OperationLogLimit)
         {
             OperationMessages.RemoveAt(OperationMessages.Count - 1);
         }
+    }
+
+    private void LogDriverActivity(string message, IEnumerable<string>? details = null, ActivityLogLevel level = ActivityLogLevel.Information)
+    {
+        _mainViewModel.LogActivity(level, DriverActivitySource, message, details);
+    }
+
+    private static IEnumerable<string> BuildMaintenanceRequestDetails(string statusMessage, string contextLabel, string? infPath)
+    {
+        var details = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            details.Add(statusMessage);
+        }
+
+        if (!string.IsNullOrWhiteSpace(contextLabel))
+        {
+            details.Add($"Target: {contextLabel}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(infPath))
+        {
+            details.Add($"INF: {infPath}");
+        }
+
+        return details;
+    }
+
+    private static IEnumerable<string> BuildMaintenanceLogDetails(DriverMaintenanceResult result, string contextLabel)
+    {
+        var details = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(contextLabel))
+        {
+            details.Add($"Target: {contextLabel}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(result.TargetInfPath))
+        {
+            details.Add($"INF: {result.TargetInfPath}");
+        }
+
+        if (result.Messages is { Count: > 0 })
+        {
+            foreach (var message in result.Messages)
+            {
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    details.Add(message);
+                }
+            }
+        }
+
+        if (result.UsedFallbackPlan)
+        {
+            details.Add("Fallback pnputil plan executed.");
+        }
+
+        return details;
+    }
+
+    private static IEnumerable<string> BuildMaintenanceFailureDetails(string contextLabel, string? infPath, Exception exception)
+    {
+        var details = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(contextLabel))
+        {
+            details.Add($"Target: {contextLabel}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(infPath))
+        {
+            details.Add($"INF: {infPath}");
+        }
+
+        details.Add(exception.ToString());
+
+        return details;
+    }
+
+    private enum DriverOperationLogLevel
+    {
+        Info,
+        Success,
+        Warning
     }
 
     private static string BuildDriverCountLabel(int count)
@@ -758,6 +884,29 @@ public sealed partial class DriverUpdatesViewModel : ViewModelBase
     private void OnGpuGuidanceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasGpuGuidance));
+    }
+
+    private static void RunOnUiThread(Action action)
+    {
+        if (action is null)
+        {
+            return;
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null)
+        {
+            action();
+            return;
+        }
+
+        if (dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        dispatcher.Invoke(action, DispatcherPriority.Normal);
     }
 
     partial void OnActiveFiltersSummaryChanged(string? value)

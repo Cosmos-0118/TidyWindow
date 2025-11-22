@@ -4,30 +4,81 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:driver="clr-namespace:TidyWindow.App.Views.DriverUpdates"
+             xmlns:controls="clr-namespace:TidyWindow.App.Views"
              mc:Ignorable="d"
              d:DesignWidth="1200"
              d:DesignHeight="900">
-    <Grid>
+    <UserControl.Resources>
+        <Style x:Key="DriverShellCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#1E293B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid Background="Transparent">
         <ScrollViewer x:Name="RootScrollViewer"
+                      Margin="32"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
+                      HorizontalContentAlignment="Stretch"
                       CanContentScroll="False"
-                      Padding="32"
+                      PanningMode="VerticalOnly"
                       Background="Transparent">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="340"/>
-                    <ColumnDefinition Width="32"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
+            <Grid x:Name="PageContentGrid"
+                  MinWidth="0"
+                  MaxWidth="1360"
+                  HorizontalAlignment="Center">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
-                <driver:DriverUpdatesFiltersView Grid.Column="0"/>
+                <controls:PageTitleBar Grid.Row="0"
+                                       Title="Driver updates"
+                                       Subtitle="Detect pending Windows driver versions."
+                                       IconGlyph="🧩"
+                                       BadgeText="Device intelligence"
+                                       Margin="0,0,0,24"/>
 
-                <StackPanel Grid.Column="2"
-                            Orientation="Vertical">
-                    <driver:DriverUpdatesInsightsView Margin="0,0,0,20"/>
-                    <driver:DriverUpdatesListView x:Name="ListViewHost"/>
-                </StackPanel>
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition x:Name="PrimaryColumnDefinition"
+                                          Width="3*"
+                                          MinWidth="480"/>
+                        <ColumnDefinition x:Name="SecondaryColumnDefinition"
+                                          Width="2*"
+                                          MinWidth="320"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel x:Name="PrimaryColumnHost"
+                                Grid.Column="0"
+                                Margin="0,0,24,0">
+                        <Border Style="{StaticResource DriverShellCardStyle}"
+                                Background="#12263F"
+                                BorderBrush="#1F365B"
+                                Padding="24"
+                                Margin="0,0,0,20">
+                            <driver:DriverUpdatesInsightsView/>
+                        </Border>
+
+                        <Border Style="{StaticResource DriverShellCardStyle}"
+                                Padding="24">
+                            <driver:DriverUpdatesListView x:Name="ListViewHost"/>
+                        </Border>
+                    </StackPanel>
+
+                    <StackPanel x:Name="SecondaryColumnHost"
+                                Grid.Column="1">
+                        <Border Style="{StaticResource DriverShellCardStyle}"
+                                Padding="24">
+                            <driver:DriverUpdatesFiltersView/>
+                        </Border>
+                    </StackPanel>
+                </Grid>
             </Grid>
         </ScrollViewer>
     </Grid>
