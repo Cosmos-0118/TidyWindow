@@ -400,10 +400,10 @@ function Get-TidyScoopInstalledVersion {
     $installedCandidates = [System.Collections.Generic.List[string]]::new()
     $otherCandidates = [System.Collections.Generic.List[string]]::new()
 
-    function Add-CandidateValue {
+    $addCandidate = ({
         param(
             [string] $Value,
-            [switch] $IsInstalledHint
+            [bool] $IsInstalledHint
         )
 
         if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -419,9 +419,21 @@ function Get-TidyScoopInstalledVersion {
             return
         }
 
-        $target = if ($IsInstalledHint.IsPresent) { $installedCandidates } else { $otherCandidates }
+
+        $target = $null
+        if ($IsInstalledHint) {
+            $target = $installedCandidates
+        }
+        else {
+            $target = $otherCandidates
+        }
+
+        if ($null -eq $target) {
+            return
+        }
+
         [void]$target.Add($trimmed)
-    }
+    }).GetNewClosure()
 
     try {
         $output = & $exe 'info' $PackageId 2>$null
@@ -440,7 +452,7 @@ function Get-TidyScoopInstalledVersion {
                     elseif ($entry.PSObject.Properties.Match('version')) { $candidate = $entry.version }
 
                     if ($null -ne $candidate) {
-                        Add-CandidateValue -Value ($candidate.ToString()) -IsInstalledHint:$isInstalled
+                        & $addCandidate -Value ($candidate.ToString()) -IsInstalledHint:$isInstalled
                     }
 
                     continue
@@ -452,22 +464,22 @@ function Get-TidyScoopInstalledVersion {
                 }
 
                 if ($text -match '^Installed\s*:\s*(?<ver>.+)$') {
-                    Add-CandidateValue -Value $matches['ver'] -IsInstalledHint
+                    & $addCandidate -Value $matches['ver'] -IsInstalledHint:$true
                     continue
                 }
 
                 if ($text -match '^Version\s*:\s*(?<ver>.+)$') {
-                    Add-CandidateValue -Value $matches['ver']
+                    & $addCandidate -Value $matches['ver'] -IsInstalledHint:$false
                     continue
                 }
 
                 if ($text -match '^Latest Version\s*:\s*(?<ver>.+)$') {
-                    Add-CandidateValue -Value $matches['ver']
+                    & $addCandidate -Value $matches['ver'] -IsInstalledHint:$false
                     continue
                 }
 
                 if ($text -match '^\s*(?<ver>[0-9][0-9A-Za-z\.\-_+]*)\s*$') {
-                    Add-CandidateValue -Value $matches['ver']
+                    & $addCandidate -Value $matches['ver'] -IsInstalledHint:$false
                 }
             }
         }
@@ -493,7 +505,7 @@ function Get-TidyScoopInstalledVersion {
                         $candidate = $entry.Version
                         if (-not $candidate) { $candidate = $entry.version }
                         if ($candidate) {
-                            Add-CandidateValue -Value ($candidate.ToString()) -IsInstalledHint
+                            & $addCandidate -Value ($candidate.ToString()) -IsInstalledHint:$true
                         }
                     }
 
@@ -511,7 +523,7 @@ function Get-TidyScoopInstalledVersion {
 
                 $match = [System.Text.RegularExpressions.Regex]::Match($text, '^\s*(?<name>\S+)\s+(?<ver>\S+)')
                 if ($match.Success -and [string]::Equals($match.Groups['name'].Value, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    Add-CandidateValue -Value $match.Groups['ver'].Value -IsInstalledHint
+                    & $addCandidate -Value $match.Groups['ver'].Value -IsInstalledHint:$true
                 }
             }
         }

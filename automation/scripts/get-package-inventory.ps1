@@ -46,7 +46,12 @@ function Normalize-NullableValue {
         return $null
     }
 
-    return $trimmed
+    $repaired = Repair-TextEncodingArtifacts -Value $trimmed
+    if ([string]::IsNullOrWhiteSpace($repaired)) {
+        return $null
+    }
+
+    return $repaired
 }
 
 function Normalize-Identifier {
@@ -63,6 +68,297 @@ function Normalize-Identifier {
 
     $sanitized = [System.Text.RegularExpressions.Regex]::Replace($trimmed, '^[^A-Za-z0-9]+', '')
     return $sanitized
+}
+
+ $script:EncodingArtifactChars = @(
+    [char]0x00C2,
+    [char]0x00C3,
+    [char]0x00C7,
+    [char]0x00CA,
+    [char]0x00E2,
+    [char]0x00AA,
+    [char]0x00BA,
+    [char]0x00B0,
+    [char]0x00B7,
+    [char]0x00B4,
+    [char]0x00AB,
+    [char]0x00BB,
+    [char]0x0393,
+    [char]0x0394,
+    [char]0x03A3,
+    [char]0x03C0,
+    [char]0x252C,
+    [char]0x2534,
+    [char]0x2561,
+    [char]0x2591,
+    [char]0x2592,
+    [char]0x2593,
+    [char]0xFFFD
+)
+
+function Repair-TextEncodingArtifacts {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $Value
+    }
+
+    $trimmed = $Value.Trim()
+    $requiresRepair = $false
+    foreach ($artifact in $script:EncodingArtifactChars) {
+        if ($trimmed.IndexOf($artifact) -ge 0) {
+            $requiresRepair = $true
+            break
+        }
+    }
+
+    if (-not $requiresRepair) {
+        return $trimmed
+    }
+
+    foreach ($encodingName in @('windows-1252', 'ibm437')) {
+        try {
+            $encoding = [System.Text.Encoding]::GetEncoding(
+                $encodingName,
+                [System.Text.EncoderFallback]::ExceptionFallback,
+                [System.Text.DecoderFallback]::ExceptionFallback)
+            $bytes = $encoding.GetBytes($trimmed)
+            $decoded = [System.Text.Encoding]::UTF8.GetString($bytes)
+            if ($decoded.IndexOf([char]0xFFFD) -ge 0) {
+                continue
+            }
+
+            if (-not [string]::IsNullOrWhiteSpace($decoded) -and $decoded -ne $trimmed) {
+                return $decoded.Trim()
+            }
+        }
+        catch {
+            continue
+        }
+    }
+
+    return $trimmed
+}
+
+function Normalize-DisplayText {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    $repaired = Repair-TextEncodingArtifacts -Value $Value
+    if ([string]::IsNullOrWhiteSpace($repaired)) {
+        return $null
+    }
+
+    $collapsed = [System.Text.RegularExpressions.Regex]::Replace($repaired, '\s+', ' ')
+    return $collapsed.Trim()
+}
+
+function Normalize-WingetSourceName {
+    param([string]$Value)
+
+    $normalized = Normalize-DisplayText -Value $Value
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $null
+    }
+
+    $normalized = Repair-WingetTruncatedToken -Value $normalized
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        return $null
+    }
+
+    if ($normalized -match 'winget') {
+        return 'winget'
+    }
+
+    if ($normalized -match '^mssto') {
+        return 'msstore'
+    }
+
+    if ($normalized -match 'msstore|store') {
+        return 'msstore'
+    }
+
+    return $normalized
+}
+
+$script:WingetExportLookup = $null
+$script:WingetExportLookupFailed = $false
+
+function Get-WingetExportLookup {
+    param([System.Management.Automation.CommandInfo]$Command)
+
+    if ($script:WingetExportLookupFailed) {
+        return $null
+    }
+
+    if ($script:WingetExportLookup -is [System.Collections.IDictionary]) {
+        return $script:WingetExportLookup
+    }
+
+    if (-not $Command) {
+        $script:WingetExportLookupFailed = $true
+        return $null
+    }
+
+    $tempPath = $null
+    $lookup = New-Object 'System.Collections.Generic.Dictionary[string,psobject]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    try {
+        $tempPath = [System.IO.Path]::GetTempFileName()
+        $args = @('export', '--accept-source-agreements', '--include-versions', '--disable-interactivity', '--output', $tempPath)
+        & $Command.Source @args *> $null
+
+        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $tempPath)) {
+            $script:WingetExportLookupFailed = $true
+            return $null
+        }
+
+        $json = Get-Content -LiteralPath $tempPath -Raw -ErrorAction Stop
+        if ([string]::IsNullOrWhiteSpace($json)) {
+            $script:WingetExportLookup = $lookup
+            return $lookup
+        }
+
+        $payload = ConvertFrom-Json -InputObject $json -ErrorAction Stop
+        if ($null -eq $payload -or -not $payload.Sources) {
+            $script:WingetExportLookup = $lookup
+            return $lookup
+        }
+
+        foreach ($source in @($payload.Sources)) {
+            if (-not $source) { continue }
+
+            $sourceName = $null
+            if ($source.PSObject.Properties.Match('SourceDetails')) {
+                $details = $source.SourceDetails
+                if ($details) {
+                    $sourceName = $details.Name
+                    if ([string]::IsNullOrWhiteSpace($sourceName)) {
+                        $sourceName = $details.Identifier
+                    }
+                }
+            }
+
+            $sourceName = Normalize-WingetSourceName -Value $sourceName
+
+            foreach ($package in @($source.Packages)) {
+                if (-not $package) { continue }
+                $identifier = $package.PackageIdentifier
+                if ([string]::IsNullOrWhiteSpace($identifier)) { continue }
+
+                $key = $identifier.Trim()
+                if (-not $lookup.ContainsKey($key)) {
+                    $lookup[$key] = [pscustomobject]@{
+                        PackageIdentifier = $key
+                        Version           = $package.Version
+                        Source            = $sourceName
+                    }
+                }
+                else {
+                    $lookup[$key] = [pscustomobject]@{
+                        PackageIdentifier = $key
+                        Version           = $package.Version
+                        Source            = if (-not [string]::IsNullOrWhiteSpace($sourceName)) { $sourceName } else { $lookup[$key].Source }
+                    }
+                }
+            }
+        }
+
+        $script:WingetExportLookup = $lookup
+        return $lookup
+    }
+    catch {
+        $script:WingetExportLookupFailed = $true
+        return $null
+    }
+    finally {
+        if ($tempPath -and (Test-Path -LiteralPath $tempPath)) {
+            Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+function Repair-WingetTruncatedToken {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    $clean = $Value.Trim()
+    if ($clean.IndexOf('ΓÇª') -ge 0) {
+        $clean = $clean -replace 'ΓÇª', '…'
+    }
+
+    if ($clean.EndsWith('…')) {
+        $clean = $clean.Substring(0, $clean.Length - 1).TrimEnd()
+    }
+
+    if ($clean.EndsWith('...')) {
+        $clean = $clean.Substring(0, $clean.Length - 3).TrimEnd()
+    }
+
+    if ($clean.Length -gt 0) {
+        return $clean
+    }
+
+    return $Value.Trim()
+}
+
+function Resolve-WingetIdentifier {
+    param(
+        [string]$Candidate,
+        [string]$InstalledVersion,
+        [System.Collections.Generic.Dictionary[string,psobject]]$Lookup
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Candidate)) {
+        return $null
+    }
+
+    $trimmed = $Candidate.Trim()
+    if ($Lookup -and $Lookup.ContainsKey($trimmed)) {
+        return $trimmed
+    }
+
+    $normalized = Repair-WingetTruncatedToken -Value $trimmed
+    if ([string]::IsNullOrWhiteSpace($normalized)) {
+        $normalized = $trimmed
+    }
+
+    if ($Lookup -and $Lookup.ContainsKey($normalized)) {
+        return $normalized
+    }
+
+    if (-not $Lookup) {
+        return $normalized
+    }
+
+    $matches = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($key in $Lookup.Keys) {
+        if ($key.StartsWith($normalized, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $matches.Add($key)
+        }
+    }
+
+    if ($matches.Count -eq 1) {
+        return $matches[0]
+    }
+
+    if ($matches.Count -gt 1 -and -not [string]::IsNullOrWhiteSpace($InstalledVersion)) {
+        $candidateVersion = $InstalledVersion.Trim()
+        foreach ($match in $matches) {
+            $entry = $Lookup[$match]
+            if ($entry -and -not [string]::IsNullOrWhiteSpace($entry.Version) -and [string]::Equals($entry.Version.Trim(), $candidateVersion, [System.StringComparison]::OrdinalIgnoreCase)) {
+                return $match
+            }
+        }
+    }
+
+    return $normalized
 }
 
 function Get-ColumnMap {
@@ -154,6 +450,7 @@ $scoopCommand = Get-Command -Name 'scoop' -ErrorAction SilentlyContinue
 function Collect-WingetInventory {
     param([System.Management.Automation.CommandInfo]$Command)
 
+    $exportLookup = Get-WingetExportLookup -Command $Command
     $installed = New-ObjectDictionary
     $upgrades = New-ObjectDictionary
 
@@ -192,24 +489,52 @@ function Collect-WingetInventory {
 
                 $normalizedId = Normalize-Identifier -Value $id
                 if (-not [string]::IsNullOrWhiteSpace($normalizedId)) {
-                    $cleanSource = Normalize-NullableValue -Value $source
+                    $cleanSource = Normalize-WingetSourceName -Value $source
                     if ([string]::IsNullOrWhiteSpace($cleanSource)) {
                         $cleanSource = 'winget'
                     }
 
-                    if (-not $installed.ContainsKey($normalizedId)) {
-                        $installed[$normalizedId] = [pscustomobject]@{
-                            Name = $name
-                            Version = Normalize-NullableValue -Value $version
-                            Source = $cleanSource
+                    $cleanVersion = Normalize-NullableValue -Value $version
+                    $canonicalId = Resolve-WingetIdentifier -Candidate $normalizedId -InstalledVersion $cleanVersion -Lookup $exportLookup
+                    if ([string]::IsNullOrWhiteSpace($canonicalId)) {
+                        $canonicalId = $normalizedId
+                    }
+
+                    $displayName = Normalize-DisplayText -Value $name
+                    if ([string]::IsNullOrWhiteSpace($displayName)) {
+                        $displayName = $canonicalId
+                    }
+
+                    $resolvedVersion = $cleanVersion
+                    $resolvedSource = $cleanSource
+                    if ($exportLookup -and $exportLookup.ContainsKey($canonicalId)) {
+                        $exportEntry = $exportLookup[$canonicalId]
+                        if (-not $resolvedVersion -and $exportEntry.Version) {
+                            $resolvedVersion = Normalize-NullableValue -Value $exportEntry.Version
+                        }
+
+                        if ([string]::IsNullOrWhiteSpace($resolvedSource) -and $exportEntry.Source) {
+                            $resolvedSource = Normalize-WingetSourceName -Value $exportEntry.Source
                         }
                     }
-                    elseif ($cleanSource -eq 'winget' -and $installed[$normalizedId].Source -ne 'winget') {
+
+                    if ([string]::IsNullOrWhiteSpace($resolvedSource)) {
+                        $resolvedSource = 'winget'
+                    }
+
+                    if (-not $installed.ContainsKey($canonicalId)) {
+                        $installed[$canonicalId] = [pscustomobject]@{
+                            Name = $displayName
+                            Version = $resolvedVersion
+                            Source = $resolvedSource
+                        }
+                    }
+                    elseif ($resolvedSource -eq 'winget' -and $installed[$canonicalId].Source -ne 'winget') {
                         # Prefer winget-backed entries when duplicates exist.
-                        $installed[$normalizedId] = [pscustomobject]@{
-                            Name = $name
-                            Version = Normalize-NullableValue -Value $version
-                            Source = $cleanSource
+                        $installed[$canonicalId] = [pscustomobject]@{
+                            Name = $displayName
+                            Version = $resolvedVersion
+                            Source = $resolvedSource
                         }
                     }
                 }
@@ -251,18 +576,23 @@ function Collect-WingetInventory {
                 $upgradeSource = if ($sourceStart -ge 0) { Get-ColumnValue -Line $padded -Start $sourceStart -End -1 } else { $null }
 
                 if (-not [string]::IsNullOrWhiteSpace($normalizedId) -and -not [string]::IsNullOrWhiteSpace($available)) {
-                    $cleanUpgradeSource = Normalize-NullableValue -Value $upgradeSource
+                    $canonicalUpgradeId = Resolve-WingetIdentifier -Candidate $normalizedId -InstalledVersion $null -Lookup $exportLookup
+                    if ([string]::IsNullOrWhiteSpace($canonicalUpgradeId)) {
+                        $canonicalUpgradeId = $normalizedId
+                    }
+
+                    $cleanUpgradeSource = Normalize-WingetSourceName -Value $upgradeSource
                     if ([string]::IsNullOrWhiteSpace($cleanUpgradeSource)) {
                         $cleanUpgradeSource = 'winget'
                     }
 
-                    if (-not $upgrades.ContainsKey($normalizedId)) {
-                        $upgrades[$normalizedId] = [pscustomobject]@{
+                    if (-not $upgrades.ContainsKey($canonicalUpgradeId)) {
+                        $upgrades[$canonicalUpgradeId] = [pscustomobject]@{
                             Sources = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([System.StringComparer]::OrdinalIgnoreCase)
                         }
                     }
 
-                    $sourceMap = $upgrades[$normalizedId].Sources
+                    $sourceMap = $upgrades[$canonicalUpgradeId].Sources
                     $sourceMap[$cleanUpgradeSource] = Normalize-NullableValue -Value $available
                 }
             }
@@ -309,8 +639,13 @@ function Collect-ChocoInventory {
                 $version = $null
             }
 
+            $displayName = Normalize-DisplayText -Value $packageId
+            if ([string]::IsNullOrWhiteSpace($displayName)) {
+                $displayName = $packageId
+            }
+
             $installed[$packageId] = [pscustomobject]@{
-                Name    = $packageId
+                Name    = $displayName
                 Version = Normalize-NullableValue -Value $version
                 Source  = 'chocolatey'
             }
@@ -359,8 +694,13 @@ function Collect-ScoopInventory {
 
                 $name = $nameValue.ToString().Trim()
                 if (-not [string]::IsNullOrWhiteSpace($name)) {
+                    $displayName = Normalize-DisplayText -Value $name
+                    if ([string]::IsNullOrWhiteSpace($displayName)) {
+                        $displayName = $name
+                    }
+
                     $installed[$name] = [pscustomobject]@{
-                        Name = $name
+                        Name = $displayName
                         Version = if ($null -ne $versionValue) { Normalize-NullableValue -Value ($versionValue.ToString()) } else { $null }
                         Source = if ($null -ne $sourceValue) { Normalize-NullableValue -Value ($sourceValue.ToString()) } else { $null }
                     }
@@ -386,8 +726,13 @@ function Collect-ScoopInventory {
                 $bucket = if ($parts.Length -ge 3) { $parts[2].Trim() } else { '' }
 
                 if (-not [string]::IsNullOrWhiteSpace($name)) {
+                    $displayName = Normalize-DisplayText -Value $name
+                    if ([string]::IsNullOrWhiteSpace($displayName)) {
+                        $displayName = $name
+                    }
+
                     $installed[$name] = [pscustomobject]@{
-                        Name = $name
+                        Name = $displayName
                         Version = Normalize-NullableValue -Value $version
                         Source = Normalize-NullableValue -Value $bucket
                     }
@@ -466,9 +811,22 @@ if ($Managers -contains 'winget') {
                 $id = $entry.Key
                 $meta = $entry.Value
                 $available = $null
+                $displayName = Normalize-DisplayText -Value $meta.Name
+                if ([string]::IsNullOrWhiteSpace($displayName)) {
+                    $displayName = $id
+                }
+
+                $resolvedSource = Normalize-WingetSourceName -Value $meta.Source
+                if ([string]::IsNullOrWhiteSpace($resolvedSource)) {
+                    $resolvedSource = 'winget'
+                }
+
                 if ($upgrades.ContainsKey($id)) {
                     $upgradeEntry = $upgrades[$id]
-                    $installedSource = Normalize-NullableValue -Value $meta.Source
+                    $installedSource = Normalize-WingetSourceName -Value $meta.Source
+                    if ([string]::IsNullOrWhiteSpace($installedSource)) {
+                        $installedSource = 'winget'
+                    }
                     $sourceProperty = $upgradeEntry.PSObject.Properties['Sources']
                     $sourceMap = if ($null -ne $sourceProperty) { $sourceProperty.Value } else { $null }
 
@@ -493,10 +851,10 @@ if ($Managers -contains 'winget') {
                 $packages.Add([pscustomobject]@{
                     Manager = 'winget'
                     Id = $id
-                    Name = $meta.Name
+                    Name = $displayName
                     InstalledVersion = $meta.Version
                     AvailableVersion = $available
-                    Source = Normalize-NullableValue -Value $meta.Source
+                    Source = $resolvedSource
                 }) | Out-Null
             }
         }
