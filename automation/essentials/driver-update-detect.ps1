@@ -244,13 +244,94 @@ function Normalize-VendorName {
     return $Vendor.Trim().ToLowerInvariant()
 }
 
+function Normalize-DriverClassName {
+    param([string] $DriverClass)
+
+    if ([string]::IsNullOrWhiteSpace($DriverClass)) {
+        return $null
+    }
+
+    return $DriverClass.Trim().ToLowerInvariant()
+}
+
+function New-SkipSummaryEntry {
+    param(
+        [string] $Title,
+        [string] $DeviceName,
+        [string] $Manufacturer,
+        [string] $DriverClass,
+        [bool] $IsOptional,
+        [string] $Reason,
+        [string] $ReasonCode,
+        [string] $UpdateId
+    )
+
+    $normalizedVendor = Normalize-VendorName -Vendor $Manufacturer
+    $normalizedDriverClass = Normalize-DriverClassName -DriverClass $DriverClass
+
+    return [pscustomobject]@{
+        title               = if ([string]::IsNullOrWhiteSpace($Title)) { $DeviceName } else { $Title }
+        deviceName          = if ([string]::IsNullOrWhiteSpace($DeviceName)) { 'Unknown device' } else { $DeviceName }
+        manufacturer        = if ([string]::IsNullOrWhiteSpace($Manufacturer)) { $null } else { $Manufacturer }
+        normalizedVendor    = $normalizedVendor
+        driverClass         = if ([string]::IsNullOrWhiteSpace($DriverClass)) { $null } else { $DriverClass }
+        normalizedDriverClass = $normalizedDriverClass
+        isOptional          = [bool]$IsOptional
+        reason              = $Reason
+        reasonCode          = $ReasonCode
+        updateId            = if ([string]::IsNullOrWhiteSpace($UpdateId)) { $null } else { $UpdateId }
+    }
+}
+
+function New-BadgeHints {
+    param(
+        [pscustomobject] $VersionComparison,
+        [bool] $IsOptional,
+        [string] $DriverClass,
+        [string] $Manufacturer
+    )
+
+    $comparisonStatus = $null
+    $comparisonDetails = $null
+    if ($VersionComparison -and $VersionComparison.PSObject.Properties.Name -contains 'status') {
+        $comparisonStatus = $VersionComparison.status
+        $comparisonDetails = $VersionComparison.details
+    }
+
+    $normalizedVendor = Normalize-VendorName -Vendor $Manufacturer
+    $normalizedClass = Normalize-DriverClassName -DriverClass $DriverClass
+
+    return [pscustomobject]@{
+        availability = [pscustomobject]@{
+            state  = if ([string]::IsNullOrWhiteSpace($comparisonStatus)) { 'Unknown' } else { $comparisonStatus }
+            detail = if ([string]::IsNullOrWhiteSpace($comparisonDetails)) { $null } else { $comparisonDetails }
+        }
+        downgradeRisk = [pscustomobject]@{
+            isRisk = ($comparisonStatus -eq 'PotentialDowngrade')
+            detail = if ($comparisonStatus -eq 'PotentialDowngrade') { $comparisonDetails } else { $null }
+        }
+        vendor = [pscustomobject]@{
+            name       = if ([string]::IsNullOrWhiteSpace($Manufacturer)) { $null } else { $Manufacturer }
+            normalized = $normalizedVendor
+        }
+        driverClass = [pscustomobject]@{
+            name       = if ([string]::IsNullOrWhiteSpace($DriverClass)) { $null } else { $DriverClass }
+            normalized = $normalizedClass
+        }
+        optional = [pscustomobject]@{
+            isOptional = [bool]$IsOptional
+            label      = if ($IsOptional) { 'Optional' } else { 'Recommended' }
+        }
+    }
+}
+
 function Should-SkipUpdateByFilters {
     param(
         [string] $DriverClass,
         [string] $VendorName
     )
 
-    $normalizedClass = if ($DriverClass) { $DriverClass.Trim().ToLowerInvariant() } else { $null }
+    $normalizedClass = Normalize-DriverClassName -DriverClass $DriverClass
     $normalizedVendor = Normalize-VendorName -Vendor $VendorName
 
     if ($normalizedIncludeDriverClasses.Count -gt 0 -and ($null -eq $normalizedClass -or -not $normalizedIncludeDriverClasses.Contains($normalizedClass))) {
@@ -448,6 +529,7 @@ try {
     $skippedOptional = 0
     $skippedByFilters = 0
     $filterSkipReasons = [System.Collections.Generic.List[string]]::new()
+    $skipSummaries = [System.Collections.Generic.List[psobject]]::new()
 
     foreach ($update in @($result.Updates)) {
         if ($null -eq $update) { continue }
@@ -460,11 +542,6 @@ try {
         }
         catch {
             $isOptional = $false
-        }
-
-        if ($isOptional -and -not $IncludeOptional.IsPresent) {
-            $skippedOptional++
-            continue
         }
 
         $driverInfo = $null
@@ -555,11 +632,33 @@ try {
             $manufacturer = $update.Publisher.Trim()
         }
 
+        $normalizedVendor = Normalize-VendorName -Vendor $manufacturer
+        $normalizedDriverClass = Normalize-DriverClassName -DriverClass $driverClass
+
+        $updateId = $null
+        $revisionNumber = $null
+        if ($update.PSObject.Properties['Identity'] -and $update.Identity) {
+            $updateId = $update.Identity.UpdateID
+            $revisionNumber = $update.Identity.RevisionNumber
+        }
+
+        if ($isOptional -and -not $IncludeOptional.IsPresent) {
+            $skippedOptional++
+            $skipEntry = New-SkipSummaryEntry -Title $update.Title -DeviceName $deviceName -Manufacturer $manufacturer -DriverClass $driverClass -IsOptional $true -Reason 'Optional update excluded by policy.' -ReasonCode 'OptionalFilter' -UpdateId $updateId
+            [void]$skipSummaries.Add($skipEntry)
+            if (-not [string]::IsNullOrWhiteSpace($skipEntry.reason)) {
+                [void]$filterSkipReasons.Add('{0}: {1}' -f ($skipEntry.deviceName), $skipEntry.reason)
+            }
+            continue
+        }
+
         $filterReason = Should-SkipUpdateByFilters -DriverClass $driverClass -VendorName $manufacturer
         if ($filterReason) {
             $skippedByFilters++
             $skipContextTitle = if (-not [string]::IsNullOrWhiteSpace($update.Title)) { $update.Title.Trim() } else { 'Unknown update' }
             [void]$filterSkipReasons.Add('{0}: {1}' -f $skipContextTitle, $filterReason)
+            $skipEntry = New-SkipSummaryEntry -Title $update.Title -DeviceName $deviceName -Manufacturer $manufacturer -DriverClass $driverClass -IsOptional $isOptional -Reason $filterReason -ReasonCode 'PolicyFilter' -UpdateId $updateId
+            [void]$skipSummaries.Add($skipEntry)
             Write-TidyOutput -Message ("Skipping driver '{0}' due to filter: {1}" -f $deviceName, $filterReason)
             continue
         }
@@ -582,12 +681,6 @@ try {
         }
 
         $versionComparison = Compare-VersionStrings -CurrentVersion $currentVersion -AvailableVersion $availableVersion
-        $updateId = $null
-        $revisionNumber = $null
-        if ($update.PSObject.Properties['Identity'] -and $update.Identity) {
-            $updateId = $update.Identity.UpdateID
-            $revisionNumber = $update.Identity.RevisionNumber
-        }
 
         $severity = $null
         if ($update.PSObject.Properties['MsrcSeverity']) {
@@ -601,6 +694,8 @@ try {
         elseif ($driverInfo -and $driverInfo.PSObject.Properties['DriverClassification']) {
             $classification = $driverInfo.DriverClassification
         }
+
+        $badgeHints = New-BadgeHints -VersionComparison $versionComparison -IsOptional $isOptional -DriverClass $driverClass -Manufacturer $manufacturer
 
         $updates.Add([pscustomobject]@{
                 title                = $update.Title
@@ -623,6 +718,9 @@ try {
                 versionComparison    = $versionComparison
                 installedInfPath     = if ($matched -and $matched.InfName) { $matched.InfName } else { $null }
                 installedManufacturer = if ([string]::IsNullOrWhiteSpace($currentManufacturer)) { $null } else { $currentManufacturer }
+                badgeHints           = $badgeHints
+                normalizedVendor     = $normalizedVendor
+                normalizedDriverClass = $normalizedDriverClass
             })
     }
 
@@ -654,6 +752,7 @@ try {
         skippedOptional = $skippedOptional
         skippedByFilters = $skippedByFilters
         skipDetails     = $filterSkipReasons.ToArray()
+        skipSummaries   = $skipSummaries.ToArray()
         appliedFilters  = [pscustomobject]@{
             includeDriverClasses = $normalizedIncludeDriverClasses
             excludeDriverClasses = $normalizedExcludeDriverClasses
@@ -663,7 +762,7 @@ try {
         installedDrivers = $installedDrivers.ToArray()
     }
 
-    $jsonPayload = $payload | ConvertTo-Json -Depth 6 -Compress
+    $jsonPayload = $payload | ConvertTo-Json -Depth 8 -Compress
     Write-Output $jsonPayload
     $script:OperationSucceeded = $true
 }

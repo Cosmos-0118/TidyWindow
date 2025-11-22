@@ -31,6 +31,24 @@
                 <GradientStop Color="#0EA5E9"
                                           Offset="1"/>
         </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ScrollBar.AccentStrokeBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="1,1">
+                <GradientStop Color="#A7F3FF"
+                                          Offset="0"/>
+                <GradientStop Color="#36C4FF"
+                                          Offset="0.55"/>
+                <GradientStop Color="#1991EB"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ScrollBar.AccentFillBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="1,1">
+                <GradientStop Color="#1E3B5F"
+                                          Offset="0"/>
+                <GradientStop Color="#102338"
+                                          Offset="1"/>
+        </LinearGradientBrush>
 
         <SolidColorBrush x:Key="ScrollBar.ThumbBrush"
                                          Color="#38BDF8"/>
@@ -43,6 +61,34 @@
         <SolidColorBrush x:Key="ScrollBar.ThumbGlowBrush"
                                          Color="#38BDF8"
                                          Opacity="0.4"/>
+        <LinearGradientBrush x:Key="ScrollBar.ThumbGlyphStrokeBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#FFFFFF"
+                                          Offset="0"/>
+                <GradientStop Color="#7BE9FF"
+                                          Offset="0.45"/>
+                <GradientStop Color="#39BDF7"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="ScrollBar.ThumbGlyphFillBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#12283F"
+                                          Offset="0"/>
+                <GradientStop Color="#0A1728"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+
+        <PathGeometry x:Key="ScrollBar.TrackAccentHorizontalGeometry"
+                                      Figures="M4,12 C10,2 22,2 28,12 S46,22 52,12">
+        </PathGeometry>
+        <PathGeometry x:Key="ScrollBar.TrackAccentVerticalGeometry"
+                                      Figures="M12,4 C2,10 2,22 12,28 S22,46 12,52">
+        </PathGeometry>
+        <PathGeometry x:Key="ScrollBar.ThumbGlyphGeometry"
+                                      Figures="M4,8 C4,3 8,1.2 12,4.4 C16,7.8 20,6.2 22,4.2 C23.7,2.8 25.2,3.7 26.4,5.8 C28.2,9 27.3,13 24,15.6 C20,18.6 12,18.6 8,15.1 C5.3,12.8 4,10.6 4,8 Z">
+        </PathGeometry>
 
         <CubicEase x:Key="ScrollBarEase"
                            EasingMode="EaseOut"/>
@@ -131,6 +177,17 @@
                                                 <Border x:Name="Surface"
                                                                 Background="{TemplateBinding Background}"
                                                                 CornerRadius="9"/>
+                                                <Viewbox Margin="3"
+                                                                 Stretch="Uniform"
+                                                                 IsHitTestVisible="False">
+                                                        <Path x:Name="Glyph"
+                                                                     Data="{StaticResource ScrollBar.ThumbGlyphGeometry}"
+                                                                     Fill="{StaticResource ScrollBar.ThumbGlyphFillBrush}"
+                                                                     Stroke="{StaticResource ScrollBar.ThumbGlyphStrokeBrush}"
+                                                                     StrokeThickness="0.9"
+                                                                     Opacity="0.55"
+                                                                     Stretch="Uniform"/>
+                                                </Viewbox>
                                                 <Border x:Name="Shimmer"
                                                                 Margin="1.5"
                                                                 CornerRadius="7"
@@ -170,6 +227,16 @@
                                                                                                                  To="0.65"
                                                                                                                  Duration="0:0:0.2"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.85"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="StrokeThickness"
+                                                                                                                 To="1.25"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                                 <DoubleAnimation Storyboard.TargetName="ThumbShadow"
                                                                                                                  Storyboard.TargetProperty="Opacity"
                                                                                                                  To="0.55"
@@ -200,6 +267,16 @@
                                                                                 <DoubleAnimation Storyboard.TargetName="Shimmer"
                                                                                                                  Storyboard.TargetProperty="Opacity"
                                                                                                                  To="0"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.55"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="StrokeThickness"
+                                                                                                                 To="0.9"
                                                                                                                  Duration="0:0:0.18"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                                 <DoubleAnimation Storyboard.TargetName="ThumbShadow"
@@ -243,6 +320,16 @@
                                                                                                                  To="0.85"
                                                                                                                  Duration="0:0:0.18"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="1"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="StrokeThickness"
+                                                                                                                 To="1.45"
+                                                                                                                 Duration="0:0:0.18"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                                 <DoubleAnimation Storyboard.TargetName="ThumbShadow"
                                                                                                                  Storyboard.TargetProperty="Opacity"
                                                                                                                  To="0.75"
@@ -272,6 +359,16 @@
                                                                                 <DoubleAnimation Storyboard.TargetName="Shimmer"
                                                                                                                  Storyboard.TargetProperty="Opacity"
                                                                                                                  To="0.65"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.85"
+                                                                                                                 Duration="0:0:0.2"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="StrokeThickness"
+                                                                                                                 To="1.25"
                                                                                                                  Duration="0:0:0.2"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                                 <DoubleAnimation Storyboard.TargetName="ThumbShadow"
@@ -310,6 +407,14 @@
                                                                                 <DoubleAnimation Storyboard.TargetName="ThumbScale"
                                                                                                                  Storyboard.TargetProperty="ScaleY"
                                                                                                                  To="1"
+                                                                                                                 Duration="0:0:0.1"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0"
+                                                                                                                 Duration="0:0:0.1"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="Glyph"
+                                                                                                                 Storyboard.TargetProperty="StrokeThickness"
+                                                                                                                 To="0.9"
                                                                                                                  Duration="0:0:0.1"/>
                                                                         </Storyboard>
                                                                 </BeginStoryboard>
@@ -359,6 +464,23 @@
                                                                 </LinearGradientBrush>
                                                         </Border.Background>
                                                 </Border>
+                                                <Path x:Name="TrackAccent"
+                                                              Data="{StaticResource ScrollBar.TrackAccentHorizontalGeometry}"
+                                                              Margin="3"
+                                                              Stretch="Fill"
+                                                              Stroke="{StaticResource ScrollBar.AccentStrokeBrush}"
+                                                              StrokeThickness="1.6"
+                                                              Fill="{StaticResource ScrollBar.AccentFillBrush}"
+                                                              Opacity="0.32"
+                                                              IsHitTestVisible="False"
+                                                              RenderTransformOrigin="0.5,0.5">
+                                                        <Path.Effect>
+                                                                <DropShadowEffect BlurRadius="10"
+                                                                                                  Color="#2DCFFF"
+                                                                                                  ShadowDepth="0"
+                                                                                                  Opacity="0.35"/>
+                                                        </Path.Effect>
+                                                </Path>
                                                 <Track x:Name="PART_Track"
                                                            Margin="0"
                                                            Focusable="False"
@@ -433,11 +555,21 @@
                                                          To="0.4"
                                                          Duration="0:0:0.28"
                                                          EasingFunction="{StaticResource ScrollBarEase}"/>
-                                        <DoubleAnimation Storyboard.TargetName="TrackBackground"
+                                                                                <DoubleAnimation Storyboard.TargetName="TrackBackground"
                                                          Storyboard.TargetProperty="Opacity"
                                                          To="1"
                                                          Duration="0:0:0.28"
                                                          EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="TrackAccent"
+                                                                                                                 Storyboard.TargetProperty="Opacity"
+                                                                                                                 To="0.65"
+                                                                                                                 Duration="0:0:0.28"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
+                                                                                <DoubleAnimation Storyboard.TargetName="TrackAccent"
+                                                                                                                 Storyboard.TargetProperty="StrokeThickness"
+                                                                                                                 To="2"
+                                                                                                                 Duration="0:0:0.28"
+                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.EnterActions>
@@ -460,6 +592,16 @@
                                                          To="0.88"
                                                          Duration="0:0:0.25"
                                                          EasingFunction="{StaticResource ScrollBarEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="TrackAccent"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.32"
+                                                         Duration="0:0:0.25"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
+                                        <DoubleAnimation Storyboard.TargetName="TrackAccent"
+                                                         Storyboard.TargetProperty="StrokeThickness"
+                                                         To="1.6"
+                                                         Duration="0:0:0.25"
+                                                         EasingFunction="{StaticResource ScrollBarEase}"/>
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
@@ -478,6 +620,9 @@
                             <Setter TargetName="TrackBackground"
                                     Property="Opacity"
                                     Value="0.6"/>
+                            <Setter TargetName="TrackAccent"
+                                    Property="Opacity"
+                                    Value="0.12"/>
                         </Trigger>
                         <Trigger Property="Orientation"
                                  Value="Horizontal">
@@ -499,6 +644,9 @@
                             <Setter TargetName="TrackSheen"
                                     Property="VerticalAlignment"
                                     Value="Center"/>
+                                                        <Setter TargetName="TrackAccent"
+                                                                        Property="Data"
+                                                                        Value="{StaticResource ScrollBar.TrackAccentHorizontalGeometry}"/>
                         </Trigger>
                         <Trigger Property="Orientation"
                                  Value="Vertical">
@@ -508,12 +656,15 @@
                             <Setter TargetName="TrackBackground"
                                     Property="HorizontalAlignment"
                                     Value="Center"/>
-                            <Setter TargetName="TrackHighlight"
+                                                        <Setter TargetName="TrackHighlight"
                                     Property="HorizontalAlignment"
                                     Value="Center"/>
                             <Setter TargetName="TrackSheen"
                                     Property="HorizontalAlignment"
                                     Value="Center"/>
+                                                        <Setter TargetName="TrackAccent"
+                                                                        Property="Data"
+                                                                        Value="{StaticResource ScrollBar.TrackAccentVerticalGeometry}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

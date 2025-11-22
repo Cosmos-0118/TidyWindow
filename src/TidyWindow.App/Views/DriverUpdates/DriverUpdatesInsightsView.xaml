@@ -1,0 +1,357 @@
+<UserControl x:Class="TidyWindow.App.Views.DriverUpdates.DriverUpdatesInsightsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
+             xmlns:core="clr-namespace:TidyWindow.Core.Updates;assembly=TidyWindow.Core"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=vm:DriverUpdatesViewModel, IsDesignTimeCreatable=False}">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <Style x:Key="DriverInsightsPrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Margin" Value="0,12,12,0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="Background" Value="#2563EB"/>
+            <Setter Property="BorderBrush" Value="#1D4ED8"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Opacity" Value="0.55"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="DriverHealthIssueTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#38BDF8"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Severity}" Value="Warning">
+                    <Setter Property="Foreground" Value="#F97316"/>
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Severity}" Value="Critical">
+                    <Setter Property="Foreground" Value="#F87171"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <StackPanel Orientation="Vertical">
+        <Border Background="#12263F"
+                BorderBrush="#1F365B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="20"
+                Margin="0,0,0,16">
+            <StackPanel>
+                <TextBlock Text="{Binding Summary}"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           Foreground="#E2E8F0"/>
+                <TextBlock Text="{Binding LastCheckedDisplay}"
+                           Margin="0,6,0,0"
+                           FontSize="13"
+                           Foreground="#94A3B8"/>
+                <TextBlock Text="{Binding InstalledDriversSummary}"
+                           Margin="0,4,0,0"
+                           FontSize="12"
+                           Foreground="#94A3B8"
+                           Visibility="{Binding HasInstalledDrivers, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                <TextBlock Text="{Binding ActiveFiltersSummary}"
+                           Margin="0,6,0,0"
+                           FontSize="12"
+                           Foreground="#38BDF8"
+                           Visibility="{Binding HasActiveFilters, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                <WrapPanel Margin="0,12,0,0"
+                           Visibility="{Binding HasInstallableUpdates, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Button Content="Install pending drivers"
+                            Style="{StaticResource DriverInsightsPrimaryButtonStyle}"
+                            Command="{Binding InstallPendingUpdatesCommand}"
+                            IsEnabled="{Binding CanRunDriverOperations}"/>
+                </WrapPanel>
+                <TextBlock Text="Driver install or maintenance actions are running..."
+                           Margin="0,8,0,0"
+                           FontSize="12"
+                           Foreground="#F8FAFC"
+                           Visibility="{Binding IsDriverOperationInProgress, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+            </StackPanel>
+        </Border>
+
+        <Border Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16"
+                Margin="0,0,0,16"
+                Visibility="{Binding HasInstallSummaries, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="Windows Update install summaries"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#F8FAFC"/>
+                <ItemsControl ItemsSource="{Binding InstallSummaries}"
+                              Margin="0,10,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type core:DriverUpdateInstallSummary}">
+                            <Border Background="#162B46"
+                                    BorderBrush="#1F365B"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12"
+                                    Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Title}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontSize="12"
+                                               Foreground="#CBD5F5">
+                                        <Run Text="State: "/>
+                                        <Run Text="{Binding State}"/>
+                                        <Run Text=" • "/>
+                                        <Run Text="{Binding HResult, StringFormat='0x{0:X8}'}"/>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Detail}"
+                                               Margin="0,2,0,0"
+                                               FontSize="12"
+                                               Foreground="#94A3B8"
+                                               TextWrapping="Wrap">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                                <Style.Triggers>
+                                                    <Trigger Property="Text" Value="">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </Trigger>
+                                                    <Trigger Property="Text" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Border Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16"
+                Margin="0,0,0,16"
+                Visibility="{Binding HasGpuGuidance, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="GPU vendor guidance"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#F8FAFC"/>
+                <ItemsControl ItemsSource="{Binding GpuGuidance}"
+                              Margin="0,10,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:GpuVendorGuidanceViewModel}">
+                            <Border Background="#162B46"
+                                    BorderBrush="#1F365B"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12"
+                                    Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding VendorLabel}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="{Binding Message}"
+                                               Margin="0,4,0,0"
+                                               FontSize="12"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"/>
+                                     <TextBlock Margin="0,6,0,0"
+                                             FontSize="12"
+                                             Foreground="#38BDF8">
+                                         <Hyperlink NavigateUri="{Binding SupportUri}"
+                                              RequestNavigate="OnHyperlinkRequestNavigate">
+                                          <Run Text="{Binding LinkLabel, Mode=OneWay}"/>
+                                        </Hyperlink>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Border Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16"
+                Margin="0,0,0,16"
+                Visibility="{Binding HasSkipSummaries, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="Filtered updates"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#F8FAFC"/>
+                <ItemsControl ItemsSource="{Binding SkipSummaries}"
+                              Margin="0,12,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:DriverSkipSummaryViewModel}">
+                            <Border Background="#162B46"
+                                    BorderBrush="#1F365B"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="12"
+                                    Margin="0,0,0,10">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#F8FAFC"/>
+                                        <Border Background="#1E293B"
+                                                CornerRadius="6"
+                                                BorderBrush="#334155"
+                                                BorderThickness="1"
+                                                Padding="8,2"
+                                                Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding PillLabel}"
+                                                       FontSize="11"
+                                                       Foreground="#94A3B8"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding Reason}"
+                                               Margin="0,4,0,0"
+                                               FontSize="12"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="{Binding VendorDisplay}"
+                                               Margin="0,6,0,0"
+                                               FontSize="11"
+                                               Foreground="#94A3B8"/>
+                                    <TextBlock Text="{Binding DriverClassDisplay}"
+                                               Margin="0,2,0,0"
+                                               FontSize="11"
+                                               Foreground="#94A3B8"/>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Border Background="#1E293B"
+                BorderBrush="#334155"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16"
+                Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="Warnings"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#F8FAFC"/>
+                <ItemsControl ItemsSource="{Binding Warnings}"
+                              Margin="0,8,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       FontSize="12"
+                                       Foreground="#F87171"
+                                       TextWrapping="Wrap"
+                                       Margin="0,2,0,2"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Border Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16"
+                Margin="0,0,0,16"
+                Visibility="{Binding HasHealthInsights, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="Driver health insights"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#F8FAFC"/>
+                <ItemsControl ItemsSource="{Binding HealthInsights}"
+                              Margin="0,10,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="{x:Type vm:DriverHealthInsightViewModel}">
+                            <Border Background="#162B46"
+                                    BorderBrush="#1F365B"
+                                    BorderThickness="1"
+                                    CornerRadius="8"
+                                    Padding="12"
+                                    Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DeviceName}"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="{Binding Issue}"
+                                               Margin="0,4,0,0"
+                                               FontSize="12"
+                                               Style="{StaticResource DriverHealthIssueTextStyle}"/>
+                                    <TextBlock Text="{Binding Detail}"
+                                               Margin="0,2,0,0"
+                                               FontSize="12"
+                                               Foreground="#CBD5F5"
+                                               TextWrapping="Wrap"
+                                               Visibility="{Binding HasDetail, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    <TextBlock Margin="0,4,0,0"
+                                               FontSize="11"
+                                               Foreground="#94A3B8"
+                                               Visibility="{Binding HasInfName, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Run Text="INF: "/>
+                                        <Run Text="{Binding InfName, Mode=OneWay}"/>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Border Background="#12263F"
+                BorderBrush="#1F365B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="16"
+                Visibility="{Binding HasOperationMessages, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <StackPanel>
+                <TextBlock Text="Driver operation log"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="#F8FAFC"/>
+                <ItemsControl ItemsSource="{Binding OperationMessages}"
+                              Margin="0,8,0,0">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding}"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"
+                                       TextWrapping="Wrap"
+                                       Margin="0,2,0,2"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

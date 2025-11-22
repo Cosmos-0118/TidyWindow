@@ -4,49 +4,87 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Navigation;
 using TidyWindow.App.ViewModels;
-using ListViewItem = System.Windows.Controls.ListViewItem;
 using MessageBox = System.Windows.MessageBox;
-using System.Windows.Documents;
-using System.Windows.Media;
+using UserControl = System.Windows.Controls.UserControl;
 
-namespace TidyWindow.App.Views;
+namespace TidyWindow.App.Views.DriverUpdates;
 
-public partial class DriverUpdatesPage : Page
+public partial class DriverUpdatesListView : UserControl
 {
-    private readonly DriverUpdatesViewModel _viewModel;
-    private bool _disposed;
-    public DriverUpdatesPage(DriverUpdatesViewModel viewModel)
+    public DriverUpdatesListView()
     {
         InitializeComponent();
-        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
-        DataContext = _viewModel;
-        Loaded += OnLoaded;
-        Unloaded += OnUnloaded;
     }
 
-    private async void OnLoaded(object sender, System.Windows.RoutedEventArgs e)
+    private void OnUpdateCardMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (_viewModel.HasScanned)
+        if (e.ClickCount < 2 || e.Handled)
         {
             return;
         }
 
-        await _viewModel.RefreshCommand.ExecuteAsync(null);
-    }
-
-    private void OnUnloaded(object sender, System.Windows.RoutedEventArgs e)
-    {
-        if (_disposed)
+        if (IsHyperlinkSource(e.OriginalSource))
         {
             return;
         }
 
-        Loaded -= OnLoaded;
-        Unloaded -= OnUnloaded;
-        _disposed = true;
+        if (FindDataContext<DriverUpdateItemViewModel>(sender) is not { } driver)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        if (string.IsNullOrWhiteSpace(driver.InstalledInfPath))
+        {
+            ShowDriverLocationUnavailable(driver.DeviceName);
+            return;
+        }
+
+        if (TryOpenDriverLocation(driver.InstalledInfPath))
+        {
+            return;
+        }
+
+        ShowDriverLocationUnavailable(driver.DeviceName);
+    }
+
+    private void OnInstalledCardMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount < 2 || e.Handled)
+        {
+            return;
+        }
+
+        if (IsHyperlinkSource(e.OriginalSource))
+        {
+            return;
+        }
+
+        if (FindDataContext<InstalledDriverItemViewModel>(sender) is not { } driver)
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        if (string.IsNullOrWhiteSpace(driver.InfName))
+        {
+            ShowDriverLocationUnavailable(driver.DeviceName);
+            return;
+        }
+
+        if (TryOpenDriverLocation(driver.InfName))
+        {
+            return;
+        }
+
+        ShowDriverLocationUnavailable(driver.DeviceName);
     }
 
     private void OnHyperlinkRequestNavigate(object sender, RequestNavigateEventArgs e)
@@ -66,66 +104,10 @@ public partial class DriverUpdatesPage : Page
         }
         catch
         {
-            // No-op: navigation failures are not fatal.
+            // ignore navigation failures
         }
 
         e.Handled = true;
-    }
-
-    private void OnUpdateItemDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not ListViewItem item || item.DataContext is not DriverUpdateItemViewModel driver)
-        {
-            return;
-        }
-
-        e.Handled = true;
-
-        if (IsHyperlinkSource(e.OriginalSource))
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(driver.InstalledInfPath))
-        {
-            ShowDriverLocationUnavailable(driver.DeviceName);
-            return;
-        }
-
-        if (TryOpenDriverLocation(driver.InstalledInfPath))
-        {
-            return;
-        }
-
-        ShowDriverLocationUnavailable(driver.DeviceName);
-    }
-
-    private void OnInstalledDriverDoubleClick(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not ListViewItem item || item.DataContext is not InstalledDriverItemViewModel driver)
-        {
-            return;
-        }
-
-        e.Handled = true;
-
-        if (IsHyperlinkSource(e.OriginalSource))
-        {
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(driver.InfName))
-        {
-            ShowDriverLocationUnavailable(driver.DeviceName);
-            return;
-        }
-
-        if (TryOpenDriverLocation(driver.InfName))
-        {
-            return;
-        }
-
-        ShowDriverLocationUnavailable(driver.DeviceName);
     }
 
     private static bool TryOpenDriverLocation(string? driverReference)
@@ -221,7 +203,7 @@ public partial class DriverUpdatesPage : Page
                 }
                 catch
                 {
-                    // Driver store enumeration can fail due to access restrictions; ignore and fall through.
+                    // ignore access issues
                 }
             }
         }
@@ -238,8 +220,8 @@ public partial class DriverUpdatesPage : Page
         MessageBox.Show(
             message + "\nTry refreshing the scan or manage the device from Device Manager instead.",
             "Driver location unavailable",
-            System.Windows.MessageBoxButton.OK,
-            System.Windows.MessageBoxImage.Information);
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
     }
 
     private static bool IsHyperlinkSource(object? source)
@@ -260,6 +242,26 @@ public partial class DriverUpdatesPage : Page
         }
 
         return false;
+    }
+
+    private static T? FindDataContext<T>(object? source) where T : class
+    {
+        if (source is not DependencyObject node)
+        {
+            return null;
+        }
+
+        while (node is not null)
+        {
+            if (node is FrameworkElement { DataContext: T match })
+            {
+                return match;
+            }
+
+            node = VisualTreeHelper.GetParent(node);
+        }
+
+        return null;
     }
 
 }

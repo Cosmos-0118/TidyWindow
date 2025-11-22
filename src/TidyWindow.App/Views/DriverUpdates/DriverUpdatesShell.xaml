@@ -1,0 +1,34 @@
+<UserControl x:Class="TidyWindow.App.Views.DriverUpdates.DriverUpdatesShell"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:driver="clr-namespace:TidyWindow.App.Views.DriverUpdates"
+             mc:Ignorable="d"
+             d:DesignWidth="1200"
+             d:DesignHeight="900">
+    <Grid>
+        <ScrollViewer x:Name="RootScrollViewer"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      CanContentScroll="False"
+                      Padding="32"
+                      Background="Transparent">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="340"/>
+                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <driver:DriverUpdatesFiltersView Grid.Column="0"/>
+
+                <StackPanel Grid.Column="2"
+                            Orientation="Vertical">
+                    <driver:DriverUpdatesInsightsView Margin="0,0,0,20"/>
+                    <driver:DriverUpdatesListView x:Name="ListViewHost"/>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

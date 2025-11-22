@@ -153,11 +153,11 @@ PulseGuard is the smart watchdog that keeps a pulse on automation logs, surfaces
 
 Reference: `Future-ideas/driverupdatespage.txt` plus `automation/essentials/driver-update-detect.ps1`.
 
-[ ] Step 11.1: Extend `driver-update-detect.ps1` output contract (or adapter DTO) so the UI can display badges for update availability, downgrade risk, vendor/class, optional flag, and skip reasons without extra transforms.
-[ ] Step 11.2: Build a modular Driver Updates UI (e.g., `Views/DriverUpdates/DriverUpdatesShell.xaml` hosting `DriverUpdatesListView.xaml`, `DriverUpdatesFiltersView.xaml`, and `DriverUpdatesInsightsView.xaml`) wired to the refreshed `DriverUpdatesViewModel` so each surface stays focused and independently testable.
-[ ] Step 11.3: Implement Windows Update install actions via `Microsoft.Update.Session.CreateUpdateInstaller`, respecting include/optional toggles and queue integration.
-[ ] Step 11.4: Add reinstall/rollback helpers that call `pnputil` (and fallbacks for older builds) using `installedInfPath` from the script payload, surfacing logs in the UI.
-[ ] Step 11.5: Provide GPU-specific guidance (links or future vendor CLI hooks) plus health insights for problem codes/unsigned drivers so the page remains useful even when WU shows zero updates.
+[x] Step 11.1: Extend `driver-update-detect.ps1` output contract (or adapter DTO) so the UI can display badges for update availability, downgrade risk, vendor/class, optional flag, and skip reasons without extra transforms.
+[x] Step 11.2: Build a modular Driver Updates UI (e.g., `Views/DriverUpdates/DriverUpdatesShell.xaml` hosting `DriverUpdatesListView.xaml`, `DriverUpdatesFiltersView.xaml`, and `DriverUpdatesInsightsView.xaml`) wired to the refreshed `DriverUpdatesViewModel` so each surface stays focused and independently testable.
+[x] Step 11.3: Implement Windows Update install actions via `Microsoft.Update.Session.CreateUpdateInstaller`, respecting include/optional toggles and queue integration.
+[x] Step 11.4: Add reinstall/rollback helpers that call `pnputil` (and fallbacks for older builds) using `installedInfPath` from the script payload, surfacing logs in the UI.
+[x] Step 11.5: Provide GPU-specific guidance (links or future vendor CLI hooks) plus health insights for problem codes/unsigned drivers so the page remains useful even when WU shows zero updates.
 
 ## Version Control Hub
 
