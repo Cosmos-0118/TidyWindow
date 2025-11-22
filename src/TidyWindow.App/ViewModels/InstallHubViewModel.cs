@@ -15,6 +15,13 @@ using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.ViewModels;
 
+public enum CurrentInstallHubPivot
+{
+    Bundles,
+    Catalog,
+    Queue
+}
+
 public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 {
     private readonly InstallCatalogService _catalogService;
@@ -85,13 +92,33 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private bool _hasActiveOperations;
 
     [ObservableProperty]
-    private string _headline = "Curate developer bundles";
+    private int _queuedOperationCount;
+
+    [ObservableProperty]
+    private int _runningOperationCount;
+
+    [ObservableProperty]
+    private int _completedOperationCount;
+
+    [ObservableProperty]
+    private int _failedOperationCount;
+
+    [ObservableProperty]
+    private CurrentInstallHubPivot _currentPivot = CurrentInstallHubPivot.Bundles;
+
+    [ObservableProperty]
+    private string _headline = GetHeadlineForPivot(CurrentInstallHubPivot.Bundles);
 
     [ObservableProperty]
     private bool _isLoading;
 
     [ObservableProperty]
     private InstallOperationItemViewModel? _selectedOperation;
+
+    partial void OnCurrentPivotChanged(CurrentInstallHubPivot value)
+    {
+        Headline = GetHeadlineForPivot(value);
+    }
 
     public Task EnsureLoadedAsync()
     {
@@ -215,13 +242,15 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             Packages.Clear();
             _packageLookup.Clear();
 
-            var allBundle = InstallBundleItemViewModel.CreateAll(packages.Count);
-            Bundles.Add(allBundle);
-
             foreach (var package in packages)
             {
                 var vm = new InstallPackageItemViewModel(package);
                 _packageLookup[package.Id] = vm;
+            }
+
+            if (packages.Count > 0)
+            {
+                Bundles.Add(InstallBundleItemViewModel.CreateAll(packages.Count));
             }
 
             foreach (var bundle in bundles)
@@ -282,16 +311,14 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void QueueBundle(InstallBundleItemViewModel? bundle)
     {
-        if (bundle is null)
+        if (bundle is null || bundle.IsSyntheticAll)
         {
             return;
         }
 
-        var packages = bundle.IsSyntheticAll
-            ? _catalogService.Packages
-            : _catalogService.GetPackagesForBundle(bundle.Id);
+        var packages = _catalogService.GetPackagesForBundle(bundle.Id);
 
-        if (packages.Count == 0)
+        if (packages.Length == 0)
         {
             _mainViewModel.SetStatusMessage($"Bundle '{bundle.Name}' has no packages yet.");
             return;
@@ -308,6 +335,18 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         UpdatePackageQueueStates();
+    }
+
+    [RelayCommand]
+    private void ViewBundleDetails(InstallBundleItemViewModel? bundle)
+    {
+        if (bundle is null)
+        {
+            return;
+        }
+
+        SelectedBundle = bundle;
+        NavigatePivot(CurrentInstallHubPivot.Catalog);
     }
 
     [RelayCommand]
@@ -336,6 +375,42 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         UpdatePackageQueueStates();
+    }
+
+    [RelayCommand]
+    private void ResetCatalogFilters()
+    {
+        var defaultBundle = Bundles.FirstOrDefault();
+        var hasSearchFilter = !string.IsNullOrWhiteSpace(SearchText);
+        var hasBundleFilter = defaultBundle is not null
+            && SelectedBundle is not null
+            && !string.Equals(SelectedBundle.Id, defaultBundle.Id, StringComparison.OrdinalIgnoreCase);
+
+        if (!hasSearchFilter && !hasBundleFilter)
+        {
+            return;
+        }
+
+        _suppressFilters = true;
+
+        try
+        {
+            if (hasSearchFilter)
+            {
+                SearchText = null;
+            }
+
+            if (hasBundleFilter)
+            {
+                SelectedBundle = defaultBundle;
+            }
+        }
+        finally
+        {
+            _suppressFilters = false;
+        }
+
+        ApplyBundleFilter();
     }
 
     [RelayCommand]
@@ -445,6 +520,17 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             _mainViewModel.SetStatusMessage($"Failed to save preset: {ex.Message}");
             _activityLog.LogError("Install hub", $"Failed to save preset: {ex.Message}");
         }
+    }
+
+    [RelayCommand]
+    private void NavigatePivot(CurrentInstallHubPivot pivot)
+    {
+        if (CurrentPivot == pivot)
+        {
+            return;
+        }
+
+        CurrentPivot = pivot;
     }
 
     [RelayCommand]
@@ -789,6 +875,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         HasActiveOperations = _activePackageCounts.Values.Any(count => count > 0);
+        UpdateQueueTelemetry();
     }
 
     private string? ResolveLatestStatus(string packageId)
@@ -802,6 +889,39 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         return snapshot?.LastMessage;
     }
 
+    private void UpdateQueueTelemetry()
+    {
+        var queued = 0;
+        var running = 0;
+        var completed = 0;
+        var failed = 0;
+
+        foreach (var operation in Operations)
+        {
+            switch (operation.Status)
+            {
+                case InstallQueueStatus.Pending:
+                    queued++;
+                    break;
+                case InstallQueueStatus.Running:
+                    running++;
+                    break;
+                case InstallQueueStatus.Succeeded:
+                case InstallQueueStatus.Cancelled:
+                    completed++;
+                    break;
+                case InstallQueueStatus.Failed:
+                    failed++;
+                    break;
+            }
+        }
+
+        QueuedOperationCount = queued;
+        RunningOperationCount = running;
+        CompletedOperationCount = completed;
+        FailedOperationCount = failed;
+    }
+
     public void Dispose()
     {
         if (_isDisposed)
@@ -811,6 +931,17 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         _isDisposed = true;
         _installQueue.OperationChanged -= OnInstallQueueChanged;
+    }
+
+    private static string GetHeadlineForPivot(CurrentInstallHubPivot pivot)
+    {
+        return pivot switch
+        {
+            CurrentInstallHubPivot.Bundles => "Curate developer bundles",
+            CurrentInstallHubPivot.Catalog => "Explore the install catalog",
+            CurrentInstallHubPivot.Queue => "Review queue and install history",
+            _ => "Curate developer bundles"
+        };
     }
 }
 
@@ -835,19 +966,24 @@ public sealed class InstallBundleItemViewModel
 
     public bool IsSyntheticAll { get; }
 
-    public string PackageCountDisplay => PackageIds.Length == 1 ? "1 package" : $"{PackageIds.Length} packages";
+    public string PackageCountDisplay => BundlePackageCount == 1 ? "1 package" : $"{BundlePackageCount} packages";
+
+    public int BundlePackageCount => IsSyntheticAll ? _cachedCount : PackageIds.Length;
 
     public static InstallBundleItemViewModel CreateAll(int packageCount)
     {
-        return new InstallBundleItemViewModel("__all__", "All packages", "View every available package in the catalog.", ImmutableArray<string>.Empty, true)
+        return new InstallBundleItemViewModel(
+            "__all__",
+            "All packages",
+            "Browse every available package in the catalog.",
+            ImmutableArray<string>.Empty,
+            true)
         {
             _cachedCount = packageCount
         };
     }
 
     private int _cachedCount;
-
-    public int BundlePackageCount => IsSyntheticAll ? _cachedCount : PackageIds.Length;
 }
 
 public sealed partial class InstallPackageItemViewModel : ObservableObject
@@ -916,6 +1052,9 @@ public sealed partial class InstallOperationItemViewModel : ObservableObject
     public string PackageName { get; }
 
     [ObservableProperty]
+    private InstallQueueStatus _status;
+
+    [ObservableProperty]
     private string _statusLabel = "Pending";
 
     [ObservableProperty]
@@ -953,6 +1092,7 @@ public sealed partial class InstallOperationItemViewModel : ObservableObject
 
     public void Update(InstallQueueOperationSnapshot snapshot)
     {
+        Status = snapshot.Status;
         StatusLabel = snapshot.Status switch
         {
             InstallQueueStatus.Pending => "Queued",

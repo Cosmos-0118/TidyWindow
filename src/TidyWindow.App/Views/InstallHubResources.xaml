@@ -1,0 +1,515 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+                    xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+    <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+    <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+    <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
+
+    <Style x:Key="InstallAccentButtonStyle"
+           TargetType="Button">
+        <Setter Property="Background" Value="#7C3AED"/>
+        <Setter Property="Foreground" Value="#F8FAFC"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="8"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#6D28D9"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#5B21B6"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="#312E81"/>
+                            <Setter Property="Foreground" Value="#94A3B8"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallSecondaryButtonStyle"
+           TargetType="Button">
+        <Setter Property="Background" Value="#1E293B"/>
+        <Setter Property="Foreground" Value="#E2E8F0"/>
+        <Setter Property="BorderBrush" Value="#334155"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#243048"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#1A2436"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="#111827"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
+                            <Setter Property="Foreground" Value="#475569"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallSecondaryToggleButtonStyle"
+           TargetType="ToggleButton">
+        <Setter Property="Background" Value="#1E293B"/>
+        <Setter Property="Foreground" Value="#E2E8F0"/>
+        <Setter Property="BorderBrush" Value="#334155"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="12,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="6"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#243048"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#1A2436"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
+                            <Setter TargetName="Root" Property="Background" Value="#172337"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="#111827"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
+                            <Setter Property="Foreground" Value="#475569"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallBadgeStyle"
+           TargetType="Border">
+        <Setter Property="Background" Value="#1E293B"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="Margin" Value="0,0,8,8"/>
+    </Style>
+
+    <Style x:Key="InstallCardBorderStyle"
+           TargetType="Border">
+        <Setter Property="Background" Value="#111827"/>
+        <Setter Property="BorderBrush" Value="#1E293B"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="24"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="ClipToBounds" Value="True"/>
+    </Style>
+
+    <x:Array x:Key="InstallHubBundleSkeletonItems" Type="{x:Type sys:Int32}">
+        <sys:Int32>0</sys:Int32>
+        <sys:Int32>1</sys:Int32>
+        <sys:Int32>2</sys:Int32>
+        <sys:Int32>3</sys:Int32>
+    </x:Array>
+
+    <x:Array x:Key="InstallHubPackageSkeletonItems" Type="{x:Type sys:Int32}">
+        <sys:Int32>0</sys:Int32>
+        <sys:Int32>1</sys:Int32>
+        <sys:Int32>2</sys:Int32>
+        <sys:Int32>3</sys:Int32>
+        <sys:Int32>4</sys:Int32>
+        <sys:Int32>5</sys:Int32>
+    </x:Array>
+
+    <x:Array x:Key="InstallHubQueueSkeletonItems" Type="{x:Type sys:Int32}">
+        <sys:Int32>0</sys:Int32>
+        <sys:Int32>1</sys:Int32>
+        <sys:Int32>2</sys:Int32>
+    </x:Array>
+
+    <DataTemplate x:Key="InstallHubBundleSkeletonTemplate">
+        <Border Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="14"
+                Padding="18"
+                Margin="0,0,22,22">
+            <StackPanel>
+                <Rectangle Height="16" Width="130" RadiusX="4" RadiusY="4" Fill="#1F2A44"/>
+                <Rectangle Height="12" Width="180" Margin="0,10,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+                <Rectangle Height="12" Width="120" Margin="0,10,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+
+    <DataTemplate x:Key="InstallHubPackageSkeletonTemplate">
+        <Border Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="18"
+                Margin="0,0,0,14">
+            <StackPanel>
+                <Rectangle Height="16" Width="200" RadiusX="4" RadiusY="4" Fill="#1F2A44"/>
+                <Rectangle Height="12" Width="160" Margin="0,8,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+                <Rectangle Height="12" Width="240" Margin="0,12,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+
+    <DataTemplate x:Key="InstallHubQueueSkeletonTemplate">
+        <Border Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="10"
+                Padding="16"
+                Margin="0,0,0,12">
+            <StackPanel>
+                <Rectangle Height="14" Width="200" RadiusX="4" RadiusY="4" Fill="#1F2A44"/>
+                <Rectangle Height="12" Width="150" Margin="0,8,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+            </StackPanel>
+        </Border>
+    </DataTemplate>
+
+    <Style x:Key="InstallBundleCardItemStyle"
+           TargetType="ListBoxItem">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0,0,0,14"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListBoxItem">
+                    <Border x:Name="Container"
+                            CornerRadius="14"
+                            Background="#101B33"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            Padding="18"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Container" Property="Background" Value="#1E3A8A"/>
+                            <Setter TargetName="Container" Property="BorderBrush" Value="#38BDF8"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Container" Property="Background" Value="#162643"/>
+                            <Setter TargetName="Container" Property="BorderBrush" Value="#1E3A8A"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Container" Property="Opacity" Value="0.55"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallPackageCardItemStyle"
+           TargetType="ListViewItem">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0,0,22,22"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="Container"
+                            CornerRadius="16"
+                            Background="#101B33"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            Padding="20"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Container" Property="BorderBrush" Value="#38BDF8"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Container" Property="Background" Value="#162643"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Container" Property="Opacity" Value="0.55"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallQueueListItemStyle"
+           TargetType="ListViewItem">
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ListViewItem">
+                    <Border x:Name="Container"
+                            CornerRadius="12"
+                            Background="#101B33"
+                            BorderBrush="#1E293B"
+                            BorderThickness="1"
+                            Padding="14"
+                            SnapsToDevicePixels="True">
+                        <ContentPresenter/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Container" Property="Background" Value="#162643"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter TargetName="Container" Property="BorderBrush" Value="#38BDF8"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <DataTemplate x:Key="InstallOperationDetailsTemplate"
+                  DataType="{x:Type viewModels:InstallOperationItemViewModel}">
+        <StackPanel>
+            <TextBlock Text="{Binding PackageName}"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="#F8FAFC"
+                       TextWrapping="Wrap"/>
+
+            <StackPanel Orientation="Horizontal"
+                        Margin="0,8,0,0"
+                        VerticalAlignment="Center">
+                <Border Background="#1E293B"
+                        CornerRadius="6"
+                        Padding="8,3">
+                    <TextBlock Text="{Binding StatusLabel}"
+                               FontSize="12"
+                               FontWeight="SemiBold">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Foreground" Value="#38BDF8"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Installed">
+                                        <Setter Property="Foreground" Value="#22C55E"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Failed">
+                                        <Setter Property="Foreground" Value="#F87171"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Cancelled">
+                                        <Setter Property="Foreground" Value="#FBBF24"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Border>
+
+                <TextBlock Text="{Binding CompletedAt, StringFormat=Completed · {0:G}}"
+                           Margin="12,0,0,0"
+                           Foreground="#64748B"
+                           FontSize="12"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+                <TextBlock Text="{Binding Attempts}"
+                           Margin="12,0,0,0"
+                           Foreground="#CBD5F5"
+                           FontSize="11"
+                           VerticalAlignment="Center">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StackPanel>
+
+            <TextBlock Text="{Binding Message}"
+                       Foreground="#CBD5F5"
+                       FontSize="13"
+                       TextWrapping="Wrap"
+                       Margin="0,10,0,0">
+                <TextBlock.Style>
+                    <Style TargetType="TextBlock">
+                        <Setter Property="Visibility" Value="Visible"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </TextBlock.Style>
+            </TextBlock>
+
+            <Border Margin="0,14,0,0"
+                    Background="#0F172A"
+                    BorderBrush="#1E293B"
+                    BorderThickness="1"
+                    CornerRadius="10">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Padding" Value="14"/>
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasTranscript}" Value="True">
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding HasOutput, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Output"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+
+                    <ItemsControl ItemsSource="{Binding OutputLines}"
+                                  Margin="0,6,0,0"
+                                  Visibility="{Binding HasOutput, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           Foreground="#E2E8F0"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Separator Margin="0,8,0,8"
+                               Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                    <StackPanel Orientation="Horizontal"
+                                Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <TextBlock Text="Errors"
+                                   FontSize="12"
+                                   Foreground="#F87171"
+                                   FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <ItemsControl ItemsSource="{Binding ErrorLines}"
+                                  Margin="0,6,0,0"
+                                  Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}"
+                                           Foreground="#FCA5A5"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,0,6"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </DataTemplate>
+
+    <Style x:Key="InstallHubPivotButtonStyle"
+           TargetType="ToggleButton">
+        <Setter Property="Padding" Value="18,10"/>
+        <Setter Property="MinWidth" Value="140"/>
+        <Setter Property="FontSize" Value="13"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="#CBD5F5"/>
+        <Setter Property="Background" Value="#111C30"/>
+        <Setter Property="BorderBrush" Value="#1E293B"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Border x:Name="Root"
+                            CornerRadius="20"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            Padding="{TemplateBinding Padding}">
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="#1E3A8A"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
+                            <Setter Property="Foreground" Value="#F8FAFC"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.65"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+</ResourceDictionary>

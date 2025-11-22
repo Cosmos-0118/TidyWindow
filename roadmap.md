@@ -131,13 +131,13 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 
 Reference: `Future-ideas/installhubpagerework.txt` (grounded in current `Views/InstallHubPage.xaml` + `InstallHubViewModel`).
 
-[ ] Step 9.6: Introduce a `CurrentInstallHubPivot` enum and related state in `ViewModels/InstallHubViewModel.cs` so navigation between Bundles, Catalog, and Queue is VM-driven and testable.
-[ ] Step 9.7: Split the monolithic page into `Views/InstallHubBundlesView.xaml`, `Views/InstallHubCatalogView.xaml`, and `Views/InstallHubQueueView.xaml`, each reusing the shared view model.
-[ ] Step 9.8: Rebuild the Bundles view with hero text, bundle cards, and quick actions (queue bundle, view details, open queue chip) while respecting the existing `_headline` binding and bundle metadata.
-[ ] Step 9.9: Recreate the Catalog view as a responsive, virtualized browser with Essentials-style breakpoints, filters, and multi-select queueing that leverages `QueueSelection` and `VirtualizingStackPanel` recycling.
-[ ] Step 9.10: Move queue/history UX into its own page that reuses `InstallOperationItemViewModel`, exposes retry/cancel/clear commands, and supports the responsive drawer-to-button behavior described in the notes.
-[ ] Step 9.11: Remove legacy entrance `Storyboard` resources (`InstallBundleCardItemStyle`, `InstallPackageCardItemStyle`, `InstallQueueItemStyle`) and replace with skeleton/loading states while keeping the existing throttled overlay animation only.
-[ ] Step 9.12: Add responsive layout helpers (borrowed from `Views/EssentialsPage.xaml`) plus empty states and queue telemetry badges so the hub scales from single-column to split-view layouts without dropped frames.
+[x] Step 9.6: Introduce a `CurrentInstallHubPivot` enum and related state in `ViewModels/InstallHubViewModel.cs` so navigation between Bundles, Catalog, and Queue is VM-driven and testable (added enum, observable `CurrentPivot`, headline helper, and `NavigatePivotCommand`).
+[x] Step 9.7: Split the monolithic page into `Views/InstallHubBundlesView.xaml`, `Views/InstallHubCatalogView.xaml`, and `Views/InstallHubQueueView.xaml`, each reusing the shared view model (new user controls hosted by the rebuilt `InstallHubPage.xaml`).
+[x] Step 9.8: Rebuild the Bundles view with hero text, bundle cards, and quick actions (queue bundle, view details, open queue chip) while respecting the existing `_headline` binding and bundle metadata (new hero card, selected bundle detail panel, and per-card actions wired to `QueueBundle`/`ViewBundleDetails`).
+[x] Step 9.9: Recreate the Catalog view as a responsive, virtualized browser with Essentials-style breakpoints, filters, and multi-select queueing that leverages `QueueSelection` and `VirtualizingStackPanel` recycling (sidebar filters with bundle/tag selection, responsive two-column layout, and a recycling ListView with refreshed package cards).
+[x] Step 9.10: Move queue/history UX into its own page that reuses `InstallOperationItemViewModel`, exposes retry/cancel/clear commands, and supports the responsive drawer-to-button behavior described in the notes (new split layout with hero metrics, queue timeline cards, and drawer overlay that collapses into a button on compact breakpoints).
+[x] Step 9.11: Remove legacy entrance `Storyboard` resources (`InstallBundleCardItemStyle`, `InstallPackageCardItemStyle`, `InstallQueueItemStyle`) and replace with skeleton/loading states while keeping the existing throttled overlay animation only (page resources rewritten with static styles plus shared skeleton templates now wired into Bundles, Catalog, and Queue views).
+[x] Step 9.12: Add responsive layout helpers (borrowed from `Views/EssentialsPage.xaml`) plus empty states and queue telemetry badges so the hub scales from single-column to split-view layouts without dropped frames.
 
 ## PulseGuard Watchdog & Notifications
 
