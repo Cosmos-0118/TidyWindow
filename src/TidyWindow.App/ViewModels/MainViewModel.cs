@@ -27,6 +27,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Bootstrap", "Verify package managers and get ready", typeof(BootstrapPage)),
             new("Install hub", "Curated package bundles and install queue", typeof(InstallHubPage)),
             new("Essentials", "Run repair automation quickly", typeof(EssentialsPage)),
+            new("PathPilot", "Control runtime precedence and PATH backups", typeof(PathPilotPage)),
             new("Registry optimizer", "Stage registry defaults safely", typeof(RegistryOptimizerPage)),
             new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),

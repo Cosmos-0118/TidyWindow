@@ -191,6 +191,84 @@ function Get-TidyCommandPath {
     return $command.Name
 }
 
+function Get-TidyWingetMsixCandidates {
+    # Returns MSIX/Appx package identifiers that appear to match a winget package id.
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $PackageId
+    )
+
+    $results = [System.Collections.Generic.List[pscustomobject]]::new()
+
+    if ([string]::IsNullOrWhiteSpace($PackageId)) {
+        return $results
+    }
+
+    $appxCommand = Get-Command -Name 'Get-AppxPackage' -ErrorAction SilentlyContinue
+    if (-not $appxCommand) {
+        return $results
+    }
+
+    $patterns = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    [void]$patterns.Add($PackageId)
+    [void]$patterns.Add("*$PackageId")
+
+    $segments = $PackageId.Split('.', [System.StringSplitOptions]::RemoveEmptyEntries)
+    if ($segments.Length -gt 1) {
+        $suffix = '.' + ([string]::Join('.', $segments[1..($segments.Length - 1)]))
+        [void]$patterns.Add("*$suffix")
+        if ($segments.Length -gt 2) {
+            $tail = [string]::Join('.', $segments[($segments.Length - 2)..($segments.Length - 1)])
+            if (-not [string]::IsNullOrWhiteSpace($tail)) {
+                [void]$patterns.Add("*.$tail")
+            }
+        }
+    }
+
+    $collected = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($pattern in $patterns) {
+        foreach ($scope in @($false, $true)) {
+            try {
+                $arguments = @{ Name = $pattern; ErrorAction = 'Stop' }
+                if ($scope) {
+                    $arguments['AllUsers'] = $true
+                }
+
+                $packages = Get-AppxPackage @arguments
+            }
+            catch {
+                continue
+            }
+
+            foreach ($pkg in @($packages)) {
+                if ($null -eq $pkg) { continue }
+                $fullName = $pkg.PackageFullName
+                if ([string]::IsNullOrWhiteSpace($fullName)) { continue }
+                if (-not $collected.Add($fullName)) { continue }
+
+                $versionString = $null
+                try {
+                    if ($pkg.Version) {
+                        $versionString = $pkg.Version.ToString()
+                    }
+                }
+                catch {
+                    $versionString = $null
+                }
+
+                $results.Add([pscustomobject]@{
+                    Identifier = "MSIX\$fullName"
+                    Version     = if ([string]::IsNullOrWhiteSpace($versionString)) { $null } else { $versionString }
+                })
+            }
+        }
+    }
+
+    return $results
+}
+
 function Get-TidyWingetInstalledVersion {
     # Detects the installed version of a winget package if present.
     [CmdletBinding()]
@@ -282,6 +360,29 @@ function Get-TidyWingetInstalledVersion {
     }
     catch {
         # No further fallback available.
+    }
+
+    if ($candidates.Count -eq 0) {
+        try {
+            $msixCandidates = Get-TidyWingetMsixCandidates -PackageId $PackageId
+            foreach ($entry in @($msixCandidates)) {
+                if ($null -eq $entry) { continue }
+                $value = $entry.Version
+                if ([string]::IsNullOrWhiteSpace($value) -and $entry.Identifier) {
+                    $match = [System.Text.RegularExpressions.Regex]::Match($entry.Identifier, '_(?<ver>[0-9]+(?:\.[0-9A-Za-z]+)+)_', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+                    if ($match.Success) {
+                        $value = $match.Groups['ver'].Value
+                    }
+                }
+
+                if (-not [string]::IsNullOrWhiteSpace($value)) {
+                    [void]$candidates.Add($value.Trim())
+                }
+            }
+        }
+        catch {
+            # Ignore MSIX probing failures and fall through to the default logic.
+        }
     }
 
     if ($candidates.Count -eq 0) {
@@ -911,4 +1012,4 @@ function Set-TidyLockWorkstationPolicy {
     Invoke-TidyRegistryScript -ScriptName 'toggle-lock-workstation.ps1' -Parameters $parameters
 }
 
-Export-ModuleMember -Function Convert-TidyLogMessage, Write-TidyLog, Get-TidyCommandPath, Get-TidyWingetInstalledVersion, Get-TidyChocoInstalledVersion, Get-TidyScoopInstalledVersion, Get-TidyInstalledPackageVersion, Assert-TidyAdmin, Set-TidyMenuShowDelay, Set-TidyWindowAnimation, Set-TidyVisualEffectsProfile, Set-TidyPrefetchingMode, Set-TidyTelemetryLevel, Set-TidyCortanaPolicy, Set-TidyNetworkLatencyProfile, Set-TidySysMainState, Set-TidyLowDiskAlertPolicy, Set-TidyAutoRestartSignOn, Set-TidyAutoEndTasks, Set-TidyHungAppTimeouts, Set-TidyLockWorkstationPolicy
+Export-ModuleMember -Function Convert-TidyLogMessage, Write-TidyLog, Get-TidyCommandPath, Get-TidyWingetMsixCandidates, Get-TidyWingetInstalledVersion, Get-TidyChocoInstalledVersion, Get-TidyScoopInstalledVersion, Get-TidyInstalledPackageVersion, Assert-TidyAdmin, Set-TidyMenuShowDelay, Set-TidyWindowAnimation, Set-TidyVisualEffectsProfile, Set-TidyPrefetchingMode, Set-TidyTelemetryLevel, Set-TidyCortanaPolicy, Set-TidyNetworkLatencyProfile, Set-TidySysMainState, Set-TidyLowDiskAlertPolicy, Set-TidyAutoRestartSignOn, Set-TidyAutoEndTasks, Set-TidyHungAppTimeouts, Set-TidyLockWorkstationPolicy

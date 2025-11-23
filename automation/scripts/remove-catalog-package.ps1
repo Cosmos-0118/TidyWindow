@@ -429,6 +429,35 @@ function Invoke-Removal {
         }
     }
 
+    if ($Key -eq 'winget' -and $exitCode -ne 0) {
+        try {
+            $msixCandidates = Get-TidyWingetMsixCandidates -PackageId $PackageId
+            foreach ($candidate in @($msixCandidates)) {
+                if ($null -eq $candidate) { continue }
+                $identifier = $candidate.Identifier
+                if ([string]::IsNullOrWhiteSpace($identifier)) { continue }
+
+                [void]$logs.Add("winget uninstall: retrying with identifier '$identifier'.")
+                $alternateArgs = @('uninstall', '--id', $identifier, '-e', '--accept-source-agreements', '--disable-interactivity')
+                $alternateExit = & $invokeAndCollect $alternateArgs
+
+                if ($alternateExit -eq 0) {
+                    $exitCode = 0
+                    $summary = 'Removal completed using MSIX identifier.'
+                    break
+                }
+                else {
+                    $exitCode = $alternateExit
+                }
+            }
+        }
+        catch {
+            $msixError = $_.Exception.Message
+            if ([string]::IsNullOrWhiteSpace($msixError)) { $msixError = $_.ToString() }
+            [void]$errors.Add("winget uninstall: unable to probe MSIX packages: $msixError")
+        }
+    }
+
     if ($exitCode -ne 0) {
         $summary = "Removal command exited with code $exitCode."
     }
@@ -461,8 +490,7 @@ function Get-TidyNormalizedName {
         return $null
     }
 
-    $clean = [System.Text.RegularExpressions.Regex]::Replace($Value, '\d+(?:[\.\-]\d+)*', ' ')
-    $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, '[^A-Za-z0-9]+', ' ')
+    $clean = [System.Text.RegularExpressions.Regex]::Replace($Value, '[^A-Za-z0-9]+', ' ')
     $clean = $clean.Trim()
     if ([string]::IsNullOrWhiteSpace($clean)) {
         return $null

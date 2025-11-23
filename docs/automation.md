@@ -51,3 +51,26 @@ PulseGuard is the always-on log sentinel that samples automation output, labels 
 
 -   PulseGuard escalates when it spots legacy PowerShell runtimes or automation that needs a TidyWindow restart; prompts offer quick `View logs` and `Restart app` actions so the user can respond without hunting through menus.
 -   Prompts dedupe by scenario and timestamp so the same blocker cannot spam the session.
+
+## PathPilot Runtime Switchboard
+
+PathPilot keeps runtime management machine-scoped. The automation lives in `automation/scripts/Get-PathPilotInventory.ps1` and is driven by `data/catalog/runtime-inventory.json`.
+
+### Inventory Workflow
+
+-   Run `Get-PathPilotInventory.ps1 -Export json` (default) to emit a structured snapshot containing runtime cards, PATH entries, and warnings.
+-   The script expands the JSON catalog, discovers installations via glob/registry probes, records `--version` output, and indicates which executable currently wins PATH priority.
+-   Markdown output is available via `-Export markdown`; PathPilot writes the file defined by `-OutputPath` or falls back to `%ProgramData%\TidyWindow\PathPilot\exports`.
+
+### Switching & Safeguards
+
+-   Invoke switching with either `-Switch <runtimeId> <installPath>` or explicit `-SwitchRuntimeId/-SwitchInstallPath` parameters.
+-   Before touching PATH, the script validates: runtime id exists, target file resolves to the configured executable name, and the file actually exists (directories are rewritten to include the executable).
+-   On every successful update PathPilot writes `%ProgramData%\TidyWindow\PathPilot\backup-<timestamp>.reg` plus a JSON operation log (`switch-<timestamp>.json`) that includes the previous PATH value for rollback.
+-   Failures (missing executables, unresolved directories, backup errors) stop the operation before PATH is rewritten and return a terminating error to the .NET caller.
+
+### App Surface
+
+-   `PathPilotInventoryService` shells out through `PowerShellInvoker`, deserializes the JSON payload, and exposes switch/export helpers to the WPF view model.
+-   The view model logs every refresh, switch, and export event via `ActivityLogService` so PulseGuard has full context.
+-   UI actions always remind operators that the feature modifies HKLM + machine PATH; the dismissible warning banner on the page mirrors that safety guidance from the concept deck.

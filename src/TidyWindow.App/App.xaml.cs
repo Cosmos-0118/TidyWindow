@@ -16,6 +16,7 @@ using TidyWindow.Core.PackageManagers;
 using TidyWindow.Core.Diagnostics;
 using TidyWindow.Core.Install;
 using TidyWindow.Core.Maintenance;
+using TidyWindow.Core.PathPilot;
 
 namespace TidyWindow.App;
 
@@ -85,6 +86,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<RegistryPreferenceService>();
                 services.AddSingleton<IRegistryStateService, RegistryStateService>();
                 services.AddSingleton<RegistryStateWatcher>();
+                services.AddSingleton<PathPilotInventoryService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -96,6 +98,7 @@ public partial class App : WpfApplication
                 services.AddTransient<LogsViewModel>();
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
+                services.AddTransient<PathPilotViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -106,6 +109,7 @@ public partial class App : WpfApplication
                 services.AddTransient<LogsPage>();
                 services.AddTransient<EssentialsPage>();
                 services.AddTransient<RegistryOptimizerPage>();
+                services.AddTransient<PathPilotPage>();
 
                 services.AddSingleton<MainWindow>();
             })

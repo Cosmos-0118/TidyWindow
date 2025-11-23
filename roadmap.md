@@ -145,19 +145,20 @@ PulseGuard is the smart watchdog that keeps a pulse on automation logs, surfaces
 [x] Step 10.4: Build notification pipeline that queues toast notifications, enforces cooldown rules, and differentiates success summaries from actionable alerts.
 [x] Step 10.5: Surface high-friction scenarios (e.g., legacy PowerShell, post-install restarts) as targeted prompts with "View logs" and "Restart app" actions.
 
+## PathPilot Runtime Switchboard
+
+Reference: `versioncontrol.md` (PathPilot concept guide).
+
+[x] Step 11.1: Ship `automation/scripts/Get-PathPilotInventory.ps1` plus JSON config for machine-scope runtime discovery (Python, JDK, Node, .NET to start).
+[x] Step 11.2: Add `PathPilotInventoryService` + view models that render runtime cards, status badges, and machine-scope warnings.
+[x] Step 11.3: Implement PATH backup + switching commands with rollback logging under `%ProgramData%/TidyWindow/PathPilot/`.
+[x] Step 11.4: Provide export actions (JSON + Markdown) and wire them into activity log + report sharing flow.
+[x] Step 11.5: Document operator guidance in `docs/automation.md` and add automated tests validating inventory parsing + switch safeguards.
+[x] Step 11.6: Build an Essentials-style responsive UI surface (`Views/PathPilotPage.xaml` + card controls) reusing the hero strip, card stack, and detail drawer patterns for clarity on both desktop and narrow layouts.
+
 ## Driver Updates Experience (retired)
 
 > Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.
-
-## Version Control Hub
-
-Reference: `Future-ideas/idea.txt` (Version Control Page concept).
-
-[ ] Step 12.1: Enhance `automation/scripts/get-package-inventory.ps1` and related DTOs to emit duplicate installs, install roots, PATH ownership data, and pin metadata for reuse by the new view model.
-[ ] Step 12.2: Create `VersionControlSnapshot` models and a dedicated `VersionControlViewModel` that groups anomalies (update available, duplicates, pins, manual upgrades) and exposes filterable collections.
-[ ] Step 12.3: Compose the Version Control UI from smaller views—`Views/VersionControl/VersionControlShell.xaml` plus dedicated `AnomaliesView.xaml`, `AllPackagesView.xaml`, and `ActionsDrawerView.xaml`—reusing Install Hub responsive helpers so tabs remain light-weight.
-[ ] Step 12.4: Wire per-package actions (update, switch version, clear pin, set PATH owner, open location) to existing maintenance commands, and expose export/report sharing.
-[ ] Step 12.5: Link from the Maintenance page so users can pivot into the Version Control hub for deep audits while keeping Maintenance focused on quick updates.
 
 ## Project Oblivion Deep Uninstall
 
