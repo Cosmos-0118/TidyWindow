@@ -1,0 +1,171 @@
+{
+  "runtimes": [
+    {
+      "id": "luajit",
+      "displayName": "LuaJIT",
+      "description": "LuaJIT just-in-time compiler builds.",
+      "executableName": "luajit.exe",
+      "versionArguments": [
+        "-v"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\LuaJIT*\\luajit.exe",
+          "%ProgramFiles(x86)%\\LuaJIT*\\luajit.exe",
+          "%USERPROFILE%\\scoop\\apps\\luajit*\\current\\luajit.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\LuaJIT*",
+          "%ProgramFiles(x86)%\\LuaJIT*",
+          "%USERPROFILE%\\scoop\\apps\\luajit*"
+        ],
+        "whereHints": [
+          "luajit.exe"
+        ]
+      }
+    },
+    {
+      "id": "julia",
+      "displayName": "Julia",
+      "description": "Julia programming language distributions.",
+      "executableName": "julia.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Julia*\\bin\\julia.exe",
+          "%LocalAppData%\\Programs\\Julia*\\bin\\julia.exe",
+          "%USERPROFILE%\\scoop\\apps\\julia*\\current\\bin\\julia.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Julia*",
+          "%LocalAppData%\\Programs\\Julia*",
+          "%USERPROFILE%\\scoop\\apps\\julia*"
+        ],
+        "whereHints": [
+          "julia.exe"
+        ]
+      }
+    },
+    {
+      "id": "deno",
+      "displayName": "Deno",
+      "description": "Modern JavaScript/TypeScript runtime (deno).",
+      "executableName": "deno.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%USERPROFILE%\\.deno\\bin\\deno.exe",
+          "%USERPROFILE%\\scoop\\apps\\deno*\\current\\deno.exe",
+          "%ProgramFiles%\\Deno*\\deno.exe"
+        ],
+        "directoryGlobs": [
+          "%USERPROFILE%\\.deno\\bin",
+          "%USERPROFILE%\\scoop\\apps\\deno*",
+          "%ProgramFiles%\\Deno*"
+        ],
+        "whereHints": [
+          "deno.exe"
+        ]
+      }
+    },
+    {
+      "id": "dart",
+      "displayName": "Dart",
+      "description": "Dart SDK command-line runtime.",
+      "executableName": "dart.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Dart*\\dart-sdk\\bin\\dart.exe",
+          "%USERPROFILE%\\scoop\\apps\\dart*\\current\\dart.exe",
+          "%ProgramFiles%\\Google\\Dart\\bin\\dart.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Dart*",
+          "%USERPROFILE%\\scoop\\apps\\dart*"
+        ],
+        "whereHints": [
+          "dart.exe"
+        ]
+      }
+    },
+    {
+      "id": "elixir",
+      "displayName": "Elixir",
+      "description": "Elixir language runtime (BEAM VM).",
+      "executableName": "elixir.bat",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Elixir*\\bin\\elixir.bat",
+          "%ProgramFiles(x86)%\\Elixir*\\bin\\elixir.bat",
+          "%USERPROFILE%\\scoop\\apps\\elixir*\\current\\bin\\elixir.bat"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Elixir*",
+          "%ProgramFiles(x86)%\\Elixir*",
+          "%USERPROFILE%\\scoop\\apps\\elixir*"
+        ],
+        "whereHints": [
+          "elixir.bat"
+        ]
+      }
+    },
+    {
+      "id": "erl",
+      "displayName": "Erlang",
+      "description": "Erlang/OTP runtime distributions.",
+      "executableName": "erl.exe",
+      "versionArguments": [
+        "-version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\erl*\\bin\\erl.exe",
+          "%ProgramFiles(x86)%\\erl*\\bin\\erl.exe",
+          "%USERPROFILE%\\scoop\\apps\\erlang*\\current\\bin\\erl.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\erl*",
+          "%ProgramFiles(x86)%\\erl*",
+          "%USERPROFILE%\\scoop\\apps\\erlang*"
+        ],
+        "whereHints": [
+          "erl.exe"
+        ]
+      }
+    },
+    {
+      "id": "ocaml",
+      "displayName": "OCaml",
+      "description": "OCaml compiler toolchains.",
+      "executableName": "ocamlc.exe",
+      "versionArguments": [
+        "-version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\OCaml*\\bin\\ocamlc.exe",
+          "%ProgramFiles(x86)%\\OCaml*\\bin\\ocamlc.exe",
+          "%USERPROFILE%\\scoop\\apps\\ocaml*\\current\\bin\\ocamlc.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\OCaml*",
+          "%ProgramFiles(x86)%\\OCaml*",
+          "%USERPROFILE%\\scoop\\apps\\ocaml*"
+        ],
+        "whereHints": [
+          "ocamlc.exe"
+        ]
+      }
+    }
+  ]
+}

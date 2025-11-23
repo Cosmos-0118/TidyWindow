@@ -1,0 +1,174 @@
+{
+  "runtimes": [
+    {
+      "id": "sbcl",
+      "displayName": "Common Lisp (SBCL)",
+      "description": "Steel Bank Common Lisp distributions.",
+      "executableName": "sbcl.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\SBCL*\\sbcl.exe",
+          "%ProgramFiles(x86)%\\SBCL*\\sbcl.exe",
+          "%USERPROFILE%\\scoop\\apps\\sbcl*\\current\\sbcl.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\SBCL*",
+          "%ProgramFiles(x86)%\\SBCL*",
+          "%USERPROFILE%\\scoop\\apps\\sbcl*"
+        ],
+        "whereHints": [
+          "sbcl.exe"
+        ]
+      }
+    },
+    {
+      "id": "swi-prolog",
+      "displayName": "Prolog (SWI-Prolog)",
+      "description": "SWI-Prolog runtime and developer tools.",
+      "executableName": "swipl.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\swipl*\\bin\\swipl.exe",
+          "%ProgramFiles(x86)%\\swipl*\\bin\\swipl.exe",
+          "%USERPROFILE%\\scoop\\apps\\swipl*\\current\\bin\\swipl.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\swipl*",
+          "%ProgramFiles(x86)%\\swipl*",
+          "%USERPROFILE%\\scoop\\apps\\swipl*"
+        ],
+        "whereHints": [
+          "swipl.exe"
+        ]
+      }
+    },
+    {
+      "id": "gfortran",
+      "displayName": "Fortran (gfortran)",
+      "description": "GNU Fortran compiler bundled with MinGW/MSYS toolchains.",
+      "executableName": "gfortran.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\gfortran*\\bin\\gfortran.exe",
+          "%ProgramFiles(x86)%\\gfortran*\\bin\\gfortran.exe",
+          "%ProgramFiles%\\mingw-w64*\\bin\\gfortran.exe",
+          "%USERPROFILE%\\scoop\\apps\\gcc*\\current\\bin\\gfortran.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\gfortran*",
+          "%ProgramFiles(x86)%\\gfortran*",
+          "%ProgramFiles%\\mingw-w64*",
+          "%USERPROFILE%\\scoop\\apps\\gcc*"
+        ],
+        "whereHints": [
+          "gfortran.exe"
+        ]
+      }
+    },
+    {
+      "id": "tcl",
+      "displayName": "Tcl",
+      "description": "Tool Command Language runtimes (tclsh).",
+      "executableName": "tclsh.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Tcl*\\bin\\tclsh.exe",
+          "%ProgramFiles(x86)%\\Tcl*\\bin\\tclsh.exe",
+          "%USERPROFILE%\\scoop\\apps\\tcl*\\current\\bin\\tclsh.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Tcl*",
+          "%ProgramFiles(x86)%\\Tcl*",
+          "%USERPROFILE%\\scoop\\apps\\tcl*"
+        ],
+        "whereHints": [
+          "tclsh.exe"
+        ]
+      }
+    },
+    {
+      "id": "vala",
+      "displayName": "Vala",
+      "description": "Vala language compiler (valac).",
+      "executableName": "valac.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Vala*\\bin\\valac.exe",
+          "%ProgramFiles(x86)%\\Vala*\\bin\\valac.exe",
+          "%USERPROFILE%\\scoop\\apps\\vala*\\current\\bin\\valac.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Vala*",
+          "%ProgramFiles(x86)%\\Vala*",
+          "%USERPROFILE%\\scoop\\apps\\vala*"
+        ],
+        "whereHints": [
+          "valac.exe"
+        ]
+      }
+    },
+    {
+      "id": "zig",
+      "displayName": "Zig",
+      "description": "Zig programming language compiler.",
+      "executableName": "zig.exe",
+      "versionArguments": [
+        "version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Zig*\\zig.exe",
+          "%ProgramFiles(x86)%\\Zig*\\zig.exe",
+          "%USERPROFILE%\\scoop\\apps\\zig*\\current\\zig.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Zig*",
+          "%ProgramFiles(x86)%\\Zig*",
+          "%USERPROFILE%\\scoop\\apps\\zig*"
+        ],
+        "whereHints": [
+          "zig.exe"
+        ]
+      }
+    },
+    {
+      "id": "haxe",
+      "displayName": "Haxe",
+      "description": "Multi-platform Haxe compiler CLI.",
+      "executableName": "haxe.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Haxe*\\haxe.exe",
+          "%ProgramFiles(x86)%\\Haxe*\\haxe.exe",
+          "%USERPROFILE%\\scoop\\apps\\haxe*\\current\\haxe.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Haxe*",
+          "%ProgramFiles(x86)%\\Haxe*",
+          "%USERPROFILE%\\scoop\\apps\\haxe*"
+        ],
+        "whereHints": [
+          "haxe.exe"
+        ]
+      }
+    }
+  ]
+}

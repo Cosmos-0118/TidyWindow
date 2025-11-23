@@ -58,6 +58,73 @@ function Resolve-ConfigPath {
     return $defaultPath
 }
 
+function Get-RuntimeConfigEntries {
+    param([string] $RootPath)
+
+    if ([string]::IsNullOrWhiteSpace($RootPath)) {
+        return @()
+    }
+
+    $visited = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    return @(Read-RuntimeConfigDocument -TargetPath $RootPath -Visited $visited)
+}
+
+function Read-RuntimeConfigDocument {
+    param(
+        [string] $TargetPath,
+        [System.Collections.Generic.HashSet[string]] $Visited
+    )
+
+    if ([string]::IsNullOrWhiteSpace($TargetPath)) {
+        return @()
+    }
+
+    $item = Get-Item -LiteralPath $TargetPath -ErrorAction Stop
+
+    if ($item.PSIsContainer) {
+        $results = New-Object 'System.Collections.Generic.List[psobject]'
+        $files = Get-ChildItem -Path $item.FullName -Filter '*.json' -File -ErrorAction SilentlyContinue | Sort-Object FullName
+        foreach ($file in $files) {
+            foreach ($runtime in Read-RuntimeConfigDocument -TargetPath $file.FullName -Visited $Visited) {
+                $results.Add($runtime) | Out-Null
+            }
+        }
+
+        return $results.ToArray()
+    }
+
+    $fullPath = $item.FullName
+    if ($Visited.Contains($fullPath)) {
+        return @()
+    }
+
+    $Visited.Add($fullPath) | Out-Null
+
+    $configText = Get-Content -LiteralPath $fullPath -Raw -ErrorAction Stop
+    $document = ConvertFrom-Json -InputObject $configText -ErrorAction Stop
+
+    $entries = New-Object 'System.Collections.Generic.List[psobject]'
+    if ($document.PSObject.Properties['runtimes']) {
+        foreach ($runtime in @($document.runtimes)) {
+            if ($runtime) {
+                $entries.Add($runtime) | Out-Null
+            }
+        }
+    }
+
+    if ($document.PSObject.Properties['includes']) {
+        foreach ($include in @($document.includes)) {
+            if ([string]::IsNullOrWhiteSpace($include)) { continue }
+            $includePath = Join-Path -Path $item.DirectoryName -ChildPath $include
+            foreach ($runtime in Read-RuntimeConfigDocument -TargetPath $includePath -Visited $Visited) {
+                $entries.Add($runtime) | Out-Null
+            }
+        }
+    }
+
+    return $entries.ToArray()
+}
+
 function Resolve-InventoryPath {
     param(
         [string] $Value,
@@ -1142,16 +1209,15 @@ function Get-RuntimeInventory {
 }
 
 $resolvedConfigPath = Resolve-ConfigPath -ConfigPathValue $ConfigPath -ScriptRoot $scriptRoot
-$configText = Get-Content -LiteralPath $resolvedConfigPath -Raw -ErrorAction Stop
-$config = ConvertFrom-Json -InputObject $configText -ErrorAction Stop
-if (-not $config.runtimes) {
+$runtimeConfig = @(Get-RuntimeConfigEntries -RootPath $resolvedConfigPath)
+if ($runtimeConfig.Count -eq 0) {
     throw "Runtime inventory configuration did not define any runtimes."
 }
 
 $warnings = New-Object 'System.Collections.Generic.List[string]'
 $machinePathRaw = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
 $machinePathEntries = @(Get-MachinePathEntries -PathValue $machinePathRaw)
-$runtimes = Build-RuntimeSnapshots -RuntimeConfig $config.runtimes -MachinePathEntries $machinePathEntries -Warnings $warnings
+$runtimes = Build-RuntimeSnapshots -RuntimeConfig $runtimeConfig -MachinePathEntries $machinePathEntries -Warnings $warnings
 
 $switchResult = $null
 if ($PSCmdlet.ParameterSetName -eq 'Switch') {
@@ -1164,7 +1230,7 @@ if ($PSCmdlet.ParameterSetName -eq 'Switch') {
 
     $machinePathRaw = [System.Environment]::GetEnvironmentVariable('Path', 'Machine')
     $machinePathEntries = @(Get-MachinePathEntries -PathValue $machinePathRaw)
-    $runtimes = Build-RuntimeSnapshots -RuntimeConfig $config.runtimes -MachinePathEntries $machinePathEntries -Warnings $warnings
+    $runtimes = Build-RuntimeSnapshots -RuntimeConfig $runtimeConfig -MachinePathEntries $machinePathEntries -Warnings $warnings
 }
 
 $payload = [pscustomobject]@{

@@ -1,0 +1,194 @@
+{
+  "runtimes": [
+    {
+      "id": "nim",
+      "displayName": "Nim",
+      "description": "Nim programming language compiler.",
+      "executableName": "nim.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Nim*\\bin\\nim.exe",
+          "%ProgramFiles(x86)%\\Nim*\\bin\\nim.exe",
+          "%USERPROFILE%\\scoop\\apps\\nim*\\current\\nim.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Nim*",
+          "%ProgramFiles(x86)%\\Nim*",
+          "%USERPROFILE%\\scoop\\apps\\nim*"
+        ],
+        "whereHints": [
+          "nim.exe"
+        ]
+      }
+    },
+    {
+      "id": "crystal",
+      "displayName": "Crystal",
+      "description": "Crystal language compiler for native builds.",
+      "executableName": "crystal.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Crystal*\\bin\\crystal.exe",
+          "%ProgramFiles(x86)%\\Crystal*\\bin\\crystal.exe",
+          "%USERPROFILE%\\scoop\\apps\\crystal*\\current\\bin\\crystal.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Crystal*",
+          "%ProgramFiles(x86)%\\Crystal*",
+          "%USERPROFILE%\\scoop\\apps\\crystal*"
+        ],
+        "whereHints": [
+          "crystal.exe"
+        ]
+      }
+    },
+    {
+      "id": "clojure",
+      "displayName": "Clojure",
+      "description": "Clojure CLI launchers that wrap the JVM.",
+      "executableName": "clojure.bat",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\clojure*\\bin\\clojure.bat",
+          "%USERPROFILE%\\scoop\\apps\\clojure*\\current\\bin\\clojure.bat",
+          "%ChocolateyInstall%\\lib\\clojure*\\tools\\clojure.bat"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\clojure*",
+          "%USERPROFILE%\\scoop\\apps\\clojure*",
+          "%ChocolateyInstall%\\lib\\clojure*"
+        ],
+        "whereHints": [
+          "clojure.bat"
+        ]
+      }
+    },
+    {
+      "id": "fsharp",
+      "displayName": "F#",
+      "description": "F# compiler (fsc.exe) that rides on .NET SDK installations.",
+      "executableName": "fsc.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\dotnet\\sdk\\*\\FSharp\\fsc.exe",
+          "%ProgramFiles(x86)%\\Microsoft SDKs\\F#*\\fsc.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\dotnet\\sdk",
+          "%ProgramFiles(x86)%\\Microsoft SDKs\\F#*"
+        ],
+        "whereHints": [
+          "fsc.exe"
+        ]
+      }
+    },
+    {
+      "id": "groovy",
+      "displayName": "Groovy",
+      "description": "Groovy runtime and CLI tools.",
+      "executableName": "groovy.bat",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Groovy*\\bin\\groovy.bat",
+          "%ProgramFiles(x86)%\\Groovy*\\bin\\groovy.bat",
+          "%USERPROFILE%\\scoop\\apps\\groovy*\\current\\bin\\groovy.bat"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Groovy*",
+          "%ProgramFiles(x86)%\\Groovy*",
+          "%USERPROFILE%\\scoop\\apps\\groovy*"
+        ],
+        "whereHints": [
+          "groovy.bat"
+        ]
+      }
+    },
+    {
+      "id": "r",
+      "displayName": "R",
+      "description": "R statistical computing runtime.",
+      "executableName": "R.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\R\\R-*\\bin\\R.exe",
+          "%ProgramFiles(x86)%\\R\\R-*\\bin\\R.exe",
+          "%USERPROFILE%\\scoop\\apps\\r*\\current\\bin\\R.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\R",
+          "%ProgramFiles(x86)%\\R",
+          "%USERPROFILE%\\scoop\\apps\\r*"
+        ],
+        "whereHints": [
+          "R.exe"
+        ]
+      }
+    },
+    {
+      "id": "racket",
+      "displayName": "Scheme (Racket)",
+      "description": "Racket Scheme language distributions.",
+      "executableName": "racket.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Racket*\\racket.exe",
+          "%ProgramFiles(x86)%\\Racket*\\racket.exe",
+          "%USERPROFILE%\\scoop\\apps\\racket*\\current\\racket.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Racket*",
+          "%ProgramFiles(x86)%\\Racket*",
+          "%USERPROFILE%\\scoop\\apps\\racket*"
+        ],
+        "whereHints": [
+          "racket.exe"
+        ]
+      }
+    },
+    {
+      "id": "reasonml",
+      "displayName": "ReasonML / ReScript",
+      "description": "ReasonML and ReScript compiler toolchains (refmt).",
+      "executableName": "refmt.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Reason*\\bin\\refmt.exe",
+          "%ProgramFiles(x86)%\\Reason*\\bin\\refmt.exe",
+          "%USERPROFILE%\\scoop\\apps\\reason*\\current\\bin\\refmt.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Reason*",
+          "%ProgramFiles(x86)%\\Reason*",
+          "%USERPROFILE%\\scoop\\apps\\reason*"
+        ],
+        "whereHints": [
+          "refmt.exe"
+        ]
+      }
+    }
+  ]
+}

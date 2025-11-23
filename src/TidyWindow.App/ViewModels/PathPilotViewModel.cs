@@ -340,7 +340,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     private static PathPilotInventorySnapshot ApplySwitchResultSnapshot(PathPilotInventorySnapshot snapshot, PathPilotSwitchResult switchResult)
     {
-        if (snapshot.Runtimes.Length == 0)
+        if (switchResult is null || string.IsNullOrWhiteSpace(switchResult.RuntimeId) || snapshot.Runtimes.Length == 0)
         {
             return snapshot;
         }

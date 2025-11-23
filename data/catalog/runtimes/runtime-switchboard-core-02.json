@@ -1,0 +1,169 @@
+{
+  "runtimes": [
+    {
+      "id": "perl",
+      "displayName": "Perl",
+      "description": "Perl interpreter for scripting workloads.",
+      "executableName": "perl.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Strawberry\\perl\\bin\\perl.exe",
+          "%ProgramFiles(x86)%\\Strawberry\\perl\\bin\\perl.exe",
+          "%USERPROFILE%\\scoop\\apps\\perl*\\current\\perl.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Strawberry*",
+          "%ProgramFiles(x86)%\\Strawberry*",
+          "%USERPROFILE%\\scoop\\apps\\perl*"
+        ],
+        "whereHints": [
+          "perl.exe"
+        ]
+      }
+    },
+    {
+      "id": "rust",
+      "displayName": "Rust",
+      "description": "Rust compiler distributed via rustup and package managers.",
+      "executableName": "rustc.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%USERPROFILE%\\.cargo\\bin\\rustc.exe",
+          "%ProgramFiles%\\Rust*\\bin\\rustc.exe",
+          "%ProgramFiles(x86)%\\Rust*\\bin\\rustc.exe"
+        ],
+        "directoryGlobs": [
+          "%USERPROFILE%\\.cargo\\bin",
+          "%ProgramFiles%\\Rust*",
+          "%ProgramFiles(x86)%\\Rust*"
+        ],
+        "whereHints": [
+          "rustc.exe"
+        ]
+      }
+    },
+    {
+      "id": "scala",
+      "displayName": "Scala",
+      "description": "Scala runtime and compiler distributions.",
+      "executableName": "scala.exe",
+      "versionArguments": [
+        "-version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Scala*\\bin\\scala.exe",
+          "%ProgramFiles(x86)%\\Scala*\\bin\\scala.exe",
+          "%USERPROFILE%\\scoop\\apps\\scala*\\current\\bin\\scala.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Scala*",
+          "%ProgramFiles(x86)%\\Scala*",
+          "%USERPROFILE%\\scoop\\apps\\scala*"
+        ],
+        "whereHints": [
+          "scala.exe"
+        ]
+      }
+    },
+    {
+      "id": "kotlin",
+      "displayName": "Kotlin",
+      "description": "Kotlin compiler distributions from JetBrains and community builds.",
+      "executableName": "kotlinc.exe",
+      "versionArguments": [
+        "-version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Kotlin*\\bin\\kotlinc.exe",
+          "%ProgramFiles%\\Kotlin*\\kotlinc\\bin\\kotlinc.exe",
+          "%USERPROFILE%\\scoop\\apps\\kotlin*\\current\\bin\\kotlinc.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Kotlin*",
+          "%USERPROFILE%\\scoop\\apps\\kotlin*"
+        ],
+        "whereHints": [
+          "kotlinc.exe"
+        ]
+      }
+    },
+    {
+      "id": "swift",
+      "displayName": "Swift",
+      "description": "Swift programming language compiler for Windows.",
+      "executableName": "swift.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Swift*\\bin\\swift.exe",
+          "%USERPROFILE%\\scoop\\apps\\swift*\\current\\bin\\swift.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Swift*",
+          "%USERPROFILE%\\scoop\\apps\\swift*"
+        ],
+        "whereHints": [
+          "swift.exe"
+        ]
+      }
+    },
+    {
+      "id": "ghc",
+      "displayName": "Haskell (GHC)",
+      "description": "Glasgow Haskell Compiler installations, including Haskell Platform.",
+      "executableName": "ghc.exe",
+      "versionArguments": [
+        "--version"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Haskell*\\bin\\ghc.exe",
+          "%ProgramFiles(x86)%\\Haskell*\\bin\\ghc.exe",
+          "%USERPROFILE%\\scoop\\apps\\ghc*\\current\\bin\\ghc.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Haskell*",
+          "%ProgramFiles(x86)%\\Haskell*",
+          "%USERPROFILE%\\scoop\\apps\\ghc*"
+        ],
+        "whereHints": [
+          "ghc.exe"
+        ]
+      }
+    },
+    {
+      "id": "lua",
+      "displayName": "Lua",
+      "description": "Lua interpreter distributions including Lua for Windows and LuaRocks bundles.",
+      "executableName": "lua.exe",
+      "versionArguments": [
+        "-v"
+      ],
+      "discovery": {
+        "pathGlobs": [
+          "%ProgramFiles%\\Lua*\\lua.exe",
+          "%ProgramFiles(x86)%\\Lua*\\lua.exe",
+          "%USERPROFILE%\\scoop\\apps\\lua*\\current\\lua.exe"
+        ],
+        "directoryGlobs": [
+          "%ProgramFiles%\\Lua*",
+          "%ProgramFiles(x86)%\\Lua*",
+          "%USERPROFILE%\\scoop\\apps\\lua*"
+        ],
+        "whereHints": [
+          "lua.exe"
+        ]
+      }
+    }
+  ]
+}
