@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Infrastructure;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Install;
 using TidyWindow.Core.Maintenance;
@@ -49,6 +50,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         "0x00000652",
         "msiexec is already running"
     };
+    private static readonly TimeSpan SearchDebounceInterval = TimeSpan.FromMilliseconds(110);
 
     private readonly List<PackageMaintenanceItemViewModel> _allPackages = new();
     private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -56,6 +58,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly HashSet<PackageMaintenanceOperationViewModel> _attachedOperations = new();
     private readonly Queue<MaintenanceOperationRequest> _pendingOperations = new();
     private readonly object _operationLock = new();
+    private readonly UiDebounceDispatcher _searchFilterDebounce;
 
     private bool _isProcessingOperations;
     private DateTimeOffset? _lastRefreshedAt;
@@ -81,6 +84,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         ManagerFilters.Add(AllManagersFilter);
         Operations.CollectionChanged += OnOperationsCollectionChanged;
         Warnings.CollectionChanged += OnWarningsCollectionChanged;
+        _searchFilterDebounce = new UiDebounceDispatcher(SearchDebounceInterval);
     }
 
     public ObservableCollection<PackageMaintenanceItemViewModel> Packages { get; } = new();
@@ -634,7 +638,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     partial void OnSearchTextChanged(string? oldValue, string? newValue)
     {
-        ApplyFilters();
+        _searchFilterDebounce.Schedule(ApplyFilters);
     }
 
     partial void OnSelectedManagerChanged(string? oldValue, string? newValue)
@@ -1852,6 +1856,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
 
         _attachedOperations.Clear();
+        _searchFilterDebounce.Flush();
+        _searchFilterDebounce.Dispose();
     }
 }
 

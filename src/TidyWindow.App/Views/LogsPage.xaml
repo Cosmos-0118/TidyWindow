@@ -191,7 +191,7 @@
                                     <TextBox Margin="0,6,0,0"
                                              MinWidth="200"
                                              Style="{StaticResource App.TextBoxStyle}"
-                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                 </StackPanel>
 
                                 <StackPanel MinWidth="200"

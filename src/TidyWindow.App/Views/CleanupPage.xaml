@@ -1235,7 +1235,7 @@
                                                        FontSize="12"
                                                        Foreground="{StaticResource CleanupMutedTextBrush}"
                                                        Margin="0,0,0,4"/>
-                                            <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                                                      Style="{StaticResource App.TextBoxStyle}"
                                                      FontSize="26"
                                                      FontWeight="SemiBold"
@@ -1349,7 +1349,7 @@
                                                FontSize="12"
                                                                                              Foreground="{StaticResource CleanupMutedTextBrush}"
                                                Margin="0,4,0,8"/>
-                                    <TextBox Text="{Binding CustomExtensionInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    <TextBox Text="{Binding CustomExtensionInput, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                                              Style="{StaticResource App.TextBoxStyle}"
                                              IsEnabled="{Binding IsExtensionSelectorEnabled}"
                                              ToolTip="Separate extensions with commas, spaces, or semicolons."/>

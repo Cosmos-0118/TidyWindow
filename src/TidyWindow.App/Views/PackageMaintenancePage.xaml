@@ -637,7 +637,7 @@
                     <TextBlock Text="Target version (optional)"
                                FontSize="12"
                                Foreground="#CBD5F5"/>
-                    <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                              MinWidth="220"
                              HorizontalAlignment="Stretch"
                              Margin="0,4,0,0"
@@ -935,7 +935,7 @@
                                          Margin="0,0,12,8"
                                          Style="{StaticResource App.TextBoxStyle}"
                                          ToolTip="Filter by package name, identifier, manager, or tag"
-                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                 <ComboBox Width="180"
                                           Margin="0,0,12,8"
                                           ItemsSource="{Binding ManagerFilters}"
@@ -1244,7 +1244,7 @@
                                                     <TextBlock Text="Target version (optional)"
                                                                Foreground="#CBD5F5"
                                                                FontSize="11"/>
-                                                    <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged}"
+                                                    <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                                                              Margin="0,6,0,0"
                                                              MinWidth="180"
                                                              MaxWidth="260"

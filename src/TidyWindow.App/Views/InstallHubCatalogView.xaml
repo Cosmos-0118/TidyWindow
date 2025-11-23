@@ -273,7 +273,7 @@
                                                        Margin="0,2,0,10"/>
                                             <TextBox Style="{StaticResource App.TextBoxStyle}"
                                                      ToolTip="Filter by package name, identifier, or summary"
-                                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>
                                     </Border>
 

@@ -465,7 +465,7 @@
                                                                 </Button.Style>
                                                             </Button>
                                                         </StackPanel>
-                                                        <TextBox Text="{Binding CustomValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        <TextBox Text="{Binding CustomValue, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                                                                  ToolTip="{Binding CustomValueInfoText}"
                                                                  AutomationProperties.HelpText="{x:Static strings:RegistryOptimizerStrings.CustomValuePlaceholder}"
                                                                  Margin="0,10,0,0"

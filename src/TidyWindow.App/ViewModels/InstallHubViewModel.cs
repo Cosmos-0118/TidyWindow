@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Infrastructure;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Install;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
@@ -34,11 +35,13 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<Guid, InstallQueueOperationSnapshot> _snapshotCache = new();
     private readonly Dictionary<string, int> _activePackageCounts = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
+    private readonly UiDebounceDispatcher _searchFilterDebounce;
     private bool _isDisposed;
     private Task? _initializationTask;
     private bool _catalogInitialized;
     private bool _suppressFilters;
     private static readonly TimeSpan OverlayMinimumDuration = TimeSpan.FromMilliseconds(1200);
+    private static readonly TimeSpan SearchDebounceInterval = TimeSpan.FromMilliseconds(110);
     private DateTimeOffset? _overlayActivatedAt;
 
     public InstallHubViewModel(InstallCatalogService catalogService, InstallQueue installQueue, BundlePresetService presetService, MainViewModel mainViewModel, ActivityLogService activityLogService)
@@ -72,6 +75,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         _installQueue.OperationChanged += OnInstallQueueChanged;
+        _searchFilterDebounce = new UiDebounceDispatcher(SearchDebounceInterval);
 
         UpdatePackageQueueStates();
     }
@@ -289,7 +293,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        ApplyBundleFilter();
+        _searchFilterDebounce.Schedule(ApplyBundleFilter);
     }
 
     [RelayCommand]
@@ -931,6 +935,8 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         _isDisposed = true;
         _installQueue.OperationChanged -= OnInstallQueueChanged;
+        _searchFilterDebounce.Flush();
+        _searchFilterDebounce.Dispose();
     }
 
     private static string GetHeadlineForPivot(CurrentInstallHubPivot pivot)

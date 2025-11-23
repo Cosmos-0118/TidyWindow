@@ -7,6 +7,7 @@ using System.Text;
 using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Infrastructure;
 using TidyWindow.App.Services;
 using WpfApplication = System.Windows.Application;
 using WindowsClipboard = System.Windows.Clipboard;
@@ -17,6 +18,7 @@ public sealed partial class LogsViewModel : ViewModelBase, IDisposable
 {
     private readonly ActivityLogService _logService;
     private readonly ObservableCollection<ActivityLogItemViewModel> _entries;
+    private readonly UiDebounceDispatcher _searchRefreshDebounce;
 
     public LogsViewModel(ActivityLogService logService)
     {
@@ -39,6 +41,7 @@ public sealed partial class LogsViewModel : ViewModelBase, IDisposable
         };
 
         _logService.EntryAdded += OnEntryAdded;
+        _searchRefreshDebounce = new UiDebounceDispatcher(TimeSpan.FromMilliseconds(110));
     }
 
     public ICollectionView EntriesView { get; }
@@ -64,7 +67,7 @@ public sealed partial class LogsViewModel : ViewModelBase, IDisposable
 
     partial void OnSearchTextChanged(string? oldValue, string? newValue)
     {
-        EntriesView.Refresh();
+        _searchRefreshDebounce.Schedule(EntriesView.Refresh);
     }
 
     private bool FilterEntry(object? item)
@@ -137,6 +140,8 @@ public sealed partial class LogsViewModel : ViewModelBase, IDisposable
     public void Dispose()
     {
         _logService.EntryAdded -= OnEntryAdded;
+        _searchRefreshDebounce.Flush();
+        _searchRefreshDebounce.Dispose();
     }
 }
 

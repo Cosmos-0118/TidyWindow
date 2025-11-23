@@ -316,7 +316,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <TextBox Grid.Column="0"
-                                                 Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged}"
+                                                 Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                                                  MinWidth="220"
                                                  Style="{StaticResource App.TextBoxStyle}"/>
                                         <Button Grid.Column="1"
@@ -370,7 +370,7 @@
                                                        Foreground="#94A3B8"/>
                                             <TextBox Margin="0,6,0,0"
                                                      Style="{StaticResource App.TextBoxStyle}"
-                                                     Text="{Binding MinimumSizeMb, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     Text="{Binding MinimumSizeMb, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1"
                                                     Margin="12,0,0,0">
@@ -378,7 +378,7 @@
                                                        Foreground="#94A3B8"/>
                                             <TextBox Margin="0,6,0,0"
                                                      Style="{StaticResource App.TextBoxStyle}"
-                                                     Text="{Binding MaxItems, UpdateSourceTrigger=PropertyChanged}"/>
+                                                     Text="{Binding MaxItems, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -416,7 +416,7 @@
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <TextBox Margin="0,16,0,0"
                                              Style="{StaticResource App.TextBoxStyle}"
-                                             Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged}"/>
+                                             Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                     <ComboBox Margin="0,16,0,0"
                                               ItemsSource="{Binding NameMatchModes}"
                                               SelectedItem="{Binding SelectedMatchMode}"
