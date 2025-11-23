@@ -28,7 +28,6 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Install hub", "Curated package bundles and install queue", typeof(InstallHubPage)),
             new("Essentials", "Run repair automation quickly", typeof(EssentialsPage)),
             new("Registry optimizer", "Stage registry defaults safely", typeof(RegistryOptimizerPage)),
-            new("Driver updates", "Detect pending Windows driver versions", typeof(DriverUpdatesPage)),
             new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),
             new("Cleanup", "Preview clutter before removing files", typeof(CleanupPage)),

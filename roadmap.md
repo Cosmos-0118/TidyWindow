@@ -1,7 +1,3 @@
-# TidyWindow Delivery Roadmap
-
-> Scope note: this roadmap is optimized for a personal maintenance cockpit. Sections that felt enterprise-grade (see `RoadMapFix.md`) are either simplified or moved to a deferred backlog so the core experience stays lean.
-
 ## Foundation Setup
 
 [x] Step 1.1: Create baseline docs (`README.md`, `roadmap.md`, `docs/architecture.md`) with the high-level vision.
@@ -149,15 +145,9 @@ PulseGuard is the smart watchdog that keeps a pulse on automation logs, surfaces
 [x] Step 10.4: Build notification pipeline that queues toast notifications, enforces cooldown rules, and differentiates success summaries from actionable alerts.
 [x] Step 10.5: Surface high-friction scenarios (e.g., legacy PowerShell, post-install restarts) as targeted prompts with "View logs" and "Restart app" actions.
 
-## Driver Updates Experience
+## Driver Updates Experience (retired)
 
-Reference: `Future-ideas/driverupdatespage.txt` plus `automation/essentials/driver-update-detect.ps1`.
-
-[x] Step 11.1: Extend `driver-update-detect.ps1` output contract (or adapter DTO) so the UI can display badges for update availability, downgrade risk, vendor/class, optional flag, and skip reasons without extra transforms.
-[x] Step 11.2: Build a modular Driver Updates UI (e.g., `Views/DriverUpdates/DriverUpdatesShell.xaml` hosting `DriverUpdatesListView.xaml`, `DriverUpdatesFiltersView.xaml`, and `DriverUpdatesInsightsView.xaml`) wired to the refreshed `DriverUpdatesViewModel` so each surface stays focused and independently testable.
-[x] Step 11.3: Implement Windows Update install actions via `Microsoft.Update.Session.CreateUpdateInstaller`, respecting include/optional toggles and queue integration.
-[x] Step 11.4: Add reinstall/rollback helpers that call `pnputil` (and fallbacks for older builds) using `installedInfPath` from the script payload, surfacing logs in the UI.
-[x] Step 11.5: Provide GPU-specific guidance (links or future vendor CLI hooks) plus health insights for problem codes/unsigned drivers so the page remains useful even when WU shows zero updates.
+> Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.
 
 ## Version Control Hub
 
@@ -186,7 +176,7 @@ Reference: `Future-ideas/idea4.txt` (Settings Redesign blueprint).
 [ ] Step 14.1: Introduce `Views/SettingsShellPage.xaml` + `SettingsShellViewModel` hosting a nav rail and content frame that loads discrete `Settings*.xaml` pages.
 [ ] Step 14.2: Split the current settings monolith into scoped views (`SettingsGeneralPage`, `SettingsAutomationPage`, `SettingsNotificationsPage`, `SettingsIntegrationsPage`, `SettingsDataPage`, `SettingsLabsPage`) each with dedicated view models and responsive layouts.
 [ ] Step 14.3: Build `AutomationScheduleService` to persist per-task schedules (JSON under `%ProgramData%/TidyWindow/`) and surface shared scheduler UI (upcoming runs, last status, run-now actions).
-[ ] Step 14.4: Wire feature modules (Maintenance, Cleanup, Install Hub, Driver Updates, Version Control, Project Oblivion) to register automation metadata and respond to schedule changes.
+[ ] Step 14.4: Wire feature modules (Maintenance, Cleanup, Install Hub, Version Control, Project Oblivion) to register automation metadata and respond to schedule changes.
 [ ] Step 14.5: Add search/help affordances, reset/export buttons, and telemetry so the new control center becomes the canonical home for automation, notifications, integrations, and safety policies.
 
 ## Registry Optimizer Rework
@@ -197,7 +187,7 @@ Reference: `Future-ideas/idea5.txt` (Registry Optimizer blueprint) and `newregis
 [ ] Step 15.2: Implement `RegistryStateService` + state persistence (`%AppData%/TidyWindow/registry-optimizer-state.json`) that tracks desired/detected states and hydrates the UI on launch.
 [ ] Step 15.3: Build the new multi-pane UI as discrete controls (`Views/RegistryOptimizer/RegistryOptimizerShell.xaml` plus `CategoryNavView.xaml`, `CatalogPageView.xaml`, `TweakDetailsDrawer.xaml`, `ActionLogView.xaml`) with paging, search, and badges for applied/different states.
 [ ] Step 15.4: Wire apply/revert flows through existing automation runners, ensuring backups (.reg snapshots) are captured, stored, and reusable for rollbacks; log the last 20 operations.
-[ ] Step 15.5: Add tests for catalog validation, apply/revert flows (stub registry provider), and update `docs/automation.md` with the new optimizer behavior/support matrix.
+[ ] Step 15.5: Add tests for catalog validation, apply/revert flows (stub registry provider)
 
 ## Startup Controller
 

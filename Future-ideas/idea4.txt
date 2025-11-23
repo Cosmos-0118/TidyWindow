@@ -3,7 +3,7 @@ Settings Redesign – blueprint
 
 North star
 - Turn Settings into a purposeful control center rather than a long scroll of toggles. Borrow Cleanup’s multi-phase structure by splitting settings into self-contained sub-pages (separate XAML files) hosted by a tabbed shell.
-- Make automation a first-class concept so Install Hub, Maintenance, Cleanup, Driver Updates, Version Control, and Project Oblivion can declare schedules/policies.
+- Make automation a first-class concept so Install Hub, Maintenance, Cleanup, Version Control, and Project Oblivion can declare schedules/policies.
 
 Proposed shell
 - `SettingsShellPage.xaml` (lightweight navigation host) containing left rail nav + content frame. Each logical group gets its own `Settings*.xaml` file and view model.
@@ -15,18 +15,18 @@ Pages & content
   - Window behavior: restore size, show tips, enable telemetry.
   - Global keyboard shortcuts (future hook).
 2. **Automation & Schedules** (`SettingsAutomationPage`)
-  - Unified scheduler UI referencing each feature module. For every module (Maintenance inventory refresh, Cleanup scans, Install Hub bundle refresh, Driver update scan, Version Control diff, Project Oblivion sweeps) expose: frequency (manual, daily, weekly, custom cron), run window, requires AC power toggle.
+  - Unified scheduler UI referencing each feature module. For every module (Maintenance inventory refresh, Cleanup scans, Install Hub bundle refresh, Version Control diff, Project Oblivion sweeps) expose: frequency (manual, daily, weekly, custom cron), run window, requires AC power toggle.
   - Option to “Auto-run maintenance updates” (call PackageMaintenanceService) and “Auto-clean temp files weekly.”
   - Surface upcoming run tiles + last run results.
 3. **Notifications & Status** (`SettingsNotificationsPage`)
-  - Control toast notifications for queued installs, completed cleanup jobs, driver updates found, automation success/failure.
+  - Control toast notifications for queued installs, completed cleanup jobs, automation success/failure.
   - Choose channels (in-app banner, Windows notification, email webhook future?).
 4. **Integrations** (`SettingsIntegrationsPage`)
   - Package managers enabled (Winget, Chocolatey, Scoop). Toggle detection, set custom paths, authentication tokens for private feeds.
   - Cloud sync options (OneDrive/SharePoint) for sharing logs/configs.
 5. **Data & Safety** (`SettingsDataPage`)
   - Backups/export: schedule config backups, choose path.
-  - Restore points + rollback preferences (used by Project Oblivion deep uninstall and driver installs).
+  - Restore points + rollback preferences (used by Project Oblivion deep uninstall).
   - Logging verbosity, anonymization, crash report opt-in.
 6. **Advanced / Labs** (`SettingsLabsPage`)
   - Feature flags for new ideas (Version Control page, Install Hub rework, Project Oblivion). Provide context text + feedback links.
@@ -45,7 +45,7 @@ Implementation steps
 1. Create `SettingsShellPage.xaml` + navigation view binding to a `SettingsShellViewModel` that manages selected section.
 2. Split existing settings controls into new `Settings*.xaml` files placed under `Views/Settings/` folder for clarity.
 3. Build `AutomationScheduleService` + persistence contract; expose through `MainViewModel` for other modules.
-4. Wire each feature (Maintenance, Cleanup, Install Hub, Driver updates, Version Control, Project Oblivion) to read/write its automation preferences.
+4. Wire each feature (Maintenance, Cleanup, Install Hub, Version Control, Project Oblivion) to read/write its automation preferences.
 5. Add telemetry/logging that summarizes when auto tasks run, fail, or get disabled.
 
 Stretch extras

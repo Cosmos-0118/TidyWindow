@@ -10,17 +10,16 @@ TidyWindow blends a WPF cockpit with curated PowerShell automation so Windows de
 
     -   Runs on WPF + .NET 8 with MVVM delivered by CommunityToolkit.Mvvm.
     -   `App.xaml.cs` wires everything with `Microsoft.Extensions.Hosting`, so services are resolved through dependency injection.
-    -   `MainWindow` hosts modular pages (Cleanup, Deep Scan, Install Hub, Registry, Driver Updates, Activity Log) loaded via `NavigationService`.
+    -   `MainWindow` hosts modular pages (Cleanup, Deep Scan, Install Hub, Registry, Activity Log) loaded via `NavigationService`.
     -   Tray support, PulseGuard notifications, crash logging, and background preferences live under `Services/`.
 
 -   **Core Services (`src/TidyWindow.Core/`)**
 
-    -   Encapsulate cleanup, diagnostics, install orchestration, registry management, package upkeep, and driver detection.
+    -   Encapsulate cleanup, diagnostics, install orchestration, registry management, and package upkeep.
     -   `Automation/PowerShellInvoker.cs` runs scripts inside managed runspaces, falls back to external `pwsh.exe`, and streams structured output.
     -   `Maintenance/RegistryStateService.cs`, `Maintenance/RegistryOptimizerService.cs`, and `Maintenance/RegistryStateWatcher.cs` coordinate detection, application, and monitoring of registry tweaks.
     -   `Diagnostics/DeepScanService.cs` performs fast file system walks with live progress snapshots.
     -   `Install/InstallQueue.cs` and `Install/BundlePresetService.cs` map YAML bundles to actionable install plans.
-    -   `Updates/DriverUpdateService.cs` consumes JSON from automation scripts, normalises hardware IDs, and enriches presentation data.
 
 -   **Automation Assets (`automation/`)**
 
@@ -36,7 +35,7 @@ TidyWindow blends a WPF cockpit with curated PowerShell automation so Windows de
 
 1. **Startup** – `App.xaml.cs` ensures elevation, attaches `CrashLogService`, spins a splash screen, and builds the DI container.
 2. **Navigation** – The navigation rail binds to `NavigationService` and `MainViewModel`; pages resolve their viewmodels on first use, keeping startup lean.
-3. **Command Dispatch** – ViewModel commands call into strongly typed services (`CleanupService`, `DeepScanService`, `DriverUpdateService`, etc.) housed in `TidyWindow.Core`.
+3. **Command Dispatch** – ViewModel commands call into strongly typed services (`CleanupService`, `DeepScanService`, etc.) housed in `TidyWindow.Core`.
 4. **Automation Bridge** – Services either run pure .NET workflows or call PowerShell via `PowerShellInvoker`. Parameters are normalised, cancellation tokens respected, and JSON output is parsed back into domain records.
 5. **Feedback Loop** – `ActivityLogService` records entries that drive the Activity Log page and PulseGuard notifications; viewmodels update observable collections so WPF refreshes automatically.
 
@@ -55,14 +54,13 @@ User action → ViewModel → Core service → (Runspace PowerShell | Managed lo
 -   **Install Hub** – `InstallQueue` sequences catalog-defined packages while `BundlePresetService` reads/writes preset YAML files.
 -   **Package Maintenance** – `PackageMaintenanceService` triggers update/remove scripts and validates JSON payloads before surfacing results.
 -   **Registry Optimizer** – `RegistryOptimizerService` builds plans, saves restore points, and works with `RegistryPreferenceService` for custom values.
--   **Driver Updates** – `DriverUpdateService` deduplicates devices, interprets problem codes, and summarises optional filters for the UI.
 -   **Background Presence** – `BackgroundPresenceService` toggles auto-start based on saved preferences; `PulseGuardService` throttles and routes notifications using Activity Log entries.
 
 ## 5. Automation Script Patterns
 
 -   Scripts import `TidyWindow.Automation` to share logging, elevation checks, and error handling.
 -   Parameters are always named so `PowerShellInvoker` can pass dictionaries straight through.
--   Diagnostics scripts (for example `automation/essentials/driver-update-detect.ps1`) emit JSON objects as their final output line.
+-   Diagnostics scripts (for example `automation/essentials/network-fix-suite.ps1`) emit JSON objects as their final output line.
 -   Catalog installers use YAML (`data/catalog/bundles.yml` and `data/catalog/packages/**`) to stay editable without recompiling.
 
 ## 6. Observability & Resilience
@@ -78,7 +76,7 @@ User action → ViewModel → Core service → (Runspace PowerShell | Managed lo
 -   **MVVM Toolkit** – CommunityToolkit.Mvvm for observable properties and relay commands.
 -   **Dependency Injection** – `Microsoft.Extensions.Hosting` + `Microsoft.Extensions.DependencyInjection` to configure services once at startup.
 -   **Packaging** – Inno Setup script `installer/TidyWindowInstaller.iss` bundles the WPF app, PowerShell scripts, and catalog data.
--   **Testing** – `tests/` projects validate core services (e.g., driver update pipeline, PulseGuard throttling) and automation contracts.
+-   **Testing** – `tests/` projects validate core services (e.g., cleanup safety checks, PulseGuard throttling) and automation contracts.
 
 ## 8. Why This Stack Works
 

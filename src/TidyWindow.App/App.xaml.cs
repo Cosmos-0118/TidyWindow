@@ -16,7 +16,6 @@ using TidyWindow.Core.PackageManagers;
 using TidyWindow.Core.Diagnostics;
 using TidyWindow.Core.Install;
 using TidyWindow.Core.Maintenance;
-using TidyWindow.Core.Updates;
 
 namespace TidyWindow.App;
 
@@ -80,7 +79,6 @@ public partial class App : WpfApplication
                 services.AddSingleton<BundlePresetService>();
                 services.AddSingleton<PackageInventoryService>();
                 services.AddSingleton<PackageMaintenanceService>();
-                services.AddSingleton<DriverUpdateService>();
                 services.AddSingleton<EssentialsTaskCatalog>();
                 services.AddSingleton<EssentialsTaskQueue>();
                 services.AddSingleton<IRegistryOptimizerService, RegistryOptimizerService>();
@@ -97,7 +95,6 @@ public partial class App : WpfApplication
                 services.AddTransient<PackageMaintenanceViewModel>();
                 services.AddTransient<LogsViewModel>();
                 services.AddTransient<EssentialsViewModel>();
-                services.AddTransient<DriverUpdatesViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
 
                 services.AddTransient<BootstrapPage>();
@@ -108,7 +105,6 @@ public partial class App : WpfApplication
                 services.AddTransient<PackageMaintenancePage>();
                 services.AddTransient<LogsPage>();
                 services.AddTransient<EssentialsPage>();
-                services.AddTransient<DriverUpdatesPage>();
                 services.AddTransient<RegistryOptimizerPage>();
 
                 services.AddSingleton<MainWindow>();

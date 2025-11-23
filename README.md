@@ -11,7 +11,6 @@ TidyWindow is a Windows desktop companion for setting up, cleaning, and maintain
 -   PulseGuard notifications and high-friction prompts that watch automation logs and surface actionable toasts (`src/TidyWindow.App/Services/PulseGuardService.cs`).
 -   Activity Log workspace with filtering, search, and clipboard export for every task (`src/TidyWindow.App/ViewModels/LogsViewModel.cs`).
 -   Registry Optimizer with live state probes, presets, custom values, and restore points (`src/TidyWindow.Core/Maintenance/RegistryOptimizerService.cs`).
--   Driver update intelligence that normalises hardware IDs and optional filters before presenting updates (`src/TidyWindow.Core/Updates/DriverUpdateService.cs`).
 -   Crash log capture and background-mode auto start so the assistant can run quietly from the tray (`src/TidyWindow.App/Services/CrashLogService.cs`).
 
 ## Quick Start
@@ -39,7 +38,7 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 ## Project Layout
 
 -   `src/TidyWindow.App/` – WPF MVVM client with navigation, tray integration, PulseGuard, and the Activity Log.
--   `src/TidyWindow.Core/` – Background services for cleanup, deep scan, installs, registry state, package maintenance, and driver updates.
+-   `src/TidyWindow.Core/` – Background services for cleanup, deep scan, installs, registry state, and package maintenance.
 -   `automation/` – PowerShell module plus task scripts (bootstrap, cleanup, deep scan, registry probes, package installs, essentials repairs).
 -   `data/catalog/` – YAML metadata describing bundles, packages, and guidance shown in the UI.
 -   `tests/` – .NET unit tests that exercise the MVVM services and automation bridge.
@@ -61,7 +60,6 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 -   **Smart Install Hub** – Installs curated bundles driven by YAML metadata and configurable install queues (`src/TidyWindow.Core/Install/InstallQueue.cs`).
 -   **Package Maintenance** – Updates or removes catalog-managed software through PowerShell scripts with structured JSON payloads (`src/TidyWindow.Core/Maintenance/PackageMaintenanceService.cs`).
 -   **Essentials Library** – One-click repairs covering networking, storage, Windows Update, Defender and more (see `automation/essentials/*.ps1`).
--   **Driver Updates** – Detects actionable drivers, deduplicates hardware IDs, and reports optional filters before offering installs.
 -   **Registry Optimizer** – Bundles curated registry tweaks, supports presets, validates custom values, and writes restore points that can be reapplied later.
 -   **Activity Observability** – The Activity Log keeps every automation transcript searchable; PulseGuard and High-Friction prompts flag risky conditions (e.g., legacy PowerShell).
 
@@ -70,7 +68,6 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 -   **Runspace Execution** – `PowerShellInvoker` keeps UI threads free, normalises parameters, and falls back to spawning `pwsh.exe` if intrinsic modules are missing.
 -   **Registry State Watcher** – `RegistryStateWatcher` probes tweak states concurrently with cancellation-aware channels.
 -   **Package Inventory** – `PackageInventoryService` merges winget, Chocolatey, and Scoop listings so maintenance pages know what is installed.
--   **Driver Update Pipeline** – `DriverUpdateService` consumes JSON output from `automation/essentials/driver-update-detect.ps1`, normalises versions, and enriches with friendly status text.
 -   **Preferences + Background Mode** – `UserPreferencesService` persists UI settings while `BackgroundPresenceService` toggles Windows startup tasks and logs results.
 -   **Crash Guard** – `CrashLogService` captures unhandled exceptions across dispatcher, TaskScheduler, and AppDomain to aid support escalations.
 
@@ -93,7 +90,7 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 -   Scripts import `automation/modules/TidyWindow.Automation.psm1` for consistent logging and elevation handling.
 -   Parameters must be named, and scripts should emit structured objects for consumption by `PowerShellInvoker`.
 -   Terminating errors bubble back to the .NET layer for user-friendly reporting in the dashboard.
--   Long-running scripts should emit JSON payloads so services like `DriverUpdateService` and `PackageMaintenanceService` can parse structured results.
+-   Long-running scripts should emit JSON payloads so services like `PackageMaintenanceService` can parse structured results.
 
 ## Further Reading
 
