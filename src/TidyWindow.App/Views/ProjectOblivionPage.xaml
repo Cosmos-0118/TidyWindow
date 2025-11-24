@@ -7,7 +7,8 @@
     xmlns:controls="clr-namespace:TidyWindow.App.Views"
     Title="Project Oblivion"
     mc:Ignorable="d"
-    Background="Transparent">
+    Background="Transparent"
+    Loaded="ProjectOblivionPage_OnLoaded">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
@@ -19,6 +20,23 @@
         <SolidColorBrush x:Key="OblivionAccentBrush" Color="#34D399"/>
         <SolidColorBrush x:Key="OblivionAccentSecondaryBrush" Color="#38BDF8"/>
         <SolidColorBrush x:Key="OblivionMutedTextBrush" Color="#94A3B8"/>
+        <LinearGradientBrush x:Key="OblivionCardGlowBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#101C33" Offset="0"/>
+            <GradientStop Color="#0A1423" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="OblivionIconPlaceholderBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#12243F" Offset="0"/>
+            <GradientStop Color="#0D182C" Offset="1"/>
+        </LinearGradientBrush>
+
+        <Style x:Key="OblivionTagChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="#132646"/>
+            <Setter Property="BorderBrush" Value="#1F314F"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="0,6,6,0"/>
+        </Style>
 
         <Style x:Key="OblivionPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#04111E"/>
@@ -142,50 +160,139 @@
         </Style>
 
         <DataTemplate x:Key="AppListItemTemplate">
-            <Border Padding="20">
-                <Border.Style>
-                    <Style TargetType="Border" BasedOn="{StaticResource OblivionCardStyle}">
-                        <Setter Property="Background" Value="{StaticResource OblivionCardSecondaryBrush}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="1">
-                                <Setter Property="Background" Value="{StaticResource OblivionCardPrimaryBrush}"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="2">
-                                <Setter Property="Background" Value="{StaticResource OblivionCardTertiaryBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
+            <Border Padding="24"
+                    CornerRadius="24"
+                    BorderBrush="#1C2E4C"
+                    BorderThickness="1.2"
+                    Background="{StaticResource OblivionCardGlowBrush}">
+                <Border.Effect>
+                    <DropShadowEffect Color="#050F1C"
+                                      BlurRadius="26"
+                                      ShadowDepth="0"
+                                      Opacity="0.55"/>
+                </Border.Effect>
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Text="{Binding Name}"
-                                   FontSize="20"
-                                   FontWeight="SemiBold"
-                                   Foreground="#F8FAFC"
-                                   TextTrimming="CharacterEllipsis"/>
+
+                    <Border Width="64"
+                            Height="64"
+                            CornerRadius="20"
+                            HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Background="{StaticResource OblivionIconPlaceholderBrush}"
+                            BorderBrush="#223653"
+                            BorderThickness="1">
+                        <Grid>
+                            <Image Source="{Binding IconImage}"
+                                   Stretch="Uniform"
+                                   Margin="8">
+                                <Image.Style>
+                                    <Style TargetType="Image">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Image.Style>
+                            </Image>
+                            <TextBlock Text="{Binding Monogram}"
+                                       FontSize="24"
+                                       FontWeight="Bold"
+                                       Foreground="#5EEAD4"
+                                       VerticalAlignment="Center"
+                                       HorizontalAlignment="Center">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasIcon}" Value="True">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="1"
+                                Margin="20,0,20,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Text="{Binding Name}"
+                                       FontSize="20"
+                                       FontWeight="SemiBold"
+                                       Foreground="#F8FAFC"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <Border Grid.Column="1"
+                                    Background="#132646"
+                                    CornerRadius="10"
+                                    Padding="12,4"
+                                    Margin="12,0,0,0"
+                                    BorderBrush="#233B5E"
+                                    BorderThickness="1"
+                                    ToolTip="{Binding SourceDisplay}">
+                                <TextBlock Text="{Binding SourceBadge}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="#7DD3FC"/>
+                            </Border>
+                        </Grid>
+
                         <TextBlock Text="{Binding Subtitle}"
                                    Foreground="#C7D2FE"
-                                   Margin="0,4,0,0"
-                                   TextWrapping="Wrap"
+                                   Margin="0,6,0,0"
                                    FontSize="13"
+                                   TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"/>
-                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Border Background="#1A2C4A"
+
+                        <ItemsControl Margin="0,10,0,0"
+                                      ItemsSource="{Binding Tags}"
+                                      Visibility="{Binding HasTags, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Style="{StaticResource OblivionTagChipStyle}">
+                                        <TextBlock Text="{Binding}"
+                                                   Foreground="#C7D2FE"
+                                                   FontSize="11"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                            <Border Background="#132646"
                                     CornerRadius="12"
                                     Padding="12,4"
-                                    Margin="0,0,10,0">
+                                    Margin="0,0,10,0"
+                                    BorderBrush="#1E314F"
+                                    BorderThickness="1">
                                 <TextBlock Text="{Binding SizeDisplay}"
                                            Foreground="#E2E8F0"
                                            FontSize="12"
                                            FontWeight="SemiBold"/>
                             </Border>
-                            <Border Background="#1A2C4A"
+                            <Border Background="#132646"
                                     CornerRadius="12"
-                                    Padding="12,4">
+                                    Padding="12,4"
+                                    BorderBrush="#1E314F"
+                                    BorderThickness="1">
                                 <TextBlock Text="{Binding ScopeDisplay}"
                                            Foreground="#E2E8F0"
                                            FontSize="12"
@@ -193,14 +300,15 @@
                             </Border>
                         </StackPanel>
                     </StackPanel>
-                    <StackPanel Grid.Column="1"
+
+                    <StackPanel Grid.Column="2"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
-                        <Button Content="Uninstall"
-                                Padding="18,8"
+                        <Button Content="Launch uninstall"
+                                Padding="20,10"
                                 Style="{StaticResource OblivionPrimaryButtonStyle}"
                                 Command="{Binding DataContext.LaunchFlowCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                            CommandParameter="{Binding}"/>
+                                CommandParameter="{Binding}"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -403,39 +511,49 @@
                                     <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <DockPanel Grid.Row="0" Margin="0,0,0,16">
-                                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                <Grid Grid.Row="0" Margin="0,0,0,16">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                                              MinWidth="220"
                                              Margin="0,0,12,0"
-                                             Padding="14,8"
-                                             Style="{x:Null}"
-                                             Background="#0B1A30"
-                                             Foreground="#E2E8F0"
-                                             BorderBrush="#1E2F4C"
-                                             BorderThickness="1"
-                                             FontSize="13"
-                                             HorizontalAlignment="Stretch"
-                                             VerticalAlignment="Center"
-                                             ToolTip="Filter by name, publisher, source, or scope"/>
-                                    <Button Content="Clear"
+                                             Style="{StaticResource App.TextBoxStyle}"
+                                             ToolTip="Filter by name, publisher, source, or scope">
+                                        <TextBox.InputBindings>
+                                            <KeyBinding Key="Enter"
+                                                        Command="{Binding ApplySearchCommand}"/>
+                                        </TextBox.InputBindings>
+                                    </TextBox>
+                                    <Button Grid.Column="1"
+                                            Content="Search"
+                                            Command="{Binding ApplySearchCommand}"
+                                            Padding="18,8"
+                                            Margin="0,0,12,0"
+                                            Style="{StaticResource OblivionPrimaryButtonStyle}"/>
+                                    <Button Grid.Column="2"
+                                            Content="Clear"
                                             Command="{Binding ClearSearchCommand}"
-                                            Padding="16,8"
-                                            HorizontalAlignment="Right">
+                                            Padding="16,8">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource OblivionSecondaryButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="True"/>
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SearchText}" Value="">
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding SearchText}" Value=""/>
+                                                            <Condition Binding="{Binding ActiveFilter}" Value=""/>
+                                                        </MultiDataTrigger.Conditions>
                                                         <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding SearchText}" Value="{x:Null}">
-                                                        <Setter Property="IsEnabled" Value="False"/>
-                                                    </DataTrigger>
+                                                    </MultiDataTrigger>
                                                 </Style.Triggers>
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                </DockPanel>
+                                </Grid>
 
                                 <ListBox Grid.Row="1"
                                          ItemsSource="{Binding Apps}"

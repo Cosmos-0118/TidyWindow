@@ -286,6 +286,8 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
     public string FlowExecutionStatus => IsBusy ? "Running" : "Idle";
 
+    public bool HasActiveRun => IsBusy || IsAwaitingSelection;
+
     [ObservableProperty]
     private bool _isBusy;
 
@@ -327,11 +329,13 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         StartRunCommand.NotifyCanExecuteChanged();
         CancelRunCommand.NotifyCanExecuteChanged();
         OnPropertyChanged(nameof(FlowExecutionStatus));
+        OnPropertyChanged(nameof(HasActiveRun));
     }
 
     partial void OnIsAwaitingSelectionChanged(bool value)
     {
         CommitSelectionCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(HasActiveRun));
     }
 
     partial void OnSelectedArtifactSizeBytesChanged(long value)
@@ -367,12 +371,49 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
     public bool HasRunLog => !string.IsNullOrWhiteSpace(RunLogPath) && File.Exists(RunLogPath!);
 
-    public void Prepare(ProjectOblivionApp app, string inventoryPath)
+    public bool CanResume(ProjectOblivionApp app)
     {
-        _targetApp = app ?? throw new ArgumentNullException(nameof(app));
-        _inventoryPath = inventoryPath ?? throw new ArgumentNullException(nameof(inventoryPath));
-        ResetState();
-        StatusMessage = $"Ready to uninstall {app.Name}.";
+        if (app is null || _targetApp is null)
+        {
+            return false;
+        }
+
+        return string.Equals(_targetApp.AppId, app.AppId, StringComparison.OrdinalIgnoreCase)
+               && HasActiveRun;
+    }
+
+    public void Prepare(ProjectOblivionApp app, string inventoryPath, bool preserveExistingState = false)
+    {
+        if (app is null)
+        {
+            throw new ArgumentNullException(nameof(app));
+        }
+
+        if (string.IsNullOrWhiteSpace(inventoryPath))
+        {
+            throw new ArgumentNullException(nameof(inventoryPath));
+        }
+
+        var canPreserve = preserveExistingState
+                           && _targetApp is not null
+                           && string.Equals(_targetApp.AppId, app.AppId, StringComparison.OrdinalIgnoreCase)
+                           && HasActiveRun;
+
+        _targetApp = app;
+        _inventoryPath = inventoryPath;
+
+        if (canPreserve)
+        {
+            StatusMessage = $"Resuming uninstall for {app.Name}.";
+            Log(ProjectOblivionLogLevel.Info, $"Resuming Project Oblivion run for {app.Name}.");
+        }
+        else
+        {
+            ResetState();
+            StatusMessage = $"Ready to uninstall {app.Name}.";
+            Log(ProjectOblivionLogLevel.Info, $"Prepared Project Oblivion context for {app.Name}.");
+        }
+
         StartRunCommand.NotifyCanExecuteChanged();
     }
 
@@ -409,32 +450,65 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         {
             await foreach (var runEvent in _runService.RunAsync(request, _runCancellation.Token))
             {
-                await ProcessRunEventAsync(runEvent, _runCancellation.Token).ConfigureAwait(true);
+                try
+                {
+                    await ProcessRunEventAsync(runEvent, _runCancellation.Token).ConfigureAwait(true);
+                }
+                catch (Exception pipelineError)
+                {
+                    var detail = new StringBuilder()
+                        .AppendLine(pipelineError.ToString())
+                        .AppendLine("Event payload:")
+                        .AppendLine(runEvent.Raw ?? "(no raw payload)")
+                        .ToString();
+                    Log(ProjectOblivionLogLevel.Error, $"Failed to process event '{runEvent.Type}'.", detail);
+                    throw;
+                }
             }
 
-            StatusMessage = "Run completed.";
-            _mainViewModel.SetStatusMessage($"Project Oblivion run complete for {_targetApp.Name}.");
+            await RunOnUiThreadAsync(() =>
+            {
+                var toast = _targetApp is null
+                    ? "Project Oblivion run complete."
+                    : $"Project Oblivion run complete for {_targetApp.Name}.";
+                StatusMessage = "Run completed.";
+                _mainViewModel.SetStatusMessage(toast);
+            }).ConfigureAwait(true);
+            Log(ProjectOblivionLogLevel.Info, _targetApp is null
+                ? "Project Oblivion run completed."
+                : $"Project Oblivion run completed for {_targetApp.Name}.");
         }
         catch (OperationCanceledException)
         {
-            StatusMessage = "Run cancelled.";
+            await RunOnUiThreadAsync(() =>
+            {
+                StatusMessage = "Run cancelled.";
+                _mainViewModel.SetStatusMessage("Project Oblivion run cancelled.");
+            }).ConfigureAwait(true);
             Log(ProjectOblivionLogLevel.Warning, "Project Oblivion run cancelled by user.");
         }
         catch (Exception ex)
         {
-            StatusMessage = string.IsNullOrWhiteSpace(ex.Message) ? "Run failed." : ex.Message;
-            Log(ProjectOblivionLogLevel.Error, StatusMessage, ex.ToString());
-            SetActiveStageFailed(StatusMessage);
-            _mainViewModel.SetStatusMessage(StatusMessage);
+            await RunOnUiThreadAsync(() =>
+            {
+                var failure = string.IsNullOrWhiteSpace(ex.Message) ? "Run failed." : ex.Message.Trim();
+                StatusMessage = failure;
+                SetActiveStageFailed(failure);
+                _mainViewModel.SetStatusMessage(failure);
+            }).ConfigureAwait(true);
+            Log(ProjectOblivionLogLevel.Error, "Project Oblivion run failed.", ex.ToString());
         }
         finally
         {
-            _runCancellation?.Dispose();
-            _runCancellation = null;
-            IsBusy = false;
-            CancelRunCommand.NotifyCanExecuteChanged();
-            StartRunCommand.NotifyCanExecuteChanged();
-            CommitSelectionCommand.NotifyCanExecuteChanged();
+            await RunOnUiThreadAsync(() =>
+            {
+                _runCancellation?.Dispose();
+                _runCancellation = null;
+                IsBusy = false;
+                CancelRunCommand.NotifyCanExecuteChanged();
+                StartRunCommand.NotifyCanExecuteChanged();
+                CommitSelectionCommand.NotifyCanExecuteChanged();
+            }).ConfigureAwait(true);
             DeleteSelectionFile();
         }
     }
@@ -541,7 +615,12 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         _runCancellation?.Dispose();
     }
 
-    private async Task ProcessRunEventAsync(ProjectOblivionRunEvent runEvent, CancellationToken token)
+    private Task ProcessRunEventAsync(ProjectOblivionRunEvent runEvent, CancellationToken token)
+    {
+        return RunOnUiThreadAsync(() => ProcessRunEventOnUiThreadAsync(runEvent, token));
+    }
+
+    private async Task ProcessRunEventOnUiThreadAsync(ProjectOblivionRunEvent runEvent, CancellationToken token)
     {
         switch (runEvent.Type)
         {
@@ -654,11 +733,22 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         }
 
         UpdateSelectionStats();
-        StatusMessage = "Artifacts ready for review.";
         SetStageCompleted(ProjectOblivionStage.ArtifactDiscovery, $"Found {items.Count} artifact(s).");
+        _selectionCommitted = false;
+
+        if (items.Count == 0)
+        {
+            StatusMessage = "No artifacts detected. Skipping selection.";
+            SetStageCompleted(ProjectOblivionStage.SelectionHold, "No artifacts available.");
+            IsAwaitingSelection = false;
+            Log(ProjectOblivionLogLevel.Info, "No artifacts discovered. Continuing cleanup.");
+            await CommitSelectionInternalAsync(token).ConfigureAwait(true);
+            return;
+        }
+
+        StatusMessage = "Artifacts ready for review.";
         SetStageActive(ProjectOblivionStage.SelectionHold);
         IsAwaitingSelection = true;
-        _selectionCommitted = false;
 
         if (AutoAdvanceSelection)
         {
@@ -760,9 +850,12 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
         await File.WriteAllTextAsync(_selectionFilePath, JsonSerializer.Serialize(payload, _jsonOptions), Encoding.UTF8, token).ConfigureAwait(false);
         _selectionCommitted = true;
-        StatusMessage = "Selection saved. Continuing cleanup...";
+        await RunOnUiThreadAsync(() =>
+        {
+            StatusMessage = "Selection saved. Continuing cleanup...";
+            CommitSelectionCommand.NotifyCanExecuteChanged();
+        }).ConfigureAwait(false);
         Log(ProjectOblivionLogLevel.Info, $"Committed {selectedIds.Count} artifact(s).", _selectionFilePath);
-        CommitSelectionCommand.NotifyCanExecuteChanged();
     }
 
     private void OnArtifactSelectionChanged(object? sender, EventArgs e)
@@ -1120,15 +1213,32 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
     private void Log(ProjectOblivionLogLevel level, string message, string? raw = null)
     {
+        var normalizedMessage = string.IsNullOrWhiteSpace(message) ? "(no message)" : message.Trim();
+        var rawDetail = string.IsNullOrWhiteSpace(raw) ? null : raw.Trim();
+
         RunOnUiThread(() =>
         {
-            var entry = new ProjectOblivionRunLogEntry(DateTimeOffset.Now, level, message, raw);
+            var entry = new ProjectOblivionRunLogEntry(DateTimeOffset.Now, level, normalizedMessage, rawDetail);
             RunLog.Add(entry);
             if (RunLog.Count > 500)
             {
                 RunLog.RemoveAt(0);
             }
         });
+
+        var details = rawDetail is null ? null : new[] { rawDetail };
+        switch (level)
+        {
+            case ProjectOblivionLogLevel.Error:
+                _activityLog.LogError("Project Oblivion", normalizedMessage, details);
+                break;
+            case ProjectOblivionLogLevel.Warning:
+                _activityLog.LogWarning("Project Oblivion", normalizedMessage, details);
+                break;
+            default:
+                _activityLog.LogInformation("Project Oblivion", normalizedMessage, details);
+                break;
+        }
     }
 
     private static void RunOnUiThread(Action action)
@@ -1147,6 +1257,36 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         {
             dispatcher.Invoke(action);
         }
+    }
+
+    private static Task RunOnUiThreadAsync(Action action)
+    {
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
+        return RunOnUiThreadAsync(() =>
+        {
+            action();
+            return Task.CompletedTask;
+        });
+    }
+
+    private static Task RunOnUiThreadAsync(Func<Task> action)
+    {
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            return action();
+        }
+
+        return dispatcher.InvokeAsync(action).Task.Unwrap();
     }
 
     private void PersistTelemetry(JsonObject? payload)
