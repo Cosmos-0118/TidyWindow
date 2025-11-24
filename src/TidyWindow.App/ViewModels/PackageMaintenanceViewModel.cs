@@ -121,6 +121,15 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     [ObservableProperty]
     private bool _areWarningsVisible = true;
 
+    [ObservableProperty]
+    private MaintenanceViewSection _activeSection = MaintenanceViewSection.Packages;
+
+    [ObservableProperty]
+    private bool _isPackageDetailsVisible;
+
+    [ObservableProperty]
+    private bool _isOperationDetailsVisible;
+
     public bool HasWarnings => Warnings.Count > 0;
 
     public string WarningToggleLabel => !HasWarnings
@@ -158,6 +167,22 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     partial void OnAreWarningsVisibleChanged(bool value)
     {
         OnPropertyChanged(nameof(WarningToggleLabel));
+    }
+
+    partial void OnSelectedPackageChanged(PackageMaintenanceItemViewModel? value)
+    {
+        if (value is null && IsPackageDetailsVisible)
+        {
+            IsPackageDetailsVisible = false;
+        }
+    }
+
+    partial void OnSelectedOperationChanged(PackageMaintenanceOperationViewModel? value)
+    {
+        if (value is null && IsOperationDetailsVisible)
+        {
+            IsOperationDetailsVisible = false;
+        }
     }
 
     [RelayCommand]
@@ -274,6 +299,53 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     }
 
     private bool CanToggleWarnings() => HasWarnings;
+
+    [RelayCommand]
+    private void SwitchMaintenanceSection(MaintenanceViewSection section)
+    {
+        if (ActiveSection == section)
+        {
+            return;
+        }
+
+        ActiveSection = section;
+    }
+
+    [RelayCommand]
+    private void ShowPackageDetails(PackageMaintenanceItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        SelectedPackage = item;
+        IsPackageDetailsVisible = true;
+    }
+
+    [RelayCommand]
+    private void ClosePackageDetails()
+    {
+        IsPackageDetailsVisible = false;
+    }
+
+    [RelayCommand]
+    private void ShowOperationDetails(PackageMaintenanceOperationViewModel? operation)
+    {
+        if (operation is null || operation.IsPendingOrRunning)
+        {
+            return;
+        }
+
+        SelectedOperation = operation;
+        IsOperationDetailsVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseOperationDetails()
+    {
+        IsOperationDetailsVisible = false;
+    }
 
     [RelayCommand(CanExecute = nameof(CanSelectAllPackages))]
     private void SelectAllPackages()
@@ -1875,6 +1947,12 @@ public enum MaintenanceOperationStatus
     Running,
     Succeeded,
     Failed
+}
+
+public enum MaintenanceViewSection
+{
+    Packages,
+    Queue
 }
 
 public sealed partial class PackageMaintenanceOperationViewModel : ObservableObject

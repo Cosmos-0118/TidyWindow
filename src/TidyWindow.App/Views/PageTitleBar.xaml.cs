@@ -30,7 +30,7 @@ public partial class PageTitleBar : WpfUserControl
         nameof(IconGlyph),
         typeof(string),
         typeof(PageTitleBar),
-        new PropertyMetadata(string.Empty));
+        new PropertyMetadata(string.Empty, OnIconGlyphChanged));
 
     public static readonly DependencyProperty BadgeTextProperty = DependencyProperty.Register(
         nameof(BadgeText),
@@ -88,6 +88,7 @@ public partial class PageTitleBar : WpfUserControl
     private StackPanel? _textHost;
     private StackPanel? _titleRowPanel;
     private Border? _badgeHost;
+    private Border? _iconHost;
 
     public string Title
     {
@@ -208,8 +209,9 @@ public partial class PageTitleBar : WpfUserControl
         var textHost = _textHost;
         var titleRowPanel = _titleRowPanel;
         var badgeHost = _badgeHost;
+        var iconHost = _iconHost;
 
-        if (trailingColumn is null || trailingPresenter is null || textHost is null || titleRowPanel is null || badgeHost is null)
+        if (trailingColumn is null || trailingPresenter is null || textHost is null || titleRowPanel is null || badgeHost is null || iconHost is null)
         {
             return;
         }
@@ -221,9 +223,20 @@ public partial class PageTitleBar : WpfUserControl
         trailingPresenter.HorizontalAlignment = System.Windows.HorizontalAlignment.Right;
         trailingPresenter.VerticalAlignment = System.Windows.VerticalAlignment.Center;
         trailingPresenter.Margin = new Thickness(20, 0, 0, 0);
+        Grid.SetRow(iconHost, 0);
+        Grid.SetColumn(iconHost, 0);
+        Grid.SetColumnSpan(iconHost, 1);
+        iconHost.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+        iconHost.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+        iconHost.Margin = new Thickness(0);
+        Grid.SetRow(textHost, 0);
+        Grid.SetColumn(textHost, 1);
+        Grid.SetColumnSpan(textHost, 1);
+        textHost.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+        textHost.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+        textHost.Margin = GetHorizontalIconSpacingMargin();
         titleRowPanel.Orientation = ControlsOrientation.Horizontal;
-        textHost.ClearValue(FrameworkElement.MarginProperty);
-        badgeHost.ClearValue(FrameworkElement.MarginProperty);
+        badgeHost.Margin = new Thickness(12, 0, 0, 0);
     }
 
     private void ApplyMediumLayout()
@@ -238,22 +251,34 @@ public partial class PageTitleBar : WpfUserControl
         var textHost = _textHost;
         var titleRowPanel = _titleRowPanel;
         var badgeHost = _badgeHost;
+        var iconHost = _iconHost;
 
-        if (trailingColumn is null || trailingPresenter is null || textHost is null || titleRowPanel is null || badgeHost is null)
+        if (trailingColumn is null || trailingPresenter is null || textHost is null || titleRowPanel is null || badgeHost is null || iconHost is null)
         {
             return;
         }
 
         trailingColumn.Width = new GridLength(0d, GridUnitType.Pixel);
-        Grid.SetRow(trailingPresenter, 1);
+        Grid.SetRow(trailingPresenter, 2);
         Grid.SetColumn(trailingPresenter, 0);
         Grid.SetColumnSpan(trailingPresenter, 3);
         trailingPresenter.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
         trailingPresenter.VerticalAlignment = System.Windows.VerticalAlignment.Center;
         trailingPresenter.Margin = new Thickness(0, 18, 0, 0);
-        titleRowPanel.Orientation = ControlsOrientation.Horizontal;
-        textHost.Margin = new Thickness(0);
-        badgeHost.Margin = new Thickness(12, 0, 0, 0);
+        Grid.SetRow(iconHost, 0);
+        Grid.SetColumn(iconHost, 0);
+        Grid.SetColumnSpan(iconHost, 3);
+        iconHost.HorizontalAlignment = System.Windows.HorizontalAlignment.Left;
+        iconHost.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+        iconHost.Margin = new Thickness(0);
+        Grid.SetRow(textHost, 1);
+        Grid.SetColumn(textHost, 0);
+        Grid.SetColumnSpan(textHost, 3);
+        textHost.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+        textHost.VerticalAlignment = System.Windows.VerticalAlignment.Top;
+        textHost.Margin = new Thickness(0, 12, 0, 0);
+        titleRowPanel.Orientation = ControlsOrientation.Vertical;
+        badgeHost.Margin = new Thickness(0, 8, 0, 0);
     }
 
     private void ApplyCompactLayout()
@@ -268,32 +293,77 @@ public partial class PageTitleBar : WpfUserControl
         var textHost = _textHost;
         var titleRowPanel = _titleRowPanel;
         var badgeHost = _badgeHost;
+        var iconHost = _iconHost;
 
-        if (trailingColumn is null || trailingPresenter is null || textHost is null || titleRowPanel is null || badgeHost is null)
+        if (trailingColumn is null || trailingPresenter is null || textHost is null || titleRowPanel is null || badgeHost is null || iconHost is null)
         {
             return;
         }
 
         trailingColumn.Width = new GridLength(0d, GridUnitType.Pixel);
-        Grid.SetRow(trailingPresenter, 1);
+        Grid.SetRow(trailingPresenter, 2);
         Grid.SetColumn(trailingPresenter, 0);
         Grid.SetColumnSpan(trailingPresenter, 3);
         trailingPresenter.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
         trailingPresenter.VerticalAlignment = System.Windows.VerticalAlignment.Top;
         trailingPresenter.Margin = new Thickness(0, 16, 0, 0);
-        titleRowPanel.Orientation = ControlsOrientation.Vertical;
+        Grid.SetRow(iconHost, 0);
+        Grid.SetColumn(iconHost, 0);
+        Grid.SetColumnSpan(iconHost, 3);
+        iconHost.HorizontalAlignment = System.Windows.HorizontalAlignment.Center;
+        iconHost.VerticalAlignment = System.Windows.VerticalAlignment.Center;
+        iconHost.Margin = new Thickness(0);
+        Grid.SetRow(textHost, 1);
+        Grid.SetColumn(textHost, 0);
+        Grid.SetColumnSpan(textHost, 3);
+        textHost.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+        textHost.VerticalAlignment = System.Windows.VerticalAlignment.Top;
         textHost.Margin = new Thickness(0, 12, 0, 0);
+        titleRowPanel.Orientation = ControlsOrientation.Vertical;
         badgeHost.Margin = new Thickness(0, 8, 0, 0);
+    }
+
+    private static void OnIconGlyphChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is not PageTitleBar titleBar)
+        {
+            return;
+        }
+
+        titleBar.RefreshLayoutForIconChange();
+    }
+
+    private void RefreshLayoutForIconChange()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(_currentLayoutState))
+        {
+            UpdateResponsiveState(ActualWidth);
+            return;
+        }
+
+        ApplyLayoutState(_currentLayoutState);
+    }
+
+    private Thickness GetHorizontalIconSpacingMargin()
+    {
+        var hasIcon = !string.IsNullOrWhiteSpace(IconGlyph);
+        return hasIcon ? new Thickness(16, 0, 0, 0) : new Thickness(0);
     }
 
     private bool EnsureResponsiveTargets()
     {
         CaptureResponsiveTargets();
         return _trailingColumn is not null
-               && _trailingPresenter is not null
-               && _textHost is not null
-               && _titleRowPanel is not null
-               && _badgeHost is not null;
+            && _trailingPresenter is not null
+            && _textHost is not null
+            && _titleRowPanel is not null
+            && _badgeHost is not null
+            && _iconHost is not null;
     }
 
     private void CaptureResponsiveTargets()
@@ -303,6 +373,7 @@ public partial class PageTitleBar : WpfUserControl
         _textHost ??= FindName("TextHost") as StackPanel;
         _titleRowPanel ??= FindName("TitleRowPanel") as StackPanel;
         _badgeHost ??= FindName("BadgeHost") as Border;
+        _iconHost ??= FindName("IconHost") as Border;
     }
 
     private void LoadComponent()
