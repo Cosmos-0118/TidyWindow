@@ -1103,7 +1103,7 @@ function Write-TidyStructuredEvent {
     param(
         [Parameter(Mandatory = $true)]
         [string] $Type,
-        [hashtable] $Payload
+        [object] $Payload
     )
 
     $envelope = [ordered]@{
@@ -1112,8 +1112,20 @@ function Write-TidyStructuredEvent {
     }
 
     if ($Payload) {
-        foreach ($key in $Payload.Keys) {
-            $envelope[$key] = $Payload[$key]
+        if ($Payload -is [System.Collections.IDictionary]) {
+            foreach ($key in $Payload.Keys) {
+                $envelope[$key] = $Payload[$key]
+            }
+        }
+        elseif ($Payload -is [pscustomobject]) {
+            foreach ($prop in $Payload.PSObject.Properties) {
+                if (-not [string]::IsNullOrWhiteSpace($prop.Name)) {
+                    $envelope[$prop.Name] = $prop.Value
+                }
+            }
+        }
+        else {
+            $envelope['payload'] = $Payload
         }
     }
 
@@ -1148,7 +1160,7 @@ function Invoke-TidyCommandLine {
 
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = 'cmd.exe'
-    $psi.Arguments = "/d /s /c \"$CommandLine\""
+    $psi.Arguments = "/d /s /c ""$CommandLine"""
     $psi.UseShellExecute = $false
     $psi.RedirectStandardOutput = $true
     $psi.RedirectStandardError = $true

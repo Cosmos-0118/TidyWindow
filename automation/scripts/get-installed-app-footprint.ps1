@@ -16,19 +16,25 @@ function New-StringSet {
     return New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
 }
 
-function Resolve-TidyPath {
+function Convert-SetToArray {
+    param([System.Collections.Generic.HashSet[string]] $Set)
+
+    if (-not $Set -or $Set.Count -eq 0) { return @() }
+
+    $buffer = New-Object string[] $Set.Count
+    $Set.CopyTo($buffer)
+    return $buffer
+}
+
+function Resolve-AppFootprintPath {
     param([string] $Value)
 
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        return $null
-    }
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
 
     $expanded = [Environment]::ExpandEnvironmentVariables($Value.Trim().Trim('"'))
     if ($expanded.StartsWith('~')) {
         $home = $env:USERPROFILE
-        if (-not [string]::IsNullOrWhiteSpace($home)) {
-            $expanded = $home + $expanded.Substring(1)
-        }
+        if ($home) { $expanded = $home + $expanded.Substring(1) }
     }
 
     try {
@@ -39,95 +45,49 @@ function Resolve-TidyPath {
     }
 }
 
-function Normalize-NameKey {
+function ConvertTo-NormalizedKey {
     param([string] $Value)
 
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        return $null
-    }
-
-    $clean = $Value.ToLowerInvariant()
-    $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, '[^a-z0-9]', '')
-    if ([string]::IsNullOrWhiteSpace($clean)) {
-        return $null
-    }
-
-    return $clean
+    if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
+    $lower = $Value.ToLowerInvariant()
+    $collapsed = [System.Text.RegularExpressions.Regex]::Replace($lower, '[^a-z0-9]', '')
+    if ([string]::IsNullOrWhiteSpace($collapsed)) { return $null }
+    return $collapsed
 }
 
-function Get-ModulePath {
+function Get-ScriptRelativePath {
     param([string] $Relative)
 
-    $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
-    $candidate = Join-Path -Path $scriptRoot -ChildPath $Relative
-    return [System.IO.Path]::GetFullPath($candidate)
+    $root = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
+    return [System.IO.Path]::GetFullPath((Join-Path -Path $root -ChildPath $Relative))
 }
 
-$modulePath = Get-ModulePath -Relative '..\modules\TidyWindow.Automation.psm1'
+$modulePath = Get-ScriptRelativePath -Relative '..\modules\TidyWindow.Automation.psm1'
 if (-not (Test-Path -LiteralPath $modulePath)) {
     throw "Automation module not found at '$modulePath'."
 }
 
 Import-Module $modulePath -Force
 
-$inventoryScript = Get-ModulePath -Relative 'get-package-inventory.ps1'
+$inventoryScript = Get-ScriptRelativePath -Relative 'get-package-inventory.ps1'
 if (-not (Test-Path -LiteralPath $inventoryScript)) {
     throw "Dependent inventory script not found at '$inventoryScript'."
 }
 
-function Try-ConvertToJsonObject {
+function Try-ParseJson {
     param([string] $Json)
 
-    if ([string]::IsNullOrWhiteSpace($Json)) {
-        return $null
-    }
-
-    try {
-        return $Json | ConvertFrom-Json -Depth 8 -ErrorAction Stop
-    }
-    catch {
-        return $null
-    }
+    if ([string]::IsNullOrWhiteSpace($Json)) { return $null }
+    try { return $Json | ConvertFrom-Json -Depth 8 -ErrorAction Stop } catch { return $null }
 }
 
-function Invoke-ManagerInventory {
-    param([string[]] $Managers, [System.Collections.Generic.List[string]] $Warnings)
-
-    if (-not $Managers -or $Managers.Count -eq 0) {
-        return @()
-    }
-
-    $command = @($inventoryScript)
-    foreach ($manager in $Managers) {
-        if ([string]::IsNullOrWhiteSpace($manager)) { continue }
-        $command += '-Managers'
-        $command += $manager
-    }
-
-    try {
-        $json = & $inventoryScript -Managers $Managers 2>$null
-        $payload = Try-ConvertToJsonObject -Json $json
-        if (-not $payload) {
-            if ($Warnings) { $Warnings.Add('Failed to parse manager inventory output.') | Out-Null }
-            return @()
-        }
-
-        return @($payload.packages)
-    }
-    catch {
-        if ($Warnings) { $Warnings.Add("Manager inventory failed: $($_.Exception.Message)") | Out-Null }
-        return @()
-    }
-}
-
-function Resolve-SizeBytes {
+function Resolve-EstimatedSizeBytes {
     param([object] $Value)
 
     if ($null -eq $Value) { return $null }
     try {
         $numeric = [double]$Value
         if ($numeric -le 0) { return $null }
-        # EstimatedSize is reported in KB
         return [math]::Round($numeric * 1024)
     }
     catch {
@@ -169,8 +129,18 @@ function New-AppRecord {
         registry              = $null
         tags                  = @($Tags)
         confidence            = $Source
-        _normalizedName       = Normalize-NameKey -Value $Name
+        _normalizedName       = ConvertTo-NormalizedKey -Value $Name
     }
+}
+
+function Resolve-InstallRootFromCommand {
+    param([string] $Command)
+
+    if (-not $Command) { return $null }
+    if ($Command -match '"(?<path>[A-Za-z]:[^" ]+)"') {
+        return Split-Path -Parent $matches['path']
+    }
+    return $null
 }
 
 function Get-RegistryApplications {
@@ -180,61 +150,64 @@ function Get-RegistryApplications {
         [System.Collections.Generic.List[string]] $Warnings
     )
 
-    $items = @()
     try {
         $items = Get-ChildItem -Path $HivePath -ErrorAction Stop
     }
     catch {
-        if ($Warnings) { $Warnings.Add("Failed to enumerate $HivePath: $($_.Exception.Message)") | Out-Null }
+        if ($Warnings) { $Warnings.Add("Failed to enumerate $($HivePath): $($_.Exception.Message)") | Out-Null }
         return @()
     }
 
     $results = New-Object 'System.Collections.Generic.List[psobject]'
     foreach ($item in $items) {
-        try {
-            $displayName = $item.GetValue('DisplayName')
-        }
-        catch {
-            $displayName = $null
-        }
-
-        if ([string]::IsNullOrWhiteSpace($displayName)) {
-            continue
-        }
+        $displayName = $null
+        try { $displayName = $item.GetValue('DisplayName') } catch { $displayName = $null }
+        if ([string]::IsNullOrWhiteSpace($displayName)) { continue }
 
         try {
-            $systemComponent = $item.GetValue('SystemComponent')
-            if ($systemComponent -eq 1) { continue }
+            if ($item.GetValue('SystemComponent') -eq 1) { continue }
         }
         catch { }
 
         $installLocation = $null
         try { $installLocation = $item.GetValue('InstallLocation') } catch { }
-        $installRoot = Resolve-TidyPath -Value $installLocation
+        $installRoot = Resolve-AppFootprintPath -Value $installLocation
 
         $uninstallCommand = $null
         try { $uninstallCommand = $item.GetValue('UninstallString') } catch { }
+
+        if (-not $installRoot) {
+            $installRoot = Resolve-InstallRootFromCommand -Command $uninstallCommand
+        }
+
         $quietCommand = $null
         try { $quietCommand = $item.GetValue('QuietUninstallString') } catch { }
 
-        if (-not $installRoot -and $uninstallCommand -and ($uninstallCommand -match '"(?<path>[A-Za-z]:[^" ]+)"')) {
-            $installRoot = Split-Path -Parent $matches['path']
-        }
+        $displayVersion = $null
+        try { $displayVersion = $item.GetValue('DisplayVersion') } catch { }
+        $publisher = $null
+        try { $publisher = $item.GetValue('Publisher') } catch { }
+        $estimatedSizeRaw = $null
+        try { $estimatedSizeRaw = $item.GetValue('EstimatedSize') } catch { }
+        $displayIcon = $null
+        try { $displayIcon = $item.GetValue('DisplayIcon') } catch { }
+        $installDate = $null
+        try { $installDate = $item.GetValue('InstallDate') } catch { }
 
-        $appId = "registry:$Scope:$($item.Name)"
-        $record = New-AppRecord -AppId $appId -Name $displayName -Version ($item.GetValue('DisplayVersion')) -Source 'registry' -Scope $Scope -InstallRoot $installRoot -UninstallCommand $uninstallCommand -QuietUninstallCommand $quietCommand -PackageFamily $null -Tags 'registry','win32'
-        $record.publisher = try { $item.GetValue('Publisher') } catch { $null }
-        $record.estimatedSizeBytes = Resolve-SizeBytes -Value (try { $item.GetValue('EstimatedSize') } catch { $null })
+        $appId = "registry:$($Scope):$($item.Name)"
+        $record = New-AppRecord -AppId $appId -Name $displayName -Version $displayVersion -Source 'registry' -Scope $Scope -InstallRoot (Resolve-AppFootprintPath -Value $installRoot) -UninstallCommand $uninstallCommand -QuietUninstallCommand $quietCommand -PackageFamily $null -Tags 'registry','win32'
+        $record.publisher = $publisher
+        $record.estimatedSizeBytes = Resolve-EstimatedSizeBytes -Value $estimatedSizeRaw
         $record.registry = [pscustomobject]@{
-            hive      = $HivePath
-            keyPath   = $item.Name
-            displayIcon = try { $item.GetValue('DisplayIcon') } catch { $null }
-            installDate = try { $item.GetValue('InstallDate') } catch { $null }
+            hive            = $HivePath
+            keyPath         = $item.Name
+            displayIcon     = $displayIcon
+            installDate     = $installDate
             installLocation = $installLocation
         }
 
-        if ($installRoot) {
-            $record.artifactHints = @($installRoot)
+        if ($record.installRoot) {
+            $record.artifactHints = @($record.installRoot)
         }
 
         $results.Add($record) | Out-Null
@@ -246,31 +219,31 @@ function Get-RegistryApplications {
 function Get-AppxApplications {
     param([switch] $AllUsers, [System.Collections.Generic.List[string]] $Warnings)
 
-    $results = New-Object 'System.Collections.Generic.List[psobject]'
-    $targets = @()
+    $packages = @()
     try {
-        $targets += Get-AppxPackage -AllUsers:$AllUsers -ErrorAction Stop
+        $packages = Get-AppxPackage -AllUsers:$AllUsers -ErrorAction Stop
     }
     catch {
         if ($Warnings) { $Warnings.Add("Get-AppxPackage failed: $($_.Exception.Message)") | Out-Null }
     }
 
-    foreach ($pkg in $targets) {
+    $results = New-Object 'System.Collections.Generic.List[psobject]'
+    foreach ($pkg in $packages) {
         if ($null -eq $pkg) { continue }
         $name = if ($pkg.Name) { $pkg.Name } elseif ($pkg.PackageFamilyName) { $pkg.PackageFamilyName } else { $pkg.PackageFullName }
         $installRoot = $null
         if ($pkg.InstallLocation -and (Test-Path -LiteralPath $pkg.InstallLocation)) {
-            $installRoot = Resolve-TidyPath -Value $pkg.InstallLocation
+            $installRoot = Resolve-AppFootprintPath -Value $pkg.InstallLocation
         }
 
         $appId = "appx:$($pkg.PackageFullName)"
-        $uninstallCommand = "Remove-AppxPackage -Package '$($pkg.PackageFullName)'"
-        $pkgVersion = $null
+        $scope = if ($pkg.IsFramework) { 'Framework' } else { 'User' }
+        $version = $null
         if ($pkg.Version) {
-            try { $pkgVersion = $pkg.Version.ToString() } catch { $pkgVersion = $null }
+            try { $version = $pkg.Version.ToString() } catch { }
         }
 
-        $record = New-AppRecord -AppId $appId -Name $name -Version $pkgVersion -Source 'appx' -Scope (if ($pkg.IsFramework) { 'Framework' } else { 'User' }) -InstallRoot $installRoot -UninstallCommand $uninstallCommand -QuietUninstallCommand $null -PackageFamily $pkg.PackageFamilyName -Tags 'appx'
+        $record = New-AppRecord -AppId $appId -Name $name -Version $version -Source 'appx' -Scope $scope -InstallRoot $installRoot -UninstallCommand "Remove-AppxPackage -Package '$($pkg.PackageFullName)'" -QuietUninstallCommand $null -PackageFamily $pkg.PackageFamilyName -Tags 'appx'
         $record.publisher = $pkg.Publisher
         if ($installRoot) {
             $record.artifactHints = @($installRoot)
@@ -282,6 +255,26 @@ function Get-AppxApplications {
     return $results
 }
 
+function Invoke-ManagerInventory {
+    param([string[]] $Managers, [System.Collections.Generic.List[string]] $Warnings)
+
+    if (-not $Managers -or $Managers.Count -eq 0) { return @() }
+    try {
+        $json = & $inventoryScript -Managers $Managers 2>$null
+        $payload = Try-ParseJson -Json $json
+        if (-not $payload) {
+            if ($Warnings) { $Warnings.Add('Failed to parse manager inventory output.') | Out-Null }
+            return @()
+        }
+
+        return @($payload.packages)
+    }
+    catch {
+        if ($Warnings) { $Warnings.Add("Manager inventory failed: $($_.Exception.Message)") | Out-Null }
+        return @()
+    }
+}
+
 function Add-ManagerHints {
     param(
         [psobject[]] $Apps,
@@ -290,24 +283,21 @@ function Add-ManagerHints {
 
     if (-not $Apps -or -not $ManagerPackages) { return }
 
-    $lookupByName = New-Object 'System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[psobject]]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $lookup = New-Object 'System.Collections.Generic.Dictionary[string, System.Collections.Generic.List[psobject]]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($pkg in $ManagerPackages) {
         if (-not $pkg.Name) { continue }
-        $key = Normalize-NameKey -Value $pkg.Name
+        $key = ConvertTo-NormalizedKey -Value $pkg.Name
         if (-not $key) { continue }
-
-        if (-not $lookupByName.ContainsKey($key)) {
-            $lookupByName[$key] = New-Object 'System.Collections.Generic.List[psobject]'
+        if (-not $lookup.ContainsKey($key)) {
+            $lookup[$key] = New-Object 'System.Collections.Generic.List[psobject]'
         }
-
-        $lookupByName[$key].Add($pkg) | Out-Null
+        $lookup[$key].Add($pkg) | Out-Null
     }
 
     foreach ($app in $Apps) {
         if (-not $app._normalizedName) { continue }
-        if (-not $lookupByName.ContainsKey($app._normalizedName)) { continue }
-
-        foreach ($pkg in $lookupByName[$app._normalizedName]) {
+        if (-not $lookup.ContainsKey($app._normalizedName)) { continue }
+        foreach ($pkg in $lookup[$app._normalizedName]) {
             $app.managerHints += [pscustomobject]@{
                 manager          = $pkg.Manager
                 packageId        = $pkg.Id
@@ -320,12 +310,12 @@ function Add-ManagerHints {
 }
 
 function Get-ProcessSnapshot {
-    $results = New-Object 'System.Collections.Generic.List[psobject]'
+    $snapshot = New-Object 'System.Collections.Generic.List[psobject]'
     try {
         Get-Process | ForEach-Object {
             $path = $null
             try { $path = $_.Path } catch { $path = $null }
-            $results.Add([pscustomobject]@{
+            $snapshot.Add([pscustomobject]@{
                 id   = $_.Id
                 name = $_.ProcessName
                 path = $path
@@ -334,14 +324,14 @@ function Get-ProcessSnapshot {
     }
     catch { }
 
-    return $results
+    return $snapshot
 }
 
 function Get-ServiceSnapshot {
-    $results = New-Object 'System.Collections.Generic.List[psobject]'
+    $snapshot = New-Object 'System.Collections.Generic.List[psobject]'
     try {
         Get-CimInstance -ClassName Win32_Service | ForEach-Object {
-            $results.Add([pscustomobject]@{
+            $snapshot.Add([pscustomobject]@{
                 name        = $_.Name
                 displayName = $_.DisplayName
                 path        = $_.PathName
@@ -351,7 +341,34 @@ function Get-ServiceSnapshot {
     }
     catch { }
 
-    return $results
+    return $snapshot
+}
+
+function Update-AppArtifactHints {
+    param(
+        [psobject] $App,
+        [System.Collections.Generic.HashSet[string]] $ArtifactRoots
+    )
+
+    if (-not $App -or -not $ArtifactRoots) { return }
+    if (-not [string]::IsNullOrWhiteSpace($App.installRoot)) {
+        [void]$ArtifactRoots.Add($App.installRoot)
+    }
+
+    $registryLocation = $null
+    if ($App.registry -and $App.registry.PSObject.Properties['installLocation']) {
+        $registryLocation = $App.registry.installLocation
+    }
+
+    if ($registryLocation) {
+        $resolved = Resolve-AppFootprintPath -Value $registryLocation
+        if ($resolved) { [void]$ArtifactRoots.Add($resolved) }
+    }
+
+    if ($App.packageFamilyName) {
+        $wildcard = Join-Path -Path $env:ProgramFiles -ChildPath "WindowsApps\$($App.packageFamilyName)*"
+        if ($wildcard) { [void]$ArtifactRoots.Add($wildcard) }
+    }
 }
 
 function Add-ProcessServiceHints {
@@ -366,78 +383,58 @@ function Add-ProcessServiceHints {
     if (-not $Apps) { return }
 
     foreach ($app in $Apps) {
-        $processSet = New-StringSet
-        $serviceSet = New-StringSet
-        $root = $app.installRoot
-        $nameKey = Normalize-NameKey -Value $app.name
+        $processHints = New-StringSet
+        $serviceHints = New-StringSet
+        $nameKey = ConvertTo-NormalizedKey -Value $app.name
 
-        if ($ProcessSnapshot -and $root) {
+        if ($ProcessSnapshot -and $app.installRoot) {
             foreach ($proc in $ProcessSnapshot) {
-                if ($processSet.Count -ge $MaxProcessHints) { break }
+                if ($processHints.Count -ge $MaxProcessHints) { break }
                 if ([string]::IsNullOrWhiteSpace($proc.path)) { continue }
-                if ($proc.path.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
-                    [void]$processSet.Add($proc.name)
+                if ($proc.path.StartsWith($app.installRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    [void]$processHints.Add($proc.name)
                 }
             }
         }
 
-        if ($ProcessSnapshot -and $processSet.Count -lt $MaxProcessHints -and $nameKey) {
+        if ($ProcessSnapshot -and $processHints.Count -lt $MaxProcessHints -and $nameKey) {
             foreach ($proc in $ProcessSnapshot) {
-                if ($processSet.Count -ge $MaxProcessHints) { break }
+                if ($processHints.Count -ge $MaxProcessHints) { break }
                 if ([string]::IsNullOrWhiteSpace($proc.name)) { continue }
-                $procKey = Normalize-NameKey -Value $proc.name
+                $procKey = ConvertTo-NormalizedKey -Value $proc.name
                 if ($procKey -and $procKey.Contains($nameKey)) {
-                    [void]$processSet.Add($proc.name)
+                    [void]$processHints.Add($proc.name)
                 }
             }
         }
 
-        if ($ServiceSnapshot -and $root) {
+        if ($ServiceSnapshot -and $app.installRoot) {
             foreach ($svc in $ServiceSnapshot) {
-                if ($serviceSet.Count -ge $MaxServiceHints) { break }
+                if ($serviceHints.Count -ge $MaxServiceHints) { break }
                 if ([string]::IsNullOrWhiteSpace($svc.path)) { continue }
-                if ($svc.path.IndexOf($root, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-                    [void]$serviceSet.Add($svc.name)
+                if ($svc.path.IndexOf($app.installRoot, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    [void]$serviceHints.Add($svc.name)
                 }
             }
         }
 
-        if ($ServiceSnapshot -and $serviceSet.Count -lt $MaxServiceHints -and $nameKey) {
+        if ($ServiceSnapshot -and $serviceHints.Count -lt $MaxServiceHints -and $nameKey) {
             foreach ($svc in $ServiceSnapshot) {
-                if ($serviceSet.Count -ge $MaxServiceHints) { break }
-                $svcKey = Normalize-NameKey -Value $svc.displayName
+                if ($serviceHints.Count -ge $MaxServiceHints) { break }
+                if ([string]::IsNullOrWhiteSpace($svc.displayName)) { continue }
+                $svcKey = ConvertTo-NormalizedKey -Value $svc.displayName
                 if ($svcKey -and $svcKey.Contains($nameKey)) {
-                    [void]$serviceSet.Add($svc.name)
+                    [void]$serviceHints.Add($svc.name)
                 }
             }
         }
 
-        $app.processHints = @($processSet.ToArray())
-        $app.serviceHints = @($serviceSet.ToArray())
+        $app.processHints = @(Convert-SetToArray -Set $processHints)
+        $app.serviceHints = @(Convert-SetToArray -Set $serviceHints)
 
         $artifactRoots = New-StringSet
-        if (-not [string]::IsNullOrWhiteSpace($app.installRoot)) {
-            [void]$artifactRoots.Add($app.installRoot)
-        }
-
-        $registryInstall = $null
-        if ($app.registry -and $app.registry.PSObject.Properties['installLocation']) {
-            $registryInstall = $app.registry.installLocation
-        }
-
-        if (-not [string]::IsNullOrWhiteSpace($registryInstall)) {
-            $resolvedRegistryInstall = Resolve-TidyPath -Value $registryInstall
-            if (-not [string]::IsNullOrWhiteSpace($resolvedRegistryInstall)) {
-                [void]$artifactRoots.Add($resolvedRegistryInstall)
-            }
-        }
-
-        if ($app.packageFamilyName) {
-            $windowsApps = Join-Path -Path $env:ProgramFiles -ChildPath "WindowsApps\$($app.packageFamilyName)*"
-            [void]$artifactRoots.Add($windowsApps)
-        }
-
-        $app.artifactHints = @($artifactRoots.ToArray())
+        Update-AppArtifactHints -App $app -ArtifactRoots $artifactRoots
+        $app.artifactHints = @(Convert-SetToArray -Set $artifactRoots)
     }
 }
 
@@ -465,6 +462,8 @@ if (-not $SkipProcessScan) {
 else {
     foreach ($app in $allApps) {
         $app.artifactHints = @(($app.installRoot) | Where-Object { $_ })
+        $app.processHints = @()
+        $app.serviceHints = @()
     }
 }
 
@@ -480,12 +479,11 @@ $payload = [pscustomobject]@{
 
 $json = $payload | ConvertTo-Json -Depth 6
 if ($OutputPath) {
-    $resolved = Resolve-TidyPath -Value $OutputPath
+    $resolved = Resolve-AppFootprintPath -Value $OutputPath
     $directory = Split-Path -Parent $resolved
-    if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path -LiteralPath $directory)) {
+    if ($directory -and -not (Test-Path -LiteralPath $directory)) {
         [void](New-Item -Path $directory -ItemType Directory -Force)
     }
-
     $json | Out-File -FilePath $resolved -Encoding utf8 -Force
 }
 

@@ -1,0 +1,296 @@
+<Page x:Class="TidyWindow.App.Views.ProjectOblivionPage"
+            xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+            xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+            xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+            xmlns:views="clr-namespace:TidyWindow.App.Views"
+            xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+      Title="Project Oblivion"
+      mc:Ignorable="d"
+      Background="Transparent">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+                <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <SolidColorBrush x:Key="OblivionBackgroundBrush" Color="#030B1C"/>
+        <SolidColorBrush x:Key="OblivionSurfaceBrush" Color="#0B172C"/>
+        <SolidColorBrush x:Key="OblivionBorderBrush" Color="#1F2B3F"/>
+        <SolidColorBrush x:Key="OblivionMutedTextBrush" Color="#94A3B8"/>
+        <SolidColorBrush x:Key="OblivionAccentBrush" Color="#38BDF8"/>
+        <Style x:Key="OblivionCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource OblivionSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource OblivionBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="Margin" Value="0,0,24,0"/>
+        </Style>
+        <DataTemplate x:Key="AppListItemTemplate">
+            <Border BorderBrush="#1F2B3F"
+                    BorderThickness="1"
+                    CornerRadius="14"
+                    Padding="16"
+                    Margin="0,0,0,12"
+                    Background="#111F35">
+                <StackPanel>
+                    <TextBlock Text="{Binding Name}"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="{Binding Subtitle}"
+                               Foreground="#A5B4FC"
+                               Margin="0,6,0,0"
+                               TextWrapping="Wrap"
+                               FontSize="13"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Border Background="#12263F"
+                                CornerRadius="12"
+                                Padding="10,4"
+                                Margin="0,0,10,0">
+                            <TextBlock Text="{Binding SizeDisplay}"
+                                       Foreground="#E2E8F0"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"/>
+                        </Border>
+                        <Border Background="#12263F"
+                                CornerRadius="12"
+                                Padding="10,4">
+                            <TextBlock Text="{Binding ScopeDisplay}"
+                                       Foreground="#E2E8F0"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"/>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+    </Page.Resources>
+
+    <Grid Background="{StaticResource OblivionBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <StackPanel Margin="20,20,20,0">
+            <TextBlock Text="{Binding Headline}"
+                       FontSize="30"
+                       FontWeight="SemiBold"
+                       Foreground="#F8FAFC"/>
+            <TextBlock Text="{Binding Summary}"
+                       Foreground="{StaticResource OblivionMutedTextBrush}"
+                       Margin="0,6,0,0"/>
+            <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                <Button Content="Refresh inventory"
+                        Margin="0,0,12,0"
+                        Padding="18,8"
+                        Command="{Binding RefreshCommand}"
+                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"/>
+                <Button Content="Launch Project Oblivion"
+                        Padding="18,8"
+                        Command="{Binding LaunchPopupCommand}"/>
+                <TextBlock Text="{Binding LastRefreshedDisplay}"
+                           Foreground="{StaticResource OblivionMutedTextBrush}"
+                           Margin="16,8,0,0"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="20,20,20,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="2*"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0" Style="{StaticResource OblivionCardStyle}" Margin="0,0,24,0">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Inventory"
+                               Grid.Row="0"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"/>
+                    <Grid Grid.Row="1" Margin="0,16,0,16">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Border Background="#111D33"
+                                CornerRadius="12"
+                                BorderBrush="#1E293B"
+                                BorderThickness="1"
+                                Padding="12,8">
+                            <DockPanel>
+                                <TextBox BorderThickness="0"
+                                         Background="Transparent"
+                                         Foreground="#F8FAFC"
+                                         FontSize="14"
+                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Filter by name, publisher, or tag">
+                                    <TextBox.Style>
+                                        <Style TargetType="TextBox">
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="TextBox">
+                                                        <Grid>
+                                                            <ScrollViewer x:Name="PART_ContentHost"/>
+                                                            <TextBlock Text="Search installed apps"
+                                                                       Foreground="#4B5563"
+                                                                       Margin="2,0,0,0"
+                                                                       IsHitTestVisible="False"
+                                                                       Visibility="Hidden">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Hidden"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource TemplatedParent}}" Value="">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Grid>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </TextBox.Style>
+                                </TextBox>
+                            </DockPanel>
+                        </Border>
+                        <Button Grid.Column="1"
+                                Content="Clear"
+                                Margin="12,0,0,0"
+                                Padding="16,8"
+                                Command="{Binding ClearSearchCommand}"/>
+                    </Grid>
+                    <TextBlock Grid.Row="2"
+                               Text="{Binding Summary}"
+                               Foreground="{StaticResource OblivionMutedTextBrush}"/>
+                    <ListView Grid.Row="3"
+                              ItemsSource="{Binding Apps}"
+                              SelectedItem="{Binding SelectedApp, Mode=TwoWay}"
+                              Margin="0,16,0,0"
+                              BorderThickness="0"
+                              Background="Transparent"
+                              ItemTemplate="{StaticResource AppListItemTemplate}"
+                              HorizontalContentAlignment="Stretch"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto"
+                              ScrollViewer.CanContentScroll="True"
+                              VirtualizingPanel.IsVirtualizing="True"
+                              VirtualizingPanel.VirtualizationMode="Recycling"/>
+                    <TextBlock Grid.Row="4"
+                               Text="Refresh inventory to see installed apps."
+                               Foreground="#F87171"
+                               Margin="0,16,0,0">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasApps}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2*"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Style="{StaticResource OblivionCardStyle}"
+                        Padding="24">
+                    <StackPanel>
+                        <TextBlock Text="Selected application"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F8FAFC"/>
+                        <TextBlock Text="{Binding SelectedApp.Name}"
+                                   FontSize="22"
+                                   FontWeight="SemiBold"
+                                   Foreground="#C7D2FE"
+                                   Margin="0,12,0,0"/>
+                        <TextBlock Text="{Binding SelectedApp.Subtitle}"
+                                   Foreground="#A5B4FC"
+                                   Margin="0,6,0,0"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Border Background="#12263F"
+                                    CornerRadius="12"
+                                    Padding="12,6"
+                                    Margin="0,0,10,0">
+                                <TextBlock Text="{Binding SelectedApp.SizeDisplay}"
+                                           Foreground="#E2E8F0"/>
+                            </Border>
+                            <Border Background="#12263F"
+                                    CornerRadius="12"
+                                    Padding="12,6">
+                                <TextBlock Text="{Binding SelectedApp.ScopeDisplay}"
+                                           Foreground="#E2E8F0"/>
+                            </Border>
+                        </StackPanel>
+                        <Button Content="Open cleanup popup"
+                                Margin="0,20,0,0"
+                                Padding="20,10"
+                                Command="{Binding LaunchPopupCommand}"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Style="{StaticResource OblivionCardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Warnings"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FCD34D"/>
+                        <ItemsControl ItemsSource="{Binding Warnings}"
+                                      Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#3F1D1D"
+                                            CornerRadius="12"
+                                            Padding="12"
+                                            Margin="0,0,0,10">
+                                        <TextBlock Text="{Binding}"
+                                                   Foreground="#FECACA"
+                                                   TextWrapping="Wrap"/>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Text="No warnings."
+                                   Foreground="#94A3B8">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasWarnings}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <Border Background="#99000000"
+                Visibility="{Binding Popup.IsOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
+                Panel.ZIndex="10">
+            <views:ProjectOblivionPopupView DataContext="{Binding Popup}"/>
+        </Border>
+    </Grid>
+</Page>

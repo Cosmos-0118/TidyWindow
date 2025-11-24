@@ -115,6 +115,7 @@ public partial class App : WpfApplication
                 services.AddTransient<EssentialsPage>();
                 services.AddTransient<RegistryOptimizerPage>();
                 services.AddTransient<PathPilotPage>();
+                services.AddTransient<ProjectOblivionPage>();
 
                 services.AddSingleton<MainWindow>();
             })

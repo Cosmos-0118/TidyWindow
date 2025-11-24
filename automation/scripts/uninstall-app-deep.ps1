@@ -104,7 +104,16 @@ Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ProcessSweep'; stat
 $processSnapshot = Get-TidyProcessSnapshot
 $relatedProcesses = Find-TidyRelatedProcesses -App $app -Snapshot $processSnapshot -MaxMatches 50
 $stoppedCount = Stop-TidyProcesses -Processes $relatedProcesses -DryRun:$DryRun -Force
-Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ProcessSweep'; status = 'completed'; detected = $relatedProcesses.Count; stopped = $stoppedCount }
+$relatedCount = if ($relatedProcesses -is [System.Collections.ICollection]) {
+    $relatedProcesses.Count
+}
+elseif ($relatedProcesses) {
+    (@($relatedProcesses)).Count
+}
+else {
+    0
+}
+Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ProcessSweep'; status = 'completed'; detected = $relatedCount; stopped = $stoppedCount }
 
 # Stage: Artifact discovery
 Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ArtifactDiscovery'; status = 'started' }
@@ -173,6 +182,7 @@ $summary = @{
     failures   = $failures
     freedBytes = $removalResult.FreedBytes
     timestamp  = [DateTimeOffset]::UtcNow.ToString('o')
+    logPath    = $logPath
 }
 
 Write-TidyRunLog -Path $logPath -Payload $summary

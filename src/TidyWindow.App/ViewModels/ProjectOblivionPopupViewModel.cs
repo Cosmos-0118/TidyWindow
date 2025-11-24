@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -146,12 +147,21 @@ public sealed partial class ProjectOblivionArtifactGroupViewModel : ObservableOb
         {
             item.IsSelected = isSelected;
         }
+
+        NotifySelectionMetricsChanged();
+    }
+
+    public void NotifySelectionMetricsChanged()
+    {
+        OnPropertyChanged(nameof(SelectedCount));
+        OnPropertyChanged(nameof(SelectedSizeBytes));
+        OnPropertyChanged(nameof(AreAllSelected));
     }
 }
 
 public sealed record ProjectOblivionRunLogEntry(DateTimeOffset Timestamp, ProjectOblivionLogLevel Level, string Message, string? Raw);
 
-public sealed record ProjectOblivionRunSummaryViewModel(int Removed, int Skipped, int FailureCount, long FreedBytes, DateTimeOffset CompletedAt)
+public sealed record ProjectOblivionRunSummaryViewModel(int Removed, int Skipped, int FailureCount, long FreedBytes, DateTimeOffset CompletedAt, string? LogPath)
 {
     public string FreedDisplay => ProjectOblivionPopupViewModel.FormatSize(FreedBytes);
 }
@@ -269,6 +279,9 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     [ObservableProperty]
     private bool _hasSummary;
 
+    [ObservableProperty]
+    private string? _runLogPath;
+
     partial void OnIsBusyChanged(bool value)
     {
         StartRunCommand.NotifyCanExecuteChanged();
@@ -284,6 +297,14 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     {
         OnPropertyChanged(nameof(SelectedArtifactSizeDisplay));
     }
+
+    partial void OnRunLogPathChanged(string? value)
+    {
+        OnPropertyChanged(nameof(HasRunLog));
+        ViewRunLogCommand.NotifyCanExecuteChanged();
+    }
+
+    public bool HasRunLog => !string.IsNullOrWhiteSpace(RunLogPath) && File.Exists(RunLogPath!);
 
     public void Prepare(ProjectOblivionApp app, string inventoryPath)
     {
@@ -354,6 +375,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
             CancelRunCommand.NotifyCanExecuteChanged();
             StartRunCommand.NotifyCanExecuteChanged();
             CommitSelectionCommand.NotifyCanExecuteChanged();
+            DeleteSelectionFile();
         }
     }
 
@@ -417,7 +439,42 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     {
         CancelRun();
         IsOpen = false;
+        DeleteSelectionFile();
     }
+
+    [RelayCommand(CanExecute = nameof(CanViewRunLog))]
+    private void ViewRunLog()
+    {
+        if (string.IsNullOrWhiteSpace(RunLogPath))
+        {
+            return;
+        }
+
+        if (!File.Exists(RunLogPath))
+        {
+            _mainViewModel.SetStatusMessage("Run log is no longer available.");
+            RunLogPath = null;
+            return;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = RunLogPath,
+                UseShellExecute = true
+            };
+
+            Process.Start(startInfo);
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.SetStatusMessage("Opening the run log failed.");
+            Log(ProjectOblivionLogLevel.Error, "Failed to open run log.", ex.ToString());
+        }
+    }
+
+    private bool CanViewRunLog() => HasRunLog;
 
     public void Dispose()
     {
@@ -524,7 +581,11 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
                     artifact.RequiresElevation,
                     artifact.DefaultSelected,
                     metadata);
-                artifactVm.SelectionChanged += OnArtifactSelectionChanged;
+                artifactVm.SelectionChanged += (s, _) =>
+                {
+                    groupVm.NotifySelectionMetricsChanged();
+                    OnArtifactSelectionChanged(s, EventArgs.Empty);
+                };
                 groupVm.Items.Add(artifactVm);
                 _artifactLookup[artifact.ArtifactId] = artifactVm;
             }
@@ -601,10 +662,19 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         var failures = GetInt(payload, "failures") ?? FailedArtifactCount;
         var freed = GetLong(payload, "freedBytes") ?? 0;
         var timestamp = GetDateTimeOffset(payload, "timestamp") ?? DateTimeOffset.UtcNow;
-        Summary = new ProjectOblivionRunSummaryViewModel(removed, skipped, failures, freed, timestamp);
+        var logPath = NormalizeLogPath(GetString(payload, "logPath"));
+        RunLogPath = logPath;
+        Summary = new ProjectOblivionRunSummaryViewModel(removed, skipped, failures, freed, timestamp, RunLogPath);
         HasSummary = true;
         SetStageCompleted(ProjectOblivionStage.Summary, $"Removed {removed}, skipped {skipped}.");
         Log(ProjectOblivionLogLevel.Info, $"Summary ready • Removed {removed}, skipped {skipped}, failures {failures}.", payload?.ToJsonString());
+        PersistTelemetry(payload);
+
+        var toast = failures > 0
+            ? $"Project Oblivion completed with {failures} failure(s)."
+            : $"Project Oblivion removed {removed} artifact(s).";
+        _mainViewModel.SetStatusMessage(toast);
+        StatusMessage = toast;
     }
 
     private async Task CommitSelectionInternalAsync(CancellationToken token)
@@ -655,6 +725,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         RunLog.Clear();
         Summary = null;
         HasSummary = false;
+        RunLogPath = null;
         SelectedArtifactCount = 0;
         SelectedArtifactSizeBytes = 0;
         RemovedArtifactCount = 0;
@@ -913,6 +984,29 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         return DateTimeOffset.TryParse(text, out var dto) ? dto : null;
     }
 
+    private static string? NormalizeLogPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(path);
+            if (File.Exists(expanded))
+            {
+                return expanded;
+            }
+        }
+        catch
+        {
+            // Ignore expansion failures.
+        }
+
+        return File.Exists(path) ? path : null;
+    }
+
     private static string BuildSelectionFilePath()
     {
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow", "ProjectOblivion");
@@ -948,6 +1042,81 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         {
             RunLog.RemoveAt(0);
         }
+    }
+
+    private void PersistTelemetry(JsonObject? payload)
+    {
+        if (payload is null || _targetApp is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var baseDirectory = AppContext.BaseDirectory;
+            if (string.IsNullOrWhiteSpace(baseDirectory))
+            {
+                baseDirectory = Environment.CurrentDirectory;
+            }
+
+            var appDirectory = SanitizeForPath(_targetApp.AppId);
+            var cleanupRoot = Path.Combine(baseDirectory, "data", "cleanup", appDirectory);
+            Directory.CreateDirectory(cleanupRoot);
+
+            var telemetry = new JsonObject
+            {
+                ["appId"] = _targetApp.AppId,
+                ["generatedAt"] = DateTimeOffset.UtcNow.ToString("o"),
+                ["summary"] = payload.DeepClone()
+            };
+
+            if (RunLog.Count > 0)
+            {
+                var eventsArray = new JsonArray();
+                foreach (var entry in RunLog)
+                {
+                    var node = new JsonObject
+                    {
+                        ["timestamp"] = entry.Timestamp.ToString("o"),
+                        ["level"] = entry.Level.ToString(),
+                        ["message"] = entry.Message
+                    };
+
+                    if (!string.IsNullOrWhiteSpace(entry.Raw))
+                    {
+                        node["raw"] = entry.Raw;
+                    }
+
+                    eventsArray.Add(node);
+                }
+
+                telemetry["events"] = eventsArray;
+            }
+
+            var outputPath = Path.Combine(cleanupRoot, "oblivion-run.json");
+            File.WriteAllText(outputPath, telemetry.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex)
+        {
+            Log(ProjectOblivionLogLevel.Warning, "Unable to persist run telemetry.", ex.ToString());
+        }
+    }
+
+    private static string SanitizeForPath(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "app";
+        }
+
+        var invalid = Path.GetInvalidFileNameChars();
+        var builder = new StringBuilder(value.Length);
+        foreach (var ch in value)
+        {
+            builder.Append(invalid.Contains(ch) ? '_' : ch);
+        }
+
+        return builder.ToString();
     }
 
     internal static string FormatSize(long bytes)

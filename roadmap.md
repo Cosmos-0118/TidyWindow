@@ -168,8 +168,8 @@ Reference sources: `projectoblivion.txt`, `Future-ideas/idea2.txt`, PathPilot an
 [x] Step 13.2: Create `automation/scripts/uninstall-app-deep.ps1` that performs the stage pipeline (native uninstall → process sweep → artifact discovery → user-selected cleanup → summary) while streaming JSON events for the UI.
 [x] Step 13.3: Extend `automation/modules/TidyWindow.Automation.psm1` with helpers for process correlation, artifact scanning, deletion ordering, and structured logging shared by the deep script.
 [x] Step 13.4: Implement `ProjectOblivionViewModel` (list surface) and `ProjectOblivionPopupViewModel` (timeline, checklist, summary) that consume the streaming events and manage user selections.
-[ ] Step 13.5: Build `Views/ProjectOblivionPage.xaml` plus the modal popup (PathPilot-style animation ring, timeline chips, collapsible log, artifact checklist, summary card) with responsive states.
-[ ] Step 13.6: Persist run telemetry under `data/cleanup/<AppId>/oblivion-run.json`, surface inline success/error toasts, and expose a `View log` CTA from the summary.
+[x] Step 13.5: Build `Views/ProjectOblivionPage.xaml` plus the modal popup (PathPilot-style animation ring, timeline chips, collapsible log, artifact checklist, summary card) with responsive states.
+[x] Step 13.6: Persist run telemetry under `data/cleanup/<AppId>/oblivion-run.json`, surface inline success/error toasts, and expose a `View log` CTA from the summary.
 
 ## Settings Control Center Redesign
 
