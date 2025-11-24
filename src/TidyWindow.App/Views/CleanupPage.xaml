@@ -977,8 +977,6 @@
             Value="14,12"/>
         <Setter Property="SnapsToDevicePixels"
             Value="True"/>
-        <Setter Property="Opacity"
-            Value="0.96"/>
         <Style.Triggers>
         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
                  Value="True">
@@ -986,8 +984,6 @@
                 Value="{StaticResource CleanupAccentBrush}"/>
             <Setter Property="Background"
                 Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
-            <Setter Property="Opacity"
-                Value="1"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
                  Value="True">
@@ -995,8 +991,6 @@
                 Value="{StaticResource CleanupAccentBrush}"/>
             <Setter Property="Background"
                 Value="{StaticResource CleanupSurfaceHighlightBrush}"/>
-            <Setter Property="Opacity"
-                Value="1"/>
         </DataTrigger>
         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsEnabled}"
                  Value="False">
@@ -1976,7 +1970,7 @@
                                               VirtualizingPanel.IsContainerVirtualizable="True"
                                               VirtualizingPanel.ScrollUnit="Pixel"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
-                                              VirtualizingPanel.CacheLength="2"
+                                              VirtualizingPanel.CacheLength="1"
                                               VirtualizingPanel.CacheLengthUnit="Page">
                                         <ListView.ItemsPanel>
                                             <ItemsPanelTemplate>

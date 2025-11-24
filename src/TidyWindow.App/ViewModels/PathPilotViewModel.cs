@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -488,12 +489,14 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
         ExecutableName = runtime.ExecutableName;
         DesiredVersion = runtime.DesiredVersion;
         Description = runtime.Description;
+        FriendlyName = BuildFriendlyRuntimeName(runtime);
         ActiveExecutablePath = runtime.ActiveResolution?.ExecutablePath ?? string.Empty;
         PathEntry = runtime.ActiveResolution?.PathEntry ?? string.Empty;
         MatchesKnownActive = runtime.ActiveResolution?.MatchesKnownInstallation ?? false;
         Status = runtime.Status;
         Installations = new ObservableCollection<PathPilotInstallationViewModel>(
             runtime.Installations.Select(install => new PathPilotInstallationViewModel(runtime, install)));
+        ActiveVersionLabel = BuildActiveVersionLabel(runtime, Installations);
         StatusBadges = new ObservableCollection<PathPilotStatusBadgeViewModel>(BuildStatusBadges(runtime));
         ResolutionOrder = runtime.ResolutionOrder.IsDefaultOrEmpty
             ? Array.Empty<string>()
@@ -511,11 +514,15 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
 
     public string ExecutableName { get; }
 
+    public string FriendlyName { get; }
+
     public string? DesiredVersion { get; }
 
     public string? Description { get; }
 
     public string ActiveExecutablePath { get; }
+
+    public string ActiveVersionLabel { get; }
 
     public string PathEntry { get; }
 
@@ -540,6 +547,12 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
     public bool HasActivePath => !string.IsNullOrWhiteSpace(ActiveExecutablePath);
 
     public bool HasDesiredVersion => !string.IsNullOrWhiteSpace(DesiredVersion);
+
+    public bool HasActiveVersion => !string.IsNullOrWhiteSpace(ActiveVersionLabel);
+
+    public string VersionChipLabel => HasActiveVersion
+        ? $"Active {ActiveVersionLabel}"
+        : $"Version {(HasDesiredVersion ? DesiredVersion : "unknown")}";
 
     public bool HasPathEntry => !string.IsNullOrWhiteSpace(PathEntry);
 
@@ -627,6 +640,100 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
             _ => $"{count} installations detected"
         };
     }
+
+    private static string BuildActiveVersionLabel(PathPilotRuntime runtime, IEnumerable<PathPilotInstallationViewModel> installations)
+    {
+        if (runtime.Status.IsMissing)
+        {
+            return string.Empty;
+        }
+
+        var active = installations.FirstOrDefault(install => install.IsActive);
+        if (active is not null)
+        {
+            return active.VersionDisplay;
+        }
+
+        var fallbackVersion = PathPilotVersionHeuristics.InferFromExecutable(runtime.ActiveResolution?.ExecutablePath);
+        if (!string.IsNullOrWhiteSpace(fallbackVersion))
+        {
+            var friendlyName = BuildFriendlyRuntimeName(runtime);
+            return string.IsNullOrWhiteSpace(friendlyName)
+                ? fallbackVersion
+                : $"{friendlyName} {fallbackVersion}";
+        }
+
+        return string.Empty;
+    }
+
+    internal static string BuildFriendlyRuntimeName(PathPilotRuntime runtime)
+    {
+        if (runtime is null)
+        {
+            return "Runtime";
+        }
+
+        var fromExecutable = NormalizeExecutableName(runtime.ExecutableName);
+        if (!string.IsNullOrWhiteSpace(fromExecutable))
+        {
+            return fromExecutable!;
+        }
+
+        if (!string.IsNullOrWhiteSpace(runtime.Name))
+        {
+            return runtime.Name.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(runtime.Description))
+        {
+            return runtime.Description.Trim();
+        }
+
+        return "Runtime";
+    }
+
+    internal static string? NormalizeExecutableName(string? executableName)
+    {
+        if (string.IsNullOrWhiteSpace(executableName))
+        {
+            return null;
+        }
+
+        var name = Path.GetFileNameWithoutExtension(executableName.Trim());
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        if (name.Equals("pwsh", StringComparison.OrdinalIgnoreCase))
+        {
+            return "PowerShell";
+        }
+
+        if (name.Equals("cmd", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Command Prompt";
+        }
+
+        if (name.StartsWith("python", StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = name.Substring("python".Length).Trim();
+            return suffix.Length > 0 ? $"Python {suffix}" : "Python";
+        }
+
+        if (name.Equals("dotnet", StringComparison.OrdinalIgnoreCase))
+        {
+            return ".NET";
+        }
+
+        var normalized = name.Replace('_', ' ').Replace('-', ' ').Trim();
+        if (normalized.Length == 0)
+        {
+            return null;
+        }
+
+        return CultureInfo.InvariantCulture.TextInfo.ToTitleCase(normalized);
+    }
 }
 
 public sealed class PathPilotInstallationViewModel
@@ -693,25 +800,22 @@ public sealed class PathPilotInstallationViewModel
     {
         static string? Clean(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
-        var candidates = new[]
-        {
-            Clean(installation.Version),
-            Clean(runtime.Description),
-            Clean(runtime.Name),
-            Clean(Path.GetFileName(installation.Directory)),
-            Clean(installation.Directory)
-        };
+        var friendlyRuntimeName = PathPilotRuntimeCardViewModel.BuildFriendlyRuntimeName(runtime);
+        var inferredVersion = Clean(installation.Version) ?? PathPilotVersionHeuristics.InferInstallationVersion(installation);
 
-        foreach (var candidate in candidates)
+        if (!string.IsNullOrWhiteSpace(inferredVersion))
         {
-            if (!string.IsNullOrWhiteSpace(candidate))
-            {
-                return candidate!;
-            }
+            return $"{friendlyRuntimeName} {inferredVersion}";
         }
 
-        return "Unlabeled installation";
+        return Clean(runtime.Description)
+            ?? Clean(runtime.Name)
+            ?? Clean(Path.GetFileName(installation.Directory))
+            ?? Clean(installation.Directory)
+            ?? friendlyRuntimeName
+            ?? "Unlabeled installation";
     }
+
 }
 
 public sealed record PathPilotStatusBadgeViewModel(string Label, PathPilotStatusSeverity Severity);

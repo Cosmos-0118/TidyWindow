@@ -13,6 +13,16 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
         <converters:PathPilotStatusSeverityToBrushConverter x:Key="PathPilotStatusSeverityToBrushConverter"/>
+        <SolidColorBrush x:Key="PathPilotCardPrimaryBrush"
+                 Color="#111D33"/>
+        <SolidColorBrush x:Key="PathPilotCardSecondaryBrush"
+                 Color="#0F1F3A"/>
+        <SolidColorBrush x:Key="PathPilotCardTertiaryBrush"
+                 Color="#142542"/>
+        <SolidColorBrush x:Key="PathPilotVersionChipKnownBrush"
+                 Color="#0E2B3F"/>
+        <SolidColorBrush x:Key="PathPilotVersionChipUnknownBrush"
+                 Color="#3B1A27"/>
 
         <Style x:Key="PathPilotPrimaryButtonStyle"
                TargetType="Button">
@@ -171,7 +181,7 @@
         <Style x:Key="PathPilotCardStyle"
                TargetType="Border">
             <Setter Property="Background"
-                    Value="#0F172A"/>
+                Value="{StaticResource PathPilotCardPrimaryBrush}"/>
             <Setter Property="BorderBrush"
                     Value="#1E293B"/>
             <Setter Property="BorderThickness"
@@ -184,9 +194,26 @@
 
         <DataTemplate x:Key="RuntimeCardTemplate"
                       DataType="{x:Type vm:PathPilotRuntimeCardViewModel}">
-            <Border Style="{StaticResource PathPilotCardStyle}"
-                    Padding="20"
-                    Background="#111D33">
+            <Border Padding="20">
+                <Border.Style>
+                    <Style TargetType="Border"
+                           BasedOn="{StaticResource PathPilotCardStyle}">
+                        <Setter Property="Background"
+                                Value="{StaticResource PathPilotCardPrimaryBrush}"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                                         Value="1">
+                                <Setter Property="Background"
+                                        Value="{StaticResource PathPilotCardSecondaryBrush}"/>
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
+                                         Value="2">
+                                <Setter Property="Background"
+                                        Value="{StaticResource PathPilotCardTertiaryBrush}"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <StackPanel>
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -194,10 +221,61 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel>
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="{Binding FriendlyName}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"
+                                           TextWrapping="Wrap"
+                                           TextTrimming="CharacterEllipsis"/>
+                                <Border Margin="12,0,0,0"
+                                        CornerRadius="14"
+                                        Padding="10,4"
+                                        BorderThickness="1"
+                                        BorderBrush="#38BDF8"
+                                        Background="{StaticResource PathPilotVersionChipKnownBrush}"
+                                        VerticalAlignment="Center">
+                                        <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Background"
+                                                Value="{StaticResource PathPilotVersionChipKnownBrush}"/>
+                                            <Setter Property="BorderBrush"
+                                                Value="#38BDF8"/>
+                                            <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasActiveVersion}"
+                                                     Value="False">
+                                                <Setter Property="Background"
+                                                    Value="{StaticResource PathPilotVersionChipUnknownBrush}"/>
+                                                <Setter Property="BorderBrush"
+                                                    Value="#F472B6"/>
+                                            </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                        </Border.Style>
+                                    <TextBlock Text="{Binding VersionChipLabel}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground"
+                                                        Value="#CFE9FF"/>
+                                                <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasActiveVersion}"
+                                                                 Value="False">
+                                                        <Setter Property="Foreground"
+                                                                Value="#FEE2E2"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </StackPanel>
                             <TextBlock Text="{Binding DisplayName}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"
+                                       FontSize="14"
+                                       Foreground="#B7C7E6"
+                                       Margin="0,6,0,0"
                                        TextWrapping="Wrap"
                                        TextTrimming="CharacterEllipsis"/>
                             <TextBlock Text="{Binding ExecutableName, StringFormat=Executable: {0}}"
@@ -206,13 +284,6 @@
                                        Margin="0,4,0,0"
                                        TextWrapping="Wrap"
                                        TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Text="{Binding DesiredVersion, StringFormat=Desired version: {0}}"
-                                       Foreground="#94A3B8"
-                                       FontSize="12"
-                                       Margin="0,2,0,0"
-                                       TextWrapping="Wrap"
-                                       TextTrimming="CharacterEllipsis"
-                                       Visibility="{Binding HasDesiredVersion, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             <TextBlock Text="{Binding Summary}"
                                        Margin="0,10,0,0"
                                        Foreground="#E2E8F0"
@@ -380,16 +451,32 @@
                                        HorizontalAlignment="Right"/>
                         </DockPanel>
                         <ItemsControl ItemsSource="{Binding Installations}"
-                                      Margin="0,10,0,0">
+                                      Margin="0,10,0,0"
+                                      AlternationCount="2">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate DataType="{x:Type vm:PathPilotInstallationViewModel}">
-                                    <Border Background="#121F34"
-                                            BorderBrush="#1F2F46"
-                                            BorderThickness="1"
+                                    <Border BorderThickness="1"
                                             CornerRadius="12"
                                             Padding="14"
                                             Margin="0,0,0,12"
                                             HorizontalAlignment="Stretch">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background"
+                                                        Value="#121F34"/>
+                                                <Setter Property="BorderBrush"
+                                                        Value="#1F2F46"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
+                                                                 Value="1">
+                                                        <Setter Property="Background"
+                                                                Value="#0F1B2E"/>
+                                                        <Setter Property="BorderBrush"
+                                                                Value="#273B5E"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
                                         <DockPanel LastChildFill="True">
                                             <StackPanel DockPanel.Dock="Right"
                                                         Width="150"
@@ -721,6 +808,7 @@
                                  ItemTemplate="{StaticResource RuntimeCardTemplate}"
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 AlternationCount="3"
                                  VirtualizingPanel.IsVirtualizing="True"
                                  VirtualizingPanel.VirtualizationMode="Recycling"
                                  VirtualizingStackPanel.ScrollUnit="Pixel"

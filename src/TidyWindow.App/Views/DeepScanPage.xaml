@@ -11,20 +11,124 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <SolidColorBrush x:Key="DeepScanSurfaceBrush"
+                         Color="#060F1F"/>
+        <SolidColorBrush x:Key="DeepScanPanelBrush"
+                         Color="#0B162A"/>
+        <LinearGradientBrush x:Key="DeepScanCardBackgroundBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+            <GradientStop Color="#111F3A"
+                          Offset="0"/>
+            <GradientStop Color="#0B1628"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanCardBorderBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+            <GradientStop Color="#1D3B67"
+                          Offset="0"/>
+            <GradientStop Color="#123050"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanActionButtonBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+            <GradientStop Color="#5DF2BC"
+                          Offset="0"/>
+            <GradientStop Color="#2ED4FF"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanActionButtonHoverBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+            <GradientStop Color="#58E396"
+                          Offset="0"/>
+            <GradientStop Color="#1BB4FF"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanSecondaryActionBrush"
+                      StartPoint="0,0"
+                      EndPoint="1,1">
+            <GradientStop Color="#38BDF8"
+                  Offset="0"/>
+            <GradientStop Color="#0EA5E9"
+                  Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanSecondaryActionHoverBrush"
+                      StartPoint="0,0"
+                      EndPoint="1,1">
+            <GradientStop Color="#5DD8FF"
+                  Offset="0"/>
+            <GradientStop Color="#1CC8FF"
+                  Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanDangerActionBrush"
+                      StartPoint="0,0"
+                      EndPoint="1,1">
+            <GradientStop Color="#F87171"
+                  Offset="0"/>
+            <GradientStop Color="#FB7185"
+                  Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanDangerActionHoverBrush"
+                      StartPoint="0,0"
+                      EndPoint="1,1">
+            <GradientStop Color="#FDA4AF"
+                  Offset="0"/>
+            <GradientStop Color="#FB7185"
+                  Offset="1"/>
+        </LinearGradientBrush>
+        <DropShadowEffect x:Key="DeepScanSoftShadowEffect"
+                          Color="#01060C"
+                          BlurRadius="24"
+                          ShadowDepth="0"
+                          Opacity="0.65"/>
+        <DropShadowEffect x:Key="DeepScanGlowShadowEffect"
+                          Color="#1BB2FF"
+                          BlurRadius="18"
+                          ShadowDepth="0"
+                          Opacity="0.55"/>
+        <LinearGradientBrush x:Key="DeepScanChipAccentBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+            <GradientStop Color="#1F8DF9"
+                          Offset="0"/>
+            <GradientStop Color="#38BDF8"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanChipSecondaryBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+            <GradientStop Color="#15C9B1"
+                          Offset="0"/>
+            <GradientStop Color="#2DD4BF"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="DeepScanChipWarmBrush"
+                              StartPoint="0,0"
+                              EndPoint="1,1">
+            <GradientStop Color="#FB773C"
+                          Offset="0"/>
+            <GradientStop Color="#FBBF24"
+                          Offset="1"/>
+        </LinearGradientBrush>
         <Style x:Key="PaginationButtonStyle"
                TargetType="Button">
             <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
+                Value="#E2F7FF"/>
             <Setter Property="Background"
-                    Value="#1E293B"/>
+                Value="#162540"/>
             <Setter Property="BorderBrush"
-                    Value="#334155"/>
+                Value="#1F3B66"/>
             <Setter Property="BorderThickness"
                     Value="1"/>
             <Setter Property="Padding"
                     Value="12,4"/>
             <Setter Property="Cursor"
                     Value="Hand"/>
+            <Setter Property="Effect"
+                Value="{StaticResource DeepScanSoftShadowEffect}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -52,14 +156,16 @@
                             <Trigger Property="IsMouseOver"
                                      Value="True">
                                 <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#243048"/>
+                                    Property="Background"
+                                    Value="#1D335A"/>
+                                <Setter Property="BorderBrush"
+                                    Value="#2F70FF"/>
                             </Trigger>
                             <Trigger Property="IsPressed"
                                      Value="True">
                                 <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#1A2436"/>
+                                    Property="Background"
+                                    Value="#132036"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -67,26 +173,28 @@
             </Setter>
         </Style>
 
-    <Style x:Key="FilterCardBorderStyle"
-           TargetType="Border">
-        <Setter Property="Background"
-            Value="#0F172A"/>
-        <Setter Property="BorderBrush"
-            Value="#1E293B"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Setter Property="CornerRadius"
-            Value="12"/>
-        <Setter Property="Padding"
-            Value="16"/>
-        <Setter Property="Margin"
-            Value="0,0,16,16"/>
-    </Style>
+                <Style x:Key="FilterCardBorderStyle"
+                       TargetType="Border">
+                    <Setter Property="Background"
+                        Value="{StaticResource DeepScanCardBackgroundBrush}"/>
+                    <Setter Property="BorderBrush"
+                        Value="{StaticResource DeepScanCardBorderBrush}"/>
+                    <Setter Property="BorderThickness"
+                        Value="1"/>
+                    <Setter Property="CornerRadius"
+                        Value="12"/>
+                    <Setter Property="Padding"
+                        Value="16"/>
+                    <Setter Property="Margin"
+                        Value="0,0,16,16"/>
+                    <Setter Property="Effect"
+                        Value="{StaticResource DeepScanSoftShadowEffect}"/>
+                </Style>
 
     <Style x:Key="FilterLabelStyle"
            TargetType="TextBlock">
         <Setter Property="Foreground"
-            Value="#E2E8F0"/>
+            Value="#F1F5FF"/>
         <Setter Property="FontSize"
             Value="13"/>
         <Setter Property="FontWeight"
@@ -96,7 +204,7 @@
     <Style x:Key="FilterHintStyle"
            TargetType="TextBlock">
         <Setter Property="Foreground"
-            Value="#64748B"/>
+            Value="#8CA3C8"/>
         <Setter Property="FontSize"
             Value="11"/>
         <Setter Property="Margin"
@@ -167,7 +275,7 @@
         <CubicEase x:Key="DeepScanOverlayEaseOut"
                    EasingMode="EaseOut"/>
     </Page.Resources>
-    <Grid>
+    <Grid Background="{StaticResource DeepScanSurfaceBrush}">
         <Grid x:Name="MainContentHost">
             <Grid.Style>
                 <Style TargetType="Grid">
@@ -208,7 +316,7 @@
                           Margin="32"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
-                          CanContentScroll="False"
+                          CanContentScroll="True"
                           PanningMode="VerticalOnly">
         <Grid MinWidth="720">
             <Grid.RowDefinitions>
@@ -222,11 +330,14 @@
                                     IconGlyph="🔍"
                                     Margin="0,0,0,24"/>
 
-            <Border Grid.Row="1"
+                <Border Grid.Row="1"
                     Margin="0,0,0,20"
                     Padding="16"
-                    Background="#111827"
-                    CornerRadius="12">
+                    Background="{StaticResource DeepScanCardBackgroundBrush}"
+                    BorderBrush="{StaticResource DeepScanCardBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Effect="{StaticResource DeepScanSoftShadowEffect}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="3*"/>
@@ -236,10 +347,10 @@
                     <StackPanel Grid.Column="0">
                         <TextBlock Text="{Binding Summary}"
                                    FontSize="14"
-                                   Foreground="#CBD5F5"/>
+                                   Foreground="#E9F2FF"/>
                         <TextBlock Text="{Binding LastScannedDisplay}"
                                    FontSize="12"
-                                   Foreground="#64748B"
+                                   Foreground="#8CA3C8"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
 
@@ -249,17 +360,18 @@
                                 VerticalAlignment="Center">
                         <Button Content="Run scan"
                                 Command="{Binding RefreshCommand}"
-                                Padding="16,8"
-                                Background="#22C55E"
-                                Foreground="#06111D"
+                                Padding="18,10"
+                                Background="{StaticResource DeepScanActionButtonBrush}"
+                                Foreground="#041217"
                                 BorderThickness="0"
                                 Cursor="Hand">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="ScanBorder"
                                             Background="{TemplateBinding Background}"
-                                            CornerRadius="8"
-                                            Padding="{TemplateBinding Padding}">
+                                            CornerRadius="10"
+                                            Padding="{TemplateBinding Padding}"
+                                            Effect="{StaticResource DeepScanGlowShadowEffect}">
                                         <ContentPresenter HorizontalAlignment="Center"
                                                           VerticalAlignment="Center"/>
                                     </Border>
@@ -274,7 +386,7 @@
                                                  Value="True">
                                             <Setter TargetName="ScanBorder"
                                                     Property="Background"
-                                                    Value="#16A34A"/>
+                                                    Value="{StaticResource DeepScanActionButtonHoverBrush}"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -288,10 +400,13 @@
                 </Grid>
             </Border>
 
-            <Border Grid.Row="2"
-                    Background="#111827"
+                <Border Grid.Row="2"
+                    Background="{StaticResource DeepScanCardBackgroundBrush}"
+                    BorderBrush="{StaticResource DeepScanCardBorderBrush}"
+                    BorderThickness="1"
                     CornerRadius="12"
-                    Padding="24">
+                    Padding="24"
+                    Effect="{StaticResource DeepScanSoftShadowEffect}">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -444,17 +559,17 @@
                          DockPanel.Dock="Left">
                     <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
                          FontSize="12"
-                         Foreground="#CBD5F5"/>
+                        Foreground="#E4F1FF"/>
                     <TextBlock Text="•"
                          Margin="8,0"
                          FontSize="12"
-                         Foreground="#64748B"/>
+                        Foreground="#7D93BB"/>
                     <TextBlock Text="{Binding PageDisplay}"
                          FontSize="12"
-                         Foreground="#64748B"/>
+                        Foreground="#9DB7D6"/>
                     <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
                          FontSize="12"
-                         Foreground="#64748B"
+                        Foreground="#9DB7D6"
                          Margin="8,0,0,0"/>
                 </StackPanel>
                             <StackPanel Orientation="Horizontal"
@@ -482,23 +597,69 @@
                                   ScrollViewer.CanContentScroll="True"
                                   VirtualizingPanel.IsVirtualizing="True"
                                   VirtualizingPanel.VirtualizationMode="Recycling"
+                                  VirtualizingPanel.CacheLength="1"
+                                  VirtualizingPanel.CacheLengthUnit="Item"
                                   VirtualizingStackPanel.ScrollUnit="Pixel"
                                   Loaded="FindingsListView_Loaded">
                             <ListView.Resources>
                                 <Style x:Key="DeepScanChipStyle"
                                        TargetType="Border">
-                                    <Setter Property="Background"
-                                            Value="#0F1C31"/>
+                                    <Setter Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#11223C" Offset="0"/>
+                                        <GradientStop Color="#0B172B" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                    </Setter>
                                     <Setter Property="BorderBrush"
-                                            Value="#1F2D44"/>
+                                        Value="#1D3459"/>
                                     <Setter Property="BorderThickness"
-                                            Value="1"/>
+                                        Value="1"/>
                                     <Setter Property="CornerRadius"
-                                            Value="8"/>
+                                        Value="12"/>
                                     <Setter Property="Padding"
-                                            Value="8,4"/>
+                                        Value="10,4"/>
                                     <Setter Property="Margin"
-                                            Value="0,0,8,8"/>
+                                        Value="0,0,10,8"/>
+                                    <Setter Property="Opacity"
+                                        Value="0.95"/>
+                                    <Style.Triggers>
+                                    <Trigger Property="Tag"
+                                         Value="accent">
+                                        <Setter Property="Background"
+                                            Value="{StaticResource DeepScanChipAccentBrush}"/>
+                                        <Setter Property="BorderBrush"
+                                            Value="#54C2FF"/>
+                                    </Trigger>
+                                    <Trigger Property="Tag"
+                                         Value="secondary">
+                                        <Setter Property="Background"
+                                            Value="{StaticResource DeepScanChipSecondaryBrush}"/>
+                                        <Setter Property="BorderBrush"
+                                            Value="#45E7CE"/>
+                                    </Trigger>
+                                    <Trigger Property="Tag"
+                                         Value="warm">
+                                        <Setter Property="Background"
+                                            Value="{StaticResource DeepScanChipWarmBrush}"/>
+                                        <Setter Property="BorderBrush"
+                                            Value="#F97316"/>
+                                    </Trigger>
+                                    <Trigger Property="Tag"
+                                         Value="muted">
+                                        <Setter Property="Background">
+                                        <Setter.Value>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#121C32" Offset="0"/>
+                                            <GradientStop Color="#10263C" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Setter.Value>
+                                        </Setter>
+                                        <Setter Property="BorderBrush"
+                                            Value="#1E3A5E"/>
+                                    </Trigger>
+                                    </Style.Triggers>
                                 </Style>
                             </ListView.Resources>
 
@@ -534,23 +695,23 @@
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background"
-                                                        Value="#101C33"/>
+                                        Value="{StaticResource DeepScanCardBackgroundBrush}"/>
                                                 <Setter Property="BorderBrush"
-                                                        Value="#1E2E44"/>
+                                        Value="{StaticResource DeepScanCardBorderBrush}"/>
                                                 <Style.Triggers>
                                                     <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
                                                                  Value="True">
                                                         <Setter Property="BorderBrush"
-                                                                Value="#2C4A76"/>
+                                            Value="#3B82F6"/>
                                                         <Setter Property="Background"
-                                                                Value="#14253F"/>
+                                            Value="#0F213B"/>
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListViewItem}}"
                                                                  Value="True">
                                                         <Setter Property="BorderBrush"
-                                                                Value="#38BDF8"/>
+                                            Value="#38BDF8"/>
                                                         <Setter Property="Background"
-                                                                Value="#132844"/>
+                                            Value="#142F52"/>
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -605,12 +766,12 @@
                                                                TextWrapping="Wrap"/>
                                                     <TextBlock Text="{Binding Path}"
                                                                FontSize="12"
-                                                               Foreground="#94A3B8"
+                                                               Foreground="#AFC7F1"
                                                                Margin="0,6,0,0"
                                                                TextWrapping="Wrap"
                                                                ToolTip="{Binding Path}"/>
                                                     <WrapPanel Margin="0,8,0,0">
-                                                        <Border>
+                                                        <Border Tag="accent">
                                                             <Border.Style>
                                                                 <Style TargetType="Border"
                                                                        BasedOn="{StaticResource DeepScanChipStyle}">
@@ -626,12 +787,15 @@
                                                             </Border.Style>
                                                             <TextBlock Text="{Binding Category}"
                                                                        FontSize="11"
-                                                                       Foreground="#E2E8F0"/>
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#04102A"/>
                                                         </Border>
-                                                        <Border Style="{StaticResource DeepScanChipStyle}">
+                                                        <Border Tag="secondary"
+                                                                Style="{StaticResource DeepScanChipStyle}">
                                                             <TextBlock Text="{Binding KindDisplay}"
                                                                        FontSize="11"
-                                                                       Foreground="#E2E8F0"/>
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#041925"/>
                                                         </Border>
                                                     </WrapPanel>
                                                 </StackPanel>
@@ -640,15 +804,19 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Top">
                             <Border Style="{StaticResource DeepScanChipStyle}"
+                                Tag="warm"
                                 Margin="0,0,0,4">
                                                         <TextBlock FontSize="11"
-                                                                   Foreground="#E2E8F0">
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#05121C">
                                                             <Run Text="Size "/>
                                                             <Run Text="{Binding SizeDisplay, Mode=OneWay}"/>
                                                         </TextBlock>
                                                     </Border>
-                                                    <Border Style="{StaticResource DeepScanChipStyle}">
+                                                    <Border Style="{StaticResource DeepScanChipStyle}"
+                                                            Tag="muted">
                                                         <TextBlock FontSize="11"
+                                                                   FontWeight="SemiBold"
                                                                    Foreground="#E2E8F0">
                                                             <Run Text="Modified "/>
                                                             <Run Text="{Binding ModifiedDisplay, Mode=OneWay}"/>
@@ -660,29 +828,83 @@
                         <Border Grid.Row="1"
                             Margin="0,12,0,12"
                                                     Height="1"
-                                                    Background="#1A2740"/>
+                                                    Background="#26446D"/>
 
                                             <WrapPanel Grid.Row="2"
                                HorizontalAlignment="Left">
                                                 <Button Content="Open location"
                                                         Command="{Binding DataContext.OpenContainingFolderCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                         CommandParameter="{Binding}"
-                            Padding="10,6"
-                            MinWidth="120"
-                            Margin="0,0,8,0"
-                                                        Background="#1E293B"
-                                                        Foreground="#38BDF8"
-                                                        BorderBrush="#10243C"
-                                                        Cursor="Hand"/>
+                            Padding="12,6"
+                            MinWidth="128"
+                                Margin="0,0,8,0"
+                                                        Background="{StaticResource DeepScanSecondaryActionBrush}"
+                                                        Foreground="#041322"
+                                                        BorderThickness="0"
+                                                        Cursor="Hand">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="SecondaryActionBorder"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    CornerRadius="12"
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    SnapsToDevicePixels="True">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="SecondaryActionBorder"
+                                                                            Property="Background"
+                                                                            Value="{StaticResource DeepScanSecondaryActionHoverBrush}"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled"
+                                                                         Value="False">
+                                                                    <Setter TargetName="SecondaryActionBorder"
+                                                                            Property="Opacity"
+                                                                            Value="0.6"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
                                                 <Button Content="Delete"
                                                         Click="DeleteButton_OnClick"
-                            Padding="10,6"
-                            MinWidth="88"
-                                                        Background="#1E293B"
-                                                        Foreground="#F87171"
-                                                        BorderBrush="#441F2B"
+                            Padding="12,6"
+                            MinWidth="104"
+                                                        Background="{StaticResource DeepScanDangerActionBrush}"
+                                                        Foreground="#2D050D"
+                                                        BorderThickness="0"
                                                         Cursor="Hand"
-                                                        ToolTip="Deleting an item is permanent. Review it carefully before proceeding."/>
+                                                        ToolTip="Deleting an item is permanent. Review it carefully before proceeding.">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="DangerActionBorder"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    CornerRadius="12"
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    SnapsToDevicePixels="True">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="DangerActionBorder"
+                                                                            Property="Background"
+                                                                            Value="{StaticResource DeepScanDangerActionHoverBrush}"/>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled"
+                                                                         Value="False">
+                                                                    <Setter TargetName="DangerActionBorder"
+                                                                            Property="Opacity"
+                                                                            Value="0.55"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
                                             </WrapPanel>
                                         </Grid>
                                     </Border>
@@ -697,7 +919,7 @@
 
                         <TextBlock Grid.Row="1"
                                    Text="No findings yet. Adjust the filters and run a scan."
-                                   Foreground="#64748B"
+                                   Foreground="#8CA3C8"
                                    FontSize="13"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center">
