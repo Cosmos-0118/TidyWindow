@@ -160,17 +160,16 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 
 > Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.
 
-## Project Oblivion Deep Uninstall
+## Project Oblivion Popup Deep Clean
 
-Reference sources: `projectoblivion.txt`, `Future-ideas/idea2.txt`, and existing Cleanup + PathPilot UI patterns.
+Reference sources: `projectoblivion.txt`, `Future-ideas/idea2.txt`, PathPilot animation patterns, and Cleanup artifact scanners.
 
-[ ] Step 13.1: Build inventory sweep `automation/scripts/get-installed-app-footprint.ps1` by extending the PathPilot script to merge winget/choco/scoop/appx inventories, uninstall hives, Program Files scans, services, drivers, autoruns, scheduled tasks, env vars, and emit a cached JSON linkage graph with confidence badges.
-[ ] Step 13.2: Extend `automation/modules/TidyWindow.Automation.psm1` with shared helpers (process freeze, registry ops, telemetry logging, backup packaging) so both inventory and removal scripts stay consistent and testable.
-[ ] Step 13.3: Implement removal pipeline `automation/scripts/remove-app-footprint.ps1` covering elevation + restore point, process/service freeze, native uninstaller invocation, residual purge, and verification sweep; support dry-run, resumable stages, and structured logging for Activity Log replay.
-[ ] Step 13.4: Ship orchestration layer (`DeepUninstallCoordinator` service + `DeepUninstallViewModel`) that hosts the PowerShell scripts, caches results, and exposes operations to the UI/CLI with cancellation, pause, and retry hooks.
-[ ] Step 13.5: Create PathPilot-style discovery view (`Views/DeepUninstall/DiscoverView.xaml`) plus CleanupPage-inspired multiphase shell (`DeepUninstallShell.xaml` hosting Prepare, Snap, Aftermath pages) so users flow from list/detail insight tabs to plan confirmation, timeline execution, and success reporting.
-[ ] Step 13.6: Add safety + observability features: typed confirmation prompts, per-app backup bundles in `data/cleanup/<AppId>` (registry exports, startup items), restore/undo commands, telemetry beacons, and exportable cleanup reports stored under `%ProgramData%/TidyWindow/Reports`.
-[ ] Step 13.7: Integrate Oblivion with Maintenance, Startup Controller, and Package Maintenance modules so removing an app also scrubs startup entries, schedules follow-up scans, and refreshes inventory/queue data; add CLI entry point `tidywindow.exe /deepuninstall <AppId>` for automation parity.
+[x] Step 13.1: Enhance `automation/scripts/get-installed-app-footprint.ps1` to emit install roots, suspected services/process names, uninstall metadata, and confidence scores so the popup can start scanning immediately.
+[x] Step 13.2: Create `automation/scripts/uninstall-app-deep.ps1` that performs the stage pipeline (native uninstall → process sweep → artifact discovery → user-selected cleanup → summary) while streaming JSON events for the UI.
+[x] Step 13.3: Extend `automation/modules/TidyWindow.Automation.psm1` with helpers for process correlation, artifact scanning, deletion ordering, and structured logging shared by the deep script.
+[x] Step 13.4: Implement `ProjectOblivionViewModel` (list surface) and `ProjectOblivionPopupViewModel` (timeline, checklist, summary) that consume the streaming events and manage user selections.
+[ ] Step 13.5: Build `Views/ProjectOblivionPage.xaml` plus the modal popup (PathPilot-style animation ring, timeline chips, collapsible log, artifact checklist, summary card) with responsive states.
+[ ] Step 13.6: Persist run telemetry under `data/cleanup/<AppId>/oblivion-run.json`, surface inline success/error toasts, and expose a `View log` CTA from the summary.
 
 ## Settings Control Center Redesign
 

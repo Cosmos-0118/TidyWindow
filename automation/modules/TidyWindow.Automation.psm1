@@ -1012,4 +1012,557 @@ function Set-TidyLockWorkstationPolicy {
     Invoke-TidyRegistryScript -ScriptName 'toggle-lock-workstation.ps1' -Parameters $parameters
 }
 
-Export-ModuleMember -Function Convert-TidyLogMessage, Write-TidyLog, Get-TidyCommandPath, Get-TidyWingetMsixCandidates, Get-TidyWingetInstalledVersion, Get-TidyChocoInstalledVersion, Get-TidyScoopInstalledVersion, Get-TidyInstalledPackageVersion, Assert-TidyAdmin, Set-TidyMenuShowDelay, Set-TidyWindowAnimation, Set-TidyVisualEffectsProfile, Set-TidyPrefetchingMode, Set-TidyTelemetryLevel, Set-TidyCortanaPolicy, Set-TidyNetworkLatencyProfile, Set-TidySysMainState, Set-TidyLowDiskAlertPolicy, Set-TidyAutoRestartSignOn, Set-TidyAutoEndTasks, Set-TidyHungAppTimeouts, Set-TidyLockWorkstationPolicy
+function Resolve-TidyPath {
+    [CmdletBinding()]
+    param([string] $Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $null
+    }
+
+    $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"'))
+    if ($expanded.StartsWith('~')) {
+        $home = $env:USERPROFILE
+        if (-not [string]::IsNullOrWhiteSpace($home)) {
+            $expanded = $home + $expanded.Substring(1)
+        }
+    }
+
+    try {
+        return [System.IO.Path]::GetFullPath($expanded)
+    }
+    catch {
+        return $expanded
+    }
+}
+
+function ConvertTo-TidyNameKey {
+    [CmdletBinding()]
+    param([string] $Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    $clean = $Value.ToLowerInvariant()
+    $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, '[^a-z0-9]', '')
+    if ([string]::IsNullOrWhiteSpace($clean)) {
+        return $null
+    }
+
+    return $clean
+}
+
+function Get-TidyProgramDataDirectory {
+    [CmdletBinding()]
+    param()
+
+    $programData = $env:ProgramData
+    if ([string]::IsNullOrWhiteSpace($programData)) {
+        $programData = 'C:\ProgramData'
+    }
+
+    $root = Join-Path -Path $programData -ChildPath 'TidyWindow'
+    if (-not (Test-Path -LiteralPath $root)) {
+        [void](New-Item -Path $root -ItemType Directory -Force)
+    }
+
+    return $root
+}
+
+function New-TidyFeatureRunDirectory {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $FeatureName,
+        [Parameter(Mandatory = $true)]
+        [string] $AppIdentifier
+    )
+
+    $root = Get-TidyProgramDataDirectory
+    $featureRoot = Join-Path -Path $root -ChildPath $FeatureName
+    if (-not (Test-Path -LiteralPath $featureRoot)) {
+        [void](New-Item -Path $featureRoot -ItemType Directory -Force)
+    }
+
+    $safeId = [System.Text.RegularExpressions.Regex]::Replace($AppIdentifier, '[^A-Za-z0-9_-]', '_')
+    if ([string]::IsNullOrWhiteSpace($safeId)) {
+        $safeId = 'app'
+    }
+
+    $target = Join-Path -Path $featureRoot -ChildPath $safeId
+    if (-not (Test-Path -LiteralPath $target)) {
+        [void](New-Item -Path $target -ItemType Directory -Force)
+    }
+
+    return $target
+}
+
+function Write-TidyStructuredEvent {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Type,
+        [hashtable] $Payload
+    )
+
+    $envelope = [ordered]@{
+        type      = $Type
+        timestamp = [DateTimeOffset]::UtcNow.ToString('o')
+    }
+
+    if ($Payload) {
+        foreach ($key in $Payload.Keys) {
+            $envelope[$key] = $Payload[$key]
+        }
+    }
+
+    $json = $envelope | ConvertTo-Json -Depth 6 -Compress
+    Write-Output $json
+}
+
+function Write-TidyRunLog {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Path,
+        [Parameter(Mandatory = $true)]
+        [hashtable] $Payload
+    )
+
+    $directory = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($directory) -and -not (Test-Path -LiteralPath $directory)) {
+        [void](New-Item -Path $directory -ItemType Directory -Force)
+    }
+
+    $Payload | ConvertTo-Json -Depth 6 | Out-File -FilePath $Path -Encoding utf8 -Force
+}
+
+function Invoke-TidyCommandLine {
+    [CmdletBinding()]
+    param([string] $CommandLine)
+
+    if ([string]::IsNullOrWhiteSpace($CommandLine)) {
+        return [pscustomobject]@{ exitCode = 0; output = ''; errors = ''; durationMs = 0 }
+    }
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = 'cmd.exe'
+    $psi.Arguments = "/d /s /c \"$CommandLine\""
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.CreateNoWindow = $true
+
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $psi
+
+    $start = [DateTimeOffset]::UtcNow
+    $null = $process.Start()
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    $duration = ([DateTimeOffset]::UtcNow - $start).TotalMilliseconds
+
+    return [pscustomobject]@{
+        exitCode  = $process.ExitCode
+        output    = $stdout
+        errors    = $stderr
+        durationMs = [math]::Round($duration, 0)
+    }
+}
+
+function Get-TidyProcessSnapshot {
+    [CmdletBinding()]
+    param()
+
+    $list = New-Object 'System.Collections.Generic.List[psobject]'
+    try {
+        Get-Process | ForEach-Object {
+            $path = $null
+            try { $path = $_.Path } catch { $path = $null }
+            $list.Add([pscustomobject]@{ id = $_.Id; name = $_.ProcessName; path = $path }) | Out-Null
+        }
+    }
+    catch {
+        # Ignore snapshot failures.
+    }
+
+    return $list
+}
+
+function Get-TidyServiceSnapshot {
+    [CmdletBinding()]
+    param()
+
+    $list = New-Object 'System.Collections.Generic.List[psobject]'
+    try {
+        Get-CimInstance -ClassName Win32_Service | ForEach-Object {
+            $list.Add([pscustomobject]@{
+                name        = $_.Name
+                displayName = $_.DisplayName
+                path        = $_.PathName
+                state       = $_.State
+            }) | Out-Null
+        }
+    }
+    catch {
+        # Ignore snapshot failures.
+    }
+
+    return $list
+}
+
+function Find-TidyRelatedProcesses {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject] $App,
+        [psobject[]] $Snapshot,
+        [int] $MaxMatches = 25
+    )
+
+    $results = New-Object 'System.Collections.Generic.List[psobject]'
+    if (-not $Snapshot) {
+        return $results
+    }
+
+    $installRoot = Resolve-TidyPath -Path $App.installRoot
+    $processHints = @($App.processHints) | Where-Object { $_ }
+    $nameKey = ConvertTo-TidyNameKey -Value $App.name
+
+    foreach ($proc in $Snapshot) {
+        if ($results.Count -ge $MaxMatches) { break }
+        $match = $false
+
+        if ($installRoot -and $proc.path -and $proc.path.StartsWith($installRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            $match = $true
+        }
+        elseif ($processHints.Count -gt 0) {
+            foreach ($hint in $processHints) {
+                if ([string]::IsNullOrWhiteSpace($hint) -or -not $proc.name) { continue }
+                if ($proc.name.IndexOf($hint, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    $match = $true
+                    break
+                }
+            }
+        }
+        elseif ($nameKey) {
+            $procKey = ConvertTo-TidyNameKey -Value $proc.name
+            if ($procKey -and $procKey.Contains($nameKey)) {
+                $match = $true
+            }
+        }
+
+        if ($match) {
+            $results.Add($proc) | Out-Null
+        }
+    }
+
+    return $results
+}
+
+function Stop-TidyProcesses {
+    [CmdletBinding()]
+    param(
+        [psobject[]] $Processes,
+        [switch] $DryRun,
+        [switch] $Force
+    )
+
+    if (-not $Processes -or $Processes.Count -eq 0) {
+        return 0
+    }
+
+    $stopped = 0
+    foreach ($proc in $Processes) {
+        if ($DryRun) {
+            $stopped++
+            continue
+        }
+
+        try {
+            Stop-Process -Id $proc.id -Force:$Force -ErrorAction Stop
+            $stopped++
+        }
+        catch {
+            Write-TidyLog -Level 'Warning' -Message "Failed to stop process $($proc.name) ($($proc.id)): $($_.Exception.Message)"
+        }
+    }
+
+    return $stopped
+}
+
+function ConvertTo-TidyRegistryPath {
+    [CmdletBinding()]
+    param([string] $KeyPath)
+
+    if ([string]::IsNullOrWhiteSpace($KeyPath)) { return $null }
+
+    switch -Regex ($KeyPath) {
+        '^(HKEY_LOCAL_MACHINE|HKLM)\\(.+)$' { return "Registry::HKEY_LOCAL_MACHINE\\$($matches[2])" }
+        '^(HKEY_CURRENT_USER|HKCU)\\(.+)$'  { return "Registry::HKEY_CURRENT_USER\\$($matches[2])" }
+        '^(HKEY_CLASSES_ROOT|HKCR)\\(.+)$'  { return "Registry::HKEY_CLASSES_ROOT\\$($matches[2])" }
+        '^(HKEY_USERS|HKU)\\(.+)$'          { return "Registry::HKEY_USERS\\$($matches[2])" }
+        '^(HKEY_CURRENT_CONFIG|HKCC)\\(.+)$'{ return "Registry::HKEY_CURRENT_CONFIG\\$($matches[2])" }
+        Default { return $KeyPath }
+    }
+}
+
+function Measure-TidyDirectoryBytes {
+    [CmdletBinding()]
+    param([string] $Path)
+
+    if (-not (Test-Path -LiteralPath $Path)) { return 0 }
+
+    try {
+        $items = Get-ChildItem -LiteralPath $Path -Recurse -File -ErrorAction SilentlyContinue
+        return ($items | Measure-Object -Property Length -Sum).Sum
+    }
+    catch {
+        return 0
+    }
+}
+
+function New-TidyArtifactId {
+    [CmdletBinding()]
+    param()
+
+    return [Guid]::NewGuid().ToString('n')
+}
+
+function New-TidyFileArtifact {
+    [CmdletBinding()]
+    param(
+        [string] $Path,
+        [string] $Reason
+    )
+
+    $resolved = Resolve-TidyPath -Path $Path
+    if ([string]::IsNullOrWhiteSpace($resolved) -or -not (Test-Path -LiteralPath $resolved)) {
+        return $null
+    }
+
+    $item = Get-Item -LiteralPath $resolved -ErrorAction SilentlyContinue
+    if (-not $item) { return $null }
+
+    $isDirectory = $item.PSIsContainer
+    $size = if ($isDirectory) { Measure-TidyDirectoryBytes -Path $resolved } else { $item.Length }
+
+    $programFiles = $env:ProgramFiles
+    $programFilesX86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    $requiresElevation = $false
+    if ($programFiles -and $resolved.StartsWith($programFiles, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $requiresElevation = $true
+    }
+    elseif ($programFilesX86 -and $resolved.StartsWith($programFilesX86, [System.StringComparison]::OrdinalIgnoreCase)) {
+        $requiresElevation = $true
+    }
+
+    return [pscustomobject]@{
+        id                = New-TidyArtifactId
+        type              = $isDirectory ? 'Directory' : 'File'
+        group             = 'Files'
+        path              = $resolved
+        displayName       = Split-Path -Path $resolved -Leaf
+        sizeBytes         = $size
+        defaultSelected   = $true
+        requiresElevation = $requiresElevation
+        metadata          = @{ reason = $Reason }
+    }
+}
+
+function New-TidyRegistryArtifact {
+    [CmdletBinding()]
+    param([string] $KeyPath)
+
+    $providerPath = ConvertTo-TidyRegistryPath -KeyPath $KeyPath
+    if (-not $providerPath) { return $null }
+
+    return [pscustomobject]@{
+        id                = New-TidyArtifactId
+        type              = 'Registry'
+        group             = 'Registry'
+        path              = $providerPath
+        displayName       = $KeyPath
+        sizeBytes         = 0
+        defaultSelected   = $true
+        requiresElevation = $providerPath -like 'Registry::HKEY_LOCAL_MACHINE*'
+        metadata          = @{ reason = 'UninstallKey' }
+    }
+}
+
+function New-TidyServiceArtifact {
+    [CmdletBinding()]
+    param([string] $ServiceName)
+
+    if ([string]::IsNullOrWhiteSpace($ServiceName)) { return $null }
+
+    return [pscustomobject]@{
+        id                = New-TidyArtifactId
+        type              = 'Service'
+        group             = 'Services'
+        path              = $ServiceName
+        displayName       = $ServiceName
+        sizeBytes         = 0
+        defaultSelected   = $true
+        requiresElevation = $true
+        metadata          = @{}
+    }
+}
+
+function Get-TidyCandidateDataFolders {
+    [CmdletBinding()]
+    param([psobject] $App)
+
+    $results = @()
+    $name = $App.name
+    if ([string]::IsNullOrWhiteSpace($name)) { return $results }
+
+    $safe = [System.Text.RegularExpressions.Regex]::Replace($name, '[^A-Za-z0-9]', '')
+    if ([string]::IsNullOrWhiteSpace($safe)) { return $results }
+
+    $roots = @()
+    if ($env:ProgramData) { $roots += $env:ProgramData }
+    else { $roots += 'C:\ProgramData' }
+    if ($env:LOCALAPPDATA) { $roots += $env:LOCALAPPDATA }
+    if ($env:APPDATA) { $roots += $env:APPDATA }
+
+    foreach ($root in $roots) {
+        if ([string]::IsNullOrWhiteSpace($root)) { continue }
+        $candidate = Join-Path -Path $root -ChildPath $safe
+        if (Test-Path -LiteralPath $candidate) {
+            $results += $candidate
+        }
+    }
+
+    return $results
+}
+
+function Get-TidyArtifacts {
+    [CmdletBinding()]
+    param([psobject] $App)
+
+    $artifacts = New-Object 'System.Collections.Generic.List[psobject]'
+
+    foreach ($root in @($App.installRoot)) {
+        $artifact = New-TidyFileArtifact -Path $root -Reason 'InstallRoot'
+        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+    }
+
+    foreach ($hint in @($App.artifactHints)) {
+        if ([string]::IsNullOrWhiteSpace($hint)) { continue }
+        if ($App.installRoot -and [string]::Equals($hint, $App.installRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+            continue
+        }
+        $artifact = New-TidyFileArtifact -Path $hint -Reason 'Hint'
+        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+    }
+
+    foreach ($folder in Get-TidyCandidateDataFolders -App $App) {
+        $artifact = New-TidyFileArtifact -Path $folder -Reason 'DataFolder'
+        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+    }
+
+    if ($App.registry -and $App.registry.keyPath) {
+        $artifact = New-TidyRegistryArtifact -KeyPath $App.registry.keyPath
+        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+    }
+
+    foreach ($svc in @($App.serviceHints)) {
+        $artifact = New-TidyServiceArtifact -ServiceName $svc
+        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+    }
+
+    return $artifacts
+}
+
+function Remove-TidyArtifacts {
+    [CmdletBinding()]
+    param(
+        [psobject[]] $Artifacts,
+        [switch] $DryRun
+    )
+
+    $results = New-Object 'System.Collections.Generic.List[psobject]'
+    if (-not $Artifacts -or $Artifacts.Count -eq 0) {
+        return [pscustomobject]@{ Results = $results; RemovedCount = 0; FailureCount = 0; FreedBytes = 0 }
+    }
+
+    $order = @{ Directory = 0; File = 1; Registry = 2; Service = 3 }
+    $ordered = $Artifacts | Sort-Object -Property @{ Expression = { if ($order.ContainsKey($_.type)) { $order[$_.type] } else { 99 } } }, path
+
+    $removed = 0
+    $freed = 0
+
+    foreach ($artifact in $ordered) {
+        $entry = [ordered]@{
+            artifactId = $artifact.id
+            type       = $artifact.type
+            path       = $artifact.path
+            success    = $false
+            error      = $null
+        }
+
+        if ($DryRun) {
+            $entry.success = $true
+        }
+        else {
+            try {
+                switch ($artifact.type) {
+                    'Directory' {
+                        if (Test-Path -LiteralPath $artifact.path) {
+                            Remove-Item -LiteralPath $artifact.path -Recurse -Force -ErrorAction Stop
+                        }
+                        $entry.success = $true
+                    }
+                    'File' {
+                        if (Test-Path -LiteralPath $artifact.path) {
+                            Remove-Item -LiteralPath $artifact.path -Force -ErrorAction Stop
+                        }
+                        $entry.success = $true
+                    }
+                    'Registry' {
+                        if (Test-Path -Path $artifact.path) {
+                            Remove-Item -Path $artifact.path -Recurse -Force -ErrorAction Stop
+                        }
+                        $entry.success = $true
+                    }
+                    'Service' {
+                        try { Stop-Service -Name $artifact.path -Force -ErrorAction SilentlyContinue } catch { }
+                        & sc.exe 'delete' $artifact.path *> $null
+                        if ($LASTEXITCODE -ne 0) {
+                            throw "sc.exe delete failed with exit code $LASTEXITCODE"
+                        }
+                        $entry.success = $true
+                    }
+                    Default {
+                        $entry.error = 'Unsupported artifact type.'
+                    }
+                }
+            }
+            catch {
+                $entry.error = $_.Exception.Message
+            }
+        }
+
+        if ($entry.success) {
+            $removed++
+            if ($artifact.sizeBytes) {
+                $freed += [long]$artifact.sizeBytes
+            }
+        }
+
+        $results.Add([pscustomobject]$entry) | Out-Null
+    }
+
+    $failures = $results | Where-Object { -not $_.success }
+    return [pscustomobject]@{
+        Results      = $results
+        RemovedCount = $removed
+        FailureCount = $failures.Count
+        FreedBytes   = $freed
+    }
+}
+
+Export-ModuleMember -Function Convert-TidyLogMessage, Write-TidyLog, Get-TidyCommandPath, Get-TidyWingetMsixCandidates, Get-TidyWingetInstalledVersion, Get-TidyChocoInstalledVersion, Get-TidyScoopInstalledVersion, Get-TidyInstalledPackageVersion, Assert-TidyAdmin, Set-TidyMenuShowDelay, Set-TidyWindowAnimation, Set-TidyVisualEffectsProfile, Set-TidyPrefetchingMode, Set-TidyTelemetryLevel, Set-TidyCortanaPolicy, Set-TidyNetworkLatencyProfile, Set-TidySysMainState, Set-TidyLowDiskAlertPolicy, Set-TidyAutoRestartSignOn, Set-TidyAutoEndTasks, Set-TidyHungAppTimeouts, Set-TidyLockWorkstationPolicy, Resolve-TidyPath, ConvertTo-TidyNameKey, Get-TidyProgramDataDirectory, New-TidyFeatureRunDirectory, Write-TidyStructuredEvent, Write-TidyRunLog, Invoke-TidyCommandLine, Get-TidyProcessSnapshot, Get-TidyServiceSnapshot, Find-TidyRelatedProcesses, Stop-TidyProcesses, ConvertTo-TidyRegistryPath, Measure-TidyDirectoryBytes, New-TidyArtifactId, New-TidyFileArtifact, New-TidyRegistryArtifact, New-TidyServiceArtifact, Get-TidyCandidateDataFolders, Get-TidyArtifacts, Remove-TidyArtifacts

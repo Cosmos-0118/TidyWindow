@@ -1,64 +1,36 @@
-# Project Oblivion – Deep Uninstall Hub
+# Project Oblivion – Focused Deep Clean
 
-## Vision & Promise
-- Deliver a single hub that enumerates every installed experience (Win32, MSIX/Appx, Store, portable, drivers, scheduled services) and erases 100% of the footprint once the user confirms.
-- Pair an approachable PathPilot-style discovery surface with a CleanupPage-inspired multi-step confirmation so the UX stays simple for casual users while exposing the full “Thanos snap” power for experts.
-- Keep operations efficient, auditable, and supportable: every destructive action is pre-validated, logged, reversible when possible, and sized for automation or CLI reuse.
+## Goal
+- Deliver the original deep-clean promise while keeping the UX stripped down: one page, one popup, full wipe.
+- The popup owns the entire lifecycle with a PathPilot-style animation so users always know which stage is running.
+- Every uninstall still runs the native vendor command, kills related processes, surfaces leftovers, and deletes whatever the user approves.
 
-## Experience Architecture
+## Core Experience
+- **One list page**: Search/sort installed apps, view size + source badges, hit `Uninstall`. No extra panes.
+- **One popup**: Modal stays pinned until the operation finishes. It shows the timeline, checklists, and summary without navigating elsewhere.
+- **PathPilot animation**: Borrow the circular pulse animation from PathPilot to show active stage. Timeline chips update below it.
+- **User-controlled cleanup**: We gather every leftover (files, folders, registry keys, autoruns, tasks, drivers) and let the user deselect anything before removal.
 
-### PathPilot-Style Discovery (single page)
-- Start inside a lightweight list + detail layout identical in spirit to `PathPilotPage.xaml`: hero cards summarize totals, the left rail lists detected apps, and selecting an item opens a right-side insight panel.
-- Filters: install source, footprint size, last used, confidence badge, managed/unmanaged, and “needs attention” (e.g., broken uninstallers).
-- Insight tabs: Overview, Files & Folders, Registry & Autoruns, Processes & Services, Telemetry & Last Errors. Tabs reuse the same shell controls and typography as PathPilot for a consistent, proven UI.
+## Popup Timeline
+1. **Kickoff** – Popup opens with app name, version, and uninstall command preview. `Start` begins the run; `Cancel` closes before anything happens.
+2. **Default uninstall** – Execute the vendor/uninstall command (winget/choco/scoop/msiexec/Appx). Stream stdout snippets into a collapsible log area. If elevation is required, prompt once.
+3. **Process sweep** – Detect running processes/services referencing the install root or package family. Show list with auto-kill toggle and status (`Killed 4/5 processes`).
+4. **Artifact discovery** – Scan file system (install root, ProgramData, AppData, Temp), registry (Uninstall, Services, Run, CLSID, App Paths), scheduled tasks, autoruns, drivers, env vars. Group artifacts with counts and select-all checkboxes.
+5. **User selection hold** – Timeline pauses so the user can uncheck items (e.g., config files). Provide `Select none`, `Select all`, and search within the checklist.
+6. **Cleanup execution** – Delete/remove the selected artifacts in buckets: Files/Folders → Registry → Tasks/Autoruns → Drivers → Misc. Failures remain highlighted with retry links.
+7. **Summary** – Present freed space, removed vs skipped artifacts, elapsed time, and `View log` + `Close` buttons. Offer a `Copy summary` action for sharing.
 
-### CleanupPage-Style Multi-Step Flow
-1. **Prepare Plan** – A secondary page (or frame) mirrors the Cleanup multi-page playbook: show the kill plan, elevation requirements, restore-point toggle, and let users deselect components via a tree view. Offer “Safe uninstall first” or “Direct snap”.
-2. **Snap Execution** – Timeline cards just like Cleanup’s job tracker: Terminate processes → Invoke native uninstallers → Purge leftovers → Verification sweep. Real-time logs and pause/abort buttons are surfaced inline.
-3. **Aftermath** – Success card summarizing freed space and removed artifacts, with CTA buttons for “Save cleanup report”, “Schedule monitoring”, and “Re-run detection”.
+## Technical Notes
+- **Inventory**: Keep the consolidated sweep (winget/choco/scoop/Appx + uninstall hives) but add install-root hints, package families, and suspected services so the popup can run without re-querying.
+- **Stage runner**: Build `automation/scripts/uninstall-app-deep.ps1` that emits structured JSON events (stage start/finish, log lines, artifact batches). The popup subscribes via PowerShell runspace streaming.
+- **Process detection**: Match by path, package family name, window class, and service image path. Use built-in helpers (`Stop-Process`, `Stop-Service`, `taskkill /PID`) with retries.
+- **Artifact resolver**: Reuse cleanup heuristics (CleanupPage) but flag each artifact with `Type`, `Path`, `Size`, `Confidence`, `RequiresElevation`.
+- **Deletion**: Respect user selection order, request elevation only when needed, and short-circuit on catastrophic failures while keeping logs.
+- **Telemetry/logs**: Store run metadata under `data/cleanup/<AppId>/oblivion-run.json` (artifacts found, selected, removed, skipped, failures, durations).
 
-## Capability Stack
-
-| Layer | Capability | Tech | Supportability Notes |
-| --- | --- | --- | --- |
-| Inventory | Merge winget, `Get-Package`, `Get-AppxPackage`, HKLM/HKCU uninstall hives, Program Files scan, Scoop, Chocolatey, services, drivers | PowerShell (`Get-PathPilotInventory.ps1`-style scaffold) | Cache snapshots, diff on demand, emit JSON graph |
-| Linkage Graph | Map install roots, autoruns, env vars, tasks, drivers, logs/cache per app with confidence badges | PowerShell + lightweight C# enrichment | Store provenance + detection confidence for UX badges |
-| Removal Pipeline | Dry-run + execution, native uninstallers first, residual purge second, verification sweep last | PowerShell (`remove-app-footprint.ps1`) + helper modules | Log every step, capture exit codes, support resume |
-| Orchestration & UI | MVVM (e.g., `DeepUninstallViewModel`, `DeepUninstallPage.xaml`, reuse PathPilot controls) | C# WPF | Shared styling resources, consistent telemetry IDs |
-| Elevation & Safety | Admin token handling, restore point, config backups | C# host + PowerShell helper | Show typed confirmation, store recovery bundles |
-| Telemetry & Diagnostics | Activity Log, structured traces, user export | Serilog + ETW + optional cloud hook | Enables support to replay failures |
-
-## Detection & Linkage
-1. **Inventory Sweep** – Scheduled background job (invoked on launch or manually) that aggregates packages, portable folders, services, scheduled tasks, and drivers. Results stored in `data/catalog/oblivion-inventory.json` with timestamp + hash.
-2. **Enrichment** – For each app entry, attach linkage graph nodes: install roots + size, running processes/services, autoruns & scheduled tasks, drivers (`pnputil /enum-drivers`), registry keys, env var injections, caches/logs, firewall rules, shell extensions.
-3. **Confidence Badges** – Deterministic labels: Manager-managed, Store/MSIX, Portable, Driver-only, Unknown provider. Confidence ties into filter chips and warning banners.
-4. **Delta Watcher** – Lightweight watcher detects newly installed apps or failed removals by diffing the cached snapshot, enabling “fresh targets” badges.
-
-## Removal Pipeline ("Thanos snap")
-1. **Elevation + Checkpoint** – Validate admin token, optionally create a restore point + config backup ZIP; block if prerequisites fail.
-2. **Process & Service Freeze** – `Stop-Process`, `taskkill`, `Stop-Service`, `Disable-ScheduledTask`, and Appx suspend ensure files unlock before deletion.
-3. **Primary Uninstall** – Prefer native uninstallers (winget/choco/scoop/msiexec/Remove-AppxPackage) with retry + exit code capture. Surface failures immediately in the UI timeline.
-4. **Residual Purge** – Remove install directories, ProgramData/AppData/Temp caches, `%ProgramFiles%\Common Files` entries, registry keys (Uninstall, Services, Run/RunOnce, Explorer, CLSIDs), autoruns, context menu handlers, firewall rules, drivers (`pnputil /delete-driver` when tagged), environment variables, shortcuts.
-5. **Verification Sweep** – Re-run inventory for that app ID. Remaining artifacts show in a grid with “Force delete” toggles. Success triggers freed space telemetry and optional watch mode.
-
-## Safety, Supportability & Observability
-- Typed confirmation (“Enter app name to continue”) plus undo bundle (config, registry exports) stored under `data/cleanup/<AppId>/` for 7 days.
-- Every action emits structured logs (operation, target, exit code, duration) and surfaces key checkpoints in Activity Log for support to replay.
-- Dry-run mode mirrors real output, enabling troubleshooting without deleting anything.
-- Scheduled sweeps for bloatware leverage the same pipeline but run in reduced-scope mode with maintenance windows.
-- CLI bridge (`tidywindow.exe /deepuninstall <AppId>`) offers automation parity and shares the same JSON plans.
-
-## Implementation Plan
-1. **Inventory Module** – Fork `automation/scripts/Get-PathPilotInventory.ps1` into `get-installed-app-footprint.ps1`; add sources for drivers, scheduled tasks, autoruns, env vars. Emit normalized JSON.
-2. **Removal Module** – Build `remove-app-footprint.ps1` with dry-run + execution switches, telemetry hooks, and resumable stages.
-3. **Shared PowerShell Module** – Extend `automation/modules/TidyWindow.Automation.psm1` with common helpers (registry ops, process control, logging, backup packaging).
-4. **App Layer** – Implement `DeepUninstallViewModel` + `DeepUninstallPage.xaml` using PathPilot list controls for the discovery view and Cleanup’s wizard shell for Prepare/Snap/Aftermath.
-5. **Telemetry + Reports** – Wire to existing logging backend; add JSON/markdown cleanup reports saved to `%ProgramData%/TidyWindow/Reports` and exposed via UI CTA.
-6. **Testing & Hardening** – Unit-test detection (mock inventories), integration-test removal pipeline in VM snapshots, add smoke tests in `debug/inspect-*` scripts, and document support playbooks in `docs/automation.md`.
-
-## Stretch & Future Ideas
-- Snapshot diffing between machines or points in time to highlight regressions or stealth reinstalls.
-- Optional “Watch mode” service that alerts when an app reinstalls itself after a snap.
-- Partner channel for crowd-sourced uninstall recipes (signed JSON packs) to extend coverage without shipping new code.
-
-Project Oblivion combines the proven simplicity of PathPilot’s UI shell with Cleanup’s guided multi-phase flow, yielding an efficient, powerful, and fully supportable deep uninstall experience.
+## Implementation Checklist
+1. **Inventory enhancements** – Extend `automation/scripts/get-installed-app-footprint.ps1` to output install roots, suspected services/process names, and uninstall metadata.
+2. **Deep uninstall script** – Author `automation/scripts/uninstall-app-deep.ps1` that performs: vendor uninstall → process sweep → artifact discovery → cleanup → summary, emitting streaming events for the UI.
+3. **Automation helpers** – Expand `automation/modules/TidyWindow.Automation.psm1` with process correlation, artifact scanning, deletion utilities, and structured logging helpers.
+4. **View models** – `ProjectOblivionViewModel` for the list, `ProjectOblivionPopupViewModel` for the modal (timeline state, artifact checklist, execute command, summary binding).
+5. **UI** – `Views/ProjectOblivionPage.xaml` hosts the list + uninstall button. `Views/ProjectOblivionPopup.xaml` renders the animation ring, timeline chips, log expansion, artifact checklist, summary card.

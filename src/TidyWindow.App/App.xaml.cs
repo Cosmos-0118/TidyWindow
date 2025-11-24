@@ -17,6 +17,7 @@ using TidyWindow.Core.Diagnostics;
 using TidyWindow.Core.Install;
 using TidyWindow.Core.Maintenance;
 using TidyWindow.Core.PathPilot;
+using TidyWindow.Core.ProjectOblivion;
 
 namespace TidyWindow.App;
 
@@ -87,6 +88,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<IRegistryStateService, RegistryStateService>();
                 services.AddSingleton<RegistryStateWatcher>();
                 services.AddSingleton<PathPilotInventoryService>();
+                services.AddSingleton<ProjectOblivionInventoryService>();
+                services.AddSingleton<ProjectOblivionRunService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -99,6 +102,8 @@ public partial class App : WpfApplication
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
                 services.AddTransient<PathPilotViewModel>();
+                services.AddTransient<ProjectOblivionPopupViewModel>();
+                services.AddTransient<ProjectOblivionViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();

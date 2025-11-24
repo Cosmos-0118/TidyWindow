@@ -1,59 +1,43 @@
-Project Oblivion – deep uninstall hub
+Project Oblivion – popup deep clean
 ----------------------------------
 
 Core promise
-- Surface every installed application (classic, MSIX/Appx, Store, portable, services) and erase 100% of its footprint when the user confirms.
-- “Thanos snap” means we pause/terminate processes, remove auto-start hooks, delete files, tear down services, scheduled tasks, drivers, registry keys, and cached data so nothing lingers.
+- Keep the UI dead simple (one page, one popup) while still deleting everything tied to an app.
+- Popup should feel special—PathPilot-style animation, live logs, and user control over what gets wiped.
 
-Data sources & detection
-1. **Inventory sweep** (new automation script): merge data from `winget list`, `Get-Package`, Appx/Store catalog, `HKLM/HKCU\Software\Microsoft\Windows\CurrentVersion\Uninstall`, `WOW6432Node`, `Program Files`, `ProgramData`, `%LocalAppData%`, Scoop buckets, Chocolatey/lib, and Services.
-2. **Linkage graph**: for each app we capture
-	- Install roots + size
-	- Running processes + services
-	- Scheduled tasks, startup entries, shell extensions, drivers
-	- Registry keys + environment variables (PATH injection)
-	- Related logs/cache folders
-3. **Confidence badges**: “Manager-managed”, “Portable”, “Store”, “Unknown provider” so users know how we identified it.
+Data model
+1. **Inventory sweep**: merge winget/choco/scoop/Appx/uninstall hives and include install roots, suspected processes/services, package family name, uninstall command, and confidence tag.
+2. **Artifact hints**: pre-store likely folders/keys so the popup scan can start displaying results before the deep crawl finishes.
 
-UI flow (take cues from Cleanup’s multi-phase layout)
-1. **Discover phase**
-	- Hero cards summarizing total apps, hidden apps, largest footprint.
-	- Search + filters (manager, install size, last used, vendor, confidence).
-	- Selecting an app opens a right-side insight panel with the linkage graph (tabs: Overview, Files, Registry, Autoruns, Processes).
-2. **Prepare phase** (modal or second page)
-	- Show the kill plan: “Stop 3 services, terminate 2 processes, unregister 1 driver, delete 5 folders (1.2 GB).”
-	- Toggle for “Safe uninstall” (run vendor uninstaller first) vs “Snap everything immediately.”
-	- Display warnings if elevated rights are required.
-3. **Snap phase**
-	- Progress tracker similar to Cleanup’s tasks view: each step (Terminate processes → Run uninstaller → Remove leftovers → Sanity scan) has real-time logs.
-	- Allow pausing or backing out before the destructive step.
-4. **Aftermath**
-	- Success card summarizing freed space and artifacts removed.
-	- Offer “Create cleanup report” and “Watch for re-install traces.”
+UI flow
+1. **List page**: searchable table (Name, Version, Size, Source, Last used) with `Uninstall` button.
+2. **Popup timeline**:
+	- Stage 0: Kickoff screen with command preview + `Start`.
+	- Stage 1: Run default uninstall, stream logs.
+	- Stage 2: Process/service sweep with auto-kill + manual retry buttons.
+	- Stage 3: Artifact discovery showing grouped checklists (Files, Registry, Tasks/Autoruns, Drivers, Misc) with select-all toggles.
+	- Stage 4: User selection confirmation (`Remove selected` button resumes flow).
+	- Stage 5: Cleanup execution with per-group progress lines.
+	- Stage 6: Summary card (freed space, removed vs skipped, elapsed time, `View log`).
 
-Deletion pipeline (“Thanos snap”)
-1. Elevation + checkpoint: request admin, create a system restore point (optional toggle).
-2. **Process freeze**: call `taskkill` / `Stop-Process`, `sc stop`, `net stop`, `Get-AppxPackage` suspend. Kill background tasks, scheduled jobs, services.
-3. **Primary uninstall**: prefer manager-native commands (winget uninstall, msiexec /x, choco uninstall, scoop uninstall, `Remove-AppxPackage`). Log exit codes.
-4. **Residual purge**:
-	- Delete install directories, ProgramData, AppData, Temp caches, `%ProgramFiles%\Common Files` entries.
-	- Remove registry keys (Uninstall, Services, Run, RunOnce, Explorer extensions, CLSIDs, shell overlays, notifications).
-	- Clean shortcuts, context-menu handlers, firewall rules, drivers (via `pnputil` if tagged), scheduled tasks, environment variables.
-5. **Verification sweep**: re-run detection to confirm zero traces; if artifacts remain, offer a “Force delete” button with full path list.
+Deletion pipeline
+1. Native uninstall command (winget/choco/scoop/msiexec/Appx). Elevate once if required.
+2. Process/service sweep using module path + service bin path matching; kill or skip per user choice.
+3. Artifact discovery hitting install root, ProgramData/AppData/Temp, registry keys (Uninstall, Services, Run, CLSID, App Paths), scheduled tasks, autoruns, drivers, env vars, firewall rules.
+4. User-configurable removal: all items checked by default; unchecking keeps them.
+5. Cleanup run deletes files/folders first, then registry, then tasks/drivers/env vars. Failures stay highlighted with retry link.
 
-Safety & UX clarity
-- Require explicit confirmation with typed app name before running the snap pipeline.
-- Show exactly what will be removed (tree view) so power users can deselect components (e.g., keep config files).
-- Keep logs and allow exporting the plan for auditing.
+Safety/diagnostics
+- No restore points or typed confirmations. Rely on the summary + stored log JSON.
+- Store each run under `data/cleanup/<AppId>/oblivion-run.json` with artifacts found, selected, removed, skipped, and timings.
+- Show inline error callouts if any stage fails; allow relaunch from the same popup while keeping selections.
 
-Implementation steps
-1. Build `automation/scripts/get-installed-app-footprint.ps1` to emit the consolidated graph and trust level.
-2. Create `automation/scripts/remove-app-footprint.ps1` handling the snap pipeline with dry-run + execution modes.
-3. Add `DeepUninstallViewModel` that orchestrates discovery, selection, and stepper state.
-4. Create `DeepUninstallPage.xaml` modeled after Cleanup: responsive layout, stepper header, insight panel, progress timeline.
-5. Integrate with Activity Log + telemetry so we can alert if any stage fails.
+Implementation notes
+1. Extend `get-installed-app-footprint.ps1` to emit enriched metadata (install roots, service/task hints, package family, uninstall command, display info).
+2. Author `uninstall-app-deep.ps1` (JSON streaming) with stages: uninstall, process sweep, artifact discovery, cleanup, summary.
+3. Build `ProjectOblivionViewModel` (list) + `ProjectOblivionPopupViewModel` (timeline, checklist, summary) with an animation control shared with PathPilot.
+4. Add structured telemetry hooks (stage durations, artifact counts, failures) surfaced both in Activity Log and the popup summary.
 
-Stretch goals
-- Add diff viewer comparing two machines or snapshots.
-- Allow scheduling routine sweeps for bloatware.
-- Provide `tidywindow.exe /deepuninstall <AppId>` CLI entry point for scripting.
+Stretch ideas
+- Multi-select queue that runs popups back-to-back automatically.
+- Optional leftover presets (e.g., always keep config folders) tied to user settings.
