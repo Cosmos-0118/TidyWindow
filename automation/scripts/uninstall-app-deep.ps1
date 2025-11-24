@@ -31,6 +31,87 @@ function Import-TidyModule {
 
 Import-TidyModule
 
+function Ensure-MsiServiceReady {
+    param([string] $CommandLine)
+
+    if ([string]::IsNullOrWhiteSpace($CommandLine) -or $CommandLine -notmatch '(?i)msiexec\.exe') {
+        return
+    }
+
+    try {
+        $service = Get-Service -Name 'msiserver' -ErrorAction Stop
+    }
+    catch {
+        return
+    }
+
+    try {
+        if ($service.StartType -eq 'Disabled') {
+            Set-Service -Name 'msiserver' -StartupType Manual -ErrorAction Stop
+        }
+
+        if ($service.Status -ne 'Running') {
+            Start-Service -Name 'msiserver' -ErrorAction Stop
+        }
+    }
+    catch {
+        Write-TidyStructuredEvent -Type 'log' -Payload @{ level = 'Warning'; message = "Failed to ensure msiserver is ready: $($_.Exception.Message)" }
+    }
+}
+
+function Measure-OblivionInstallFootprint {
+    param([psobject] $App)
+
+    if (-not $App) {
+        return 0
+    }
+
+    $candidates = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $addCandidate = {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) {
+            return
+        }
+
+        $resolved = Resolve-TidyPath -Path $Value
+        if ([string]::IsNullOrWhiteSpace($resolved)) {
+            return
+        }
+
+        [void]$candidates.Add($resolved)
+    }
+
+    & $addCandidate $App.installRoot
+    foreach ($root in @($App.installRoots)) { & $addCandidate $root }
+    foreach ($hint in @($App.artifactHints)) { & $addCandidate $hint }
+    if ($App.registry -and $App.registry.installLocation) {
+        & $addCandidate $App.registry.installLocation
+    }
+
+    $total = 0L
+    foreach ($path in $candidates) {
+        if (-not (Test-Path -LiteralPath $path)) {
+            continue
+        }
+
+        try {
+            $item = Get-Item -LiteralPath $path -ErrorAction Stop
+            if ($item.PSIsContainer) {
+                $total += [long](Measure-TidyDirectoryBytes -Path $path)
+            }
+            else {
+                $total += [long]$item.Length
+            }
+        }
+        catch {
+            continue
+        }
+    }
+
+    return $total
+}
+
 function Resolve-DefaultInventoryPath {
     $path = Resolve-ScriptPath -Relative '..\..\data\catalog\oblivion-inventory.json'
     if (Test-Path -LiteralPath $path) {
@@ -76,6 +157,8 @@ if (-not $app) {
     throw "Application '$AppId' not found in inventory."
 }
 
+$preUninstallFootprintBytes = Measure-OblivionInstallFootprint -App $app
+
 $runDirectory = New-TidyFeatureRunDirectory -FeatureName 'Oblivion' -AppIdentifier $AppId
 $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $logPath = Join-Path -Path $runDirectory -ChildPath "oblivion-run-$timestamp.json"
@@ -91,6 +174,7 @@ if ($uninstallCommand) {
         $uninstallResult = @{ exitCode = 0; output = 'dry-run'; errors = ''; durationMs = 0 }
     }
     else {
+        Ensure-MsiServiceReady -CommandLine $uninstallCommand
         $uninstallResult = Invoke-TidyCommandLine -CommandLine $uninstallCommand
     }
 }
@@ -175,12 +259,40 @@ foreach ($entry in $removalResult.Results) {
 Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'Cleanup'; status = 'completed'; removed = $removalResult.RemovedCount; failures = $removalResult.FailureCount }
 
 $failures = $removalResult.Results | Where-Object { -not $_.success }
+$freedBytes = if ($removalResult.FreedBytes) { [long]$removalResult.FreedBytes } else { 0 }
+if ($freedBytes -le 0 -and $uninstallResult -and ($uninstallResult.exitCode -eq 0)) {
+    $candidateFreed = 0L
+
+    $estimatedBytes = $null
+    if ($app.PSObject.Properties['estimatedSizeBytes'] -and $app.estimatedSizeBytes) {
+        try {
+            $estimatedBytes = [long]([double]$app.estimatedSizeBytes)
+        }
+        catch {
+            $estimatedBytes = $null
+        }
+    }
+
+    if ($estimatedBytes -and $estimatedBytes -gt $candidateFreed) {
+        $candidateFreed = $estimatedBytes
+    }
+
+    if ($preUninstallFootprintBytes -and $preUninstallFootprintBytes -gt $candidateFreed) {
+        $candidateFreed = $preUninstallFootprintBytes
+    }
+
+    if ($candidateFreed -gt 0) {
+        # If vendor uninstall removed files before cleanup ran, surface the best available estimate so the summary shows meaningful reclaimed space.
+        $freedBytes = $candidateFreed
+    }
+}
+
 $summary = @{
     appId      = $AppId
     removed    = $removalResult.RemovedCount
     skipped    = $artifacts.Count - $removalResult.RemovedCount
     failures   = $failures
-    freedBytes = $removalResult.FreedBytes
+    freedBytes = $freedBytes
     timestamp  = [DateTimeOffset]::UtcNow.ToString('o')
     logPath    = $logPath
 }

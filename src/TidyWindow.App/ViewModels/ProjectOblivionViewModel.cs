@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -39,6 +40,9 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
         ["portable"] = 6,
         ["shortcut"] = 7
     };
+    private static readonly AppIdentityComparer IdentityComparer = new();
+    private static readonly Regex VersionSuffixPattern = new("\\s+(?:v)?\\d+(?:[\\._-]\\d+)*(?:\\s*(?:x64|x86))?\\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+    private static readonly Regex NonAlphaNumericPattern = new("[^a-z0-9]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private string? _inventoryCachePath;
 
     public ProjectOblivionViewModel(
@@ -268,19 +272,251 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
         }
 
         return apps
-            .GroupBy(BuildAppKey)
-            .Select(group => group
-                .OrderBy(GetSourcePriority)
-                .ThenByDescending(app => app.EstimatedSizeBytes ?? 0)
-                .ThenBy(app => app.Name, StringComparer.OrdinalIgnoreCase)
-                .First());
+            .GroupBy(BuildAppIdentity, IdentityComparer)
+            .Select(MergeAppGroup);
     }
 
-    private static string BuildAppKey(ProjectOblivionApp app)
+    private static ProjectOblivionApp MergeAppGroup(IGrouping<AppIdentity, ProjectOblivionApp> group)
     {
-        var name = string.IsNullOrWhiteSpace(app.Name) ? app.AppId : app.Name.Trim();
-        var publisher = string.IsNullOrWhiteSpace(app.Publisher) ? string.Empty : app.Publisher.Trim();
-        return $"{name.ToLowerInvariant()}|{publisher.ToLowerInvariant()}";
+        var ordered = group
+            .OrderBy(GetSourcePriority)
+            .ThenByDescending(app => app.EstimatedSizeBytes ?? 0)
+            .ThenBy(app => app.Name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var primary = ordered[0];
+
+        string? installRoot = SelectFirstNonEmpty(ordered.Select(a => ProjectOblivionPathHelper.NormalizeDirectoryCandidate(a.InstallRoot)));
+        if (string.IsNullOrWhiteSpace(installRoot))
+        {
+            installRoot = SelectFirstNonEmpty(ordered
+                .SelectMany(EnumerateAllInstallRoots)
+                .Select(ProjectOblivionPathHelper.NormalizeDirectoryCandidate));
+        }
+
+        var installRoots = ordered
+            .SelectMany(a => EnumerateStrings(a.InstallRoots))
+            .Select(ProjectOblivionPathHelper.NormalizeDirectoryCandidate)
+            .Where(path => !string.IsNullOrWhiteSpace(path))
+            .Select(path => path!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToImmutableArray();
+
+        if (string.IsNullOrWhiteSpace(installRoot) && installRoots.Length > 0)
+        {
+            installRoot = installRoots[0];
+        }
+
+        var tags = BuildDistinctStrings(ordered.SelectMany(a => EnumerateStrings(a.Tags)));
+        var artifactHints = BuildDistinctStrings(ordered.SelectMany(a => EnumerateStrings(a.ArtifactHints)));
+        var processHints = BuildDistinctStrings(ordered.SelectMany(a => EnumerateStrings(a.ProcessHints)));
+        var serviceHints = BuildDistinctStrings(ordered.SelectMany(a => EnumerateStrings(a.ServiceHints)));
+        var managerHints = ordered
+            .SelectMany(a => EnumerateManagerHints(a.ManagerHints))
+            .Distinct()
+            .ToImmutableArray();
+
+        var estimatedSize = primary.EstimatedSizeBytes;
+        if (estimatedSize is null or <= 0)
+        {
+            estimatedSize = ordered
+                .Select(a => a.EstimatedSizeBytes)
+                .FirstOrDefault(value => value.HasValue && value.Value > 0);
+        }
+
+        var scope = string.IsNullOrWhiteSpace(primary.Scope)
+            ? SelectFirstNonEmpty(ordered.Select(a => a.Scope))
+            : primary.Scope;
+        var publisher = string.IsNullOrWhiteSpace(primary.Publisher)
+            ? SelectFirstNonEmpty(ordered.Select(a => a.Publisher))
+            : primary.Publisher;
+        var version = string.IsNullOrWhiteSpace(primary.Version)
+            ? SelectFirstNonEmpty(ordered.Select(a => a.Version))
+            : primary.Version;
+        var source = string.IsNullOrWhiteSpace(primary.Source)
+            ? SelectFirstNonEmpty(ordered.Select(a => a.Source))
+            : primary.Source;
+        var confidence = string.IsNullOrWhiteSpace(primary.Confidence)
+            ? SelectFirstNonEmpty(ordered.Select(a => a.Confidence))
+            : primary.Confidence;
+        var registry = primary.Registry ?? ordered.Select(a => a.Registry).FirstOrDefault(r => r is not null);
+
+        var normalizedInstallRoots = installRoots.Length > 0
+            ? installRoots
+            : (primary.InstallRoots.IsDefault ? ImmutableArray<string>.Empty : primary.InstallRoots);
+
+        var normalizedTags = tags.Length > 0
+            ? tags
+            : (primary.Tags.IsDefault ? ImmutableArray<string>.Empty : primary.Tags);
+
+        var normalizedArtifacts = artifactHints.Length > 0
+            ? artifactHints
+            : (primary.ArtifactHints.IsDefault ? ImmutableArray<string>.Empty : primary.ArtifactHints);
+
+        var normalizedProcessHints = processHints.Length > 0
+            ? processHints
+            : (primary.ProcessHints.IsDefault ? ImmutableArray<string>.Empty : primary.ProcessHints);
+
+        var normalizedServiceHints = serviceHints.Length > 0
+            ? serviceHints
+            : (primary.ServiceHints.IsDefault ? ImmutableArray<string>.Empty : primary.ServiceHints);
+
+        var normalizedManagerHints = managerHints.Length > 0
+            ? managerHints
+            : (primary.ManagerHints.IsDefault ? ImmutableArray<ProjectOblivionManagerHint>.Empty : primary.ManagerHints);
+
+        return primary with
+        {
+            InstallRoot = installRoot ?? primary.InstallRoot,
+            InstallRoots = normalizedInstallRoots,
+            Tags = normalizedTags,
+            ArtifactHints = normalizedArtifacts,
+            ProcessHints = normalizedProcessHints,
+            ServiceHints = normalizedServiceHints,
+            ManagerHints = normalizedManagerHints,
+            EstimatedSizeBytes = estimatedSize ?? primary.EstimatedSizeBytes,
+            Scope = scope ?? primary.Scope,
+            Publisher = publisher ?? primary.Publisher,
+            Version = version ?? primary.Version,
+            Source = source ?? primary.Source,
+            Confidence = confidence ?? primary.Confidence,
+            Registry = registry ?? primary.Registry
+        };
+    }
+
+    private static AppIdentity BuildAppIdentity(ProjectOblivionApp app)
+    {
+        if (!string.IsNullOrWhiteSpace(app.PackageFamilyName))
+        {
+            return AppIdentity.PackageFamily(app.PackageFamilyName.Trim().ToLowerInvariant());
+        }
+
+        var managerKey = BuildManagerKey(app);
+        if (!string.IsNullOrWhiteSpace(managerKey))
+        {
+            return AppIdentity.Manager(managerKey);
+        }
+
+        var installKey = BuildInstallRootKey(app);
+        if (!string.IsNullOrWhiteSpace(installKey))
+        {
+            return AppIdentity.InstallRoot(installKey);
+        }
+
+        var normalizedName = NormalizeNameForKey(app.Name, app.AppId);
+        var normalizedPublisher = NormalizeNameForKey(app.Publisher, string.Empty);
+        return AppIdentity.Name(normalizedName, normalizedPublisher);
+    }
+
+    private static string? BuildManagerKey(ProjectOblivionApp app)
+    {
+        if (app.ManagerHints.IsDefaultOrEmpty)
+        {
+            return null;
+        }
+
+        foreach (var hint in app.ManagerHints)
+        {
+            if (string.IsNullOrWhiteSpace(hint.Manager) || string.IsNullOrWhiteSpace(hint.PackageId))
+            {
+                continue;
+            }
+
+            return $"manager:{hint.Manager.Trim().ToLowerInvariant()}|pkg:{hint.PackageId.Trim().ToLowerInvariant()}";
+        }
+
+        return null;
+    }
+
+    private static string? BuildInstallRootKey(ProjectOblivionApp app)
+    {
+        foreach (var raw in EnumerateAllInstallRoots(app))
+        {
+            var normalized = ProjectOblivionPathHelper.NormalizeDirectoryCandidate(raw);
+            if (!string.IsNullOrWhiteSpace(normalized) && ProjectOblivionPathHelper.IsHighConfidenceInstallPath(normalized))
+            {
+                return $"install:{normalized.ToLowerInvariant()}";
+            }
+        }
+
+        return null;
+    }
+
+    private static IEnumerable<string?> EnumerateAllInstallRoots(ProjectOblivionApp app)
+    {
+        if (!string.IsNullOrWhiteSpace(app.InstallRoot))
+        {
+            yield return app.InstallRoot;
+        }
+
+        if (!app.InstallRoots.IsDefaultOrEmpty)
+        {
+            foreach (var root in app.InstallRoots)
+            {
+                yield return root;
+            }
+        }
+
+        if (!app.ArtifactHints.IsDefaultOrEmpty)
+        {
+            foreach (var hint in app.ArtifactHints)
+            {
+                yield return hint;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(app.Registry?.InstallLocation))
+        {
+            yield return app.Registry!.InstallLocation;
+        }
+    }
+
+    private static ImmutableArray<string> BuildDistinctStrings(IEnumerable<string> values)
+    {
+        return values
+            .Select(value => value?.Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToImmutableArray();
+    }
+
+    private static IEnumerable<string> EnumerateStrings(ImmutableArray<string> values)
+    {
+        return values.IsDefaultOrEmpty ? Array.Empty<string>() : values;
+    }
+
+    private static IEnumerable<ProjectOblivionManagerHint> EnumerateManagerHints(ImmutableArray<ProjectOblivionManagerHint> values)
+    {
+        return values.IsDefaultOrEmpty ? Array.Empty<ProjectOblivionManagerHint>() : values;
+    }
+
+    private static string? SelectFirstNonEmpty(IEnumerable<string?> values)
+    {
+        foreach (var value in values)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
+    }
+
+    private static string NormalizeNameForKey(string? value, string fallback)
+    {
+        var input = string.IsNullOrWhiteSpace(value) ? fallback : value;
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = VersionSuffixPattern.Replace(input.Trim(), string.Empty);
+        trimmed = trimmed.Replace("®", string.Empty, StringComparison.Ordinal)
+            .Replace("™", string.Empty, StringComparison.Ordinal);
+        var normalized = NonAlphaNumericPattern.Replace(trimmed.ToLowerInvariant(), " ").Trim();
+        return normalized.Replace(" ", string.Empty, StringComparison.Ordinal);
     }
 
     private static int GetSourcePriority(ProjectOblivionApp app)
@@ -463,7 +699,33 @@ public enum ProjectOblivionAppSizeState
 public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
 {
     private static readonly string[] EmptyTags = Array.Empty<string>();
+    private static readonly HashSet<string> GenericSystemExecutables = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "msiexec.exe",
+        "setup.exe",
+        "install.exe",
+        "uninstall.exe",
+        "powershell.exe",
+        "pwsh.exe",
+        "cmd.exe",
+        "conhost.exe",
+        "rundll32.exe",
+        "dism.exe",
+        "appinstaller.exe",
+        "wuauclt.exe"
+    };
+    private static readonly HashSet<string> ImageFileExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".bmp"
+    };
+    private static readonly string WindowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+    private static readonly string SystemDirectory = Environment.SystemDirectory;
+    private static readonly char[] InvalidFileNameChars = Path.GetInvalidFileNameChars();
     private readonly string? _primaryInstallRoot;
+    private readonly string[] _nameTokens;
     private long? _computedSizeBytes;
     private ProjectOblivionAppSizeState _sizeState;
 
@@ -474,8 +736,9 @@ public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
         SourceDisplay = BuildSourceDisplay(Model.Source);
         SourceBadge = SourceDisplay.ToUpperInvariant();
         Monogram = BuildMonogram(Model.Name);
-        IconImage = LoadIconImage();
+        _nameTokens = BuildNameTokens(Model.Name);
         _primaryInstallRoot = ResolvePrimaryInstallRoot();
+        IconImage = LoadIconImage();
         _sizeState = Model.EstimatedSizeBytes is null or <= 0
             ? ProjectOblivionAppSizeState.Unknown
             : ProjectOblivionAppSizeState.Calculated;
@@ -650,18 +913,42 @@ public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
 
     private ImageSource? LoadIconImage()
     {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var prioritized = new List<(string Path, int Score)>();
+
         foreach (var candidate in EnumerateIconCandidates())
         {
             var normalized = NormalizeIconCandidate(candidate);
-            if (string.IsNullOrWhiteSpace(normalized))
+            if (string.IsNullOrWhiteSpace(normalized) || !File.Exists(normalized))
             {
                 continue;
             }
 
-            var image = TryCreateImageSource(normalized);
+            if (!seen.Add(normalized))
+            {
+                continue;
+            }
+
+            prioritized.Add((normalized, ScoreIconCandidate(normalized)));
+        }
+
+        foreach (var entry in prioritized
+                     .OrderByDescending(item => item.Score)
+                     .ThenBy(item => item.Path, StringComparer.OrdinalIgnoreCase))
+        {
+            var image = TryCreateImageSource(entry.Path);
             if (image is not null)
             {
                 return image;
+            }
+        }
+
+        if (string.Equals(Model.Source, "appx", StringComparison.OrdinalIgnoreCase))
+        {
+            var storeProxyIcon = TryLoadStoreProxyIcon();
+            if (storeProxyIcon is not null)
+            {
+                return storeProxyIcon;
             }
         }
 
@@ -678,30 +965,30 @@ public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
         yield return ExtractExecutablePath(Model.UninstallCommand);
         yield return ExtractExecutablePath(Model.QuietUninstallCommand);
 
-        if (!string.IsNullOrWhiteSpace(Model.InstallRoot))
+        foreach (var root in EnumerateKnownRoots())
         {
-            var root = Model.InstallRoot!;
-            yield return Path.Combine(root, $"{Model.Name}.exe");
+            var nameCandidate = BuildNameBasedExecutableCandidate(root);
+            if (!string.IsNullOrWhiteSpace(nameCandidate))
+            {
+                yield return nameCandidate;
+            }
+
             foreach (var exe in EnumerateExecutables(root))
             {
                 yield return exe;
             }
+
+            foreach (var asset in EnumerateImageAssets(root))
+            {
+                yield return asset;
+            }
         }
 
-        if (!Model.InstallRoots.IsDefaultOrEmpty)
+        if (string.Equals(Model.Source, "appx", StringComparison.OrdinalIgnoreCase))
         {
-            foreach (var root in Model.InstallRoots)
+            foreach (var proxy in EnumerateStoreProxyExecutables())
             {
-                if (string.IsNullOrWhiteSpace(root))
-                {
-                    continue;
-                }
-
-                yield return Path.Combine(root, $"{Model.Name}.exe");
-                foreach (var exe in EnumerateExecutables(root))
-                {
-                    yield return exe;
-                }
+                yield return proxy;
             }
         }
     }
@@ -732,6 +1019,84 @@ public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
             {
                 yield break;
             }
+        }
+    }
+
+    private static IEnumerable<string> EnumerateImageAssets(string root)
+    {
+        if (string.IsNullOrWhiteSpace(root) || !Directory.Exists(root))
+        {
+            yield break;
+        }
+
+        var patterns = new[] { "*.ico", "*icon*.png", "*logo*.png" };
+        foreach (var pattern in patterns)
+        {
+            IEnumerable<string> files;
+            try
+            {
+                files = Directory.EnumerateFiles(root, pattern, SearchOption.TopDirectoryOnly);
+            }
+            catch
+            {
+                continue;
+            }
+
+            var count = 0;
+            foreach (var file in files)
+            {
+                yield return file;
+                count++;
+                if (count >= 3)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    private IEnumerable<string> EnumerateKnownRoots()
+    {
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var raw in EnumerateRawRoots())
+        {
+            var normalized = ProjectOblivionPathHelper.NormalizeDirectoryCandidate(raw);
+            if (!string.IsNullOrWhiteSpace(normalized) && seen.Add(normalized))
+            {
+                yield return normalized;
+            }
+        }
+    }
+
+    private IEnumerable<string?> EnumerateRawRoots()
+    {
+        if (!string.IsNullOrWhiteSpace(_primaryInstallRoot))
+        {
+            yield return _primaryInstallRoot;
+        }
+
+        yield return Model.InstallRoot;
+
+        if (!Model.InstallRoots.IsDefaultOrEmpty)
+        {
+            foreach (var root in Model.InstallRoots)
+            {
+                yield return root;
+            }
+        }
+
+        if (!Model.ArtifactHints.IsDefaultOrEmpty)
+        {
+            foreach (var hint in Model.ArtifactHints)
+            {
+                yield return hint;
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(Model.Registry?.InstallLocation))
+        {
+            yield return Model.Registry!.InstallLocation;
         }
     }
 
@@ -784,21 +1149,19 @@ public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
         try
         {
             var extension = Path.GetExtension(candidatePath);
-            using Icon? icon = extension.Equals(".ico", StringComparison.OrdinalIgnoreCase)
-                ? new Icon(candidatePath)
-                : Icon.ExtractAssociatedIcon(candidatePath);
-
-            if (icon is null)
+            if (extension.Equals(".ico", StringComparison.OrdinalIgnoreCase))
             {
-                return null;
+                using var icon = new Icon(candidatePath);
+                return CreateBitmapFromIcon(icon);
             }
 
-            var bitmap = Imaging.CreateBitmapSourceFromHIcon(
-                icon.Handle,
-                Int32Rect.Empty,
-                BitmapSizeOptions.FromWidthAndHeight(64, 64));
-            bitmap.Freeze();
-            return bitmap;
+            if (ImageFileExtensions.Contains(extension))
+            {
+                return CreateBitmapFromImage(candidatePath);
+            }
+
+            using var associatedIcon = Icon.ExtractAssociatedIcon(candidatePath);
+            return associatedIcon is null ? null : CreateBitmapFromIcon(associatedIcon);
         }
         catch
         {
@@ -806,20 +1169,159 @@ public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
         }
     }
 
+    private static ImageSource? CreateBitmapFromIcon(Icon icon)
+    {
+        if (icon is null)
+        {
+            return null;
+        }
+
+        var bitmap = Imaging.CreateBitmapSourceFromHIcon(
+            icon.Handle,
+            Int32Rect.Empty,
+            BitmapSizeOptions.FromWidthAndHeight(64, 64));
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private static ImageSource CreateBitmapFromImage(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.DecodePixelWidth = 64;
+        bitmap.DecodePixelHeight = 64;
+        bitmap.StreamSource = stream;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private ImageSource? TryLoadStoreProxyIcon()
+    {
+        foreach (var path in EnumerateStoreProxyExecutables().Take(5))
+        {
+            var image = TryCreateImageSource(path);
+            if (image is not null)
+            {
+                return image;
+            }
+        }
+
+        return null;
+    }
+
+    private string? BuildNameBasedExecutableCandidate(string root)
+    {
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(Model.Name))
+        {
+            return null;
+        }
+
+        var sanitized = new string(Model.Name
+            .Where(ch => Array.IndexOf(InvalidFileNameChars, ch) < 0)
+            .ToArray()).Trim();
+
+        if (string.IsNullOrWhiteSpace(sanitized))
+        {
+            return null;
+        }
+
+        try
+        {
+            return Path.Combine(root, $"{sanitized}.exe");
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private IEnumerable<string> EnumerateStoreProxyExecutables()
+    {
+        var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(Model.Name))
+        {
+            var compact = new string(Model.Name.Where(char.IsLetterOrDigit).ToArray());
+            if (!string.IsNullOrWhiteSpace(compact))
+            {
+                candidates.Add($"{compact}*.exe");
+            }
+
+            if (_nameTokens.Length > 0)
+            {
+                var token = new string(_nameTokens[0].Where(char.IsLetterOrDigit).ToArray());
+                if (!string.IsNullOrWhiteSpace(token))
+                {
+                    candidates.Add($"{token}*.exe");
+                }
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(Model.PackageFamilyName))
+        {
+            var family = Model.PackageFamilyName!;
+            var prefix = family.Split('_')[0];
+            if (!string.IsNullOrWhiteSpace(prefix))
+            {
+                candidates.Add($"{prefix}*.exe");
+            }
+        }
+
+        if (candidates.Count == 0)
+        {
+            yield break;
+        }
+
+        var windowsApps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps");
+        if (!Directory.Exists(windowsApps))
+        {
+            yield break;
+        }
+
+        foreach (var pattern in candidates)
+        {
+            IEnumerable<string> matches;
+            try
+            {
+                matches = Directory.EnumerateFiles(windowsApps, pattern, SearchOption.TopDirectoryOnly);
+            }
+            catch
+            {
+                continue;
+            }
+
+            var count = 0;
+            foreach (var match in matches)
+            {
+                yield return match;
+                count++;
+                if (count >= 3)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
     private string? ResolvePrimaryInstallRoot()
     {
-        if (!string.IsNullOrWhiteSpace(Model.InstallRoot))
+        var normalized = ProjectOblivionPathHelper.NormalizeDirectoryCandidate(Model.InstallRoot);
+        if (!string.IsNullOrWhiteSpace(normalized))
         {
-            return Model.InstallRoot;
+            return normalized;
         }
 
         if (!Model.InstallRoots.IsDefaultOrEmpty)
         {
             foreach (var candidate in Model.InstallRoots)
             {
-                if (!string.IsNullOrWhiteSpace(candidate))
+                normalized = ProjectOblivionPathHelper.NormalizeDirectoryCandidate(candidate);
+                if (!string.IsNullOrWhiteSpace(normalized))
                 {
-                    return candidate;
+                    return normalized;
                 }
             }
         }
@@ -828,13 +1330,265 @@ public sealed class ProjectOblivionAppListItemViewModel : ObservableObject
         {
             foreach (var hint in Model.ArtifactHints)
             {
-                if (!string.IsNullOrWhiteSpace(hint))
+                normalized = ProjectOblivionPathHelper.NormalizeDirectoryCandidate(hint);
+                if (!string.IsNullOrWhiteSpace(normalized))
                 {
-                    return hint;
+                    return normalized;
                 }
             }
         }
 
+        if (!string.IsNullOrWhiteSpace(Model.Registry?.InstallLocation))
+        {
+            normalized = ProjectOblivionPathHelper.NormalizeDirectoryCandidate(Model.Registry!.InstallLocation);
+            if (!string.IsNullOrWhiteSpace(normalized))
+            {
+                return normalized;
+            }
+        }
+
         return null;
+    }
+
+    private int ScoreIconCandidate(string candidatePath)
+    {
+        var score = 0;
+        var extension = Path.GetExtension(candidatePath);
+
+        if (ImageFileExtensions.Contains(extension))
+        {
+            score += 6;
+        }
+        else if (extension.Equals(".ico", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 5;
+        }
+        else if (extension.Equals(".exe", StringComparison.OrdinalIgnoreCase) || extension.Equals(".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 3;
+        }
+
+        if (PathMatchesInstallRoot(candidatePath))
+        {
+            score += 5;
+        }
+
+        var fileName = Path.GetFileNameWithoutExtension(candidatePath);
+        if (NameTokensMatch(fileName))
+        {
+            score += 4;
+        }
+
+        if (IsGenericSystemExecutable(Path.GetFileName(candidatePath)))
+        {
+            score -= 6;
+        }
+
+        if (IsSystemPath(candidatePath))
+        {
+            score -= 3;
+        }
+
+        return score;
+    }
+
+    private bool PathMatchesInstallRoot(string candidatePath)
+    {
+        if (string.IsNullOrWhiteSpace(candidatePath))
+        {
+            return false;
+        }
+
+        var comparison = StringComparison.OrdinalIgnoreCase;
+
+        if (!string.IsNullOrWhiteSpace(_primaryInstallRoot) && candidatePath.StartsWith(_primaryInstallRoot, comparison))
+        {
+            return true;
+        }
+
+        foreach (var root in EnumerateKnownRoots())
+        {
+            if (!string.IsNullOrWhiteSpace(root) && candidatePath.StartsWith(root, comparison))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private bool NameTokensMatch(string? candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate) || _nameTokens.Length == 0)
+        {
+            return false;
+        }
+
+        var normalized = candidate.ToLowerInvariant();
+        foreach (var token in _nameTokens)
+        {
+            if (normalized.Contains(token, StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsGenericSystemExecutable(string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return false;
+        }
+
+        return GenericSystemExecutables.Contains(fileName);
+    }
+
+    private static bool IsSystemPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var comparison = StringComparison.OrdinalIgnoreCase;
+
+        if (!string.IsNullOrWhiteSpace(SystemDirectory) && path.StartsWith(SystemDirectory, comparison))
+        {
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(WindowsDirectory) && path.StartsWith(WindowsDirectory, comparison))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static string[] BuildNameTokens(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return Array.Empty<string>();
+        }
+
+        return value
+            .Split(new[] { ' ', '.', '-', '_', '(', ')', '[', ']', ':' }, StringSplitOptions.RemoveEmptyEntries)
+            .Select(token => token.Trim().ToLowerInvariant())
+            .Where(token => token.Length > 2)
+            .Distinct()
+            .ToArray();
+    }
+
+}
+
+internal readonly record struct AppIdentity(string Kind, string Primary, string? Secondary)
+{
+    public static AppIdentity PackageFamily(string value) => new("family", value ?? string.Empty, string.Empty);
+    public static AppIdentity Manager(string value) => new("manager", value ?? string.Empty, string.Empty);
+    public static AppIdentity InstallRoot(string value) => new("install", value ?? string.Empty, string.Empty);
+    public static AppIdentity Name(string value, string? publisher) => new("name", value ?? string.Empty, publisher ?? string.Empty);
+}
+
+// Treats publisher-less identities as wildcards so weaker records (like shortcuts) collapse into richer entries sharing the same name.
+internal sealed class AppIdentityComparer : IEqualityComparer<AppIdentity>
+{
+    public bool Equals(AppIdentity x, AppIdentity y)
+    {
+        if (!string.Equals(x.Kind, y.Kind, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!string.Equals(x.Primary, y.Primary, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (!string.Equals(x.Kind, "name", StringComparison.Ordinal))
+        {
+            return string.Equals(x.Secondary, y.Secondary, StringComparison.Ordinal);
+        }
+
+        if (string.IsNullOrEmpty(x.Secondary) || string.IsNullOrEmpty(y.Secondary))
+        {
+            return true;
+        }
+
+        return string.Equals(x.Secondary, y.Secondary, StringComparison.Ordinal);
+    }
+
+    public int GetHashCode(AppIdentity obj)
+    {
+        var hash = HashCode.Combine(obj.Kind, obj.Primary);
+        if (!string.Equals(obj.Kind, "name", StringComparison.Ordinal) && !string.IsNullOrEmpty(obj.Secondary))
+        {
+            hash = HashCode.Combine(hash, obj.Secondary);
+        }
+
+        return hash;
+    }
+}
+
+internal static class ProjectOblivionPathHelper
+{
+    public static string? NormalizeDirectoryCandidate(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var trimmed = path.Trim().Trim('"');
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return null;
+        }
+
+        var expanded = Environment.ExpandEnvironmentVariables(trimmed);
+
+        try
+        {
+            if (Directory.Exists(expanded))
+            {
+                return Path.GetFullPath(expanded);
+            }
+
+            if (File.Exists(expanded))
+            {
+                var directory = Path.GetDirectoryName(expanded);
+                return string.IsNullOrWhiteSpace(directory) ? null : Path.GetFullPath(directory);
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
+    }
+
+    public static bool IsHighConfidenceInstallPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var normalized = path.Replace('/', '\\').ToLowerInvariant();
+        if (normalized.Contains("start menu"))
+        {
+            return false;
+        }
+
+        if (normalized.Contains("\\shortcuts\\"))
+        {
+            return false;
+        }
+
+        return true;
     }
 }
