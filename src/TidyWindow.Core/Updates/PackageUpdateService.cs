@@ -119,7 +119,7 @@ public sealed class PackageUpdateService
                 throw new InvalidOperationException("Package update scan failed: " + string.Join(Environment.NewLine, result.Errors));
             }
 
-            var jsonPayload = ExtractJsonPayload(result.Output);
+            var jsonPayload = JsonPayloadExtractor.ExtractLastJsonBlock(result.Output);
             if (string.IsNullOrWhiteSpace(jsonPayload))
             {
                 return new PackageUpdateScanResult(Array.Empty<PackageUpdateStatus>(), DateTimeOffset.UtcNow);
@@ -198,7 +198,7 @@ public sealed class PackageUpdateService
             throw new InvalidOperationException("Package update failed: " + string.Join(Environment.NewLine, result.Errors));
         }
 
-        var jsonPayload = ExtractJsonPayload(result.Output);
+        var jsonPayload = JsonPayloadExtractor.ExtractLastJsonBlock(result.Output);
         if (string.IsNullOrWhiteSpace(jsonPayload))
         {
             throw new InvalidOperationException("Package update script did not return a result payload.");
@@ -409,26 +409,6 @@ public sealed class PackageUpdateService
     private static string NormalizeVersion(string? value)
     {
         return string.IsNullOrWhiteSpace(value) ? "Not detected" : value.Trim();
-    }
-
-    private static string? ExtractJsonPayload(IEnumerable<string> lines)
-    {
-        foreach (var line in lines.Reverse())
-        {
-            var trimmed = line?.Trim();
-            if (string.IsNullOrEmpty(trimmed))
-            {
-                continue;
-            }
-
-            trimmed = trimmed.TrimStart('\uFEFF');
-            if (trimmed.StartsWith("[", StringComparison.Ordinal) || trimmed.StartsWith("{", StringComparison.Ordinal))
-            {
-                return trimmed;
-            }
-        }
-
-        return null;
     }
 
     private static string ResolveScriptPath(string relativePath)

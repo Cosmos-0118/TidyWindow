@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Automation;
+using TidyWindow.Core.Serialization;
 
 namespace TidyWindow.Core.ProjectOblivion;
 
@@ -14,6 +17,7 @@ public sealed class ProjectOblivionInventoryService
 {
     private const string ScriptRelativePath = "automation/scripts/get-installed-app-footprint.ps1";
     private const string OverrideEnvironmentVariable = "TIDYWINDOW_OBLIVION_INVENTORY_SCRIPT";
+    private const int DiagnosticTailLineLimit = 15;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -53,10 +57,10 @@ public sealed class ProjectOblivionInventoryService
 
     private static ScriptPayload DeserializePayload(IReadOnlyList<string> output)
     {
-        var json = ExtractJsonPayload(output);
+        var json = JsonPayloadExtractor.ExtractLastJsonBlock(output);
         if (string.IsNullOrWhiteSpace(json))
         {
-            throw new InvalidOperationException("Project Oblivion inventory script returned no JSON payload.");
+            throw new InvalidOperationException(BuildMissingPayloadMessage(output));
         }
 
         try
@@ -65,7 +69,7 @@ public sealed class ProjectOblivionInventoryService
         }
         catch (JsonException ex)
         {
-            throw new InvalidOperationException("Project Oblivion inventory script returned invalid JSON.", ex);
+            throw new InvalidOperationException(BuildInvalidPayloadMessage(output, ex), ex);
         }
     }
 
@@ -178,24 +182,53 @@ public sealed class ProjectOblivionInventoryService
             NormalizeValue(app.Confidence));
     }
 
-    private static string? ExtractJsonPayload(IEnumerable<string> lines)
+    private static string BuildMissingPayloadMessage(IReadOnlyList<string> output)
     {
-        foreach (var line in lines.Reverse())
-        {
-            var trimmed = line?.Trim();
-            if (string.IsNullOrEmpty(trimmed))
-            {
-                continue;
-            }
+        var diagnostics = BuildOutputDiagnostics(output);
+        return diagnostics is null
+            ? "Project Oblivion inventory script returned no JSON payload."
+            : $"Project Oblivion inventory script returned no JSON payload.{Environment.NewLine}{diagnostics}";
+    }
 
-            trimmed = trimmed.TrimStart('\uFEFF');
-            if (trimmed.StartsWith("{", StringComparison.Ordinal) || trimmed.StartsWith("[", StringComparison.Ordinal))
-            {
-                return trimmed;
-            }
+    private static string BuildInvalidPayloadMessage(IReadOnlyList<string> output, JsonException? exception)
+    {
+        var diagnostics = BuildOutputDiagnostics(output);
+        var message = exception is not null && !string.IsNullOrWhiteSpace(exception.Message)
+            ? $"Project Oblivion inventory script returned invalid JSON: {exception.Message.Trim()}"
+            : "Project Oblivion inventory script returned invalid JSON.";
+
+        return diagnostics is null
+            ? message
+            : $"{message}{Environment.NewLine}{diagnostics}";
+    }
+
+    private static string? BuildOutputDiagnostics(IReadOnlyList<string> output)
+    {
+        if (output is null || output.Count == 0)
+        {
+            return null;
         }
 
-        return null;
+        var skip = Math.Max(0, output.Count - DiagnosticTailLineLimit);
+        var lines = output.Skip(skip).Take(DiagnosticTailLineLimit)
+            .Select(line => line ?? string.Empty)
+            .ToArray();
+
+        if (lines.Length == 0)
+        {
+            return null;
+        }
+
+        var builder = new StringBuilder();
+        builder.Append($"Last {lines.Length} line(s) from script output:");
+        builder.AppendLine();
+
+        foreach (var line in lines)
+        {
+            builder.AppendLine(line);
+        }
+
+        return builder.ToString().TrimEnd();
     }
 
     private static DateTimeOffset? TryParseTimestamp(string? value)
@@ -272,16 +305,22 @@ public sealed class ProjectOblivionInventoryService
         public string? Source { get; set; }
         public string? Scope { get; set; }
         public string? InstallRoot { get; set; }
+        [JsonConverter(typeof(FlexibleStringListJsonConverter))]
         public List<string>? InstallRoots { get; set; }
         public string? UninstallCommand { get; set; }
         public string? QuietUninstallCommand { get; set; }
         public string? PackageFamilyName { get; set; }
+        [JsonConverter(typeof(FlexibleInt64JsonConverter))]
         public long? EstimatedSizeBytes { get; set; }
+        [JsonConverter(typeof(FlexibleStringListJsonConverter))]
         public List<string>? ArtifactHints { get; set; }
         public List<ScriptManagerHint>? ManagerHints { get; set; }
+        [JsonConverter(typeof(FlexibleStringListJsonConverter))]
         public List<string>? ProcessHints { get; set; }
+        [JsonConverter(typeof(FlexibleStringListJsonConverter))]
         public List<string>? ServiceHints { get; set; }
         public ScriptRegistryInfo? Registry { get; set; }
+        [JsonConverter(typeof(FlexibleStringListJsonConverter))]
         public List<string>? Tags { get; set; }
         public string? Confidence { get; set; }
     }

@@ -155,7 +155,7 @@ public sealed class PathPilotInventoryService
 
     private ScriptPayload DeserializePayload(IReadOnlyList<string> output, string context)
     {
-        var jsonPayload = ExtractJsonPayload(output);
+        var jsonPayload = JsonPayloadExtractor.ExtractLastJsonBlock(output);
         if (string.IsNullOrWhiteSpace(jsonPayload))
         {
             throw new InvalidOperationException($"{context} script did not return a JSON payload.");
@@ -426,30 +426,6 @@ public sealed class PathPilotInventoryService
         if (DateTimeOffset.TryParse(value.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
             return parsed;
-        }
-
-        return null;
-    }
-
-    private static string? ExtractJsonPayload(IEnumerable<string> lines)
-    {
-        if (lines is null)
-        {
-            return null;
-        }
-
-        foreach (var line in lines.Reverse())
-        {
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                continue;
-            }
-
-            var trimmed = line.TrimStart('\uFEFF').Trim();
-            if (trimmed.StartsWith("{", StringComparison.Ordinal) || trimmed.StartsWith("[", StringComparison.Ordinal))
-            {
-                return trimmed;
-            }
         }
 
         return null;

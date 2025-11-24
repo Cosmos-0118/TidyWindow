@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
@@ -96,19 +97,22 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
         try
         {
             var snapshot = await _inventoryService.GetInventoryAsync(cachePath).ConfigureAwait(false);
-            _inventoryCachePath = cachePath;
-            ApplySnapshot(snapshot);
-            _mainViewModel.SetStatusMessage($"Inventory ready • {snapshot.Apps.Length:N0} app(s).");
+            await RunOnUiThreadAsync(() =>
+            {
+                _inventoryCachePath = cachePath;
+                ApplySnapshot(snapshot);
+                _mainViewModel.SetStatusMessage($"Inventory ready • {snapshot.Apps.Length:N0} app(s).");
+            }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
             var message = string.IsNullOrWhiteSpace(ex.Message) ? "Inventory failed." : ex.Message.Trim();
-            _mainViewModel.SetStatusMessage(message);
+            await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
             _activityLog.LogError("Project Oblivion", message, new[] { ex.ToString() });
         }
         finally
         {
-            IsBusy = false;
+            await RunOnUiThreadAsync(() => IsBusy = false).ConfigureAwait(false);
         }
     }
 
@@ -214,6 +218,23 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow", "ProjectOblivion");
         Directory.CreateDirectory(root);
         return Path.Combine(root, "oblivion-inventory.json");
+    }
+
+    private static Task RunOnUiThreadAsync(Action action)
+    {
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        return dispatcher.InvokeAsync(action, DispatcherPriority.Normal).Task;
     }
 }
 

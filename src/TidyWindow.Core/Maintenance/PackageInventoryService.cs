@@ -53,7 +53,7 @@ public sealed class PackageInventoryService
             throw new InvalidOperationException("Package inventory script failed: " + string.Join(Environment.NewLine, result.Errors));
         }
 
-        var jsonPayload = ExtractJsonPayload(result.Output);
+        var jsonPayload = JsonPayloadExtractor.ExtractLastJsonBlock(result.Output);
         if (string.IsNullOrWhiteSpace(jsonPayload))
         {
             throw new InvalidOperationException("Package inventory script returned no JSON payload.");
@@ -103,26 +103,6 @@ public sealed class PackageInventoryService
         if (DateTimeOffset.TryParse(value.Trim(), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
             return parsed;
-        }
-
-        return null;
-    }
-
-    private static string? ExtractJsonPayload(IEnumerable<string> lines)
-    {
-        foreach (var line in lines.Reverse())
-        {
-            var trimmed = line?.Trim();
-            if (string.IsNullOrEmpty(trimmed))
-            {
-                continue;
-            }
-
-            trimmed = trimmed.TrimStart('\uFEFF');
-            if (trimmed.StartsWith("[", StringComparison.Ordinal) || trimmed.StartsWith("{", StringComparison.Ordinal))
-            {
-                return trimmed;
-            }
         }
 
         return null;

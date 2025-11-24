@@ -1036,11 +1036,32 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
     private void Log(ProjectOblivionLogLevel level, string message, string? raw = null)
     {
-        var entry = new ProjectOblivionRunLogEntry(DateTimeOffset.Now, level, message, raw);
-        RunLog.Add(entry);
-        if (RunLog.Count > 500)
+        RunOnUiThread(() =>
         {
-            RunLog.RemoveAt(0);
+            var entry = new ProjectOblivionRunLogEntry(DateTimeOffset.Now, level, message, raw);
+            RunLog.Add(entry);
+            if (RunLog.Count > 500)
+            {
+                RunLog.RemoveAt(0);
+            }
+        });
+    }
+
+    private static void RunOnUiThread(Action action)
+    {
+        if (action is null)
+        {
+            throw new ArgumentNullException(nameof(action));
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            action();
+        }
+        else
+        {
+            dispatcher.Invoke(action);
         }
     }
 

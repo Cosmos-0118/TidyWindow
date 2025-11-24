@@ -144,7 +144,7 @@ public sealed class PackageMaintenanceService
             throw new InvalidOperationException("Maintenance script returned no output.");
         }
 
-        var json = ExtractJsonPayload(output);
+        var json = JsonPayloadExtractor.ExtractLastJsonBlock(output);
         if (string.IsNullOrWhiteSpace(json))
         {
             throw new InvalidOperationException("Maintenance script did not produce a JSON payload.");
@@ -189,26 +189,6 @@ public sealed class PackageMaintenanceService
         }
 
         throw new FileNotFoundException($"Unable to locate automation script at '{relativePath}'.", relativePath);
-    }
-
-    private static string? ExtractJsonPayload(IEnumerable<string> output)
-    {
-        foreach (var line in output.Reverse())
-        {
-            var trimmed = line?.Trim();
-            if (string.IsNullOrEmpty(trimmed))
-            {
-                continue;
-            }
-
-            trimmed = trimmed.TrimStart('\uFEFF');
-            if (trimmed.StartsWith("{", StringComparison.Ordinal) || trimmed.StartsWith("[", StringComparison.Ordinal))
-            {
-                return trimmed;
-            }
-        }
-
-        return null;
     }
 
     private static PackageMaintenanceResult MapToResult(PackageMaintenanceScriptResult payload)
