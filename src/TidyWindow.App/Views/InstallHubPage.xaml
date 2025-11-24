@@ -46,6 +46,161 @@
 
             <CubicEase x:Key="InstallOverlayEaseIn" EasingMode="EaseInOut"/>
             <CubicEase x:Key="InstallOverlayEaseOut" EasingMode="EaseOut"/>
+
+            <CubicEase x:Key="InstallPivotEaseIn" EasingMode="EaseOut"/>
+            <CubicEase x:Key="InstallPivotEaseOut" EasingMode="EaseInOut"/>
+
+            <Style x:Key="InstallHubPivotContentBaseStyle"
+                   TargetType="FrameworkElement">
+                <Setter Property="Opacity" Value="0"/>
+                <Setter Property="Visibility" Value="Collapsed"/>
+                <Setter Property="IsHitTestVisible" Value="False"/>
+                <Setter Property="Panel.ZIndex" Value="0"/>
+            </Style>
+
+            <Style x:Key="InstallHubBundlesViewStyle"
+                   TargetType="views:InstallHubBundlesView"
+                   BasedOn="{StaticResource InstallHubPivotContentBaseStyle}">
+                <Style.Triggers>
+                    <DataTrigger Value="True">
+                        <DataTrigger.Binding>
+                            <Binding Path="DataContext.CurrentPivot"
+                                     RelativeSource="{RelativeSource AncestorType={x:Type Page}}"
+                                     Converter="{StaticResource EnumEqualsConverter}"
+                                     ConverterParameter="{x:Static viewModels:CurrentInstallHubPivot.Bundles}"/>
+                        </DataTrigger.Binding>
+                        <Setter Property="Panel.ZIndex" Value="1"/>
+                        <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                        <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
+                                    </BooleanAnimationUsingKeyFrames>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.35"
+                                                     EasingFunction="{StaticResource InstallPivotEaseIn}"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                        <DataTrigger.ExitActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.35"
+                                                     EasingFunction="{StaticResource InstallPivotEaseOut}"/>
+                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
+                                    </BooleanAnimationUsingKeyFrames>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.35" Value="{x:Static Visibility.Collapsed}"/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.ExitActions>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="InstallHubCatalogViewStyle"
+                   TargetType="views:InstallHubCatalogView"
+                   BasedOn="{StaticResource InstallHubPivotContentBaseStyle}">
+                <Style.Triggers>
+                    <DataTrigger Value="True">
+                        <DataTrigger.Binding>
+                            <Binding Path="DataContext.CurrentPivot"
+                                     RelativeSource="{RelativeSource AncestorType={x:Type Page}}"
+                                     Converter="{StaticResource EnumEqualsConverter}"
+                                     ConverterParameter="{x:Static viewModels:CurrentInstallHubPivot.Catalog}"/>
+                        </DataTrigger.Binding>
+                        <Setter Property="Panel.ZIndex" Value="1"/>
+                        <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                        <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
+                                    </BooleanAnimationUsingKeyFrames>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.35"
+                                                     EasingFunction="{StaticResource InstallPivotEaseIn}"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                        <DataTrigger.ExitActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.35"
+                                                     EasingFunction="{StaticResource InstallPivotEaseOut}"/>
+                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
+                                    </BooleanAnimationUsingKeyFrames>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.35" Value="{x:Static Visibility.Collapsed}"/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.ExitActions>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+
+            <Style x:Key="InstallHubQueueViewStyle"
+                   TargetType="views:InstallHubQueueView"
+                   BasedOn="{StaticResource InstallHubPivotContentBaseStyle}">
+                <Style.Triggers>
+                    <DataTrigger Value="True">
+                        <DataTrigger.Binding>
+                            <Binding Path="DataContext.CurrentPivot"
+                                     RelativeSource="{RelativeSource AncestorType={x:Type Page}}"
+                                     Converter="{StaticResource EnumEqualsConverter}"
+                                     ConverterParameter="{x:Static viewModels:CurrentInstallHubPivot.Queue}"/>
+                        </DataTrigger.Binding>
+                        <Setter Property="Panel.ZIndex" Value="1"/>
+                        <DataTrigger.EnterActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                        <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
+                                    </BooleanAnimationUsingKeyFrames>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     To="1"
+                                                     Duration="0:0:0.35"
+                                                     EasingFunction="{StaticResource InstallPivotEaseIn}"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.EnterActions>
+                        <DataTrigger.ExitActions>
+                            <BeginStoryboard>
+                                <Storyboard>
+                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     To="0"
+                                                     Duration="0:0:0.35"
+                                                     EasingFunction="{StaticResource InstallPivotEaseOut}"/>
+                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
+                                    </BooleanAnimationUsingKeyFrames>
+                                    <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.35" Value="{x:Static Visibility.Collapsed}"/>
+                                    </ObjectAnimationUsingKeyFrames>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </DataTrigger.ExitActions>
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
         </ResourceDictionary>
     </Page.Resources>
 
@@ -62,77 +217,54 @@
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0"
-                            Margin="0,0,0,28">
-                    <controls:PageTitleBar Title="Smart install hub"
-                                           Subtitle="{Binding Headline}"
-                                           IconGlyph="📦"/>
-                    <TextBlock Text="Choose a pivot to focus on bundles, the catalog, or your install queue."
-                               Foreground="#94A3B8"
-                               FontSize="13"
-                               Margin="0,12,0,0"
-                               TextWrapping="Wrap"/>
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,18,0,0">
-                        <ToggleButton Content="Bundles"
-                                      Margin="0,0,12,0"
-                                      Style="{StaticResource InstallHubPivotButtonStyle}"
-                                      Command="{Binding NavigatePivotCommand}"
-                                      CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Bundles}"
-                                      IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Bundles}}"/>
-                        <ToggleButton Content="Catalog"
-                                      Margin="0,0,12,0"
-                                      Style="{StaticResource InstallHubPivotButtonStyle}"
-                                      Command="{Binding NavigatePivotCommand}"
-                                      CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Catalog}"
-                                      IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Catalog}}"/>
-                        <ToggleButton Content="Queue"
-                                      Style="{StaticResource InstallHubPivotButtonStyle}"
-                                      Command="{Binding NavigatePivotCommand}"
-                                      CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Queue}"
-                                      IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Queue}}"/>
-                    </StackPanel>
-                </StackPanel>
+                <controls:PageTitleBar Grid.Row="0"
+                                       Title="Smart install hub"
+                                       Subtitle="Curate developer bundles"
+                                       IconGlyph="📦"
+                                       Margin="0,0,0,28">
+                    <controls:PageTitleBar.BodyContent>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Headline}"
+                                       Foreground="#E2E8F0"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="Choose a pivot to focus on bundles, the catalog, or your install queue."
+                                       Foreground="#94A3B8"
+                                       FontSize="12"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"/>
+                            <WrapPanel Margin="0,16,0,0"
+                                       ItemHeight="Auto"
+                                       ItemWidth="Auto"
+                                       MinWidth="0">
+                                <ToggleButton Content="Bundles"
+                                              Margin="0,0,12,12"
+                                              Style="{StaticResource InstallHubPivotButtonStyle}"
+                                              Command="{Binding NavigatePivotCommand}"
+                                              CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Bundles}"
+                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Bundles}}"/>
+                                <ToggleButton Content="Catalog"
+                                              Margin="0,0,12,12"
+                                              Style="{StaticResource InstallHubPivotButtonStyle}"
+                                              Command="{Binding NavigatePivotCommand}"
+                                              CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Catalog}"
+                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Catalog}}"/>
+                                <ToggleButton Content="Queue"
+                                              Margin="0,0,12,12"
+                                              Style="{StaticResource InstallHubPivotButtonStyle}"
+                                              Command="{Binding NavigatePivotCommand}"
+                                              CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Queue}"
+                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Queue}}"/>
+                            </WrapPanel>
+                        </StackPanel>
+                    </controls:PageTitleBar.BodyContent>
+                </controls:PageTitleBar>
 
                 <Grid Grid.Row="1">
-                    <views:InstallHubBundlesView>
-                        <views:InstallHubBundlesView.Style>
-                            <Style TargetType="views:InstallHubBundlesView">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CurrentPivot}" Value="{x:Static viewModels:CurrentInstallHubPivot.Bundles}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </views:InstallHubBundlesView.Style>
-                    </views:InstallHubBundlesView>
-
-                    <views:InstallHubCatalogView>
-                        <views:InstallHubCatalogView.Style>
-                            <Style TargetType="views:InstallHubCatalogView">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CurrentPivot}" Value="{x:Static viewModels:CurrentInstallHubPivot.Catalog}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </views:InstallHubCatalogView.Style>
-                    </views:InstallHubCatalogView>
-
-                    <views:InstallHubQueueView>
-                        <views:InstallHubQueueView.Style>
-                            <Style TargetType="views:InstallHubQueueView">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding CurrentPivot}" Value="{x:Static viewModels:CurrentInstallHubPivot.Queue}">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </views:InstallHubQueueView.Style>
-                    </views:InstallHubQueueView>
+                    <views:InstallHubBundlesView Style="{StaticResource InstallHubBundlesViewStyle}"/>
+                    <views:InstallHubCatalogView Style="{StaticResource InstallHubCatalogViewStyle}"/>
+                    <views:InstallHubQueueView Style="{StaticResource InstallHubQueueViewStyle}"/>
                 </Grid>
             </Grid>
         </ScrollViewer>
