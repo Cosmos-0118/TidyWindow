@@ -10,6 +10,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using TidyWindow.Core.ProjectOblivion;
+using TidyWindow.App.Views;
 
 namespace TidyWindow.App.ViewModels;
 
@@ -18,6 +19,7 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
     private readonly ProjectOblivionInventoryService _inventoryService;
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
+    private readonly NavigationService _navigationService;
     private readonly List<ProjectOblivionAppListItemViewModel> _allApps = new();
     private string? _inventoryCachePath;
 
@@ -25,12 +27,14 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
         ProjectOblivionInventoryService inventoryService,
         ActivityLogService activityLogService,
         MainViewModel mainViewModel,
-        ProjectOblivionPopupViewModel popupViewModel)
+        ProjectOblivionPopupViewModel popupViewModel,
+        NavigationService navigationService)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         Popup = popupViewModel ?? throw new ArgumentNullException(nameof(popupViewModel));
+        _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 
         Apps = new ObservableCollection<ProjectOblivionAppListItemViewModel>();
         Warnings = new ObservableCollection<string>();
@@ -123,9 +127,10 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void LaunchPopup()
+    private void LaunchFlow(ProjectOblivionAppListItemViewModel? app)
     {
-        if (SelectedApp is null)
+        var target = app ?? SelectedApp;
+        if (target is null)
         {
             _mainViewModel.SetStatusMessage("Select an application to continue.");
             return;
@@ -137,8 +142,9 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
             return;
         }
 
-        Popup.Prepare(SelectedApp.Model, _inventoryCachePath);
-        Popup.IsOpen = true;
+        Popup.Prepare(target.Model, _inventoryCachePath);
+        SelectedApp = target;
+        _navigationService.Navigate(typeof(ProjectOblivionFlowPage));
     }
 
     private void ApplySnapshot(ProjectOblivionInventorySnapshot snapshot)

@@ -102,7 +102,7 @@ public partial class App : WpfApplication
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
                 services.AddTransient<PathPilotViewModel>();
-                services.AddTransient<ProjectOblivionPopupViewModel>();
+                services.AddSingleton<ProjectOblivionPopupViewModel>();
                 services.AddTransient<ProjectOblivionViewModel>();
 
                 services.AddTransient<BootstrapPage>();

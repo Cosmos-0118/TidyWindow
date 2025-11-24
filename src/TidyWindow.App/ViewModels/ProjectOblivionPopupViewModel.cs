@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
+using TidyWindow.App.Views;
 using TidyWindow.Core.ProjectOblivion;
 
 namespace TidyWindow.App.ViewModels;
@@ -179,6 +180,8 @@ public enum ProjectOblivionStage
 
 internal sealed record ProjectOblivionStageDefinition(ProjectOblivionStage Stage, string Title, string Description);
 
+internal sealed record StageWorkspaceContent(string IconGlyph, string Helper, string Detail);
+
 public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisposable
 {
     private static readonly IReadOnlyList<ProjectOblivionStageDefinition> StageDefinitions = new List<ProjectOblivionStageDefinition>
@@ -192,11 +195,27 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         new(ProjectOblivionStage.Summary, "Summary", "Review results and freed space.")
     };
 
+    private static readonly IReadOnlyDictionary<ProjectOblivionStage, ProjectOblivionStageDefinition> StageDefinitionLookup =
+        StageDefinitions.ToDictionary(definition => definition.Stage);
+
+    private static readonly IReadOnlyDictionary<ProjectOblivionStage, StageWorkspaceContent> StageWorkspaceContentLookup =
+        new Dictionary<ProjectOblivionStage, StageWorkspaceContent>
+        {
+            [ProjectOblivionStage.Kickoff] = new("🚀", "Initializing run context", "Gathering vendor uninstall metadata."),
+            [ProjectOblivionStage.DefaultUninstall] = new("🧼", "Running vendor uninstall", "Let the stock uninstall finish."),
+            [ProjectOblivionStage.ProcessSweep] = new("🧹", "Closing related processes", "Stopping stubborn services and apps."),
+            [ProjectOblivionStage.ArtifactDiscovery] = new("🧭", "Hunting leftovers", "Collecting files, folders, and registry keys."),
+            [ProjectOblivionStage.SelectionHold] = new("📝", "Confirm what to remove", "Review artifacts before cleanup continues."),
+            [ProjectOblivionStage.Cleanup] = new("⚙️", "Removing leftovers", "Processing the selected artifacts."),
+            [ProjectOblivionStage.Summary] = new("📊", "Run summary", "Review the results and export logs.")
+        };
+
     private const string SelectionFilePrefix = "selection";
 
     private readonly ProjectOblivionRunService _runService;
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
+    private readonly NavigationService _navigationService;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
@@ -211,11 +230,12 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     private string? _selectionFilePath;
     private bool _selectionCommitted;
 
-    public ProjectOblivionPopupViewModel(ProjectOblivionRunService runService, ActivityLogService activityLogService, MainViewModel mainViewModel)
+    public ProjectOblivionPopupViewModel(ProjectOblivionRunService runService, ActivityLogService activityLogService, MainViewModel mainViewModel, NavigationService navigationService)
     {
         _runService = runService ?? throw new ArgumentNullException(nameof(runService));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
 
         Timeline = new ObservableCollection<ProjectOblivionTimelineStageViewModel>();
         foreach (var definition in StageDefinitions)
@@ -244,7 +264,27 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     public bool HasArtifacts => ArtifactGroups.Any(group => group.Items.Count > 0);
 
     [ObservableProperty]
-    private bool _isOpen;
+    private ProjectOblivionStage _activeStage = ProjectOblivionStage.Kickoff;
+
+    public string ActiveStageTitle => GetStageDefinition(ActiveStage).Title;
+
+    public string ActiveStageDescription => GetStageDefinition(ActiveStage).Description;
+
+    public string ActiveStageIcon => GetStageWorkspaceContent(ActiveStage).IconGlyph;
+
+    public string ActiveStageHelper => GetStageWorkspaceContent(ActiveStage).Helper;
+
+    public string ActiveStageDetail => GetStageWorkspaceContent(ActiveStage).Detail;
+
+    public bool IsArtifactWorkspaceVisible => ActiveStage is ProjectOblivionStage.ArtifactDiscovery or ProjectOblivionStage.SelectionHold;
+
+    public bool IsStageWorkspaceVisible => !IsArtifactWorkspaceVisible && ActiveStage != ProjectOblivionStage.Summary;
+
+    public bool IsSummaryWorkspaceVisible => HasSummary && ActiveStage == ProjectOblivionStage.Summary;
+
+    public bool IsSummaryAwaitingDetails => ActiveStage == ProjectOblivionStage.Summary && !HasSummary;
+
+    public string FlowExecutionStatus => IsBusy ? "Running" : "Idle";
 
     [ObservableProperty]
     private bool _isBusy;
@@ -286,6 +326,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     {
         StartRunCommand.NotifyCanExecuteChanged();
         CancelRunCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(FlowExecutionStatus));
     }
 
     partial void OnIsAwaitingSelectionChanged(bool value)
@@ -304,6 +345,26 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         ViewRunLogCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnHasSummaryChanged(bool value)
+    {
+        OnPropertyChanged(nameof(IsSummaryWorkspaceVisible));
+        OnPropertyChanged(nameof(IsStageWorkspaceVisible));
+        OnPropertyChanged(nameof(IsSummaryAwaitingDetails));
+    }
+
+    partial void OnActiveStageChanged(ProjectOblivionStage value)
+    {
+        OnPropertyChanged(nameof(ActiveStageTitle));
+        OnPropertyChanged(nameof(ActiveStageDescription));
+        OnPropertyChanged(nameof(ActiveStageIcon));
+        OnPropertyChanged(nameof(ActiveStageHelper));
+        OnPropertyChanged(nameof(ActiveStageDetail));
+        OnPropertyChanged(nameof(IsArtifactWorkspaceVisible));
+        OnPropertyChanged(nameof(IsStageWorkspaceVisible));
+        OnPropertyChanged(nameof(IsSummaryWorkspaceVisible));
+        OnPropertyChanged(nameof(IsSummaryAwaitingDetails));
+    }
+
     public bool HasRunLog => !string.IsNullOrWhiteSpace(RunLogPath) && File.Exists(RunLogPath!);
 
     public void Prepare(ProjectOblivionApp app, string inventoryPath)
@@ -312,7 +373,6 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         _inventoryPath = inventoryPath ?? throw new ArgumentNullException(nameof(inventoryPath));
         ResetState();
         StatusMessage = $"Ready to uninstall {app.Name}.";
-        IsOpen = true;
         StartRunCommand.NotifyCanExecuteChanged();
     }
 
@@ -438,8 +498,8 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     private void ClosePopup()
     {
         CancelRun();
-        IsOpen = false;
         DeleteSelectionFile();
+        _navigationService.Navigate(typeof(ProjectOblivionPage));
     }
 
     [RelayCommand(CanExecute = nameof(CanViewRunLog))]
@@ -529,6 +589,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         {
             stageVm.Status = ProjectOblivionStageStatus.Active;
             stageVm.Detail = string.Empty;
+            ActiveStage = stage;
             StatusMessage = stageVm.Description;
             Log(ProjectOblivionLogLevel.Info, $"Stage started: {stageVm.Title}");
         }
@@ -666,6 +727,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         RunLogPath = logPath;
         Summary = new ProjectOblivionRunSummaryViewModel(removed, skipped, failures, freed, timestamp, RunLogPath);
         HasSummary = true;
+        ActiveStage = ProjectOblivionStage.Summary;
         SetStageCompleted(ProjectOblivionStage.Summary, $"Removed {removed}, skipped {skipped}.");
         Log(ProjectOblivionLogLevel.Info, $"Summary ready • Removed {removed}, skipped {skipped}, failures {failures}.", payload?.ToJsonString());
         PersistTelemetry(payload);
@@ -743,6 +805,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         StatusMessage = _targetApp is null ? "Select an app to begin." : $"Ready to uninstall {_targetApp.Name}.";
         _selectionCommitted = false;
         HasSummary = false;
+        ActiveStage = ProjectOblivionStage.Kickoff;
     }
 
     private void SetStageCompleted(ProjectOblivionStage stage, string detail)
@@ -760,6 +823,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         {
             vm.Status = ProjectOblivionStageStatus.Active;
             vm.Detail = vm.Description;
+            ActiveStage = stage;
         }
     }
 
@@ -773,6 +837,26 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
         active.Status = ProjectOblivionStageStatus.Failed;
         active.Detail = message;
+    }
+
+    private static ProjectOblivionStageDefinition GetStageDefinition(ProjectOblivionStage stage)
+    {
+        if (StageDefinitionLookup.TryGetValue(stage, out var definition))
+        {
+            return definition;
+        }
+
+        return StageDefinitionLookup[ProjectOblivionStage.Kickoff];
+    }
+
+    private static StageWorkspaceContent GetStageWorkspaceContent(ProjectOblivionStage stage)
+    {
+        if (StageWorkspaceContentLookup.TryGetValue(stage, out var descriptor))
+        {
+            return descriptor;
+        }
+
+        return StageWorkspaceContentLookup[ProjectOblivionStage.Kickoff];
     }
 
     private static ProjectOblivionStage MapStage(string? stage)
