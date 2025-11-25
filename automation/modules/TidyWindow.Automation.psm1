@@ -1239,8 +1239,14 @@ function Find-TidyRelatedProcesses {
         return $results
     }
 
-    $installRoot = Resolve-TidyPath -Path $App.installRoot
-    $processHints = @($App.processHints) | Where-Object { $_ }
+    $installRoot = $null
+    if ($App.PSObject.Properties['installRoot']) {
+        $installRoot = Resolve-TidyPath -Path $App.installRoot
+    }
+    $processHints = @()
+    if ($App.PSObject.Properties['processHints']) {
+        $processHints = @($App.processHints) | Where-Object { $_ }
+    }
     $nameKey = ConvertTo-TidyNameKey -Value $App.name
 
     foreach ($proc in $Snapshot) {
@@ -1305,6 +1311,171 @@ function Stop-TidyProcesses {
     return $stopped
 }
 
+function Test-OblivionProcessAlive {
+    [CmdletBinding()]
+    param([int] $ProcessId)
+
+    if ($ProcessId -le 0) {
+        return $false
+    }
+
+    try {
+        $proc = Get-Process -Id $ProcessId -ErrorAction Stop
+        return -not $proc.HasExited
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-OblivionProcessTermination {
+    [CmdletBinding()]
+    param([psobject] $Process)
+
+    if (-not $Process -or -not $Process.id) {
+        return [pscustomobject]@{ success = $true; strategy = 'NoProcess'; error = $null }
+    }
+
+    $id = [int]$Process.id
+    $strategies = @(
+        @{ name = 'CloseMainWindow'; action = {
+                $target = Get-Process -Id $id -ErrorAction Stop
+                if ($target.HasExited) { return $true }
+                if ($target.MainWindowHandle -eq 0) { return $false }
+                if (-not $target.CloseMainWindow()) { return $false }
+                try { Wait-Process -Id $id -Timeout 5 -ErrorAction SilentlyContinue } catch { }
+                return -not (Test-OblivionProcessAlive -ProcessId $id)
+            }
+        },
+        @{ name = 'StopProcess'; action = {
+                Stop-Process -Id $id -ErrorAction Stop
+                return -not (Test-OblivionProcessAlive -ProcessId $id)
+            }
+        },
+        @{ name = 'StopProcessForce'; action = {
+                Stop-Process -Id $id -Force -ErrorAction Stop
+                return -not (Test-OblivionProcessAlive -ProcessId $id)
+            }
+        },
+        @{ name = 'TaskKill'; action = {
+                $arguments = @('/PID', $id, '/T', '/F')
+                $null = & taskkill.exe @arguments 2>$null 1>$null
+                if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 128) {
+                    throw "taskkill.exe exited with code $LASTEXITCODE"
+                }
+                return -not (Test-OblivionProcessAlive -ProcessId $id)
+            }
+        },
+        @{ name = 'CimTerminate'; action = {
+                $terminate = Invoke-CimMethod -ClassName Win32_Process -MethodName Terminate -Arguments @{ ProcessId = $id } -ErrorAction Stop
+                if ($terminate.ReturnValue -ne 0 -and $terminate.ReturnValue -ne 2) {
+                    throw "Win32_Process.Terminate returned $($terminate.ReturnValue)"
+                }
+                return -not (Test-OblivionProcessAlive -ProcessId $id)
+            }
+        }
+    )
+
+    $lastError = $null
+    foreach ($strategy in $strategies) {
+        try {
+            if (& $strategy.action) {
+                return [pscustomobject]@{ success = $true; strategy = $strategy.name; error = $null }
+            }
+        }
+        catch {
+            $lastError = $_.Exception.Message
+        }
+    }
+
+    return [pscustomobject]@{ success = $false; strategy = 'Exhausted'; error = $lastError }
+}
+
+function Invoke-OblivionProcessSweep {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject] $App,
+        [switch] $DryRun,
+        [int] $MaxPasses = 3,
+        [int] $WaitSeconds = 3
+    )
+
+    $snapshot = Get-TidyProcessSnapshot
+    $related = Find-TidyRelatedProcesses -App $App -Snapshot $snapshot -MaxMatches 200
+
+    $detected = if ($related) { $related.Count } else { 0 }
+    $resultLog = New-Object 'System.Collections.Generic.List[psobject]'
+    $stopped = 0
+    $attempts = 0
+
+    if (-not $DryRun -and $detected -gt 0) {
+        Assert-TidyAdmin
+    }
+
+    if ($DryRun -or $detected -eq 0) {
+        return [pscustomobject]@{
+            Detected      = $detected
+            Stopped       = $detected
+            Attempts      = [math]::Max(1, $MaxPasses)
+            Remaining     = @()
+            AttemptLog    = $resultLog
+        }
+    }
+
+    $active = @($related)
+    while ($active.Count -gt 0 -and $attempts -lt [math]::Max(1, $MaxPasses)) {
+        $attempts++
+        $nextActive = @()
+        foreach ($proc in $active) {
+            $termination = Invoke-OblivionProcessTermination -Process $proc
+            $record = [pscustomobject]@{
+                attempt   = $attempts
+                processId = $proc.id
+                name      = $proc.name
+                success   = $termination.success
+                strategy  = $termination.strategy
+                error     = $termination.error
+            }
+            $resultLog.Add($record) | Out-Null
+
+            if ($termination.success) {
+                $stopped++
+            }
+            else {
+                if (Test-OblivionProcessAlive -ProcessId $proc.id) {
+                    try {
+                        $live = Get-Process -Id $proc.id -ErrorAction Stop
+                        $path = $proc.path
+                        try { $path = $live.Path } catch { }
+                        $nextActive += [pscustomobject]@{ id = $live.Id; name = $live.ProcessName; path = $path }
+                    }
+                    catch {
+                        $nextActive += $proc
+                    }
+                }
+            }
+        }
+
+        if ($nextActive.Count -eq 0) {
+            break
+        }
+
+        $active = $nextActive
+        if ($attempts -lt $MaxPasses) {
+            Start-Sleep -Seconds ([math]::Max(1, $WaitSeconds))
+        }
+    }
+
+    return [pscustomobject]@{
+        Detected   = $detected
+        Stopped    = $stopped
+        Attempts   = $attempts
+        Remaining  = $active
+        AttemptLog = $resultLog
+    }
+}
+
 function ConvertTo-TidyRegistryPath {
     [CmdletBinding()]
     param([string] $KeyPath)
@@ -1312,11 +1483,11 @@ function ConvertTo-TidyRegistryPath {
     if ([string]::IsNullOrWhiteSpace($KeyPath)) { return $null }
 
     switch -Regex ($KeyPath) {
-        '^(HKEY_LOCAL_MACHINE|HKLM)\\(.+)$' { return "Registry::HKEY_LOCAL_MACHINE\\$($matches[2])" }
-        '^(HKEY_CURRENT_USER|HKCU)\\(.+)$'  { return "Registry::HKEY_CURRENT_USER\\$($matches[2])" }
-        '^(HKEY_CLASSES_ROOT|HKCR)\\(.+)$'  { return "Registry::HKEY_CLASSES_ROOT\\$($matches[2])" }
-        '^(HKEY_USERS|HKU)\\(.+)$'          { return "Registry::HKEY_USERS\\$($matches[2])" }
-        '^(HKEY_CURRENT_CONFIG|HKCC)\\(.+)$'{ return "Registry::HKEY_CURRENT_CONFIG\\$($matches[2])" }
+        '^(HKEY_LOCAL_MACHINE|HKLM)\\(.+)$' { return "Registry::HKEY_LOCAL_MACHINE\$($matches[2])" }
+        '^(HKEY_CURRENT_USER|HKCU)\\(.+)$'  { return "Registry::HKEY_CURRENT_USER\$($matches[2])" }
+        '^(HKEY_CLASSES_ROOT|HKCR)\\(.+)$'  { return "Registry::HKEY_CLASSES_ROOT\$($matches[2])" }
+        '^(HKEY_USERS|HKU)\\(.+)$'          { return "Registry::HKEY_USERS\$($matches[2])" }
+        '^(HKEY_CURRENT_CONFIG|HKCC)\\(.+)$'{ return "Registry::HKEY_CURRENT_CONFIG\$($matches[2])" }
         Default { return $KeyPath }
     }
 }
@@ -1457,18 +1628,24 @@ function Get-TidyArtifacts {
 
     $artifacts = New-Object 'System.Collections.Generic.List[psobject]'
 
-    foreach ($root in @($App.installRoot)) {
-        $artifact = New-TidyFileArtifact -Path $root -Reason 'InstallRoot'
-        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+    $primaryInstallRoot = $null
+    if ($App.PSObject.Properties['installRoot']) {
+        $primaryInstallRoot = $App.installRoot
+        foreach ($root in @($primaryInstallRoot)) {
+            $artifact = New-TidyFileArtifact -Path $root -Reason 'InstallRoot'
+            if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+        }
     }
 
-    foreach ($hint in @($App.artifactHints)) {
-        if ([string]::IsNullOrWhiteSpace($hint)) { continue }
-        if ($App.installRoot -and [string]::Equals($hint, $App.installRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            continue
+    if ($App.PSObject.Properties['artifactHints']) {
+        foreach ($hint in @($App.artifactHints)) {
+            if ([string]::IsNullOrWhiteSpace($hint)) { continue }
+            if ($primaryInstallRoot -and [string]::Equals($hint, $primaryInstallRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+            $artifact = New-TidyFileArtifact -Path $hint -Reason 'Hint'
+            if ($artifact) { $artifacts.Add($artifact) | Out-Null }
         }
-        $artifact = New-TidyFileArtifact -Path $hint -Reason 'Hint'
-        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
     }
 
     foreach ($folder in Get-TidyCandidateDataFolders -App $App) {
@@ -1476,17 +1653,347 @@ function Get-TidyArtifacts {
         if ($artifact) { $artifacts.Add($artifact) | Out-Null }
     }
 
-    if ($App.registry -and $App.registry.keyPath) {
+    if (
+        $App.PSObject.Properties['registry'] -and
+        $App.registry -and
+        $App.registry.PSObject -and
+        $App.registry.PSObject.Properties['keyPath'] -and
+        $App.registry.keyPath
+    ) {
         $artifact = New-TidyRegistryArtifact -KeyPath $App.registry.keyPath
         if ($artifact) { $artifacts.Add($artifact) | Out-Null }
     }
 
-    foreach ($svc in @($App.serviceHints)) {
-        $artifact = New-TidyServiceArtifact -ServiceName $svc
-        if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+    if ($App.PSObject.Properties['serviceHints']) {
+        foreach ($svc in @($App.serviceHints)) {
+            $artifact = New-TidyServiceArtifact -ServiceName $svc
+            if ($artifact) { $artifacts.Add($artifact) | Out-Null }
+        }
     }
 
     return $artifacts
+}
+
+function Invoke-OblivionArtifactDiscovery {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [psobject] $App,
+        [psobject[]] $ProcessSnapshot,
+        [int] $MaxProgramFilesMatches = 15
+    )
+
+    $pathSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $artifacts = New-Object 'System.Collections.Generic.List[psobject]'
+    foreach ($baseArtifact in @(Get-TidyArtifacts -App $App)) {
+        if (-not $baseArtifact) { continue }
+
+        $artifacts.Add($baseArtifact) | Out-Null
+        if ($baseArtifact.path) {
+            $null = $pathSet.Add($baseArtifact.path)
+        }
+    }
+
+    $added = 0
+    $details = New-Object 'System.Collections.Generic.List[psobject]'
+    $maxMatches = [math]::Max(0, $MaxProgramFilesMatches)
+
+    $addArtifact = {
+        param([string] $Kind, [string] $Path, [string] $Reason)
+
+        if ([string]::IsNullOrWhiteSpace($Path)) { return }
+
+        $candidate = switch ($Kind) {
+            'Registry' { New-TidyRegistryArtifact -KeyPath $Path }
+            'Service'  { New-TidyServiceArtifact -ServiceName $Path }
+            Default    { New-TidyFileArtifact -Path $Path -Reason $Reason }
+        }
+
+        if (-not $candidate -or -not $candidate.path) { return }
+        if ($pathSet.Contains($candidate.path)) { return }
+
+        $null = $pathSet.Add($candidate.path)
+        $artifacts.Add($candidate) | Out-Null
+        $details.Add([pscustomobject]@{
+            path   = $candidate.path
+            type   = $candidate.type
+            reason = $Reason
+        }) | Out-Null
+        Set-Variable -Name 'added' -Scope 1 -Value ($added + 1)
+    }
+
+    if (
+        $App.PSObject.Properties['registry'] -and
+        $App.registry -and
+        $App.registry.PSObject -and
+        $App.registry.PSObject.Properties['installLocation'] -and
+        $App.registry.installLocation
+    ) {
+        & $addArtifact 'File' $App.registry.installLocation 'RegistryInstallLocation'
+    }
+
+    if (
+        $App.PSObject.Properties['registry'] -and
+        $App.registry -and
+        $App.registry.PSObject -and
+        $App.registry.PSObject.Properties['displayIcon'] -and
+        $App.registry.displayIcon
+    ) {
+        $displayIcon = $App.registry.displayIcon.Split(',')[0]
+        try {
+            $parent = Split-Path -Path $displayIcon -Parent -ErrorAction Stop
+            & $addArtifact 'File' $parent 'RegistryDisplayIcon'
+        }
+        catch {
+            & $addArtifact 'File' $displayIcon 'RegistryDisplayIcon'
+        }
+    }
+
+    if ($App.PSObject.Properties['packageFamilyName'] -and $App.packageFamilyName) {
+        $pkg = $App.packageFamilyName.Trim()
+        if ($pkg) {
+            $localPackages = if ($env:LOCALAPPDATA) { Join-Path -Path $env:LOCALAPPDATA -ChildPath (Join-Path -Path 'Packages' -ChildPath $pkg) } else { $null }
+            if ($localPackages) { & $addArtifact 'File' $localPackages 'PackageFamilyData' }
+
+            $windowsApps = if ($env:ProgramFiles) { Join-Path -Path $env:ProgramFiles -ChildPath (Join-Path -Path 'WindowsApps' -ChildPath $pkg) } else { $null }
+            if ($windowsApps) { & $addArtifact 'File' $windowsApps 'WindowsAppsPayload' }
+        }
+    }
+
+    if (-not $ProcessSnapshot) {
+        $ProcessSnapshot = Get-TidyProcessSnapshot
+    }
+    $related = Find-TidyRelatedProcesses -App $App -Snapshot $ProcessSnapshot -MaxMatches 200
+    foreach ($proc in $related) {
+        if (-not $proc.path) { continue }
+        $parent = Split-Path -Path $proc.path -Parent
+        & $addArtifact 'File' $parent 'ProcessImageDirectory'
+    }
+
+    $tokens = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $primaryTokens = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $noiseTokens = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($noise in @('microsoft', 'windows', 'corporation', 'software', 'installer', 'setup', 'update', 'utility', 'helper', 'system', 'apps', 'app', 'tools', 'suite')) {
+        $null = $noiseTokens.Add($noise)
+    }
+
+    $addTokens = {
+        param(
+            [string] $Source,
+            [System.Collections.Generic.HashSet[string][]] $TargetSets
+        )
+
+        if ([string]::IsNullOrWhiteSpace($Source) -or -not $TargetSets -or $TargetSets.Count -eq 0) { return }
+
+        $normalized = [System.Text.RegularExpressions.Regex]::Replace($Source, '[^A-Za-z0-9]+', ' ')
+        foreach ($token in $normalized.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+            $trimmed = $token.Trim()
+            if ($trimmed.Length -lt 3) { continue }
+            if ($noiseTokens.Contains($trimmed)) { continue }
+            foreach ($set in $TargetSets) {
+                if ($set) { $null = $set.Add($trimmed) }
+            }
+        }
+    }
+
+    & $addTokens $App.name @($tokens, $primaryTokens)
+
+    if ($App.PSObject.Properties['artifactHints']) {
+        foreach ($hint in @($App.artifactHints)) {
+            if ([string]::IsNullOrWhiteSpace($hint)) { continue }
+            try {
+                $leaf = Split-Path -Path $hint -Leaf -ErrorAction Stop
+            }
+            catch {
+                $leaf = $hint
+            }
+            & $addTokens $leaf @($tokens, $primaryTokens)
+        }
+    }
+
+    if ($App.PSObject.Properties['processHints']) {
+        foreach ($hint in @($App.processHints)) {
+            if ([string]::IsNullOrWhiteSpace($hint)) { continue }
+            try {
+                $leaf = Split-Path -Path $hint -Leaf -ErrorAction Stop
+            }
+            catch {
+                $leaf = $hint
+            }
+            & $addTokens $leaf @($tokens, $primaryTokens)
+        }
+    }
+
+    if ($App.PSObject.Properties['tags']) {
+        foreach ($tag in @($App.tags)) {
+            & $addTokens $tag @($tokens)
+        }
+    }
+
+    & $addTokens $App.publisher @($tokens)
+    & $addTokens $App.appId @($tokens)
+
+    $directoryTokens = if ($primaryTokens.Count -gt 0) { $primaryTokens } else { $tokens }
+
+    $scanDirectories = {
+        param(
+            [string] $Root,
+            [string] $Reason,
+            [int] $Budget,
+            [System.Collections.Generic.HashSet[string]] $TokenSet
+        )
+
+        if (
+            $Budget -le 0 -or
+            -not $TokenSet -or
+            $TokenSet.Count -eq 0 -or
+            [string]::IsNullOrWhiteSpace($Root) -or
+            -not (Test-Path -LiteralPath $Root)
+        ) {
+            return 0
+        }
+
+        $addedLocal = 0
+        try {
+            $directories = Get-ChildItem -LiteralPath $Root -Directory -ErrorAction Stop
+        }
+        catch {
+            return 0
+        }
+
+        foreach ($dir in $directories) {
+            if ($addedLocal -ge $Budget) { break }
+
+            foreach ($token in $TokenSet) {
+                if ($dir.Name.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    & $addArtifact 'File' $dir.FullName $Reason
+                    $addedLocal++
+                    break
+                }
+            }
+        }
+
+        return $addedLocal
+    }
+
+    if ($directoryTokens.Count -gt 0 -and $maxMatches -gt 0) {
+        $programRoots = @()
+        if ($env:ProgramFiles) { $programRoots += $env:ProgramFiles }
+        $pf86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+        if ($pf86) { $programRoots += $pf86 }
+
+        foreach ($root in $programRoots) {
+            if ($maxMatches -le 0) { break }
+            $maxMatches -= & $scanDirectories $root 'ProgramFilesHeuristic' $maxMatches $directoryTokens
+        }
+    }
+
+    $userProfile = [Environment]::GetFolderPath([System.Environment+SpecialFolder]::UserProfile)
+    $localLowPath = $null
+    if ($userProfile) {
+        $localLowPath = Join-Path $userProfile 'AppData\LocalLow'
+    }
+    $profileBudgets = @(
+        @{ path = $env:LOCALAPPDATA; reason = 'LocalAppDataToken'; budget = 6 },
+        @{ path = $env:APPDATA; reason = 'RoamingAppDataToken'; budget = 4 },
+        @{ path = $localLowPath; reason = 'LocalLowToken'; budget = 3 }
+    )
+
+    foreach ($profile in $profileBudgets) {
+        if ($profile.path -and (Test-Path -LiteralPath $profile.path)) {
+            $profile['budget'] = $profile['budget'] - (& $scanDirectories $profile.path $profile.reason $profile.budget $directoryTokens)
+        }
+    }
+
+    $programDataBudgets = @()
+    if ($env:ProgramData) {
+        $programDataBudgets += @{ path = (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs'); reason = 'StartMenuGroup'; budget = 5 }
+        $programDataBudgets += @{ path = (Join-Path $env:ProgramData 'Package Cache'); reason = 'PackageCache'; budget = 4 }
+    }
+
+    foreach ($entry in $programDataBudgets) {
+        if ($entry.path -and (Test-Path -LiteralPath $entry.path)) {
+            $entry['budget'] = $entry['budget'] - (& $scanDirectories $entry.path $entry.reason $entry.budget $directoryTokens)
+        }
+    }
+
+    $startMenuRoots = @()
+    if ($env:ProgramData) { $startMenuRoots += (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs') }
+    if ($env:APPDATA) { $startMenuRoots += (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs') }
+
+    $scanStartMenu = {
+        param([string] $Root, [int] $Budget)
+
+        if ($Budget -le 0 -or -not (Test-Path -LiteralPath $Root)) { return }
+
+        try {
+            $shortcuts = Get-ChildItem -LiteralPath $Root -Filter '*.lnk' -Recurse -ErrorAction Stop
+        }
+        catch {
+            return
+        }
+
+        $shell = $null
+        foreach ($shortcut in $shortcuts) {
+            if ($Budget -le 0) { break }
+
+            $matched = $false
+            $target = $null
+            foreach ($token in $tokens) {
+                if ($shortcut.Name.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                    $matched = $true
+                    break
+                }
+            }
+
+            if (-not $matched) {
+                try {
+                    if (-not $shell) { $shell = New-Object -ComObject WScript.Shell }
+                    $target = $shell.CreateShortcut($shortcut.FullName).TargetPath
+                    foreach ($token in $tokens) {
+                        if ($target -and $target.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
+                            $matched = $true
+                            break
+                        }
+                    }
+                }
+                catch {
+                    $matched = $false
+                }
+            }
+
+            if ($matched) {
+                & $addArtifact 'File' $shortcut.FullName 'StartMenuShortcut'
+                if ($target) {
+                    try {
+                        $targetParent = Split-Path -Path $target -Parent -ErrorAction Stop
+                        if ($targetParent) {
+                            & $addArtifact 'File' $targetParent 'StartMenuShortcutTarget'
+                        }
+                    }
+                    catch { }
+                }
+                $Budget--
+            }
+        }
+    }
+
+    foreach ($root in $startMenuRoots) {
+        & $scanStartMenu $root 6
+    }
+
+    if ($App.PSObject.Properties['serviceHints']) {
+        foreach ($svc in @($App.serviceHints)) {
+            & $addArtifact 'Service' $svc 'ServiceHint'
+        }
+    }
+
+    return [pscustomobject]@{
+        Artifacts = $artifacts
+        AddedCount = $added
+        Details = $details
+    }
 }
 
 function Remove-TidyArtifacts {
@@ -1535,9 +2042,19 @@ function Remove-TidyArtifacts {
                         $entry.success = $true
                     }
                     'Registry' {
-                        if (Test-Path -Path $artifact.path) {
-                            Remove-Item -Path $artifact.path -Recurse -Force -ErrorAction Stop
+                        $providerPath = $artifact.path
+                        try {
+                            Remove-Item -LiteralPath $providerPath -Recurse -Force -ErrorAction Stop
                         }
+                        catch [System.Management.Automation.ItemNotFoundException] {
+                            # Already removed; continue to verification.
+                        }
+
+                        Start-Sleep -Milliseconds 150
+                        if (Test-Path -LiteralPath $providerPath) {
+                            throw 'Registry key still exists after removal attempt.'
+                        }
+
                         $entry.success = $true
                     }
                     'Service' {
@@ -1577,4 +2094,415 @@ function Remove-TidyArtifacts {
     }
 }
 
-Export-ModuleMember -Function Convert-TidyLogMessage, Write-TidyLog, Get-TidyCommandPath, Get-TidyWingetMsixCandidates, Get-TidyWingetInstalledVersion, Get-TidyChocoInstalledVersion, Get-TidyScoopInstalledVersion, Get-TidyInstalledPackageVersion, Assert-TidyAdmin, Set-TidyMenuShowDelay, Set-TidyWindowAnimation, Set-TidyVisualEffectsProfile, Set-TidyPrefetchingMode, Set-TidyTelemetryLevel, Set-TidyCortanaPolicy, Set-TidyNetworkLatencyProfile, Set-TidySysMainState, Set-TidyLowDiskAlertPolicy, Set-TidyAutoRestartSignOn, Set-TidyAutoEndTasks, Set-TidyHungAppTimeouts, Set-TidyLockWorkstationPolicy, Resolve-TidyPath, ConvertTo-TidyNameKey, Get-TidyProgramDataDirectory, New-TidyFeatureRunDirectory, Write-TidyStructuredEvent, Write-TidyRunLog, Invoke-TidyCommandLine, Get-TidyProcessSnapshot, Get-TidyServiceSnapshot, Find-TidyRelatedProcesses, Stop-TidyProcesses, ConvertTo-TidyRegistryPath, Measure-TidyDirectoryBytes, New-TidyArtifactId, New-TidyFileArtifact, New-TidyRegistryArtifact, New-TidyServiceArtifact, Get-TidyCandidateDataFolders, Get-TidyArtifacts, Remove-TidyArtifacts
+function Invoke-OblivionForceRemoval {
+    [CmdletBinding()]
+    param(
+        [psobject[]] $Artifacts,
+        [switch] $DryRun
+    )
+
+    if (-not $Artifacts -or $Artifacts.Count -eq 0) {
+        return [pscustomobject]@{ Results = @(); RemovedCount = 0; FailureCount = 0; FreedBytes = 0 }
+    }
+
+    $initial = Remove-TidyArtifacts -Artifacts $Artifacts -DryRun:$DryRun
+    if ($DryRun) {
+        return $initial
+    }
+
+    $results = $initial.Results
+    $removedCount = $initial.RemovedCount
+    $freedBytes = [long]$initial.FreedBytes
+    $failures = $results | Where-Object { -not $_.success }
+
+    if (-not $failures -or $failures.Count -eq 0) {
+        return $initial
+    }
+
+    Assert-TidyAdmin
+
+    foreach ($entry in $failures) {
+        $artifact = $Artifacts | Where-Object { $_.id -eq $entry.artifactId } | Select-Object -First 1
+        if (-not $artifact) { continue }
+
+        $retry = Invoke-OblivionForceArtifactRemoval -Artifact $artifact
+        if (-not $entry.PSObject.Properties['retryStrategy']) {
+            $entry | Add-Member -NotePropertyName 'retryStrategy' -NotePropertyValue $null
+        }
+        $entry.retryStrategy = $retry.strategy
+
+        if ($retry.success) {
+            if (-not $entry.success) {
+                $removedCount++
+                if ($artifact.sizeBytes) {
+                    $freedBytes += [long]$artifact.sizeBytes
+                }
+            }
+
+            $entry.success = $true
+            $entry.error = $null
+        }
+        elseif ($retry.error) {
+            $entry.error = $retry.error
+        }
+    }
+
+    foreach ($entry in $results) {
+        if (-not $entry.success) { continue }
+        $artifact = $Artifacts | Where-Object { $_.id -eq $entry.artifactId } | Select-Object -First 1
+        if (-not $artifact) { continue }
+
+        if (-not (Test-OblivionArtifactRemoved -Artifact $artifact)) {
+            $verification = Invoke-OblivionForceArtifactRemoval -Artifact $artifact
+            if (-not $entry.PSObject.Properties['retryStrategy']) {
+                $entry | Add-Member -NotePropertyName 'retryStrategy' -NotePropertyValue $null
+            }
+            $entry.retryStrategy = $verification.strategy
+
+            if (-not $verification.success -or -not (Test-OblivionArtifactRemoved -Artifact $artifact)) {
+                $entry.success = $false
+                if (-not $entry.error) {
+                    $entry.error = if ($verification.error) { $verification.error } else { 'Artifact still detected after verification.' }
+                }
+
+                if ($removedCount -gt 0) {
+                    $removedCount--
+                }
+
+                if ($artifact.sizeBytes) {
+                    $freedBytes = [math]::Max(0, $freedBytes - [long]$artifact.sizeBytes)
+                }
+            }
+        }
+    }
+
+    $failureCount = ($results | Where-Object { -not $_.success }).Count
+
+    return [pscustomobject]@{
+        Results      = $results
+        RemovedCount = $removedCount
+        FailureCount = $failureCount
+        FreedBytes   = $freedBytes
+    }
+}
+
+function Invoke-OblivionForceArtifactRemoval {
+    [CmdletBinding()]
+    param([psobject] $Artifact)
+
+    if (-not $Artifact) {
+        return [pscustomobject]@{ success = $false; strategy = 'Unknown'; error = 'No artifact supplied.' }
+    }
+
+    switch ($Artifact.type) {
+        'Directory' { return Invoke-OblivionForceDirectoryRemoval -Path $Artifact.path }
+        'File'      { return Invoke-OblivionForceFileRemoval -Path $Artifact.path }
+        'Registry'  { return Invoke-OblivionForceRegistryRemoval -Path $Artifact.path }
+        'Service'   { return Invoke-OblivionForceServiceRemoval -Name $Artifact.path }
+        Default     { return [pscustomobject]@{ success = $false; strategy = 'Unsupported'; error = 'Artifact type not supported for force removal.' } }
+    }
+}
+
+function Test-OblivionArtifactRemoved {
+    [CmdletBinding()]
+    param([psobject] $Artifact)
+
+    if (-not $Artifact) {
+        return $true
+    }
+
+    try {
+        switch ($Artifact.type) {
+            'Directory' { return -not (Test-Path -LiteralPath $Artifact.path) }
+            'File'      { return -not (Test-Path -LiteralPath $Artifact.path) }
+            'Registry'  { return -not (Test-Path -LiteralPath $Artifact.path) }
+            'Service'   {
+                $svc = Get-Service -Name $Artifact.path -ErrorAction SilentlyContinue
+                return -not $svc
+            }
+            Default     { return $true }
+        }
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-OblivionForceDirectoryRemoval {
+    [CmdletBinding()]
+    param([string] $Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return [pscustomobject]@{ success = $false; strategy = 'Directory'; error = 'Path missing.' }
+    }
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return [pscustomobject]@{ success = $true; strategy = 'AlreadyRemoved'; error = $null }
+    }
+
+    $strategies = @(
+        @{ name = 'UnlockAttributes'; action = {
+                Invoke-OblivionUnlockAttributes -Path $Path -IsDirectory
+                Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            }
+        },
+        @{ name = 'TakeOwnership'; action = {
+                Invoke-OblivionTakeOwnership -Path $Path -IsDirectory
+                Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            }
+        },
+        @{ name = 'RobocopyPurge'; action = {
+                Invoke-OblivionTakeOwnership -Path $Path -IsDirectory
+                $empty = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('oblivion-empty-' + [guid]::NewGuid().ToString('N'))
+                try {
+                    $null = New-Item -ItemType Directory -Path $empty -ErrorAction Stop
+                    $null = & robocopy.exe $empty $Path /MIR /NFL /NDL /NJH /NJS /NC /NS 2>$null 1>$null
+                }
+                finally {
+                    if (Test-Path -LiteralPath $empty) {
+                        Remove-Item -LiteralPath $empty -Recurse -Force -ErrorAction SilentlyContinue
+                    }
+                }
+                Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+            }
+        },
+        @{ name = 'CmdRd'; action = {
+                Invoke-OblivionTakeOwnership -Path $Path -IsDirectory
+                $arguments = @('/c', "rd /s /q `"$Path`"")
+                $process = Start-Process -FilePath 'cmd.exe' -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
+                if ($process.ExitCode -ne 0) { throw "cmd.exe rd exited with code $($process.ExitCode)" }
+            }
+        }
+    )
+
+    $lastError = $null
+    foreach ($strategy in $strategies) {
+        try {
+            & $strategy.action
+            if (-not (Test-Path -LiteralPath $Path)) {
+                return [pscustomobject]@{ success = $true; strategy = $strategy.name; error = $null }
+            }
+        }
+        catch {
+            $lastError = $_.Exception.Message
+        }
+    }
+
+    if (Add-OblivionPendingDeleteEntry -Path $Path) {
+        return [pscustomobject]@{ success = $true; strategy = 'PendingDelete'; error = $lastError }
+    }
+
+    return [pscustomobject]@{ success = $false; strategy = 'Directory'; error = $lastError }
+}
+
+function Invoke-OblivionForceFileRemoval {
+    [CmdletBinding()]
+    param([string] $Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return [pscustomobject]@{ success = $false; strategy = 'File'; error = 'Path missing.' }
+    }
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return [pscustomobject]@{ success = $true; strategy = 'AlreadyRemoved'; error = $null }
+    }
+
+    $strategies = @(
+        @{ name = 'UnlockAttributes'; action = {
+                Invoke-OblivionUnlockAttributes -Path $Path
+                Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+            }
+        },
+        @{ name = 'TakeOwnership'; action = {
+                Invoke-OblivionTakeOwnership -Path $Path
+                Remove-Item -LiteralPath $Path -Force -ErrorAction Stop
+            }
+        },
+        @{ name = 'CmdDel'; action = {
+                Invoke-OblivionTakeOwnership -Path $Path
+                $arguments = @('/c', "del /f /q `"$Path`"")
+                $process = Start-Process -FilePath 'cmd.exe' -ArgumentList $arguments -WindowStyle Hidden -Wait -PassThru
+                if ($process.ExitCode -ne 0) { throw "cmd.exe del exited with code $($process.ExitCode)" }
+            }
+        }
+    )
+
+    $lastError = $null
+    foreach ($strategy in $strategies) {
+        try {
+            & $strategy.action
+            if (-not (Test-Path -LiteralPath $Path)) {
+                return [pscustomobject]@{ success = $true; strategy = $strategy.name; error = $null }
+            }
+        }
+        catch {
+            $lastError = $_.Exception.Message
+        }
+    }
+
+    if (Add-OblivionPendingDeleteEntry -Path $Path) {
+        return [pscustomobject]@{ success = $true; strategy = 'PendingDelete'; error = $lastError }
+    }
+
+    return [pscustomobject]@{ success = $false; strategy = 'File'; error = $lastError }
+}
+
+function Add-OblivionPendingDeleteEntry {
+    [CmdletBinding()]
+    param([string] $Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return $false
+    }
+
+    if (-not (Test-Path -LiteralPath $Path)) {
+        return $true
+    }
+
+    try {
+        Assert-TidyAdmin
+    }
+    catch {
+        return $false
+    }
+
+    $normalized = Resolve-TidyPath -Path $Path
+    if (-not $normalized) { $normalized = $Path }
+    $devicePath = if ($normalized.StartsWith('\\?\')) { $normalized } else { "\\??\\$normalized" }
+
+    try {
+        $regPath = 'SYSTEM\CurrentControlSet\Control\Session Manager'
+        $key = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($regPath, $true)
+        if (-not $key) {
+            return $false
+        }
+
+        $existing = $key.GetValue('PendingFileRenameOperations', @(), [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames)
+        if (-not $existing) { $existing = @() }
+
+        $updated = @($existing + $devicePath + '')
+        $key.SetValue('PendingFileRenameOperations', $updated, [Microsoft.Win32.RegistryValueKind]::MultiString)
+        $key.Close()
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
+function Invoke-OblivionForceRegistryRemoval {
+    [CmdletBinding()]
+    param([string] $Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        return [pscustomobject]@{ success = $false; strategy = 'Registry'; error = 'Path missing.' }
+    }
+
+    $providerPath = $Path
+    $regPath = Invoke-OblivionNormalizeRegistryPath -ProviderPath $providerPath
+    if (-not $regPath) {
+        return [pscustomobject]@{ success = $false; strategy = 'Registry'; error = 'Invalid registry path.' }
+    }
+
+    try {
+        $arguments = @('delete', $regPath, '/f')
+        $null = & reg.exe @arguments 2>$null 1>$null
+        Start-Sleep -Milliseconds 150
+        if (Test-Path -Path $providerPath) {
+            throw 'Registry key still exists after deletion attempt.'
+        }
+        return [pscustomobject]@{ success = $true; strategy = 'Registry'; error = $null }
+    }
+    catch {
+        return [pscustomobject]@{ success = $false; strategy = 'Registry'; error = $_.Exception.Message }
+    }
+}
+
+function Invoke-OblivionForceServiceRemoval {
+    [CmdletBinding()]
+    param([string] $Name)
+
+    if ([string]::IsNullOrWhiteSpace($Name)) {
+        return [pscustomobject]@{ success = $false; strategy = 'Service'; error = 'Service name missing.' }
+    }
+
+    try { Stop-Service -Name $Name -Force -ErrorAction SilentlyContinue } catch { }
+
+    $null = & sc.exe 'delete' $Name 2>$null 1>$null
+    if ($LASTEXITCODE -ne 0 -and $LASTEXITCODE -ne 1060) {
+        return [pscustomobject]@{ success = $false; strategy = 'Service'; error = "sc.exe delete exited with code $LASTEXITCODE" }
+    }
+
+    Start-Sleep -Milliseconds 200
+    $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($service) {
+        return [pscustomobject]@{ success = $false; strategy = 'Service'; error = 'Service still registered.' }
+    }
+
+    return [pscustomobject]@{ success = $true; strategy = 'Service'; error = $null }
+}
+
+function Invoke-OblivionUnlockAttributes {
+    [CmdletBinding()]
+    param(
+        [string] $Path,
+        [switch] $IsDirectory
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $args = @('-R', '-S', '-H', $Path)
+    if ($IsDirectory) {
+        $args += '/S'
+        $args += '/D'
+    }
+
+    try { $null = & attrib.exe @args 2>$null 1>$null } catch { }
+}
+
+function Invoke-OblivionTakeOwnership {
+    [CmdletBinding()]
+    param(
+        [string] $Path,
+        [switch] $IsDirectory
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
+        return
+    }
+
+    $takeArgs = @('/f', $Path, '/a')
+    if ($IsDirectory) {
+        $takeArgs += '/r'
+        $takeArgs += '/d'
+        $takeArgs += 'y'
+    }
+
+    try { $null = & takeown.exe @takeArgs 2>$null 1>$null } catch { }
+
+    $icaclsArgs = @($Path, '/grant', 'Administrators:F', '/C', '/Q')
+    if ($IsDirectory) {
+        $icaclsArgs += '/T'
+    }
+
+    try { $null = & icacls.exe @icaclsArgs 2>$null 1>$null } catch { }
+}
+
+function Invoke-OblivionNormalizeRegistryPath {
+    [CmdletBinding()]
+    param([string] $ProviderPath)
+
+    if ([string]::IsNullOrWhiteSpace($ProviderPath)) {
+        return $null
+    }
+
+    if ($ProviderPath.StartsWith('Registry::', [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $ProviderPath.Substring(10)
+    }
+
+    return $ProviderPath
+}
+
+Export-ModuleMember -Function Convert-TidyLogMessage, Write-TidyLog, Get-TidyCommandPath, Get-TidyWingetMsixCandidates, Get-TidyWingetInstalledVersion, Get-TidyChocoInstalledVersion, Get-TidyScoopInstalledVersion, Get-TidyInstalledPackageVersion, Assert-TidyAdmin, Set-TidyMenuShowDelay, Set-TidyWindowAnimation, Set-TidyVisualEffectsProfile, Set-TidyPrefetchingMode, Set-TidyTelemetryLevel, Set-TidyCortanaPolicy, Set-TidyNetworkLatencyProfile, Set-TidySysMainState, Set-TidyLowDiskAlertPolicy, Set-TidyAutoRestartSignOn, Set-TidyAutoEndTasks, Set-TidyHungAppTimeouts, Set-TidyLockWorkstationPolicy, Resolve-TidyPath, ConvertTo-TidyNameKey, Get-TidyProgramDataDirectory, New-TidyFeatureRunDirectory, Write-TidyStructuredEvent, Write-TidyRunLog, Invoke-TidyCommandLine, Get-TidyProcessSnapshot, Get-TidyServiceSnapshot, Find-TidyRelatedProcesses, Stop-TidyProcesses, ConvertTo-TidyRegistryPath, Measure-TidyDirectoryBytes, New-TidyArtifactId, New-TidyFileArtifact, New-TidyRegistryArtifact, New-TidyServiceArtifact, Get-TidyCandidateDataFolders, Get-TidyArtifacts, Remove-TidyArtifacts, Invoke-OblivionProcessSweep, Invoke-OblivionArtifactDiscovery, Invoke-OblivionForceRemoval

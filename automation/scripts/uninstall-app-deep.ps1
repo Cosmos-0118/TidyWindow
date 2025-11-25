@@ -82,10 +82,16 @@ function Measure-OblivionInstallFootprint {
         [void]$candidates.Add($resolved)
     }
 
-    & $addCandidate $App.installRoot
-    foreach ($root in @($App.installRoots)) { & $addCandidate $root }
-    foreach ($hint in @($App.artifactHints)) { & $addCandidate $hint }
-    if ($App.registry -and $App.registry.installLocation) {
+    if ($App.PSObject.Properties['installRoot']) {
+        & $addCandidate $App.installRoot
+    }
+    if ($App.PSObject.Properties['installRoots']) {
+        foreach ($root in @($App.installRoots)) { & $addCandidate $root }
+    }
+    if ($App.PSObject.Properties['artifactHints']) {
+        foreach ($hint in @($App.artifactHints)) { & $addCandidate $hint }
+    }
+    if ($App.PSObject.Properties['registry'] -and $App.registry -and $App.registry.PSObject.Properties['installLocation'] -and $App.registry.installLocation) {
         & $addCandidate $App.registry.installLocation
     }
 
@@ -185,25 +191,29 @@ Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'DefaultUninstall'; 
 
 # Stage: Process sweep
 Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ProcessSweep'; status = 'started' }
-$processSnapshot = Get-TidyProcessSnapshot
-$relatedProcesses = Find-TidyRelatedProcesses -App $app -Snapshot $processSnapshot -MaxMatches 50
-$stoppedCount = Stop-TidyProcesses -Processes $relatedProcesses -DryRun:$DryRun -Force
-$relatedCount = if ($relatedProcesses -is [System.Collections.ICollection]) {
-    $relatedProcesses.Count
+$processSweep = Invoke-OblivionProcessSweep -App $app -DryRun:$DryRun
+$attemptLog = if ($processSweep.AttemptLog) { @($processSweep.AttemptLog) } else { @() }
+foreach ($attempt in $attemptLog) {
+    Write-TidyStructuredEvent -Type 'processSweepAttempt' -Payload $attempt
 }
-elseif ($relatedProcesses) {
-    (@($relatedProcesses)).Count
+$relatedCount = if ($processSweep.Detected) { [int]$processSweep.Detected } else { 0 }
+$stoppedCount = if ($processSweep.Stopped) { [int]$processSweep.Stopped } else { 0 }
+$remainingCount = if ($processSweep.Remaining) {
+    if ($processSweep.Remaining -is [System.Collections.ICollection]) { $processSweep.Remaining.Count }
+    else { (@($processSweep.Remaining)).Count }
 }
 else {
     0
 }
-Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ProcessSweep'; status = 'completed'; detected = $relatedCount; stopped = $stoppedCount }
+Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ProcessSweep'; status = 'completed'; detected = $relatedCount; stopped = $stoppedCount; remaining = $remainingCount }
 
 # Stage: Artifact discovery
 Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ArtifactDiscovery'; status = 'started' }
-$artifacts = Get-TidyArtifacts -App $app
+$artifactDiscovery = Invoke-OblivionArtifactDiscovery -App $app
+$artifacts = $artifactDiscovery.Artifacts
 Write-TidyStructuredEvent -Type 'artifacts' -Payload @{ count = $artifacts.Count; items = $artifacts }
-Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ArtifactDiscovery'; status = 'completed'; count = $artifacts.Count }
+Write-TidyStructuredEvent -Type 'artifactDiscoveryDetail' -Payload @{ totalArtifacts = $artifacts.Count; added = $artifactDiscovery.AddedCount; heuristics = $artifactDiscovery.Details }
+Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'ArtifactDiscovery'; status = 'completed'; count = $artifacts.Count; added = $artifactDiscovery.AddedCount }
 
 $selectedIds = $null
 if ($AutoSelectAll) {
@@ -251,8 +261,16 @@ Write-TidyStructuredEvent -Type 'selection' -Payload @{ selected = $selectedArti
 
 # Stage: Cleanup execution
 Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'Cleanup'; status = 'started' }
-$removalResult = Remove-TidyArtifacts -Artifacts $selectedArtifacts -DryRun:$DryRun
+$removalResult = Invoke-OblivionForceRemoval -Artifacts $selectedArtifacts -DryRun:$DryRun
 foreach ($entry in $removalResult.Results) {
+    if ($entry.PSObject.Properties['retryStrategy'] -and $entry.retryStrategy) {
+        Write-TidyStructuredEvent -Type 'cleanupRetry' -Payload @{
+            artifactId = $entry.artifactId
+            strategy   = $entry.retryStrategy
+            success    = $entry.success
+            error      = $entry.error
+        }
+    }
     Write-TidyStructuredEvent -Type 'artifactResult' -Payload $entry
 }
 

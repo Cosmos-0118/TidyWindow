@@ -29,6 +29,9 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
     private readonly NavigationService _navigationService;
     private readonly List<ProjectOblivionAppListItemViewModel> _allApps = new();
     private CancellationTokenSource? _sizeCalculationCancellation;
+    private readonly string _inventorySnapshotRoot;
+    private string? _inventorySnapshotPath;
+    private bool _refreshRequestedAfterBusy;
     private static readonly Dictionary<string, int> SourcePriority = new(StringComparer.OrdinalIgnoreCase)
     {
         ["registry"] = 0,
@@ -43,7 +46,6 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
     private static readonly AppIdentityComparer IdentityComparer = new();
     private static readonly Regex VersionSuffixPattern = new("\\s+(?:v)?\\d+(?:[\\._-]\\d+)*(?:\\s*(?:x64|x86))?\\s*$", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex NonAlphaNumericPattern = new("[^a-z0-9]+", RegexOptions.IgnoreCase | RegexOptions.Compiled);
-    private string? _inventoryCachePath;
 
     public ProjectOblivionViewModel(
         ProjectOblivionInventoryService inventoryService,
@@ -60,6 +62,8 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
 
         Apps = new ObservableCollection<ProjectOblivionAppListItemViewModel>();
         Warnings = new ObservableCollection<string>();
+        _inventorySnapshotRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow", "ProjectOblivion", "inventory");
+        Popup.CleanupCompleted += OnPopupRunCompleted;
     }
 
     public ObservableCollection<ProjectOblivionAppListItemViewModel> Apps { get; }
@@ -113,25 +117,37 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
     {
         if (IsBusy)
         {
+            _refreshRequestedAfterBusy = true;
             return;
         }
 
+        do
+        {
+            _refreshRequestedAfterBusy = false;
+            await RefreshCoreAsync().ConfigureAwait(false);
+        }
+        while (_refreshRequestedAfterBusy);
+    }
+
+    private async Task RefreshCoreAsync()
+    {
         IsBusy = true;
         _mainViewModel.SetStatusMessage("Collecting installed applications...");
-        var cachePath = EnsureInventoryCachePath();
+        var snapshotPath = CreateInventorySnapshotPath();
 
         try
         {
-            var snapshot = await _inventoryService.GetInventoryAsync(cachePath).ConfigureAwait(false);
+            var snapshot = await _inventoryService.GetInventoryAsync(snapshotPath).ConfigureAwait(false);
             await RunOnUiThreadAsync(() =>
             {
-                _inventoryCachePath = cachePath;
+                ReplaceInventorySnapshot(snapshotPath);
                 ApplySnapshot(snapshot);
                 _mainViewModel.SetStatusMessage($"Inventory ready • {snapshot.Apps.Length:N0} app(s).");
             }).ConfigureAwait(false);
         }
         catch (Exception ex)
         {
+            TryDeleteFile(snapshotPath);
             var message = string.IsNullOrWhiteSpace(ex.Message) ? "Inventory failed." : ex.Message.Trim();
             await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
             _activityLog.LogError("Project Oblivion", message, new[] { ex.ToString() });
@@ -162,8 +178,9 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_inventoryCachePath) || !File.Exists(_inventoryCachePath))
+        if (!HasInventorySnapshot())
         {
+            _inventorySnapshotPath = null;
             return;
         }
 
@@ -175,7 +192,7 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
             ApplyFilter();
         }
 
-        Popup.Prepare(Popup.TargetApp, _inventoryCachePath, preserveExistingState: true);
+        Popup.Prepare(Popup.TargetApp, _inventorySnapshotPath!, preserveExistingState: true);
         SelectedApp = existing;
         _navigationService.Navigate(typeof(ProjectOblivionFlowPage));
     }
@@ -190,14 +207,14 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(_inventoryCachePath) || !File.Exists(_inventoryCachePath))
+        if (!HasInventorySnapshot())
         {
             _mainViewModel.SetStatusMessage("Refresh inventory before running Project Oblivion.");
             return;
         }
 
         var preserveState = Popup.CanResume(target.Model);
-        Popup.Prepare(target.Model, _inventoryCachePath, preserveState);
+        Popup.Prepare(target.Model, _inventorySnapshotPath!, preserveState);
         SelectedApp = target;
         _navigationService.Navigate(typeof(ProjectOblivionFlowPage));
     }
@@ -651,6 +668,133 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
         return total;
     }
 
+    private bool HasInventorySnapshot()
+    {
+        return !string.IsNullOrWhiteSpace(_inventorySnapshotPath) && File.Exists(_inventorySnapshotPath);
+    }
+
+    private string CreateInventorySnapshotPath()
+    {
+        Directory.CreateDirectory(_inventorySnapshotRoot);
+        var fileName = $"oblivion-inventory-{DateTime.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}.json";
+        return Path.Combine(_inventorySnapshotRoot, fileName);
+    }
+
+    private void ReplaceInventorySnapshot(string newSnapshotPath)
+    {
+        if (string.IsNullOrWhiteSpace(newSnapshotPath))
+        {
+            return;
+        }
+
+        var previous = _inventorySnapshotPath;
+        _inventorySnapshotPath = newSnapshotPath;
+        if (!string.IsNullOrWhiteSpace(previous) && !string.Equals(previous, newSnapshotPath, StringComparison.OrdinalIgnoreCase))
+        {
+            TryDeleteFile(previous);
+        }
+
+        CleanupInventorySnapshots();
+    }
+
+    private void CleanupInventorySnapshots()
+    {
+        try
+        {
+            if (!Directory.Exists(_inventorySnapshotRoot))
+            {
+                return;
+            }
+
+            var files = Directory.GetFiles(_inventorySnapshotRoot, "oblivion-inventory-*.json");
+            if (files.Length == 0)
+            {
+                return;
+            }
+
+            var keepCount = 3;
+            var ordered = files
+                .OrderByDescending(file =>
+                {
+                    try
+                    {
+                        return File.GetCreationTimeUtc(file);
+                    }
+                    catch
+                    {
+                        return DateTime.MinValue;
+                    }
+                })
+                .ToList();
+
+            foreach (var file in ordered.Skip(keepCount))
+            {
+                if (!string.IsNullOrWhiteSpace(_inventorySnapshotPath)
+                    && string.Equals(Path.GetFullPath(file), Path.GetFullPath(_inventorySnapshotPath), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                TryDeleteFile(file);
+            }
+        }
+        catch
+        {
+            // Snapshot cleanup is best-effort.
+        }
+    }
+
+    private static void TryDeleteFile(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Ignore IO cleanup failures.
+        }
+    }
+
+    private void MarkInventorySnapshotStale()
+    {
+        if (string.IsNullOrWhiteSpace(_inventorySnapshotPath))
+        {
+            return;
+        }
+
+        TryDeleteFile(_inventorySnapshotPath);
+        _inventorySnapshotPath = null;
+    }
+
+    private async void OnPopupRunCompleted(object? sender, ProjectOblivionRunCompletedEventArgs e)
+    {
+        MarkInventorySnapshotStale();
+
+        if (IsBusy)
+        {
+            _refreshRequestedAfterBusy = true;
+            return;
+        }
+
+        try
+        {
+            await RefreshAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogWarning("Project Oblivion", "Automatic inventory refresh failed after cleanup.", new[] { ex.ToString() });
+        }
+    }
+
     private string BuildSummary()
     {
         if (Apps.Count == 0)
@@ -662,13 +806,6 @@ public sealed partial class ProjectOblivionViewModel : ViewModelBase
         return totalSize <= 0
             ? $"{Apps.Count:N0} app(s) ready for removal."
             : $"{Apps.Count:N0} app(s) • {ProjectOblivionPopupViewModel.FormatSize(totalSize)} detected.";
-    }
-
-    private static string EnsureInventoryCachePath()
-    {
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow", "ProjectOblivion");
-        Directory.CreateDirectory(root);
-        return Path.Combine(root, "oblivion-inventory.json");
     }
 
     private static Task RunOnUiThreadAsync(Action action)

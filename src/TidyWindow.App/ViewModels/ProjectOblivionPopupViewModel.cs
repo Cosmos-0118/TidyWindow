@@ -324,6 +324,8 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     [ObservableProperty]
     private string? _runLogPath;
 
+    public event EventHandler<ProjectOblivionRunCompletedEventArgs>? CleanupCompleted;
+
     partial void OnIsBusyChanged(bool value)
     {
         StartRunCommand.NotifyCanExecuteChanged();
@@ -670,7 +672,6 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
             stageVm.Detail = string.Empty;
             ActiveStage = stage;
             StatusMessage = stageVm.Description;
-            Log(ProjectOblivionLogLevel.Info, $"Stage started: {stageVm.Title}");
         }
         else if (string.Equals(status, "completed", StringComparison.OrdinalIgnoreCase))
         {
@@ -687,7 +688,8 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
                 stageVm.Status = ProjectOblivionStageStatus.Completed;
                 stageVm.Detail = BuildStageDetail(stage, payload);
                 StatusMessage = $"{stageVm.Title} complete.";
-                Log(ProjectOblivionLogLevel.Info, $"Stage complete: {stageVm.Title}", stageVm.Detail);
+                var stageSummary = BuildStageLogSummary(stage, stageVm.Detail, payload);
+                Log(ProjectOblivionLogLevel.Info, stageSummary, payload?.ToJsonString());
 
                 if (stage == ProjectOblivionStage.Cleanup)
                 {
@@ -821,6 +823,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         SetStageCompleted(ProjectOblivionStage.Summary, $"Removed {removed}, skipped {skipped}.");
         Log(ProjectOblivionLogLevel.Info, $"Summary ready • Removed {removed}, skipped {skipped}, failures {failures}.", payload?.ToJsonString());
         PersistTelemetry(payload);
+        CleanupCompleted?.Invoke(this, new ProjectOblivionRunCompletedEventArgs(_targetApp, Summary));
 
         var toast = failures > 0
             ? $"Project Oblivion completed with {failures} failure(s)."
@@ -973,6 +976,58 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
             ProjectOblivionStage.Cleanup => BuildCleanupDetail(payload),
             _ => "Completed"
         };
+    }
+
+    private static string BuildStageLogSummary(ProjectOblivionStage stage, string detail, JsonObject? payload)
+    {
+        var definition = GetStageDefinition(stage);
+        var builder = new StringBuilder();
+        builder.Append(definition.Title);
+        builder.Append(" • summary");
+
+        var bullets = new List<string>();
+        if (!string.IsNullOrWhiteSpace(detail))
+        {
+            bullets.Add(detail);
+        }
+
+        switch (stage)
+        {
+            case ProjectOblivionStage.DefaultUninstall:
+                var exitCode = GetInt(payload, "exitCode") ?? 0;
+                bullets.Add($"Exit code {exitCode}");
+                break;
+            case ProjectOblivionStage.ProcessSweep:
+                var detected = GetInt(payload, "detected") ?? 0;
+                var stopped = GetInt(payload, "stopped") ?? 0;
+                var remaining = GetInt(payload, "remaining") ?? 0;
+                bullets.Add($"Processes detected {detected}, stopped {stopped}, remaining {remaining}");
+                break;
+            case ProjectOblivionStage.ArtifactDiscovery:
+                var count = GetInt(payload, "count") ?? 0;
+                var added = GetInt(payload, "added") ?? 0;
+                bullets.Add($"Artifacts discovered {count} (heuristics added {added})");
+                break;
+            case ProjectOblivionStage.Cleanup:
+                var removed = GetInt(payload, "removed") ?? 0;
+                var failures = GetInt(payload, "failures") ?? 0;
+                bullets.Add($"Removed {removed}, failures {failures}");
+                break;
+        }
+
+        if (bullets.Count == 0)
+        {
+            return builder.ToString();
+        }
+
+        builder.AppendLine();
+        foreach (var bullet in bullets)
+        {
+            builder.Append("  - ");
+            builder.AppendLine(bullet);
+        }
+
+        return builder.ToString().TrimEnd();
     }
 
     private static string BuildProcessSweepDetail(JsonObject? payload)
@@ -1390,4 +1445,17 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         bool RequiresElevation,
         bool DefaultSelected,
         IReadOnlyDictionary<string, string> Metadata);
+}
+
+public sealed class ProjectOblivionRunCompletedEventArgs : EventArgs
+{
+    public ProjectOblivionRunCompletedEventArgs(ProjectOblivionApp? app, ProjectOblivionRunSummaryViewModel summary)
+    {
+        App = app;
+        Summary = summary ?? throw new ArgumentNullException(nameof(summary));
+    }
+
+    public ProjectOblivionApp? App { get; }
+
+    public ProjectOblivionRunSummaryViewModel Summary { get; }
 }
