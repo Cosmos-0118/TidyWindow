@@ -178,6 +178,10 @@ Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'Cleanup'; status = 
 $removalResult = Invoke-OblivionForceRemoval -Artifacts $selectedArtifacts -DryRun:$DryRun
 $verificationMismatches = 0
 $verificationErrors = 0
+$verificationUnknown = 0
+$verifiedRemovedCount = 0
+$finalFailureCount = 0
+$artifactFinalStatus = @{}
 foreach ($entry in $removalResult.Results) {
     if ($entry.PSObject.Properties['retryStrategy'] -and $entry.retryStrategy) {
         Write-TidyStructuredEvent -Type 'cleanupRetry' -Payload @{
@@ -212,25 +216,61 @@ foreach ($entry in $removalResult.Results) {
         $verificationErrors++
     }
 
+    $finalStatus = 'unknown'
+    if ($verificationError) {
+        $finalStatus = 'error'
+        $finalFailureCount++
+    }
+    elseif ($verificationPassed -eq $true -and $entry.success) {
+        $finalStatus = 'verifiedRemoved'
+        $verifiedRemovedCount++
+    }
+    elseif ($verificationPassed -eq $false) {
+        $finalStatus = 'stillPresent'
+        $finalFailureCount++
+    }
+    elseif (-not $entry.success) {
+        $finalStatus = 'failed'
+        $finalFailureCount++
+    }
+    else {
+        $verificationUnknown++
+    }
+
+    $artifactFinalStatus[$entry.artifactId] = $finalStatus
+
     Write-TidyStructuredEvent -Type 'artifactVerification' -Payload @{
         artifactId        = $entry.artifactId
         reportedSuccess   = [bool]$entry.success
         verifiedRemoved   = if ($verificationPassed -ne $null) { [bool]$verificationPassed } else { $null }
         verificationError = $verificationError
+        finalStatus       = $finalStatus
     }
 }
 Write-TidyStructuredEvent -Type 'verificationSummary' -Payload @{
     totalResults = $removalResult.Results.Count
     mismatches   = $verificationMismatches
     errors       = $verificationErrors
+    unknown      = $verificationUnknown
+    verifiedRemoved = $verifiedRemovedCount
+    finalFailures = $finalFailureCount
 }
-Write-TidyStructuredEvent -Type 'stage' -Payload @{ stage = 'Cleanup'; status = 'completed'; removed = $removalResult.RemovedCount; failures = $removalResult.FailureCount }
+Write-TidyStructuredEvent -Type 'stage' -Payload @{
+    stage    = 'Cleanup'
+    status   = 'completed'
+    removed  = $verifiedRemovedCount
+    failures = $finalFailureCount
+    unknown  = $verificationUnknown
+}
 
 Write-TidyStructuredEvent -Type 'summary' -Payload @{
     stage      = 'Cleanup'
     appId      = $AppId
-    removed    = $removalResult.RemovedCount
-    failures   = $removalResult.FailureCount
+    removed    = $verifiedRemovedCount
+    reportedRemoved = $removalResult.RemovedCount
+    failures   = $finalFailureCount
+    reportedFailures = $removalResult.FailureCount
+    verificationUnknown = $verificationUnknown
     freedBytes = $removalResult.FreedBytes
     dryRun     = [bool]$DryRun
 }

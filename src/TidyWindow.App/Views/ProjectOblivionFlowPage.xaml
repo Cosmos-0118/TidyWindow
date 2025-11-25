@@ -355,6 +355,10 @@
                                                    Foreground="#FCA5A5"
                                                    Margin="0,2,0,0"
                                                    Visibility="{Binding HasSummary, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Text="{Binding Summary.VerificationUnknown, StringFormat={}{0} unverified}"
+                                                   Foreground="#FBBF24"
+                                                   Margin="0,2,0,0"
+                                                   Visibility="{Binding Summary.HasVerificationGaps, Converter={StaticResource BooleanToVisibilityConverter}, TargetNullValue=Collapsed}"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -405,7 +409,7 @@
                                            Foreground="#94A3B8"
                                            FontSize="12"
                                            Margin="0,4,0,0"/>
-                                <UniformGrid Columns="3" Margin="0,16,0,0">
+                                <UniformGrid Columns="4" Margin="0,16,0,0">
                                     <StackPanel>
                                         <TextBlock Text="Selected"
                                                    Foreground="#94A3B8"
@@ -432,6 +436,15 @@
                                                    FontSize="20"
                                                    FontWeight="SemiBold"
                                                    Foreground="#FCA5A5"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Unverified"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="12"/>
+                                        <TextBlock Text="{Binding UnknownArtifactCount, StringFormat={}{0:N0}}"
+                                                   FontSize="20"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#FBBF24"/>
                                     </StackPanel>
                                 </UniformGrid>
                             </StackPanel>
@@ -483,7 +496,7 @@
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Border>
-                                <UniformGrid Columns="3" Margin="0,18,0,0">
+                                <UniformGrid Columns="4" Margin="0,18,0,0">
                                     <StackPanel>
                                         <TextBlock Text="Selected"
                                                    Foreground="#94A3B8"
@@ -508,6 +521,15 @@
                                                    FontSize="12"/>
                                         <TextBlock Text="{Binding FailedArtifactCount, StringFormat={}{0:N0}}"
                                                    Foreground="#FCA5A5"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Unverified"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="12"/>
+                                        <TextBlock Text="{Binding UnknownArtifactCount, StringFormat={}{0:N0}}"
+                                                   Foreground="#FBBF24"
                                                    FontSize="18"
                                                    FontWeight="SemiBold"/>
                                     </StackPanel>
@@ -654,7 +676,7 @@
                                            FontSize="20"
                                            FontWeight="SemiBold"
                                            Margin="0,12,0,0"/>
-                                <UniformGrid Columns="3" Margin="0,16,0,0">
+                                <UniformGrid Columns="4" Margin="0,16,0,0">
                                     <StackPanel>
                                         <TextBlock Text="Removed"
                                                    Foreground="#94A3B8"
@@ -665,20 +687,29 @@
                                                    FontWeight="SemiBold"/>
                                     </StackPanel>
                                     <StackPanel>
-                                        <TextBlock Text="Skipped"
-                                                   Foreground="#94A3B8"
-                                                   FontSize="12"/>
-                                        <TextBlock Text="{Binding Summary.Skipped, StringFormat={}{0:N0}}"
-                                                   Foreground="#FDE68A"
-                                                   FontSize="18"
-                                                   FontWeight="SemiBold"/>
-                                    </StackPanel>
-                                    <StackPanel>
                                         <TextBlock Text="Failed"
                                                    Foreground="#94A3B8"
                                                    FontSize="12"/>
                                         <TextBlock Text="{Binding Summary.FailureCount, StringFormat={}{0:N0}}"
                                                    Foreground="#FCA5A5"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Unverified"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="12"/>
+                                        <TextBlock Text="{Binding Summary.VerificationUnknown, StringFormat={}{0:N0}}"
+                                                   Foreground="#FBBF24"
+                                                   FontSize="18"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                    <StackPanel>
+                                        <TextBlock Text="Skipped"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="12"/>
+                                        <TextBlock Text="{Binding Summary.Skipped, StringFormat={}{0:N0}}"
+                                                   Foreground="#FDE68A"
                                                    FontSize="18"
                                                    FontWeight="SemiBold"/>
                                     </StackPanel>

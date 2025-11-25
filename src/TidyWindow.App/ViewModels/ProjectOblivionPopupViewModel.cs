@@ -29,7 +29,8 @@ public enum ProjectOblivionArtifactRemovalState
 {
     Pending,
     Removed,
-    Failed
+    Failed,
+    Inconclusive
 }
 
 public enum ProjectOblivionLogLevel
@@ -162,9 +163,20 @@ public sealed partial class ProjectOblivionArtifactGroupViewModel : ObservableOb
 
 public sealed record ProjectOblivionRunLogEntry(DateTimeOffset Timestamp, ProjectOblivionLogLevel Level, string Message, string? Raw);
 
-public sealed record ProjectOblivionRunSummaryViewModel(int Removed, int Skipped, int FailureCount, long FreedBytes, DateTimeOffset CompletedAt, string? LogPath)
+public sealed record ProjectOblivionRunSummaryViewModel(
+    int Removed,
+    int Skipped,
+    int FailureCount,
+    int VerificationUnknown,
+    int ReportedRemoved,
+    int ReportedFailures,
+    long FreedBytes,
+    DateTimeOffset CompletedAt,
+    string? LogPath)
 {
     public string FreedDisplay => ProjectOblivionPopupViewModel.FormatSize(FreedBytes);
+
+    public bool HasVerificationGaps => VerificationUnknown > 0;
 }
 
 public enum ProjectOblivionStage
@@ -316,6 +328,9 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     private int _failedArtifactCount;
 
     [ObservableProperty]
+    private int _unknownArtifactCount;
+
+    [ObservableProperty]
     private ProjectOblivionRunSummaryViewModel? _summary;
 
     [ObservableProperty]
@@ -373,6 +388,23 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
     public bool HasRunLog => !string.IsNullOrWhiteSpace(RunLogPath) && File.Exists(RunLogPath!);
 
+    private bool HasInventorySnapshotFile()
+    {
+        return !string.IsNullOrWhiteSpace(_inventoryPath) && File.Exists(_inventoryPath);
+    }
+
+    public void InvalidateInventorySnapshot(string? statusMessage = null)
+    {
+        _inventoryPath = null;
+        StartRunCommand.NotifyCanExecuteChanged();
+
+        if (!string.IsNullOrWhiteSpace(statusMessage))
+        {
+            StatusMessage = statusMessage!;
+            _mainViewModel.SetStatusMessage(statusMessage!);
+        }
+    }
+
     public bool CanResume(ProjectOblivionApp app)
     {
         if (app is null || _targetApp is null)
@@ -422,11 +454,22 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     [RelayCommand(CanExecute = nameof(CanStartRun))]
     private async Task StartRunAsync()
     {
-        if (_targetApp is null || string.IsNullOrWhiteSpace(_inventoryPath))
+        if (_targetApp is null)
         {
             StatusMessage = "Select an app and refresh inventory first.";
+            _mainViewModel.SetStatusMessage(StatusMessage);
             return;
         }
+
+        if (!HasInventorySnapshotFile())
+        {
+            var message = "Inventory snapshot expired. Refresh the inventory list and relaunch Project Oblivion.";
+            Log(ProjectOblivionLogLevel.Warning, message);
+            InvalidateInventorySnapshot(message);
+            return;
+        }
+
+        var inventoryPath = _inventoryPath!;
 
         ResetRunVisuals();
         _runCancellation?.Dispose();
@@ -441,7 +484,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
         var request = new ProjectOblivionRunRequest(
             _targetApp.AppId,
-            InventoryPath: _inventoryPath,
+            InventoryPath: inventoryPath,
             SelectionPath: _selectionFilePath,
             AutoSelectAll: false,
             WaitForSelection: true,
@@ -515,7 +558,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         }
     }
 
-    private bool CanStartRun() => _targetApp is not null && !IsBusy;
+    private bool CanStartRun() => _targetApp is not null && !IsBusy && HasInventorySnapshotFile();
 
     [RelayCommand(CanExecute = nameof(CanCancelRun))]
     private void CancelRun()
@@ -641,6 +684,12 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
                 break;
             case "artifactResult":
                 HandleArtifactResult(runEvent.Payload);
+                break;
+            case "artifactVerification":
+                HandleArtifactVerification(runEvent.Payload);
+                break;
+            case "verificationSummary":
+                HandleVerificationSummary(runEvent.Payload);
                 break;
             case "summary":
                 HandleSummaryEvent(runEvent.Payload);
@@ -768,6 +817,67 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         Log(ProjectOblivionLogLevel.Info, detail);
     }
 
+    private void ApplyArtifactState(ProjectOblivionArtifactViewModel artifact, ProjectOblivionArtifactRemovalState newState, string? failureMessage)
+    {
+        if (artifact is null)
+        {
+            return;
+        }
+
+        var previousState = artifact.RemovalState;
+        if (previousState == newState && string.Equals(artifact.FailureMessage, failureMessage, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        UpdateAggregateCounts(previousState, newState);
+        artifact.RemovalState = newState;
+        artifact.FailureMessage = failureMessage;
+    }
+
+    private void UpdateAggregateCounts(ProjectOblivionArtifactRemovalState previous, ProjectOblivionArtifactRemovalState next)
+    {
+        if (previous == next)
+        {
+            return;
+        }
+
+        static void Decrement(ProjectOblivionArtifactRemovalState state, ProjectOblivionPopupViewModel vm)
+        {
+            switch (state)
+            {
+                case ProjectOblivionArtifactRemovalState.Removed when vm.RemovedArtifactCount > 0:
+                    vm.RemovedArtifactCount--;
+                    break;
+                case ProjectOblivionArtifactRemovalState.Failed when vm.FailedArtifactCount > 0:
+                    vm.FailedArtifactCount--;
+                    break;
+                case ProjectOblivionArtifactRemovalState.Inconclusive when vm.UnknownArtifactCount > 0:
+                    vm.UnknownArtifactCount--;
+                    break;
+            }
+        }
+
+        static void Increment(ProjectOblivionArtifactRemovalState state, ProjectOblivionPopupViewModel vm)
+        {
+            switch (state)
+            {
+                case ProjectOblivionArtifactRemovalState.Removed:
+                    vm.RemovedArtifactCount++;
+                    break;
+                case ProjectOblivionArtifactRemovalState.Failed:
+                    vm.FailedArtifactCount++;
+                    break;
+                case ProjectOblivionArtifactRemovalState.Inconclusive:
+                    vm.UnknownArtifactCount++;
+                    break;
+            }
+        }
+
+        Decrement(previous, this);
+        Increment(next, this);
+    }
+
     private void HandleArtifactResult(JsonObject? payload)
     {
         var artifactId = GetString(payload, "artifactId");
@@ -778,34 +888,89 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
 
         var success = GetBool(payload, "success") ?? false;
         var error = GetString(payload, "error");
-        var previousState = artifact.RemovalState;
+        var failureMessage = success ? null : (string.IsNullOrWhiteSpace(error) ? "Cleanup failed." : error);
+        var updatedState = success ? ProjectOblivionArtifactRemovalState.Removed : ProjectOblivionArtifactRemovalState.Failed;
+        ApplyArtifactState(artifact, updatedState, failureMessage);
+    }
 
-        if (success)
+    private void HandleArtifactVerification(JsonObject? payload)
+    {
+        var artifactId = GetString(payload, "artifactId");
+        if (string.IsNullOrWhiteSpace(artifactId) || !_artifactLookup.TryGetValue(artifactId, out var artifact))
         {
-            artifact.RemovalState = ProjectOblivionArtifactRemovalState.Removed;
-            artifact.FailureMessage = null;
-            if (previousState != ProjectOblivionArtifactRemovalState.Removed)
-            {
-                RemovedArtifactCount++;
-                if (previousState == ProjectOblivionArtifactRemovalState.Failed && FailedArtifactCount > 0)
-                {
-                    FailedArtifactCount--;
-                }
-            }
+            return;
         }
-        else
+
+        var finalStatus = GetString(payload, "finalStatus")?.Trim();
+        var verificationError = GetString(payload, "verificationError");
+        var verifiedRemoved = GetBool(payload, "verifiedRemoved") ?? false;
+        var reportedSuccess = GetBool(payload, "reportedSuccess") ?? false;
+
+        if (string.IsNullOrWhiteSpace(finalStatus))
         {
-            artifact.RemovalState = ProjectOblivionArtifactRemovalState.Failed;
-            artifact.FailureMessage = error;
-            if (previousState != ProjectOblivionArtifactRemovalState.Failed)
-            {
-                FailedArtifactCount++;
-                if (previousState == ProjectOblivionArtifactRemovalState.Removed && RemovedArtifactCount > 0)
-                {
-                    RemovedArtifactCount--;
-                }
-            }
+            finalStatus = verifiedRemoved ? "verifiedRemoved" : (reportedSuccess ? "unknown" : "failed");
         }
+
+        ProjectOblivionArtifactRemovalState newState;
+        string? failureMessage = null;
+        switch (finalStatus.ToLowerInvariant())
+        {
+            case "verifiedremoved":
+                newState = ProjectOblivionArtifactRemovalState.Removed;
+                break;
+            case "stillpresent":
+                newState = ProjectOblivionArtifactRemovalState.Failed;
+                failureMessage = string.IsNullOrWhiteSpace(verificationError)
+                    ? "Verification detected that the artifact still exists."
+                    : verificationError;
+                break;
+            case "failed":
+                newState = ProjectOblivionArtifactRemovalState.Failed;
+                failureMessage = string.IsNullOrWhiteSpace(verificationError)
+                    ? "Cleanup failed."
+                    : verificationError;
+                break;
+            case "error":
+                newState = ProjectOblivionArtifactRemovalState.Inconclusive;
+                failureMessage = string.IsNullOrWhiteSpace(verificationError)
+                    ? "Verification error. See run log for details."
+                    : verificationError;
+                break;
+            case "unknown":
+            default:
+                newState = ProjectOblivionArtifactRemovalState.Inconclusive;
+                failureMessage = string.IsNullOrWhiteSpace(verificationError)
+                    ? "Verification could not confirm removal."
+                    : verificationError;
+                break;
+        }
+
+        ApplyArtifactState(artifact, newState, failureMessage);
+
+        if (newState == ProjectOblivionArtifactRemovalState.Failed)
+        {
+            var message = string.IsNullOrWhiteSpace(failureMessage)
+                ? $"Artifact failed verification: {artifact.DisplayName}."
+                : $"Artifact failed verification: {artifact.DisplayName} • {failureMessage}";
+            Log(ProjectOblivionLogLevel.Warning, message, payload?.ToJsonString());
+        }
+        else if (newState == ProjectOblivionArtifactRemovalState.Inconclusive)
+        {
+            var message = string.IsNullOrWhiteSpace(failureMessage)
+                ? $"Artifact verification inconclusive: {artifact.DisplayName}."
+                : $"Artifact verification inconclusive: {artifact.DisplayName} • {failureMessage}";
+            Log(ProjectOblivionLogLevel.Warning, message, payload?.ToJsonString());
+        }
+    }
+
+    private void HandleVerificationSummary(JsonObject? payload)
+    {
+        var verified = GetInt(payload, "verifiedRemoved") ?? 0;
+        var mismatches = GetInt(payload, "mismatches") ?? 0;
+        var errors = GetInt(payload, "errors") ?? 0;
+        var unknown = GetInt(payload, "unknown") ?? GetInt(payload, "verificationUnknown") ?? 0;
+        var message = $"Verification summary • Verified {verified}, mismatches {mismatches}, errors {errors}, unknown {unknown}.";
+        Log(ProjectOblivionLogLevel.Info, message, payload?.ToJsonString());
     }
 
     private void HandleSummaryEvent(JsonObject? payload)
@@ -813,23 +978,57 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         var removed = GetInt(payload, "removed") ?? RemovedArtifactCount;
         var skipped = GetInt(payload, "skipped") ?? 0;
         var failures = GetInt(payload, "failures") ?? FailedArtifactCount;
+        var reportedRemoved = GetInt(payload, "reportedRemoved") ?? removed;
+        var reportedFailures = GetInt(payload, "reportedFailures") ?? failures;
+        var verificationUnknown = GetInt(payload, "verificationUnknown") ?? GetInt(payload, "unknown") ?? UnknownArtifactCount;
         var freed = GetLong(payload, "freedBytes") ?? 0;
         var timestamp = GetDateTimeOffset(payload, "timestamp") ?? DateTimeOffset.UtcNow;
         var logPath = NormalizeLogPath(GetString(payload, "logPath"));
         RunLogPath = logPath;
-        Summary = new ProjectOblivionRunSummaryViewModel(removed, skipped, failures, freed, timestamp, RunLogPath);
+        Summary = new ProjectOblivionRunSummaryViewModel(
+            removed,
+            skipped,
+            failures,
+            verificationUnknown,
+            reportedRemoved,
+            reportedFailures,
+            freed,
+            timestamp,
+            RunLogPath);
+        InvalidateInventorySnapshot();
         HasSummary = true;
         ActiveStage = ProjectOblivionStage.Summary;
-        SetStageCompleted(ProjectOblivionStage.Summary, $"Removed {removed}, skipped {skipped}.");
-        Log(ProjectOblivionLogLevel.Info, $"Summary ready • Removed {removed}, skipped {skipped}, failures {failures}.", payload?.ToJsonString());
+        var detail = BuildSummaryDetail(removed, skipped, failures, verificationUnknown);
+        SetStageCompleted(ProjectOblivionStage.Summary, detail);
+        Log(ProjectOblivionLogLevel.Info, $"Summary ready • {detail}", payload?.ToJsonString());
         PersistTelemetry(payload);
         CleanupCompleted?.Invoke(this, new ProjectOblivionRunCompletedEventArgs(_targetApp, Summary));
 
         var toast = failures > 0
             ? $"Project Oblivion completed with {failures} failure(s)."
-            : $"Project Oblivion removed {removed} artifact(s).";
+            : verificationUnknown > 0
+                ? $"Project Oblivion removed {removed} artifact(s); {verificationUnknown} unverified."
+                : $"Project Oblivion removed {removed} artifact(s).";
         _mainViewModel.SetStatusMessage(toast);
         StatusMessage = toast;
+    }
+
+    private static string BuildSummaryDetail(int removed, int skipped, int failures, int unknown)
+    {
+        var parts = new List<string>();
+        parts.Add($"Removed {removed}");
+        if (failures > 0)
+        {
+            parts.Add($"{failures} failed");
+        }
+
+        if (unknown > 0)
+        {
+            parts.Add($"{unknown} unverified");
+        }
+
+        parts.Add($"{skipped} skipped");
+        return string.Join(", ", parts) + ".";
     }
 
     private async Task CommitSelectionInternalAsync(CancellationToken token)
@@ -888,6 +1087,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         SelectedArtifactSizeBytes = 0;
         RemovedArtifactCount = 0;
         FailedArtifactCount = 0;
+        UnknownArtifactCount = 0;
         foreach (var stageVm in Timeline)
         {
             stageVm.Status = ProjectOblivionStageStatus.Pending;
@@ -1011,7 +1211,8 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
             case ProjectOblivionStage.Cleanup:
                 var removed = GetInt(payload, "removed") ?? 0;
                 var failures = GetInt(payload, "failures") ?? 0;
-                bullets.Add($"Removed {removed}, failures {failures}");
+                var unknown = GetInt(payload, "unknown") ?? GetInt(payload, "verificationUnknown") ?? 0;
+                bullets.Add($"Removed {removed}, failures {failures}, unverified {unknown}");
                 break;
         }
 
@@ -1047,14 +1248,29 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     {
         var removed = GetInt(payload, "removed") ?? 0;
         var failures = GetInt(payload, "failures") ?? 0;
-        if (removed == 0 && failures == 0)
+        var unknown = GetInt(payload, "unknown") ?? GetInt(payload, "verificationUnknown") ?? 0;
+        if (removed == 0 && failures == 0 && unknown == 0)
         {
             return "No artifacts removed.";
         }
 
-        return failures == 0
-            ? $"Removed {removed} artifact(s)."
-            : $"Removed {removed} artifact(s), {failures} failed.";
+        var parts = new List<string>();
+        if (removed > 0)
+        {
+            parts.Add($"Removed {removed}");
+        }
+
+        if (failures > 0)
+        {
+            parts.Add($"{failures} failed");
+        }
+
+        if (unknown > 0)
+        {
+            parts.Add($"{unknown} unverified");
+        }
+
+        return string.Join(", ", parts) + " artifact(s).";
     }
 
     private static List<ProjectOblivionArtifactModel> ExtractArtifacts(JsonObject? payload)
