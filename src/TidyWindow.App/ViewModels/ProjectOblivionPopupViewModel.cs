@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -240,6 +241,7 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     private ProjectOblivionApp? _targetApp;
     private string? _inventoryPath;
     private string? _selectionFilePath;
+    private string? _selectionSignaturePath;
     private bool _selectionCommitted;
 
     public ProjectOblivionPopupViewModel(ProjectOblivionRunService runService, ActivityLogService activityLogService, MainViewModel mainViewModel, NavigationService navigationService)
@@ -475,8 +477,8 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         _runCancellation?.Dispose();
         _runCancellation = new CancellationTokenSource();
         _selectionCommitted = false;
-        _selectionFilePath = BuildSelectionFilePath();
-        DeleteSelectionFile();
+        _selectionFilePath = BuildSelectionFilePath(_targetApp, inventoryPath);
+        _selectionSignaturePath = BuildSelectionSignaturePath(_selectionFilePath);
 
         IsBusy = true;
         StatusMessage = "Starting uninstall run...";
@@ -554,7 +556,6 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
                 StartRunCommand.NotifyCanExecuteChanged();
                 CommitSelectionCommand.NotifyCanExecuteChanged();
             }).ConfigureAwait(true);
-            DeleteSelectionFile();
         }
     }
 
@@ -617,7 +618,6 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
     private void ClosePopup()
     {
         CancelRun();
-        DeleteSelectionFile();
         _navigationService.Navigate(typeof(ProjectOblivionPage));
     }
 
@@ -1039,9 +1039,11 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         }
 
         var selectedIds = ArtifactGroups.SelectMany(group => group.Items).Where(item => item.IsSelected).Select(item => item.ArtifactId).ToList();
+        var deselectedIds = ArtifactGroups.SelectMany(group => group.Items).Where(item => !item.IsSelected).Select(item => item.ArtifactId).ToList();
         var payload = new Dictionary<string, object>
         {
-            ["selectedIds"] = selectedIds
+            ["selectedIds"] = selectedIds,
+            ["deselectedIds"] = deselectedIds
         };
 
         var directory = Path.GetDirectoryName(_selectionFilePath);
@@ -1050,7 +1052,21 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
             Directory.CreateDirectory(directory);
         }
 
-        await File.WriteAllTextAsync(_selectionFilePath, JsonSerializer.Serialize(payload, _jsonOptions), Encoding.UTF8, token).ConfigureAwait(false);
+        var serialized = JsonSerializer.Serialize(payload, _jsonOptions);
+        await File.WriteAllTextAsync(_selectionFilePath, serialized, Encoding.UTF8, token).ConfigureAwait(false);
+
+        if (!string.IsNullOrWhiteSpace(_selectionSignaturePath))
+        {
+            var signatureDirectory = Path.GetDirectoryName(_selectionSignaturePath);
+            if (!string.IsNullOrWhiteSpace(signatureDirectory) && !Directory.Exists(signatureDirectory))
+            {
+                Directory.CreateDirectory(signatureDirectory);
+            }
+
+            var signature = ComputeSha256(serialized);
+            await File.WriteAllTextAsync(_selectionSignaturePath!, signature, Encoding.UTF8, token).ConfigureAwait(false);
+        }
+
         _selectionCommitted = true;
         await RunOnUiThreadAsync(() =>
         {
@@ -1455,31 +1471,36 @@ public sealed partial class ProjectOblivionPopupViewModel : ViewModelBase, IDisp
         return File.Exists(path) ? path : null;
     }
 
-    private static string BuildSelectionFilePath()
+    private string BuildSelectionFilePath(ProjectOblivionApp app, string inventoryPath)
     {
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow", "ProjectOblivion");
+        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow", "ProjectOblivion", "selections", SanitizeForPath(app.AppId));
         Directory.CreateDirectory(root);
-        return Path.Combine(root, $"{SelectionFilePrefix}-{Guid.NewGuid():N}.json");
+
+        var snapshotName = Path.GetFileNameWithoutExtension(inventoryPath ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(snapshotName))
+        {
+            snapshotName = "snapshot";
+        }
+
+        return Path.Combine(root, $"{SelectionFilePrefix}-{snapshotName}.json");
     }
 
-    private void DeleteSelectionFile()
+    private static string BuildSelectionSignaturePath(string selectionPath)
     {
-        if (string.IsNullOrWhiteSpace(_selectionFilePath))
+        return selectionPath + ".sha256";
+    }
+
+    private static string ComputeSha256(string payload)
+    {
+        var bytes = Encoding.UTF8.GetBytes(payload ?? string.Empty);
+        var hash = SHA256.HashData(bytes);
+        var builder = new StringBuilder(hash.Length * 2);
+        foreach (var b in hash)
         {
-            return;
+            builder.Append(b.ToString("x2"));
         }
 
-        try
-        {
-            if (File.Exists(_selectionFilePath))
-            {
-                File.Delete(_selectionFilePath);
-            }
-        }
-        catch
-        {
-            // Ignore cleanup failures.
-        }
+        return builder.ToString();
     }
 
     private void Log(ProjectOblivionLogLevel level, string message, string? raw = null)

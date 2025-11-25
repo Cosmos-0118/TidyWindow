@@ -84,50 +84,137 @@ function Resolve-ArtifactSelection {
         [int] $SelectionTimeoutSeconds
     )
 
-    $selectedIds = $null
-    if ($AutoSelectAll) {
-        $selectedIds = $Artifacts | ForEach-Object { $_.id }
+    $autoSelectAllEnabled = [bool]$AutoSelectAll
+    $waitForSelectionEnabled = [bool]$WaitForSelection
+
+    if ($autoSelectAllEnabled) {
+        return @($Artifacts | ForEach-Object { $_.id })
     }
-    elseif ($SelectionPath) {
-        if (-not (Test-Path -LiteralPath $SelectionPath) -and $WaitForSelection) {
-            $deadline = (Get-Date).AddSeconds($SelectionTimeoutSeconds)
-            Write-TidyStructuredEvent -Type 'awaitingSelection' -Payload @{ selectionPath = $SelectionPath; timeoutSeconds = $SelectionTimeoutSeconds }
-            while ((Get-Date) -lt $deadline) {
-                if (Test-Path -LiteralPath $SelectionPath) { break }
-                Start-Sleep -Milliseconds 500
-            }
+
+    $payload = Read-OblivionSelectionPayload -SelectionPath $SelectionPath -RequireSelection -WaitForSelection:$waitForSelectionEnabled -SelectionTimeoutSeconds $SelectionTimeoutSeconds
+    if (-not $payload) {
+        throw 'Selection data missing. Provide a selection file or pass -AutoSelectAll.'
+    }
+
+    $selectedIds = @($payload.selectedIds)
+    $deselectedIds = @()
+    if ($payload.PSObject.Properties['deselectedIds'] -and $payload.deselectedIds) {
+        $deselectedIds = @($payload.deselectedIds)
+    }
+
+    if ($deselectedIds.Count -gt 0) {
+        $selectedIds = @($selectedIds | Where-Object { $deselectedIds -notcontains $_ })
+    }
+
+    return @($selectedIds | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Read-OblivionSelectionPayload {
+    param(
+        [string] $SelectionPath,
+        [switch] $RequireSelection,
+        [switch] $WaitForSelection,
+        [int] $SelectionTimeoutSeconds
+    )
+
+    $waitForSelectionEnabled = [bool]$WaitForSelection
+
+    if ([string]::IsNullOrWhiteSpace($SelectionPath)) {
+        if ($RequireSelection) {
+            throw 'SelectionPath is required when AutoSelectAll is disabled.'
         }
 
-        if (Test-Path -LiteralPath $SelectionPath) {
-            $selectionJson = Get-Content -LiteralPath $SelectionPath -Raw -ErrorAction Stop
-            $selectionPayload = ConvertTo-JsonObject -Json $selectionJson -Context 'selection'
-            if ($selectionPayload -is [System.Collections.IEnumerable] -and -not ($selectionPayload -is [string])) {
-                $selectedIds = @($selectionPayload)
-            }
-            elseif ($selectionPayload -and $selectionPayload.PSObject.Properties['selectedIds']) {
-                $selectedIds = @($selectionPayload.selectedIds)
-            }
-            elseif ($selectionPayload -and $selectionPayload.PSObject.Properties['removeAll'] -and $selectionPayload.removeAll) {
-                $selectedIds = $Artifacts | ForEach-Object { $_.id }
-            }
-            elseif ($selectionPayload -and $selectionPayload.PSObject.Properties['removeNone'] -and $selectionPayload.removeNone) {
-                $selectedIds = @()
-            }
+        return $null
+    }
 
-            if ($selectionPayload -and $selectionPayload.PSObject.Properties['deselectIds'] -and $selectedIds) {
-                $deselect = @($selectionPayload.deselectIds)
-                $selectedIds = @($selectedIds | Where-Object { $deselect -notcontains $_ })
-            }
+    $timeout = [math]::Max(1, $SelectionTimeoutSeconds)
+    $deadline = (Get-Date).AddSeconds($timeout)
+    $shouldWait = -not (Test-Path -LiteralPath $SelectionPath)
+    if ($shouldWait -and $waitForSelectionEnabled) {
+        $awaitingEvent = Write-TidyStructuredEvent -Type 'awaitingSelection' -Payload @{ selectionPath = $SelectionPath; timeoutSeconds = $SelectionTimeoutSeconds }
+        if ($awaitingEvent) {
+            [Console]::Out.WriteLine($awaitingEvent)
         }
     }
 
-    $selectedIds = @($selectedIds | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-
-    if ($selectedIds.Count -eq 0) {
-        $selectedIds = @($Artifacts | ForEach-Object { $_.id })
+    while (-not (Test-Path -LiteralPath $SelectionPath)) {
+        if (-not $waitForSelectionEnabled) { break }
+        if ((Get-Date) -ge $deadline) {
+            break
+        }
+        Start-Sleep -Milliseconds 250
     }
 
-    return $selectedIds
+    if (-not (Test-Path -LiteralPath $SelectionPath)) {
+        if ($RequireSelection) {
+            throw 'Selection file not provided before timeout.'
+        }
+
+        return $null
+    }
+
+    $signaturePath = "$SelectionPath.sha256"
+    if (-not (Test-Path -LiteralPath $signaturePath)) {
+        throw "Selection signature '$signaturePath' is missing."
+    }
+
+    $expectedSignature = (Get-Content -LiteralPath $signaturePath -Raw -ErrorAction Stop).Trim()
+    if ([string]::IsNullOrWhiteSpace($expectedSignature)) {
+        throw 'Selection signature is invalid.'
+    }
+
+    $actualHash = (Get-FileHash -LiteralPath $SelectionPath -Algorithm SHA256 -ErrorAction Stop).Hash
+    if (-not [string]::Equals($actualHash, $expectedSignature, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Selection file failed signature validation.'
+    }
+
+    $selectionJson = Get-Content -LiteralPath $SelectionPath -Raw -ErrorAction Stop
+    $selectionPayload = ConvertTo-JsonObject -Json $selectionJson -Context 'selection'
+    if (-not $selectionPayload -or -not $selectionPayload.PSObject) {
+        throw 'Selection payload is empty.'
+    }
+
+    $allowedProps = @('selectedIds', 'deselectedIds')
+    foreach ($prop in $selectionPayload.PSObject.Properties.Name) {
+        if ($allowedProps -notcontains $prop) {
+            throw "Selection payload contains unsupported property '$prop'."
+        }
+    }
+
+    if (-not $selectionPayload.PSObject.Properties['selectedIds']) {
+        throw "Selection payload must include 'selectedIds'."
+    }
+
+    $selectedIds = ConvertTo-SelectionIdArray -Value $selectionPayload.selectedIds -PropertyName 'selectedIds'
+    $deselectedIds = @()
+    if ($selectionPayload.PSObject.Properties['deselectedIds']) {
+        $deselectedIds = ConvertTo-SelectionIdArray -Value $selectionPayload.deselectedIds -PropertyName 'deselectedIds'
+    }
+
+    return [pscustomobject]@{
+        selectedIds   = $selectedIds
+        deselectedIds = $deselectedIds
+    }
+}
+
+function ConvertTo-SelectionIdArray {
+    param(
+        [object] $Value,
+        [string] $PropertyName
+    )
+
+    if ($null -eq $Value) {
+        return @()
+    }
+
+    if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
+        return @($Value | ForEach-Object {
+            $entry = [string]$_
+            if (-not [string]::IsNullOrWhiteSpace($entry)) { $entry.Trim() }
+        } | Where-Object { $_ })
+    }
+
+    throw "Selection property '$PropertyName' must be an array of artifact identifiers."
 }
 
 $script:OblivionVerificationKnownTypes = @('Registry', 'File', 'Directory', 'Service')

@@ -171,6 +171,17 @@ Reference sources: `projectoblivion.txt`, `Future-ideas/idea2.txt`, PathPilot an
 [x] Step 13.5: Build `Views/ProjectOblivionPage.xaml` plus the modal popup (PathPilot-style animation ring, timeline chips, collapsible log, artifact checklist, summary card) with responsive states.
 [x] Step 13.6: Persist run telemetry under `data/cleanup/<AppId>/oblivion-run.json`, surface inline success/error toasts, and expose a `View log` CTA from the summary.
 
+## Project Oblivion Safety Rework
+
+Reference: `rework.md` (risk assessment) plus `automation/modules/TidyWindow.Automation.psm1` + `automation/scripts/oblivion-*.ps1`.
+
+[x] Step 13.7: Harden the selection handshake so `Resolve-ArtifactSelection` (force-cleanup + uninstall scripts) fails closed when no valid selection JSON is supplied, simplify the schema to `{ selectedIds, deselectedIds }`, and persist selections alongside inventory snapshots with checksum validation (completed Nov 25 2025 via `ProjectOblivionPopupViewModel` persistence + `oblivion-force-cleanup.ps1` signature enforcement).
+[x] Step 13.8: Rebuild `Invoke-OblivionArtifactDiscovery` to require trusted anchors (install roots, explicit hints, registry install locations), demote heuristic matches to opt-in candidates, cap token scans by depth/count, and annotate each artifact with provenance metadata for the popup (completed Nov 25 2025 via anchored scope scanning and candidate metadata in `automation/modules/TidyWindow.Automation.psm1`).
+[x] Step 13.9: Refactor `Find-TidyRelatedProcesses`/`Invoke-OblivionProcessSweep` to match processes/services via full image paths or explicit hints only, blacklist `%SystemRoot%` binaries, and stop feeding substring matches back into discovery (completed Nov 25 2025 by anchoring process matching and blocked-root checks inside `automation/modules/TidyWindow.Automation.psm1`).
+[x] Step 13.10: Gate `Invoke-OblivionForce*` removals behind path validation (must reside under approved roots or whitelisted registry keys), remove robocopy/pending-delete fallbacks for unknown paths, and emit pre-execution dry-run summaries so operators can review destructive actions (completed Nov 25 2025 with new artifact validation + `forceRemovalPlan` events in `automation/modules/TidyWindow.Automation.psm1`).
+[x] Step 13.11: Split inventory/dedupe logic so each source (registry, manager, AppX, portable) keeps its own identity, ship a committed `data/catalog/oblivion-inventory.json` template for CLI scenarios, and move the dedupe heuristics into a testable helper with opt-in merges inside `ProjectOblivionViewModel` (completed Nov 26 2025 via `ProjectOblivionInventoryDeduplicator`, the new `MergeSources` toggle, and the committed template snapshot).
+[x] Step 13.12: Expand automated coverage with fixture-based discovery tests (decoy system paths), selection-handshake integration tests (timeouts, corrupt JSON, resume), and regression tests ensuring rejected artifacts/services are logged for telemetry (completed Nov 26 2025 with new `ProjectOblivionScriptTests` coverage for discovery heuristics plus timeout/corrupt/resume selection flows).
+
 ## Settings Control Center Redesign
 
 Reference: `Future-ideas/idea4.txt` (Settings Redesign blueprint).

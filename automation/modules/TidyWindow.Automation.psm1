@@ -1036,6 +1036,152 @@ function Resolve-TidyPath {
     }
 }
 
+function Get-OblivionAnchorReasonSet {
+    return @('InstallRoot', 'Hint', 'RegistryInstallLocation', 'PackageFamilyData', 'WindowsAppsPayload')
+}
+
+function Resolve-OblivionFullPath {
+    [CmdletBinding()]
+    param([string] $Path)
+
+    $resolved = Resolve-TidyPath -Path $Path
+    if ([string]::IsNullOrWhiteSpace($resolved)) {
+        return $null
+    }
+
+    return $resolved.TrimEnd('\','/')
+}
+
+function Get-OblivionBlockedRootSet {
+    [CmdletBinding()]
+    param()
+
+    $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $candidates = @()
+    if ($env:SystemRoot) { $candidates += $env:SystemRoot }
+    if ($env:WINDIR) { $candidates += $env:WINDIR }
+    $candidates += 'C:\Windows'
+    if ($env:ProgramFiles) {
+        $candidates += (Join-Path $env:ProgramFiles 'System32')
+        $candidates += (Join-Path $env:ProgramFiles 'Common Files')
+        $candidates += (Join-Path $env:ProgramFiles 'WindowsApps')
+    }
+    $pf86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    if ($pf86) {
+        $candidates += $pf86
+        $candidates += (Join-Path $pf86 'System32')
+        $candidates += (Join-Path $pf86 'Common Files')
+    }
+
+    foreach ($candidate in $candidates) {
+        $normalized = Resolve-OblivionFullPath -Path $candidate
+        if ($normalized) { $null = $set.Add($normalized) }
+    }
+
+    return $set
+}
+
+function Get-OblivionTrustedRoots {
+    [CmdletBinding()]
+    param([psobject] $App)
+
+    $set = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    if (-not $App) { return $set }
+
+    $addRoot = {
+        param([string] $Value)
+
+        if ([string]::IsNullOrWhiteSpace($Value)) { return }
+        $normalized = Resolve-OblivionFullPath -Path $Value
+        if (-not $normalized) { return }
+
+        if (-not (Test-Path -LiteralPath $normalized)) {
+            try {
+                $parent = Split-Path -Path $normalized -Parent -ErrorAction Stop
+                if ($parent) { $normalized = $parent.TrimEnd('\','/') }
+            }
+            catch { }
+        }
+
+        if ($normalized) { $null = $set.Add($normalized) }
+    }
+
+    if ($App.PSObject.Properties['installRoot']) {
+        foreach ($root in @($App.installRoot)) { & $addRoot $root }
+    }
+
+    if ($App.PSObject.Properties['artifactHints']) {
+        foreach ($hint in @($App.artifactHints)) { & $addRoot $hint }
+    }
+
+    if (
+        $App.PSObject.Properties['registry'] -and
+        $App.registry -and
+        $App.registry.PSObject.Properties['installLocation'] -and
+        $App.registry.installLocation
+    ) {
+        & $addRoot $App.registry.installLocation
+    }
+
+    if ($App.PSObject.Properties['packageFamilyName'] -and $App.packageFamilyName) {
+        $pkg = $App.packageFamilyName.Trim()
+        if ($pkg) {
+            if ($env:LOCALAPPDATA) {
+                $packageData = Join-Path -Path $env:LOCALAPPDATA -ChildPath (Join-Path -Path 'Packages' -ChildPath $pkg)
+                & $addRoot $packageData
+            }
+
+            if ($env:ProgramFiles) {
+                $windowsApps = Join-Path -Path $env:ProgramFiles -ChildPath (Join-Path -Path 'WindowsApps' -ChildPath $pkg)
+                & $addRoot $windowsApps
+            }
+        }
+    }
+
+    return $set
+}
+
+function Test-OblivionPathUnderRoots {
+    [CmdletBinding()]
+    param(
+        [string] $Path,
+        [System.Collections.Generic.HashSet[string]] $Roots
+    )
+
+    if (-not $Path -or -not $Roots -or $Roots.Count -eq 0) { return $false }
+    $normalized = Resolve-OblivionFullPath -Path $Path
+    if (-not $normalized) { return $false }
+
+    foreach ($root in $Roots) {
+        if ($root -and $normalized.StartsWith($root, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
+function Test-OblivionPathBlocked {
+    [CmdletBinding()]
+    param(
+        [string] $Path,
+        [System.Collections.Generic.HashSet[string]] $BlockedRoots
+    )
+
+    if (-not $Path -or -not $BlockedRoots -or $BlockedRoots.Count -eq 0) { return $false }
+
+    $normalized = Resolve-OblivionFullPath -Path $Path
+    if (-not $normalized) { return $false }
+
+    foreach ($blocked in $BlockedRoots) {
+        if ($blocked -and $normalized.StartsWith($blocked, [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function ConvertTo-TidyNameKey {
     [CmdletBinding()]
     param([string] $Value)
@@ -1239,40 +1385,62 @@ function Find-TidyRelatedProcesses {
         return $results
     }
 
-    $installRoot = $null
-    if ($App.PSObject.Properties['installRoot']) {
-        $installRoot = Resolve-TidyPath -Path $App.installRoot
-    }
-    $processHints = @()
+    $maxMatches = [math]::Max(0, $MaxMatches)
+    $trustedRoots = Get-OblivionTrustedRoots -App $App
+    $blockedRoots = Get-OblivionBlockedRootSet
+
+    $hintPathSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $hintNameSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     if ($App.PSObject.Properties['processHints']) {
-        $processHints = @($App.processHints) | Where-Object { $_ }
+        foreach ($hint in @($App.processHints)) {
+            if ([string]::IsNullOrWhiteSpace($hint)) { continue }
+            if ($hint -match '[\\/]' -or $hint.Contains(':')) {
+                $normalizedHint = Resolve-OblivionFullPath -Path $hint
+                if ($normalizedHint) { $null = $hintPathSet.Add($normalizedHint) }
+            }
+            else {
+                $null = $hintNameSet.Add($hint.ToLowerInvariant())
+            }
+        }
     }
-    $nameKey = ConvertTo-TidyNameKey -Value $App.name
 
     foreach ($proc in $Snapshot) {
-        if ($results.Count -ge $MaxMatches) { break }
-        $match = $false
+        if ($results.Count -ge $maxMatches) { break }
+        if (-not $proc) { continue }
 
-        if ($installRoot -and $proc.path -and $proc.path.StartsWith($installRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
-            $match = $true
+        $procPath = $null
+        if ($proc.PSObject.Properties['path']) {
+            $procPath = $proc.path
         }
-        elseif ($processHints.Count -gt 0) {
-            foreach ($hint in $processHints) {
-                if ([string]::IsNullOrWhiteSpace($hint) -or -not $proc.name) { continue }
-                if ($proc.name.IndexOf($hint, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-                    $match = $true
+
+        $normalizedPath = if ($procPath) { Resolve-OblivionFullPath -Path $procPath } else { $null }
+        if ($normalizedPath -and (Test-OblivionPathBlocked -Path $normalizedPath -BlockedRoots $blockedRoots)) {
+            continue
+        }
+
+        $matched = $false
+        if ($normalizedPath -and ($trustedRoots.Count -gt 0) -and (Test-OblivionPathUnderRoots -Path $normalizedPath -Roots $trustedRoots)) {
+            $matched = $true
+        }
+        elseif ($normalizedPath -and $hintPathSet.Count -gt 0) {
+            foreach ($hintPath in $hintPathSet) {
+                if ($normalizedPath.StartsWith($hintPath, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    $matched = $true
                     break
                 }
             }
         }
-        elseif ($nameKey) {
-            $procKey = ConvertTo-TidyNameKey -Value $proc.name
-            if ($procKey -and $procKey.Contains($nameKey)) {
-                $match = $true
+
+        if (-not $matched -and $hintNameSet.Count -gt 0 -and $proc.PSObject.Properties['name']) {
+            $procName = $proc.name
+            if (-not [string]::IsNullOrWhiteSpace($procName)) {
+                if ($hintNameSet.Contains($procName.ToLowerInvariant())) {
+                    $matched = $true
+                }
             }
         }
 
-        if ($match) {
+        if ($matched) {
             $results.Add($proc) | Out-Null
         }
     }
@@ -1514,11 +1682,55 @@ function New-TidyArtifactId {
     return [Guid]::NewGuid().ToString('n')
 }
 
+function New-OblivionArtifactId {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)][string] $Type,
+        [Parameter(Mandatory = $true)][string] $Path,
+        [string] $Reason
+    )
+
+    $typeKey = if ($Type) { $Type.Trim().ToLowerInvariant() } else { [string]::Empty }
+    $normalizedPath = $null
+    try {
+        $normalizedPath = Resolve-OblivionFullPath -Path $Path
+    }
+    catch {
+        $normalizedPath = $null
+    }
+
+    if ([string]::IsNullOrWhiteSpace($normalizedPath)) {
+        $normalizedPath = if ($Path) { $Path } else { [string]::Empty }
+    }
+
+    $reasonKey = if ([string]::IsNullOrWhiteSpace($Reason)) { [string]::Empty } else { $Reason.Trim().ToLowerInvariant() }
+    $input = "$typeKey::$normalizedPath::$reasonKey"
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($input)
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $hashBytes = $sha.ComputeHash($bytes)
+    }
+    finally {
+        $sha.Dispose()
+    }
+
+    $hex = -join ($hashBytes | ForEach-Object { $_.ToString('x2') })
+    if ($hex.Length -gt 32) {
+        return $hex.Substring(0, 32)
+    }
+
+    return $hex
+}
+
 function New-TidyFileArtifact {
     [CmdletBinding()]
     param(
         [string] $Path,
-        [string] $Reason
+        [string] $Reason,
+        [bool] $DefaultSelected = $true,
+        [string] $Confidence = 'anchor',
+        [string] $SourceAnchor,
+        [hashtable] $Metadata
     )
 
     $resolved = Resolve-TidyPath -Path $Path
@@ -1542,16 +1754,30 @@ function New-TidyFileArtifact {
         $requiresElevation = $true
     }
 
+    $metadataPayload = [ordered]@{ reason = $Reason }
+    if ($Confidence) { $metadataPayload['confidence'] = $Confidence }
+    if ($SourceAnchor) { $metadataPayload['sourceAnchor'] = $SourceAnchor }
+    if ($Metadata) {
+        foreach ($key in $Metadata.Keys) {
+            $metadataPayload[$key] = $Metadata[$key]
+        }
+    }
+
+    $artifactId = New-OblivionArtifactId -Type ($isDirectory ? 'Directory' : 'File') -Path $resolved -Reason $Reason
+    if ([string]::IsNullOrWhiteSpace($artifactId)) {
+        $artifactId = New-TidyArtifactId
+    }
+
     return [pscustomobject]@{
-        id                = New-TidyArtifactId
+        id                = $artifactId
         type              = $isDirectory ? 'Directory' : 'File'
         group             = 'Files'
         path              = $resolved
         displayName       = Split-Path -Path $resolved -Leaf
         sizeBytes         = $size
-        defaultSelected   = $true
+        defaultSelected   = $DefaultSelected
         requiresElevation = $requiresElevation
-        metadata          = @{ reason = $Reason }
+        metadata          = $metadataPayload
     }
 }
 
@@ -1562,8 +1788,13 @@ function New-TidyRegistryArtifact {
     $providerPath = ConvertTo-TidyRegistryPath -KeyPath $KeyPath
     if (-not $providerPath) { return $null }
 
+    $artifactId = New-OblivionArtifactId -Type 'Registry' -Path $providerPath -Reason 'UninstallKey'
+    if ([string]::IsNullOrWhiteSpace($artifactId)) {
+        $artifactId = New-TidyArtifactId
+    }
+
     return [pscustomobject]@{
-        id                = New-TidyArtifactId
+        id                = $artifactId
         type              = 'Registry'
         group             = 'Registry'
         path              = $providerPath
@@ -1581,8 +1812,13 @@ function New-TidyServiceArtifact {
 
     if ([string]::IsNullOrWhiteSpace($ServiceName)) { return $null }
 
+    $artifactId = New-OblivionArtifactId -Type 'Service' -Path $ServiceName -Reason 'ServiceHint'
+    if ([string]::IsNullOrWhiteSpace($artifactId)) {
+        $artifactId = New-TidyArtifactId
+    }
+
     return [pscustomobject]@{
-        id                = New-TidyArtifactId
+        id                = $artifactId
         type              = 'Service'
         group             = 'Services'
         path              = $ServiceName
@@ -1590,7 +1826,7 @@ function New-TidyServiceArtifact {
         sizeBytes         = 0
         defaultSelected   = $true
         requiresElevation = $true
-        metadata          = @{}
+        metadata          = @{ reason = 'ServiceHint' }
     }
 }
 
@@ -1632,7 +1868,7 @@ function Get-TidyArtifacts {
     if ($App.PSObject.Properties['installRoot']) {
         $primaryInstallRoot = $App.installRoot
         foreach ($root in @($primaryInstallRoot)) {
-            $artifact = New-TidyFileArtifact -Path $root -Reason 'InstallRoot'
+            $artifact = New-TidyFileArtifact -Path $root -Reason 'InstallRoot' -SourceAnchor $root
             if ($artifact) { $artifacts.Add($artifact) | Out-Null }
         }
     }
@@ -1643,13 +1879,13 @@ function Get-TidyArtifacts {
             if ($primaryInstallRoot -and [string]::Equals($hint, $primaryInstallRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
                 continue
             }
-            $artifact = New-TidyFileArtifact -Path $hint -Reason 'Hint'
+            $artifact = New-TidyFileArtifact -Path $hint -Reason 'Hint' -SourceAnchor $hint
             if ($artifact) { $artifacts.Add($artifact) | Out-Null }
         }
     }
 
     foreach ($folder in Get-TidyCandidateDataFolders -App $App) {
-        $artifact = New-TidyFileArtifact -Path $folder -Reason 'DataFolder'
+        $artifact = New-TidyFileArtifact -Path $folder -Reason 'DataFolder' -DefaultSelected:$false -Confidence 'heuristic'
         if ($artifact) { $artifacts.Add($artifact) | Out-Null }
     }
 
@@ -1685,12 +1921,146 @@ function Invoke-OblivionArtifactDiscovery {
 
     $pathSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     $artifacts = New-Object 'System.Collections.Generic.List[psobject]'
+    $anchorReasonSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($reason in Get-OblivionAnchorReasonSet) {
+        $null = $anchorReasonSet.Add($reason)
+    }
+
+    $trustedAnchorDirectories = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $anchorTokenSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    $blockedRootSet = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
+    $addBlockedRoot = {
+        param([string] $Path)
+
+        if ([string]::IsNullOrWhiteSpace($Path)) { return }
+        $resolved = Resolve-TidyPath -Path $Path
+        if ([string]::IsNullOrWhiteSpace($resolved)) { return }
+        $resolved = $resolved.TrimEnd('\','/')
+        if ($resolved) { $null = $blockedRootSet.Add($resolved) }
+    }
+
+    & $addBlockedRoot $env:SystemRoot
+    & $addBlockedRoot $env:WINDIR
+    & $addBlockedRoot 'C:\Windows'
+    if ($env:ProgramFiles) {
+        & $addBlockedRoot (Join-Path -Path $env:ProgramFiles -ChildPath 'Common Files')
+        & $addBlockedRoot (Join-Path -Path $env:ProgramFiles -ChildPath 'WindowsApps')
+    }
+    $pf86Root = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
+    if ($pf86Root) {
+        & $addBlockedRoot (Join-Path -Path $pf86Root -ChildPath 'Common Files')
+    }
+
+    $normalizeDirectory = {
+        param([string] $Path)
+
+        if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+        $resolved = Resolve-TidyPath -Path $Path
+        if ([string]::IsNullOrWhiteSpace($resolved)) { return $null }
+        $candidate = $resolved.TrimEnd('\','/')
+        if (-not $candidate) { return $null }
+
+        try {
+            if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                $candidate = Split-Path -Path $candidate -Parent -ErrorAction Stop
+            }
+        }
+        catch {
+            return $null
+        }
+
+        return $candidate.TrimEnd('\','/')
+    }
+
+    $isUnderBlockedRoot = {
+        param([string] $Path)
+
+        if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+        foreach ($blocked in $blockedRootSet) {
+            if ($blocked -and $Path.StartsWith($blocked, [System.StringComparison]::OrdinalIgnoreCase)) {
+                return $true
+            }
+        }
+
+        return $false
+    }
+
+    $addAnchorTokens = {
+        param([string] $Path)
+
+        if ([string]::IsNullOrWhiteSpace($Path)) { return }
+        try {
+            $leaf = Split-Path -Path $Path -Leaf -ErrorAction Stop
+        }
+        catch {
+            $leaf = $Path
+        }
+
+        $normalized = [System.Text.RegularExpressions.Regex]::Replace($leaf, '[^A-Za-z0-9]+', ' ')
+        foreach ($token in $normalized.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)) {
+            if ($token.Length -lt 3) { continue }
+            $null = $anchorTokenSet.Add($token)
+        }
+    }
+
+    $recordAnchor = {
+        param([string] $Path)
+
+        $anchorDir = & $normalizeDirectory $Path
+        if (-not $anchorDir) { return }
+        $null = $trustedAnchorDirectories.Add($anchorDir)
+        & $addAnchorTokens $anchorDir
+        try {
+            $parent = Split-Path -Path $anchorDir -Parent -ErrorAction Stop
+            if ($parent) { & $addAnchorTokens $parent }
+        }
+        catch { }
+    }
+
+    $getAnchorForPath = {
+        param([string] $Path)
+
+        if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
+        foreach ($anchor in $trustedAnchorDirectories) {
+            if ($Path.StartsWith($anchor, [System.StringComparison]::OrdinalIgnoreCase)) {
+                return $anchor
+            }
+        }
+
+        return $null
+    }
+
+    $getAnchoredScopes = {
+        param([string] $Root)
+
+        if ([string]::IsNullOrWhiteSpace($Root)) { return @() }
+        $scopes = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($anchor in $trustedAnchorDirectories) {
+            if (-not $anchor.StartsWith($Root, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+            $relative = $anchor.Substring($Root.Length).TrimStart('\','/')
+            if (-not $relative) { continue }
+            $segments = $relative.Split('\', [System.StringSplitOptions]::RemoveEmptyEntries)
+            if ($segments.Length -eq 0) { continue }
+            $scope = Join-Path -Path $Root -ChildPath $segments[0]
+            $null = $scopes.Add($scope)
+        }
+
+        return @($scopes)
+    }
     foreach ($baseArtifact in @(Get-TidyArtifacts -App $App)) {
         if (-not $baseArtifact) { continue }
 
         $artifacts.Add($baseArtifact) | Out-Null
         if ($baseArtifact.path) {
             $null = $pathSet.Add($baseArtifact.path)
+            if (
+                $baseArtifact.metadata -and
+                $baseArtifact.metadata.reason -and
+                $anchorReasonSet.Contains($baseArtifact.metadata.reason)
+            ) {
+                & $recordAnchor $baseArtifact.path
+            }
         }
     }
 
@@ -1699,27 +2069,42 @@ function Invoke-OblivionArtifactDiscovery {
     $maxMatches = [math]::Max(0, $MaxProgramFilesMatches)
 
     $addArtifact = {
-        param([string] $Kind, [string] $Path, [string] $Reason)
+        param(
+            [string] $Kind,
+            [string] $Path,
+            [string] $Reason,
+            [switch] $IsCandidate,
+            [string] $SourceAnchor
+        )
 
-        if ([string]::IsNullOrWhiteSpace($Path)) { return }
+        if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
 
+        $confidence = if ($IsCandidate) { 'heuristic' } else { 'anchor' }
         $candidate = switch ($Kind) {
             'Registry' { New-TidyRegistryArtifact -KeyPath $Path }
             'Service'  { New-TidyServiceArtifact -ServiceName $Path }
-            Default    { New-TidyFileArtifact -Path $Path -Reason $Reason }
+            Default    { New-TidyFileArtifact -Path $Path -Reason $Reason -DefaultSelected:(!$IsCandidate) -Confidence $confidence -SourceAnchor $SourceAnchor }
         }
 
-        if (-not $candidate -or -not $candidate.path) { return }
-        if ($pathSet.Contains($candidate.path)) { return }
+        if (-not $candidate -or -not $candidate.path) { return $null }
+        if ($IsCandidate -and (& $isUnderBlockedRoot $candidate.path)) { return $null }
+        if ($pathSet.Contains($candidate.path)) { return $null }
 
         $null = $pathSet.Add($candidate.path)
         $artifacts.Add($candidate) | Out-Null
         $details.Add([pscustomobject]@{
-            path   = $candidate.path
-            type   = $candidate.type
-            reason = $Reason
+            path         = $candidate.path
+            type         = $candidate.type
+            reason       = $Reason
+            confidence   = $confidence
+            sourceAnchor = $SourceAnchor
         }) | Out-Null
         Set-Variable -Name 'added' -Scope 1 -Value ($added + 1)
+        if (-not $IsCandidate -and $anchorReasonSet.Contains($Reason)) {
+            & $recordAnchor $candidate.path
+        }
+
+        return $candidate
     }
 
     if (
@@ -1729,7 +2114,7 @@ function Invoke-OblivionArtifactDiscovery {
         $App.registry.PSObject.Properties['installLocation'] -and
         $App.registry.installLocation
     ) {
-        & $addArtifact 'File' $App.registry.installLocation 'RegistryInstallLocation'
+        $null = & $addArtifact 'File' $App.registry.installLocation 'RegistryInstallLocation' -SourceAnchor $App.registry.installLocation
     }
 
     if (
@@ -1742,10 +2127,10 @@ function Invoke-OblivionArtifactDiscovery {
         $displayIcon = $App.registry.displayIcon.Split(',')[0]
         try {
             $parent = Split-Path -Path $displayIcon -Parent -ErrorAction Stop
-            & $addArtifact 'File' $parent 'RegistryDisplayIcon'
+            $null = & $addArtifact 'File' $parent 'RegistryDisplayIcon' -SourceAnchor $parent
         }
         catch {
-            & $addArtifact 'File' $displayIcon 'RegistryDisplayIcon'
+            $null = & $addArtifact 'File' $displayIcon 'RegistryDisplayIcon' -SourceAnchor $displayIcon
         }
     }
 
@@ -1753,10 +2138,10 @@ function Invoke-OblivionArtifactDiscovery {
         $pkg = $App.packageFamilyName.Trim()
         if ($pkg) {
             $localPackages = if ($env:LOCALAPPDATA) { Join-Path -Path $env:LOCALAPPDATA -ChildPath (Join-Path -Path 'Packages' -ChildPath $pkg) } else { $null }
-            if ($localPackages) { & $addArtifact 'File' $localPackages 'PackageFamilyData' }
+            if ($localPackages) { $null = & $addArtifact 'File' $localPackages 'PackageFamilyData' -SourceAnchor $localPackages }
 
             $windowsApps = if ($env:ProgramFiles) { Join-Path -Path $env:ProgramFiles -ChildPath (Join-Path -Path 'WindowsApps' -ChildPath $pkg) } else { $null }
-            if ($windowsApps) { & $addArtifact 'File' $windowsApps 'WindowsAppsPayload' }
+            if ($windowsApps) { $null = & $addArtifact 'File' $windowsApps 'WindowsAppsPayload' -SourceAnchor $windowsApps }
         }
     }
 
@@ -1766,8 +2151,17 @@ function Invoke-OblivionArtifactDiscovery {
     $related = Find-TidyRelatedProcesses -App $App -Snapshot $ProcessSnapshot -MaxMatches 200
     foreach ($proc in $related) {
         if (-not $proc.path) { continue }
-        $parent = Split-Path -Path $proc.path -Parent
-        & $addArtifact 'File' $parent 'ProcessImageDirectory'
+        try {
+            $parent = Split-Path -Path $proc.path -Parent -ErrorAction Stop
+        }
+        catch {
+            continue
+        }
+
+        if (-not $parent) { continue }
+        $anchorMatch = & $getAnchorForPath $parent
+        if (-not $anchorMatch) { continue }
+        $null = & $addArtifact 'File' $parent 'ProcessImageDirectory' -IsCandidate -SourceAnchor $anchorMatch
     }
 
     $tokens = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
@@ -1835,13 +2229,15 @@ function Invoke-OblivionArtifactDiscovery {
     & $addTokens $App.appId @($tokens)
 
     $directoryTokens = if ($primaryTokens.Count -gt 0) { $primaryTokens } else { $tokens }
+    $heuristicTokens = if ($anchorTokenSet.Count -gt 0) { $anchorTokenSet } else { $directoryTokens }
 
     $scanDirectories = {
         param(
             [string] $Root,
             [string] $Reason,
             [int] $Budget,
-            [System.Collections.Generic.HashSet[string]] $TokenSet
+            [System.Collections.Generic.HashSet[string]] $TokenSet,
+            [string] $SourceAnchor
         )
 
         if (
@@ -1867,8 +2263,11 @@ function Invoke-OblivionArtifactDiscovery {
 
             foreach ($token in $TokenSet) {
                 if ($dir.Name.IndexOf($token, [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
-                    & $addArtifact 'File' $dir.FullName $Reason
-                    $addedLocal++
+                    $anchorPath = if ($SourceAnchor) { $SourceAnchor } else { $Root }
+                    $artifactCandidate = & $addArtifact 'File' $dir.FullName $Reason -IsCandidate -SourceAnchor $anchorPath
+                    if ($artifactCandidate) {
+                        $addedLocal++
+                    }
                     break
                 }
             }
@@ -1877,7 +2276,7 @@ function Invoke-OblivionArtifactDiscovery {
         return $addedLocal
     }
 
-    if ($directoryTokens.Count -gt 0 -and $maxMatches -gt 0) {
+    if ($trustedAnchorDirectories.Count -gt 0 -and $heuristicTokens.Count -gt 0 -and $maxMatches -gt 0) {
         $programRoots = @()
         if ($env:ProgramFiles) { $programRoots += $env:ProgramFiles }
         $pf86 = [Environment]::GetEnvironmentVariable('ProgramFiles(x86)')
@@ -1885,7 +2284,12 @@ function Invoke-OblivionArtifactDiscovery {
 
         foreach ($root in $programRoots) {
             if ($maxMatches -le 0) { break }
-            $maxMatches -= & $scanDirectories $root 'ProgramFilesHeuristic' $maxMatches $directoryTokens
+            $scopes = & $getAnchoredScopes $root
+            foreach ($scope in $scopes) {
+                if ($maxMatches -le 0) { break }
+                $budget = [math]::Min(5, $maxMatches)
+                $maxMatches -= & $scanDirectories $scope 'ProgramFilesHeuristic' $budget $heuristicTokens $scope
+            }
         }
     }
 
@@ -1901,8 +2305,14 @@ function Invoke-OblivionArtifactDiscovery {
     )
 
     foreach ($profile in $profileBudgets) {
-        if ($profile.path -and (Test-Path -LiteralPath $profile.path)) {
-            $profile['budget'] = $profile['budget'] - (& $scanDirectories $profile.path $profile.reason $profile.budget $directoryTokens)
+        if (-not $profile.path -or -not (Test-Path -LiteralPath $profile.path)) { continue }
+        if ($trustedAnchorDirectories.Count -eq 0 -or $heuristicTokens.Count -eq 0) { break }
+
+        $scopes = & $getAnchoredScopes $profile.path
+        foreach ($scope in $scopes) {
+            if ($profile['budget'] -le 0) { break }
+            $consumed = & $scanDirectories $scope $profile.reason $profile['budget'] $heuristicTokens $scope
+            $profile['budget'] -= $consumed
         }
     }
 
@@ -1913,8 +2323,14 @@ function Invoke-OblivionArtifactDiscovery {
     }
 
     foreach ($entry in $programDataBudgets) {
-        if ($entry.path -and (Test-Path -LiteralPath $entry.path)) {
-            $entry['budget'] = $entry['budget'] - (& $scanDirectories $entry.path $entry.reason $entry.budget $directoryTokens)
+        if (-not $entry.path -or -not (Test-Path -LiteralPath $entry.path)) { continue }
+        if ($trustedAnchorDirectories.Count -eq 0 -or $heuristicTokens.Count -eq 0) { break }
+
+        $scopes = & $getAnchoredScopes $entry.path
+        foreach ($scope in $scopes) {
+            if ($entry['budget'] -le 0) { break }
+            $consumed = & $scanDirectories $scope $entry.reason $entry['budget'] $heuristicTokens $scope
+            $entry['budget'] -= $consumed
         }
     }
 
@@ -1925,7 +2341,13 @@ function Invoke-OblivionArtifactDiscovery {
     $scanStartMenu = {
         param([string] $Root, [int] $Budget)
 
-        if ($Budget -le 0 -or -not (Test-Path -LiteralPath $Root)) { return }
+        if (
+            $Budget -le 0 -or
+            -not (Test-Path -LiteralPath $Root) -or
+            $trustedAnchorDirectories.Count -eq 0
+        ) {
+            return
+        }
 
         try {
             $shortcuts = Get-ChildItem -LiteralPath $Root -Filter '*.lnk' -Recurse -ErrorAction Stop
@@ -1947,7 +2369,7 @@ function Invoke-OblivionArtifactDiscovery {
                 }
             }
 
-            if (-not $matched) {
+            if (-not $matched -or -not $target) {
                 try {
                     if (-not $shell) { $shell = New-Object -ComObject WScript.Shell }
                     $target = $shell.CreateShortcut($shortcut.FullName).TargetPath
@@ -1959,33 +2381,42 @@ function Invoke-OblivionArtifactDiscovery {
                     }
                 }
                 catch {
-                    $matched = $false
+                    $target = $null
+                    if (-not $matched) { $matched = $false }
                 }
             }
 
-            if ($matched) {
-                & $addArtifact 'File' $shortcut.FullName 'StartMenuShortcut'
-                if ($target) {
-                    try {
-                        $targetParent = Split-Path -Path $target -Parent -ErrorAction Stop
-                        if ($targetParent) {
-                            & $addArtifact 'File' $targetParent 'StartMenuShortcutTarget'
-                        }
-                    }
-                    catch { }
+            if (-not $matched) { continue }
+
+            $targetParent = $null
+            if ($target) {
+                try {
+                    $targetParent = Split-Path -Path $target -Parent -ErrorAction Stop
                 }
-                $Budget--
+                catch {
+                    $targetParent = $null
+                }
             }
+
+            if (-not $targetParent) { continue }
+            $anchorForShortcut = & $getAnchorForPath $targetParent
+            if (-not $anchorForShortcut) { continue }
+
+            $null = & $addArtifact 'File' $shortcut.FullName 'StartMenuShortcut' -IsCandidate -SourceAnchor $anchorForShortcut
+            $null = & $addArtifact 'File' $targetParent 'StartMenuShortcutTarget' -IsCandidate -SourceAnchor $anchorForShortcut
+            $Budget--
         }
     }
 
-    foreach ($root in $startMenuRoots) {
-        & $scanStartMenu $root 6
+    if ($trustedAnchorDirectories.Count -gt 0) {
+        foreach ($root in $startMenuRoots) {
+            & $scanStartMenu $root 6
+        }
     }
 
     if ($App.PSObject.Properties['serviceHints']) {
         foreach ($svc in @($App.serviceHints)) {
-            & $addArtifact 'Service' $svc 'ServiceHint'
+            $null = & $addArtifact 'Service' $svc 'ServiceHint'
         }
     }
 
@@ -1993,6 +2424,146 @@ function Invoke-OblivionArtifactDiscovery {
         Artifacts = $artifacts
         AddedCount = $added
         Details = $details
+    }
+}
+
+function Get-OblivionArtifactMetadataValue {
+    [CmdletBinding()]
+    param(
+        [psobject] $Artifact,
+        [string] $Key
+    )
+
+    if (-not $Artifact -or -not $Key) { return $null }
+    if (-not $Artifact.PSObject.Properties['metadata']) { return $null }
+    $metadata = $Artifact.metadata
+    if (-not $metadata) { return $null }
+
+    if ($metadata -is [System.Collections.IDictionary]) {
+        return $metadata[$Key]
+    }
+
+    if ($metadata.PSObject -and $metadata.PSObject.Properties[$Key]) {
+        return $metadata.$Key
+    }
+
+    return $null
+}
+
+function Get-OblivionArtifactAnchors {
+    [CmdletBinding()]
+    param([psobject] $Artifact)
+
+    $anchors = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+    if (-not $Artifact) { return @() }
+
+    $sourceAnchor = Get-OblivionArtifactMetadataValue -Artifact $Artifact -Key 'sourceAnchor'
+    $sourcePath = Resolve-OblivionFullPath -Path $sourceAnchor
+    if ($sourcePath) { $null = $anchors.Add($sourcePath) }
+
+    $reason = Get-OblivionArtifactMetadataValue -Artifact $Artifact -Key 'reason'
+    $anchorReasons = Get-OblivionAnchorReasonSet
+    if ($reason -and ($anchorReasons -contains $reason)) {
+        switch ($Artifact.type) {
+            'Directory' {
+                $pathAnchor = Resolve-OblivionFullPath -Path $Artifact.path
+                if ($pathAnchor) { $null = $anchors.Add($pathAnchor) }
+            }
+            'File' {
+                try {
+                    $parent = Split-Path -Path $Artifact.path -Parent -ErrorAction Stop
+                    $parentAnchor = Resolve-OblivionFullPath -Path $parent
+                    if ($parentAnchor) { $null = $anchors.Add($parentAnchor) }
+                }
+                catch { }
+            }
+        }
+    }
+
+    return @($anchors)
+}
+
+function Test-OblivionArtifactRemovalAllowed {
+    [CmdletBinding()]
+    param([psobject] $Artifact)
+
+    if (-not $Artifact) {
+        return [pscustomobject]@{ allowed = $false; reason = 'Artifact missing.' }
+    }
+
+    $blockedRoots = Get-OblivionBlockedRootSet
+    $type = $Artifact.type
+    switch ($type) {
+        'Directory' {
+            $path = $Artifact.path
+            if (Test-OblivionPathBlocked -Path $path -BlockedRoots $blockedRoots) {
+                return [pscustomobject]@{ allowed = $false; reason = 'Path resides under a blocked system directory.' }
+            }
+
+            $anchors = Get-OblivionArtifactAnchors -Artifact $Artifact
+            if (-not $anchors -or $anchors.Count -eq 0) {
+                return [pscustomobject]@{ allowed = $false; reason = 'Artifact lacks a trusted anchor.' }
+            }
+
+            $normalized = Resolve-OblivionFullPath -Path $path
+            foreach ($anchor in $anchors) {
+                if ($normalized -and $anchor -and $normalized.StartsWith($anchor, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    return [pscustomobject]@{ allowed = $true; reason = $null }
+                }
+            }
+
+            return [pscustomobject]@{ allowed = $false; reason = 'Path is outside approved roots.' }
+        }
+        'File' {
+            $path = $Artifact.path
+            if (Test-OblivionPathBlocked -Path $path -BlockedRoots $blockedRoots) {
+                return [pscustomobject]@{ allowed = $false; reason = 'Path resides under a blocked system directory.' }
+            }
+
+            $anchors = Get-OblivionArtifactAnchors -Artifact $Artifact
+            if (-not $anchors -or $anchors.Count -eq 0) {
+                return [pscustomobject]@{ allowed = $false; reason = 'Artifact lacks a trusted anchor.' }
+            }
+
+            $normalized = Resolve-OblivionFullPath -Path $path
+            foreach ($anchor in $anchors) {
+                if ($normalized -and $anchor -and $normalized.StartsWith($anchor, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    return [pscustomobject]@{ allowed = $true; reason = $null }
+                }
+            }
+
+            return [pscustomobject]@{ allowed = $false; reason = 'Path is outside approved roots.' }
+        }
+        'Registry' {
+            $reason = Get-OblivionArtifactMetadataValue -Artifact $Artifact -Key 'reason'
+            if ([string]::Equals($reason, 'UninstallKey', [System.StringComparison]::OrdinalIgnoreCase)) {
+                return [pscustomobject]@{ allowed = $true; reason = $null }
+            }
+
+            $allowedPrefixes = @(
+                'Registry::HKEY_LOCAL_MACHINE\SOFTWARE',
+                'Registry::HKEY_CURRENT_USER\Software'
+            )
+
+            foreach ($prefix in $allowedPrefixes) {
+                if ($Artifact.path -and $Artifact.path.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+                    return [pscustomobject]@{ allowed = $true; reason = $null }
+                }
+            }
+
+            return [pscustomobject]@{ allowed = $false; reason = 'Registry path is outside approved hives.' }
+        }
+        'Service' {
+            $reason = Get-OblivionArtifactMetadataValue -Artifact $Artifact -Key 'reason'
+            if ([string]::Equals($reason, 'ServiceHint', [System.StringComparison]::OrdinalIgnoreCase)) {
+                return [pscustomobject]@{ allowed = $true; reason = $null }
+            }
+
+            return [pscustomobject]@{ allowed = $false; reason = 'Service not whitelisted for removal.' }
+        }
+        Default {
+            return [pscustomobject]@{ allowed = $false; reason = 'Unsupported artifact type.' }
+        }
     }
 }
 
@@ -2094,6 +2665,32 @@ function Remove-TidyArtifacts {
     }
 }
 
+function Publish-OblivionForcePlan {
+    [CmdletBinding()]
+    param([psobject] $Artifact)
+
+    if (-not $Artifact) { return }
+
+    $strategies = switch ($Artifact.type) {
+        'Directory' { @('UnlockAttributes', 'TakeOwnership', 'RobocopyPurge', 'CmdRd', 'PendingDelete') }
+        'File'      { @('UnlockAttributes', 'TakeOwnership', 'CmdDel', 'PendingDelete') }
+        'Registry'  { @('RegDelete') }
+        'Service'   { @('StopService', 'ScDelete') }
+        Default     { @() }
+    }
+
+    $payload = [ordered]@{
+        artifactId = $Artifact.id
+        type       = $Artifact.type
+        path       = $Artifact.path
+        strategies = $strategies
+        metadata   = $Artifact.metadata
+        defaultSelected = $Artifact.defaultSelected
+    }
+
+    Write-TidyStructuredEvent -Type 'forceRemovalPlan' -Payload $payload
+}
+
 function Invoke-OblivionForceRemoval {
     [CmdletBinding()]
     param(
@@ -2121,9 +2718,16 @@ function Invoke-OblivionForceRemoval {
 
     Assert-TidyAdmin
 
+    $publishedPlans = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
+
     foreach ($entry in $failures) {
         $artifact = $Artifacts | Where-Object { $_.id -eq $entry.artifactId } | Select-Object -First 1
         if (-not $artifact) { continue }
+
+        if ($artifact.id -and -not $publishedPlans.Contains($artifact.id)) {
+            $null = $publishedPlans.Add($artifact.id)
+            Publish-OblivionForcePlan -Artifact $artifact
+        }
 
         $retry = Invoke-OblivionForceArtifactRemoval -Artifact $artifact
         if (-not $entry.PSObject.Properties['retryStrategy']) {
@@ -2151,6 +2755,11 @@ function Invoke-OblivionForceRemoval {
         if (-not $entry.success) { continue }
         $artifact = $Artifacts | Where-Object { $_.id -eq $entry.artifactId } | Select-Object -First 1
         if (-not $artifact) { continue }
+
+        if ($artifact.id -and -not $publishedPlans.Contains($artifact.id)) {
+            $null = $publishedPlans.Add($artifact.id)
+            Publish-OblivionForcePlan -Artifact $artifact
+        }
 
         if (-not (Test-OblivionArtifactRemoved -Artifact $artifact)) {
             $verification = Invoke-OblivionForceArtifactRemoval -Artifact $artifact
@@ -2192,6 +2801,12 @@ function Invoke-OblivionForceArtifactRemoval {
 
     if (-not $Artifact) {
         return [pscustomobject]@{ success = $false; strategy = 'Unknown'; error = 'No artifact supplied.' }
+    }
+
+    $validation = Test-OblivionArtifactRemovalAllowed -Artifact $Artifact
+    if (-not $validation.allowed) {
+        $reason = if ($validation.reason) { $validation.reason } else { 'Artifact did not pass safety validation.' }
+        return [pscustomobject]@{ success = $false; strategy = 'Safeguard'; error = $reason }
     }
 
     switch ($Artifact.type) {

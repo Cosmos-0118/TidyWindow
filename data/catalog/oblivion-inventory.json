@@ -1,0 +1,82 @@
+{
+  "generatedAt": "2025-01-01T00:00:00Z",
+  "warnings": [
+    "Template placeholder. Replace with a generated snapshot before running Project Oblivion automation."
+  ],
+  "apps": [
+    {
+      "appId": "registry:CurrentUser:HKEY_CURRENT_USER\\Software\\SampleVendor\\SampleProduct",
+      "name": "Sample Win32 App",
+      "version": "1.0.0",
+      "publisher": "Sample Vendor",
+      "source": "registry",
+      "scope": "CurrentUser",
+      "installRoot": "C:\\Program Files\\SampleVendor\\SampleProduct",
+      "installRoots": [
+        "C:\\Program Files\\SampleVendor\\SampleProduct"
+      ],
+      "uninstallCommand": "C:\\Program Files\\SampleVendor\\SampleProduct\\uninstall.exe",
+      "quietUninstallCommand": null,
+      "packageFamilyName": null,
+      "estimatedSizeBytes": 0,
+      "artifactHints": [
+        "C:\\ProgramData\\SampleVendor\\SampleProduct"
+      ],
+      "managerHints": [],
+      "processHints": [
+        "SampleProduct.exe"
+      ],
+      "serviceHints": [],
+      "registry": {
+        "hive": "HKEY_CURRENT_USER",
+        "keyPath": "Software\\SampleVendor\\SampleProduct",
+        "displayIcon": "C:\\Program Files\\SampleVendor\\SampleProduct\\SampleProduct.exe",
+        "installDate": "20250101",
+        "installLocation": "C:\\Program Files\\SampleVendor\\SampleProduct"
+      },
+      "tags": [
+        "registry",
+        "template"
+      ],
+      "confidence": "registry"
+    },
+    {
+      "appId": "winget:SampleVendor.SampleProduct",
+      "name": "Sample WinGet App",
+      "version": "2.0.0",
+      "publisher": "Sample Vendor",
+      "source": "winget",
+      "scope": "Machine",
+      "installRoot": "D:\\Portable\\SampleVendor\\SampleProduct",
+      "installRoots": [
+        "D:\\Portable\\SampleVendor\\SampleProduct"
+      ],
+      "uninstallCommand": "winget uninstall SampleVendor.SampleProduct",
+      "quietUninstallCommand": null,
+      "packageFamilyName": null,
+      "estimatedSizeBytes": 0,
+      "artifactHints": [
+        "D:\\Portable\\SampleVendor\\SampleProduct"
+      ],
+      "managerHints": [
+        {
+          "manager": "winget",
+          "packageId": "SampleVendor.SampleProduct",
+          "installedVersion": "2.0.0",
+          "availableVersion": "2.1.0",
+          "source": "winget"
+        }
+      ],
+      "processHints": [
+        "SampleProductPortable.exe"
+      ],
+      "serviceHints": [],
+      "registry": null,
+      "tags": [
+        "winget",
+        "template"
+      ],
+      "confidence": "winget"
+    }
+  ]
+}
