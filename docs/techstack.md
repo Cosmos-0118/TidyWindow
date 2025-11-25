@@ -24,7 +24,7 @@ TidyWindow blends a WPF cockpit with curated PowerShell automation so Windows de
 -   **Automation Assets (`automation/`)**
 
     -   PowerShell 7 scripts grouped by purpose: essentials repairs, diagnostics, package bootstrap, registry probes, and catalog installs.
-    -   `modules/TidyWindow.Automation.psm1` supplies shared helpers for logging, elevation, and structured output.
+    -   `modules/TidyWindow.Automation/TidyWindow.Automation.psm1` supplies shared helpers for logging, elevation, and structured output.
     -   Scripts emit JSON so core services can parse results without brittle text parsing.
 
 -   **Catalog & Data (`data/catalog/`)**
@@ -87,3 +87,4 @@ User action → ViewModel → Core service → (Runspace PowerShell | Managed lo
 -   Modern C# features (records, async/await, pattern matching) keep the codebase expressive while remaining performant.
 
 The result is a maintainable, Windows-native toolkit that automates common system hygiene tasks without sacrificing responsiveness or transparency.
+

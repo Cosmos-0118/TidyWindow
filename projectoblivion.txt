@@ -31,6 +31,7 @@
 ## Implementation Checklist
 1. **Inventory enhancements** – Extend `automation/scripts/get-installed-app-footprint.ps1` to output install roots, suspected services/process names, and uninstall metadata.
 2. **Deep uninstall script** – Author `automation/scripts/uninstall-app-deep.ps1` that performs: vendor uninstall → process sweep → artifact discovery → cleanup → summary, emitting streaming events for the UI.
-3. **Automation helpers** – Expand `automation/modules/TidyWindow.Automation.psm1` with process correlation, artifact scanning, deletion utilities, and structured logging helpers.
+3. **Automation helpers** – Expand `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1` with process correlation, artifact scanning, deletion utilities, and structured logging helpers.
 4. **View models** – `ProjectOblivionViewModel` for the list, `ProjectOblivionPopupViewModel` for the modal (timeline state, artifact checklist, execute command, summary binding).
 5. **UI** – `Views/ProjectOblivionPage.xaml` hosts the list + uninstall button. `Views/ProjectOblivionPopup.xaml` renders the animation ring, timeline chips, log expansion, artifact checklist, summary card.
+

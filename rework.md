@@ -5,7 +5,7 @@ Project Oblivion is a powerful uninstaller, but its current safety net is paper 
 ## Snapshot of critical faults
 
 -   **Selection fails open:** `automation/scripts/oblivion-force-cleanup.ps1` and `automation/scripts/uninstall-app-deep.ps1` default to deleting every discovered artifact when the selection JSON is missing, empty, or malformed. Even `-WaitForSelection` only delays for a timer; once it expires, everything is selected.
--   **Heuristics outrun boundaries:** `automation/modules/TidyWindow.Automation.psm1` returns any directory whose name shares a token with the app (`Invoke-OblivionArtifactDiscovery`). Tokens include publisher names, tags, and sanitized IDs, so common words like "driver", "studio", or "helper" match unrelated products.
+-   **Heuristics outrun boundaries:** `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1` returns any directory whose name shares a token with the app (`Invoke-OblivionArtifactDiscovery`). Tokens include publisher names, tags, and sanitized IDs, so common words like "driver", "studio", or "helper" match unrelated products.
 -   **Process sweep kills by substring:** `Find-TidyRelatedProcesses` (same module) falls back to `procKey.Contains(nameKey)`. Short names such as "Go" or "Edge" match system processes and we then stop and delete their folders.
 -   **Force removal escalates aggressively:** `Invoke-OblivionForceDirectoryRemoval` and friends take ownership, robocopy `/MIR` empty folders into targets, and queue `PendingFileRenameOperations` with no guard that the path sits under the target app. One false positive wipes entire `Program Files` trees.
 -   **Inventory + dedupe are opaque:** `automation/scripts/get-installed-app-footprint.ps1` produces blended records from registry, managers, AppX, Steam, shortcuts, etc. `ProjectOblivionViewModel.DeduplicateApps` then merges them with heuristic keys (package family → manager hint → install root → normalized name). When those heuristics disagree, duplicates linger and feed multiple uninstall attempts into the same run.
@@ -69,3 +69,4 @@ Project Oblivion is a powerful uninstaller, but its current safety net is paper 
 -   Skip `Invoke-OblivionForceDirectoryRemoval` for any path whose drive root is not in the approved artifact list, and bubble a `requiresManualReview` flag to the UI instead of deleting blindly.
 
 Locking down these pieces lets us keep Project Oblivion "simple and powerful" without letting it nuke unrelated software.
+

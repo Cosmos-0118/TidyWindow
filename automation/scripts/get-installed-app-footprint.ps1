@@ -68,7 +68,7 @@ function Get-ScriptRelativePath {
     return [System.IO.Path]::GetFullPath((Join-Path -Path $root -ChildPath $Relative))
 }
 
-$modulePath = Get-ScriptRelativePath -Relative '..\modules\TidyWindow.Automation.psm1'
+$modulePath = Get-ScriptRelativePath -Relative '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
 if (-not (Test-Path -LiteralPath $modulePath)) {
     throw "Automation module not found at '$modulePath'."
 }
@@ -1006,3 +1006,4 @@ if ($OutputPath) {
 }
 
 $json
+

@@ -4,8 +4,8 @@ TidyWindow executes PowerShell 7 scripts through managed runspaces so the deskto
 
 ## Module Structure
 
--   `automation/modules/TidyWindow.Automation.psm1` exposes shared helpers such as `Write-TidyLog` and `Assert-TidyAdmin`.
--   Scripts under `automation/scripts` should import the module with `Import-Module "$PSScriptRoot/../modules/TidyWindow.Automation.psm1" -Force` to reuse helpers.
+-   `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1` exposes shared helpers such as `Write-TidyLog` and `Assert-TidyAdmin`.
+-   Scripts under `automation/scripts` should import the module with `Import-Module "$PSScriptRoot/../modules/TidyWindow.Automation/TidyWindow.Automation.psm1" -Force` to reuse helpers.
 
 ## Invocation Conventions
 
@@ -74,3 +74,4 @@ PathPilot keeps runtime management machine-scoped. The automation lives in `auto
 -   `PathPilotInventoryService` shells out through `PowerShellInvoker`, deserializes the JSON payload, and exposes switch/export helpers to the WPF view model.
 -   The view model logs every refresh, switch, and export event via `ActivityLogService` so PulseGuard has full context.
 -   UI actions always remind operators that the feature modifies HKLM + machine PATH; the dismissible warning banner on the page mirrors that safety guidance from the concept deck.
+

@@ -21,7 +21,7 @@ function Resolve-ScriptPath {
 }
 
 function Import-TidyModule {
-    $modulePath = Resolve-ScriptPath -Relative '..\modules\TidyWindow.Automation.psm1'
+    $modulePath = Resolve-ScriptPath -Relative '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
     if (-not (Test-Path -LiteralPath $modulePath)) {
         throw "Automation module not found at '$modulePath'."
     }
@@ -317,3 +317,4 @@ $summary = @{
 
 Write-TidyRunLog -Path $logPath -Payload $summary
 Write-TidyStructuredEvent -Type 'summary' -Payload $summary
+

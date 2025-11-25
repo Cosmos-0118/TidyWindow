@@ -26,7 +26,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $scriptRoot = if ($PSScriptRoot) { $PSScriptRoot } elseif ($PSCommandPath) { Split-Path -Parent $PSCommandPath } else { (Get-Location).Path }
-$modulePath = Join-Path -Path $scriptRoot -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = Join-Path -Path $scriptRoot -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
 $modulePath = [System.IO.Path]::GetFullPath($modulePath)
 if (-not (Test-Path -LiteralPath $modulePath)) {
     throw "Automation module not found at path '$modulePath'."
@@ -1274,3 +1274,4 @@ else {
 
     $jsonCompact
 }
+

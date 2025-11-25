@@ -87,7 +87,7 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 
 ## Automation Conventions
 
--   Scripts import `automation/modules/TidyWindow.Automation.psm1` for consistent logging and elevation handling.
+-   Scripts import `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1` for consistent logging and elevation handling.
 -   Parameters must be named, and scripts should emit structured objects for consumption by `PowerShellInvoker`.
 -   Terminating errors bubble back to the .NET layer for user-friendly reporting in the dashboard.
 -   Long-running scripts should emit JSON payloads so services like `PackageMaintenanceService` can parse structured results.
@@ -103,3 +103,4 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 ## License
 
 TidyWindow is distributed under the MIT License. See `LICENSE` for details.
+

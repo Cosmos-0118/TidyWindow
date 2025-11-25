@@ -19,7 +19,7 @@ if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
     $scriptDirectory = (Get-Location).Path
 }
 
-$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
 $modulePath = [System.IO.Path]::GetFullPath($modulePath)
 if (-not (Test-Path -Path $modulePath)) {
     throw "Automation module not found at path '$modulePath'."
@@ -581,3 +581,4 @@ if ($script:UsingResultFile) {
 
     exit 1
 }
+

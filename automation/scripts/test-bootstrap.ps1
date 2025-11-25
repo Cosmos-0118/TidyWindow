@@ -21,7 +21,7 @@ if (-not (Test-Path -Path $BootstrapScriptPath)) {
     throw "Bootstrap script not found at path '$BootstrapScriptPath'."
 }
 
-$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation.psm1'
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
 $modulePath = [System.IO.Path]::GetFullPath($modulePath)
 if (-not (Test-Path -Path $modulePath)) {
     throw "Automation module not found at path '$modulePath'."
@@ -186,3 +186,4 @@ if (-not $allPassed) {
 Write-TidyLog -Level Information -Message 'All bootstrap validation scenarios completed successfully.'
 
 return $scenarioResults
+

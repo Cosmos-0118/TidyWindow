@@ -97,7 +97,7 @@ Every entry must include: `riskLevel`, `requiresReboot`, `supportsRevert`, `test
 2. **Apply Flow**
 	 - Confirm admin privileges; if missing, show UAC re-launch prompt.
 	 - Create a point-in-time backup `.reg` snippet per key and store under `%AppData%/TidyWindow/backups/<tweakId>-yyyyMMddHHmm.reg`.
-	 - Invoke PowerShell host (can reuse `automation/modules/TidyWindow.Automation.psm1`) with structured payload describing operations.
+	 - Invoke PowerShell host (can reuse `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1`) with structured payload describing operations.
 	 - Update persistence JSON + add entry to history log.
 3. **Revert Flow** — use stored backup when available; otherwise compute revert values from `default` field and reapply.
 4. **Conflict Handling** — if detection shows `Different`, surface yellow badge and allow Compare action showing current vs desired values.
