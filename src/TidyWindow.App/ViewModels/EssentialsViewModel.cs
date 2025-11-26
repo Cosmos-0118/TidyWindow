@@ -404,6 +404,15 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     public EssentialsTaskItemViewModel(EssentialsTaskDefinition definition)
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
+
+        if (definition.Options.IsDefaultOrEmpty || definition.Options.Length == 0)
+        {
+            Options = Array.Empty<EssentialsTaskOptionViewModel>();
+        }
+        else
+        {
+            Options = definition.Options.Select(option => new EssentialsTaskOptionViewModel(option)).ToList();
+        }
     }
 
     public EssentialsTaskDefinition Definition { get; }
@@ -426,7 +435,9 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 
     public bool IsDefenderTask => string.Equals(Definition.Id, "defender-repair", StringComparison.OrdinalIgnoreCase);
 
-    public bool IsSpoolerTask => string.Equals(Definition.Id, "print-spooler-recovery", StringComparison.OrdinalIgnoreCase);
+    public IReadOnlyList<EssentialsTaskOptionViewModel> Options { get; }
+
+    public bool HasOptions => Options.Count > 0;
 
     [ObservableProperty]
     private bool _useFullScan;
@@ -442,21 +453,6 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 
     [ObservableProperty]
     private bool _skipRealtimeHeal;
-
-    [ObservableProperty]
-    private bool _includeServiceReset = true;
-
-    [ObservableProperty]
-    private bool _includeQueuePurge = true;
-
-    [ObservableProperty]
-    private bool _includeDriverCleanup = true;
-
-    [ObservableProperty]
-    private bool _includeDllRegistration = true;
-
-    [ObservableProperty]
-    private bool _includeIsolationPolicyReset = true;
 
     [ObservableProperty]
     private bool _isActive;
@@ -483,9 +479,23 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 
     public IReadOnlyDictionary<string, object?>? BuildParameters()
     {
+        Dictionary<string, object?>? parameters = null;
+
+        if (HasOptions)
+        {
+            foreach (var option in Options)
+            {
+                if (option.TryGetParameter(out var name, out var value))
+                {
+                    parameters ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+                    parameters[name] = value;
+                }
+            }
+        }
+
         if (IsDefenderTask)
         {
-            var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+            parameters ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
 
             if (SkipThreatScan)
             {
@@ -514,47 +524,27 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
             return parameters.Count > 0 ? parameters : null;
         }
 
-        if (IsSpoolerTask)
-        {
-            var parameters = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
-
-            if (!IncludeServiceReset)
-            {
-                parameters["SkipServiceReset"] = true;
-            }
-
-            if (!IncludeQueuePurge)
-            {
-                parameters["SkipSpoolPurge"] = true;
-            }
-
-            if (!IncludeDriverCleanup)
-            {
-                parameters["SkipDriverRefresh"] = true;
-            }
-
-            if (!IncludeDllRegistration)
-            {
-                parameters["SkipDllRegistration"] = true;
-            }
-
-            if (!IncludeIsolationPolicyReset)
-            {
-                parameters["SkipPrintIsolationPolicy"] = true;
-            }
-
-            return parameters.Count > 0 ? parameters : null;
-        }
-
-        return null;
+        return parameters?.Count > 0 ? parameters : null;
     }
 
     public string? GetOptionSummary()
     {
+        var parts = new List<string>();
+
+        if (HasOptions)
+        {
+            foreach (var option in Options)
+            {
+                var summary = option.GetSummaryLabel();
+                if (!string.IsNullOrWhiteSpace(summary))
+                {
+                    parts.Add(summary);
+                }
+            }
+        }
+
         if (IsDefenderTask)
         {
-            var parts = new List<string>();
-
             if (SkipThreatScan)
             {
                 parts.Add("Scan skipped");
@@ -578,43 +568,9 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
             {
                 parts.Add("Skip real-time heal");
             }
-
-            return parts.Count > 0 ? string.Join(", ", parts) : null;
         }
 
-        if (IsSpoolerTask)
-        {
-            var parts = new List<string>();
-
-            if (!IncludeServiceReset)
-            {
-                parts.Add("Skip service restart");
-            }
-
-            if (!IncludeQueuePurge)
-            {
-                parts.Add("Skip queue purge");
-            }
-
-            if (!IncludeDriverCleanup)
-            {
-                parts.Add("Skip driver cleanup");
-            }
-
-            if (!IncludeDllRegistration)
-            {
-                parts.Add("Skip DLL re-registration");
-            }
-
-            if (!IncludeIsolationPolicyReset)
-            {
-                parts.Add("Skip isolation reset");
-            }
-
-            return parts.Count > 0 ? string.Join(", ", parts) : null;
-        }
-
-        return null;
+        return parts.Count > 0 ? string.Join(", ", parts) : null;
     }
 
     [RelayCommand]
@@ -642,6 +598,64 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
         {
             SkipThreatScan = false;
         }
+    }
+}
+
+public sealed partial class EssentialsTaskOptionViewModel : ObservableObject
+{
+    public EssentialsTaskOptionViewModel(EssentialsTaskOptionDefinition definition)
+    {
+        Definition = definition ?? throw new ArgumentNullException(nameof(definition));
+        _isEnabled = definition.DefaultValue;
+    }
+
+    public EssentialsTaskOptionDefinition Definition { get; }
+
+    public string Label => Definition.Label;
+
+    public string? Description => Definition.Description;
+
+    public bool DefaultValue => Definition.DefaultValue;
+
+    [ObservableProperty]
+    private bool _isEnabled;
+
+    public bool TryGetParameter(out string parameterName, out object? value)
+    {
+        parameterName = Definition.ParameterName;
+        value = true;
+
+        if (Definition.Mode == EssentialsTaskOptionMode.EmitWhenTrue)
+        {
+            if (!IsEnabled)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        if (Definition.Mode == EssentialsTaskOptionMode.EmitWhenFalse)
+        {
+            if (IsEnabled)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        return false;
+    }
+
+    public string? GetSummaryLabel()
+    {
+        if (IsEnabled == DefaultValue)
+        {
+            return null;
+        }
+
+        return IsEnabled ? Label : $"Skip {Label}";
     }
 }
 
