@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:infra="clr-namespace:TidyWindow.App.Infrastructure"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.Resources>
@@ -223,7 +224,8 @@
                                               ScrollViewer.CanContentScroll="True"
                                               VirtualizingPanel.IsVirtualizing="True"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
-                                              VirtualizingStackPanel.ScrollUnit="Pixel">
+                                              VirtualizingStackPanel.ScrollUnit="Pixel"
+                                              infra:ScrollHost.BubbleParentScroll="True">
                                         <ListView.Style>
                                             <Style TargetType="ListView">
                                                 <Setter Property="Visibility" Value="Visible"/>

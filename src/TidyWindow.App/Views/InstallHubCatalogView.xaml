@@ -6,6 +6,7 @@
              xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:ux="clr-namespace:TidyWindow.App.Controls"
+             xmlns:infra="clr-namespace:TidyWindow.App.Infrastructure"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.Resources>
@@ -97,11 +98,12 @@
                             </StackPanel>
                         </Grid>
 
-                        <ux:ResponsiveWrapPanel Grid.Row="1"
-                                    Margin="0,26,0,0"
-                                    MinItemWidth="240"
-                                    MaxItemWidth="360"
-                                    HorizontalSpacing="16">
+                        <ux:AdaptiveTilePanel Grid.Row="1"
+                                              Margin="0,26,0,0"
+                                              MinColumnWidth="240"
+                                              MaxColumnWidth="360"
+                                              ColumnSpacing="16"
+                                              RowSpacing="16">
                             <Border Style="{StaticResource InstallFilterCardStyle}"
                                 Margin="0,0,16,16"
                                 Padding="18">
@@ -158,7 +160,7 @@
                                                FontSize="11"/>
                                 </StackPanel>
                             </Border>
-                        </ux:ResponsiveWrapPanel>
+                        </ux:AdaptiveTilePanel>
 
                         <Border Grid.Row="2"
                                 Margin="0,28,0,0"
@@ -254,12 +256,13 @@
                                     </Border>
                                 </WrapPanel>
 
-                                <ux:ResponsiveWrapPanel Grid.Row="2"
-                                            Grid.ColumnSpan="2"
-                                            Margin="0,16,0,0"
-                                            MinItemWidth="260"
-                                            MaxItemWidth="360"
-                                            HorizontalSpacing="16">
+                                <ux:AdaptiveTilePanel Grid.Row="2"
+                                                      Grid.ColumnSpan="2"
+                                                      Margin="0,16,0,0"
+                                                      MinColumnWidth="260"
+                                                      MaxColumnWidth="360"
+                                                      ColumnSpacing="16"
+                                                      RowSpacing="16">
                                     <Border Style="{StaticResource InstallFilterCardStyle}"
                                         Padding="16"
                                         Margin="0,0,16,16">
@@ -297,7 +300,7 @@
                                                       TextSearch.TextPath="Name"/>
                                         </StackPanel>
                                     </Border>
-                                </ux:ResponsiveWrapPanel>
+                                </ux:AdaptiveTilePanel>
 
                                 <Border Grid.Row="3"
                                         Grid.ColumnSpan="2"
@@ -420,7 +423,8 @@
                                           Foreground="#F8FAFC"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                          ScrollViewer.CanContentScroll="False">
+                                          ScrollViewer.CanContentScroll="True"
+                                          infra:ScrollHost.BubbleParentScroll="True">
                                     <ListView.Style>
                                         <Style TargetType="ListView">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -433,9 +437,10 @@
                                     </ListView.Style>
                                     <ListView.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <ux:ResponsiveWrapPanel MinItemWidth="320"
-                                                                    MaxItemWidth="420"
-                                                                    HorizontalSpacing="18"/>
+                                            <ux:AdaptiveTilePanel MinColumnWidth="320"
+                                                                  MaxColumnWidth="420"
+                                                                  ColumnSpacing="18"
+                                                                  RowSpacing="18"/>
                                         </ItemsPanelTemplate>
                                     </ListView.ItemsPanel>
                                     <ListView.ItemContainerStyle>

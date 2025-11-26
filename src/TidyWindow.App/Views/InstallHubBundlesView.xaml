@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
              xmlns:ux="clr-namespace:TidyWindow.App.Controls"
+             xmlns:infra="clr-namespace:TidyWindow.App.Infrastructure"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.Resources>
@@ -233,7 +234,8 @@
                                  Padding="0"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.CanContentScroll="True">
+                                 ScrollViewer.CanContentScroll="True"
+                                 infra:ScrollHost.BubbleParentScroll="True">
                             <ListBox.Style>
                                 <Style TargetType="ListBox">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -246,9 +248,10 @@
                             </ListBox.Style>
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <ux:ResponsiveWrapPanel MinItemWidth="280"
-                                                           MaxItemWidth="420"
-                                                           HorizontalSpacing="24"/>
+                                    <ux:AdaptiveTilePanel MinColumnWidth="280"
+                                                          MaxColumnWidth="420"
+                                                          ColumnSpacing="24"
+                                                          RowSpacing="24"/>
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>
@@ -257,69 +260,41 @@
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Border Style="{StaticResource InstallCardBorderStyle}"
-                                            Padding="20"
-                                            Margin="0">
-                                        <StackPanel>
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal"
-                                                                VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Name}"
-                                                                   FontSize="16"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="#F8FAFC"
-                                                                   TextWrapping="Wrap"/>
-                                                        <Border Margin="10,0,0,0"
-                                                                Visibility="{Binding IsSyntheticAll, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                                Background="#1B2A44"
-                                                                CornerRadius="8"
-                                                                Padding="8,3">
-                                                            <TextBlock Text="All packages"
-                                                                       Foreground="#38BDF8"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold"/>
-                                                        </Border>
-                                                    </StackPanel>
-                                                    <TextBlock Text="{Binding Description}"
-                                                               Foreground="#94A3B8"
-                                                               FontSize="12"
-                                                               Margin="0,6,0,0"
+                                            Padding="20">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <StackPanel Grid.Row="0">
+                                                <StackPanel Orientation="Horizontal"
+                                                            VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Name}"
+                                                               FontSize="16"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="#F8FAFC"
                                                                TextWrapping="Wrap"/>
+                                                    <Border Margin="10,0,0,0"
+                                                            Visibility="{Binding IsSyntheticAll, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            Background="#1B2A44"
+                                                            CornerRadius="8"
+                                                            Padding="8,3">
+                                                        <TextBlock Text="All packages"
+                                                                   Foreground="#38BDF8"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"/>
+                                                    </Border>
                                                 </StackPanel>
+                                                <TextBlock Text="{Binding Description}"
+                                                           Foreground="#94A3B8"
+                                                           FontSize="12"
+                                                           Margin="0,6,0,0"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
 
-                                                <StackPanel Grid.Column="1"
-                                                            Orientation="Horizontal"
-                                                            HorizontalAlignment="Right"
-                                                            VerticalAlignment="Top">
-                                                    <Button Content="Queue bundle"
-                                                            Command="{Binding DataContext.QueueBundleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                            CommandParameter="{Binding}"
-                                                            MinWidth="96">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button"
-                                                                   BasedOn="{StaticResource InstallAccentButtonStyle}">
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsSyntheticAll}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-                                                    <Button Content="View details"
-                                                            Margin="8,0,0,0"
-                                                            Command="{Binding DataContext.ViewBundleDetailsCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                            CommandParameter="{Binding}"
-                                                            Style="{StaticResource InstallSecondaryButtonStyle}"
-                                                            MinWidth="96"/>
-                                                </StackPanel>
-                                            </Grid>
-
-                                            <WrapPanel Margin="0,12,0,0">
+                                            <WrapPanel Grid.Row="1"
+                                                       Margin="0,12,0,0">
                                                 <Border Style="{StaticResource InstallBadgeStyle}">
                                                     <TextBlock Text="{Binding PackageCountDisplay}"
                                                                Foreground="#CBD5F5"
@@ -335,7 +310,39 @@
                                                                FontWeight="SemiBold"/>
                                                 </Border>
                                             </WrapPanel>
-                                        </StackPanel>
+
+                                            <StackPanel Grid.Row="2"
+                                                        Orientation="Horizontal"
+                                                        Margin="0,16,0,0">
+                                                <Button Content="Queue bundle"
+                                                        Command="{Binding DataContext.QueueBundleCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        CommandParameter="{Binding}"
+                                                        MinWidth="96">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button"
+                                                               BasedOn="{StaticResource InstallAccentButtonStyle}">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSyntheticAll}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                                <Button Content="View details"
+                                                        Margin="8,0,0,0"
+                                                        Command="{Binding DataContext.ViewBundleDetailsCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource InstallSecondaryButtonStyle}"
+                                                        MinWidth="96"/>
+                                                <Button Content="Browse catalog"
+                                                        Margin="8,0,0,0"
+                                                        Command="{Binding DataContext.NavigatePivotCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Catalog}"
+                                                        Style="{StaticResource InstallSecondaryButtonStyle}"
+                                                        MinWidth="110"/>
+                                            </StackPanel>
+                                        </Grid>
                                     </Border>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
