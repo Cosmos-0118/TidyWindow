@@ -55,9 +55,14 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _headline = "System-wide runtime control";
 
+    [ObservableProperty]
+    private PathPilotRuntimeCardViewModel? _installationsDialogRuntime;
+
     public bool HasRuntimeData => Runtimes.Count > 0;
 
     public bool HasWarnings => Warnings.Count > 0;
+
+    public bool IsInstallationsDialogOpen => InstallationsDialogRuntime is not null;
 
     public string Summary => BuildSummary();
 
@@ -180,6 +185,23 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         await ExportAsync(PathPilotExportFormat.Markdown).ConfigureAwait(false);
     }
 
+    [RelayCommand]
+    private void ShowInstallations(PathPilotRuntimeCardViewModel? runtime)
+    {
+        if (runtime is null || !runtime.HasInstallations)
+        {
+            return;
+        }
+
+        InstallationsDialogRuntime = runtime;
+    }
+
+    [RelayCommand]
+    private void CloseInstallations()
+    {
+        InstallationsDialogRuntime = null;
+    }
+
     private async Task ExportAsync(PathPilotExportFormat format)
     {
         if (IsBusy)
@@ -226,6 +248,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         {
             Runtimes.Add(new PathPilotRuntimeCardViewModel(runtime));
         }
+
+        InstallationsDialogRuntime = null;
 
         Warnings.Clear();
         foreach (var warning in snapshot.Warnings)
@@ -473,6 +497,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         Runtimes.CollectionChanged -= OnRuntimeCollectionChanged;
         Warnings.CollectionChanged -= OnWarningsCollectionChanged;
     }
+
+    partial void OnInstallationsDialogRuntimeChanged(PathPilotRuntimeCardViewModel? value)
+    {
+        OnPropertyChanged(nameof(IsInstallationsDialogOpen));
+    }
 }
 
 public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
@@ -496,6 +525,11 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
         Status = runtime.Status;
         Installations = new ObservableCollection<PathPilotInstallationViewModel>(
             runtime.Installations.Select(install => new PathPilotInstallationViewModel(runtime, install)));
+        Installations.CollectionChanged += (_, __) =>
+        {
+            OnPropertyChanged(nameof(HasInstallations));
+            OnPropertyChanged(nameof(InstallationsToggleLabel));
+        };
         ActiveVersionLabel = BuildActiveVersionLabel(runtime, Installations);
         StatusBadges = new ObservableCollection<PathPilotStatusBadgeViewModel>(BuildStatusBadges(runtime));
         ResolutionOrder = runtime.ResolutionOrder.IsDefaultOrEmpty
@@ -572,6 +606,13 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
 
     public IRelayCommand ToggleResolutionOrderCommand { get; }
 
+    public string InstallationsToggleLabel => Installations.Count switch
+    {
+        0 => "Installations",
+        1 => "Show 1 installation",
+        _ => $"Show {Installations.Count} installations"
+    };
+
     private bool _isResolutionOrderExpanded;
 
     private void ToggleResolutionOrder()
@@ -583,6 +624,7 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
 
         IsResolutionOrderExpanded = !IsResolutionOrderExpanded;
     }
+
 
     private static IEnumerable<PathPilotStatusBadgeViewModel> BuildStatusBadges(PathPilotRuntime runtime)
     {
