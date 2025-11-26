@@ -4,6 +4,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+             xmlns:ux="clr-namespace:TidyWindow.App.Controls"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.Resources>
@@ -26,8 +27,7 @@
                     Style="{StaticResource InstallCardBorderStyle}"
                     Margin="0,0,0,24"
                     Padding="24">
-                <Grid x:Name="SelectedBundleDetailsGrid"
-                      SizeChanged="SelectedBundleDetailsGrid_SizeChanged">
+                <Grid x:Name="SelectedBundleDetailsGrid">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
@@ -37,7 +37,8 @@
                         <TextBlock Text="{Binding SelectedBundle.Name}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
-                                   Foreground="#F8FAFC">
+                                   Foreground="#F8FAFC"
+                                   TextWrapping="Wrap">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -53,7 +54,8 @@
                         <TextBlock Text="Select a bundle to preview its contents"
                                    Foreground="#64748B"
                                    FontSize="13"
-                                   FontStyle="Italic">
+                                   FontStyle="Italic"
+                                   TextWrapping="Wrap">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -231,10 +233,7 @@
                                  Padding="0"
                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                 ScrollViewer.CanContentScroll="True"
-                                 VirtualizingPanel.IsVirtualizing="True"
-                                 VirtualizingPanel.VirtualizationMode="Recycling"
-                                 VirtualizingStackPanel.ScrollUnit="Pixel">
+                                 ScrollViewer.CanContentScroll="True">
                             <ListBox.Style>
                                 <Style TargetType="ListBox">
                                     <Setter Property="Visibility" Value="Visible"/>
@@ -245,16 +244,21 @@
                                     </Style.Triggers>
                                 </Style>
                             </ListBox.Style>
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ux:ResponsiveWrapPanel MinItemWidth="280"
+                                                           MaxItemWidth="420"
+                                                           HorizontalSpacing="24"/>
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>
                                 <StaticResource ResourceKey="InstallBundleCardItemStyle"/>
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="#0F172A"
-                                            BorderBrush="#1E293B"
-                                            BorderThickness="1"
-                                            CornerRadius="12"
-                                            Padding="16">
+                                    <Border Style="{StaticResource InstallCardBorderStyle}"
+                                            Padding="20"
+                                            Margin="0">
                                         <StackPanel>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>

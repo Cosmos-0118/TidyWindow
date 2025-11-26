@@ -6,15 +6,65 @@
     <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
     <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
+    <LinearGradientBrush x:Key="InstallCardBackgroundBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#151F38" Offset="0"/>
+        <GradientStop Color="#0F172A" Offset="0.55"/>
+        <GradientStop Color="#0B1220" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="InstallAccentButtonBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#8B5CF6" Offset="0"/>
+        <GradientStop Color="#6366F1" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="InstallAccentButtonHoverBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#A855F7" Offset="0"/>
+        <GradientStop Color="#6366F1" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="InstallAccentButtonPressedBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#5B21B6" Offset="0"/>
+        <GradientStop Color="#4C1D95" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="InstallSecondaryButtonBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#172338" Offset="0"/>
+        <GradientStop Color="#0F172A" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="InstallSecondaryButtonHoverBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#1F2F4A" Offset="0"/>
+        <GradientStop Color="#10203A" Offset="1"/>
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="InstallSecondaryButtonPressedBrush"
+                         StartPoint="0,0"
+                         EndPoint="1,1">
+        <GradientStop Color="#0C1424" Offset="0"/>
+        <GradientStop Color="#0A111C" Offset="1"/>
+    </LinearGradientBrush>
+
+    <DropShadowEffect x:Key="InstallCardShadowEffect"
+                      Color="#0B1220"
+                      BlurRadius="30"
+                      ShadowDepth="0"
+                      Opacity="0.42"/>
 
     <Style x:Key="InstallAccentButtonStyle"
            TargetType="Button">
-        <Setter Property="Background" Value="#7C3AED"/>
+        <Setter Property="Background" Value="{StaticResource InstallAccentButtonBrush}"/>
         <Setter Property="Foreground" Value="#F8FAFC"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="Padding" Value="14,7"/>
         <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
@@ -22,20 +72,70 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8"
-                            Padding="{TemplateBinding Padding}">
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}"
+                            RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="AccentButtonScale"
+                                            ScaleX="1"
+                                            ScaleY="1"/>
+                        </Border.RenderTransform>
+                        <Border.Effect>
+                            <DropShadowEffect x:Name="AccentGlow"
+                                              Color="#8B5CF6"
+                                              BlurRadius="24"
+                                              ShadowDepth="0"
+                                              Opacity="0.4"/>
+                        </Border.Effect>
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#6D28D9"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallAccentButtonHoverBrush}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="AccentHoverInStoryboard">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="AccentButtonScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1.04"
+                                                         Duration="0:0:0.18"/>
+                                        <DoubleAnimation Storyboard.TargetName="AccentButtonScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1.04"
+                                                         Duration="0:0:0.18"/>
+                                        <DoubleAnimation Storyboard.TargetName="AccentGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.72"
+                                                         Duration="0:0:0.18"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard x:Name="AccentHoverOutStoryboard">
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="AccentButtonScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1"
+                                                         Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="AccentButtonScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1"
+                                                         Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="AccentGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.4"
+                                                         Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#5B21B6"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallAccentButtonPressedBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Background" Value="#312E81"/>
+                            <Setter TargetName="Root" Property="Opacity" Value="0.7"/>
                             <Setter Property="Foreground" Value="#94A3B8"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -46,9 +146,9 @@
 
     <Style x:Key="InstallSecondaryButtonStyle"
            TargetType="Button">
-        <Setter Property="Background" Value="#1E293B"/>
+        <Setter Property="Background" Value="{StaticResource InstallSecondaryButtonBrush}"/>
         <Setter Property="Foreground" Value="#E2E8F0"/>
-        <Setter Property="BorderBrush" Value="#334155"/>
+        <Setter Property="BorderBrush" Value="#2C3E61"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="12,6"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -59,17 +159,66 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
-                            Padding="{TemplateBinding Padding}">
+                            CornerRadius="8"
+                            Padding="{TemplateBinding Padding}"
+                            RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="SecondaryButtonScale"
+                                            ScaleX="1"
+                                            ScaleY="1"/>
+                        </Border.RenderTransform>
+                        <Border.Effect>
+                            <DropShadowEffect x:Name="SecondaryGlow"
+                                              Color="#0EA5E9"
+                                              BlurRadius="18"
+                                              ShadowDepth="0"
+                                              Opacity="0.25"/>
+                        </Border.Effect>
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#243048"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallSecondaryButtonHoverBrush}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="SecondaryButtonScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1.02"
+                                                         Duration="0:0:0.15"/>
+                                        <DoubleAnimation Storyboard.TargetName="SecondaryButtonScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1.02"
+                                                         Duration="0:0:0.15"/>
+                                        <DoubleAnimation Storyboard.TargetName="SecondaryGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.45"
+                                                         Duration="0:0:0.15"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="SecondaryButtonScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1"
+                                                         Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="SecondaryButtonScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1"
+                                                         Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="SecondaryGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.25"
+                                                         Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#1A2436"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallSecondaryButtonPressedBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Background" Value="#111827"/>
@@ -84,9 +233,9 @@
 
     <Style x:Key="InstallSecondaryToggleButtonStyle"
            TargetType="ToggleButton">
-        <Setter Property="Background" Value="#1E293B"/>
+        <Setter Property="Background" Value="{StaticResource InstallSecondaryButtonBrush}"/>
         <Setter Property="Foreground" Value="#E2E8F0"/>
-        <Setter Property="BorderBrush" Value="#334155"/>
+        <Setter Property="BorderBrush" Value="#2C3E61"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="12,6"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -97,17 +246,17 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="6"
+                            CornerRadius="8"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#243048"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallSecondaryButtonHoverBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#1A2436"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallSecondaryButtonPressedBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
@@ -146,13 +295,21 @@
 
     <Style x:Key="InstallCardBorderStyle"
            TargetType="Border">
-        <Setter Property="Background" Value="#111827"/>
-        <Setter Property="BorderBrush" Value="#1E293B"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="16"/>
-        <Setter Property="Padding" Value="24"/>
+        <Setter Property="Background" Value="{StaticResource InstallCardBackgroundBrush}"/>
+        <Setter Property="BorderBrush" Value="#253553"/>
+        <Setter Property="BorderThickness" Value="1.2"/>
+        <Setter Property="CornerRadius" Value="18"/>
+        <Setter Property="Padding" Value="26"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
-        <Setter Property="ClipToBounds" Value="True"/>
+        <Setter Property="ClipToBounds" Value="False"/>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#050B17"
+                                  BlurRadius="24"
+                                  ShadowDepth="0"
+                                  Opacity="0.45"/>
+            </Setter.Value>
+        </Setter>
     </Style>
 
     <x:Array x:Key="InstallHubBundleSkeletonItems" Type="{x:Type sys:Int32}">
@@ -224,7 +381,7 @@
     <Style x:Key="InstallBundleCardItemStyle"
            TargetType="ListBoxItem">
         <Setter Property="Padding" Value="0"/>
-        <Setter Property="Margin" Value="0,0,0,14"/>
+        <Setter Property="Margin" Value="0,0,14,14"/>
         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
         <Setter Property="VerticalContentAlignment" Value="Stretch"/>
         <Setter Property="Template">
@@ -490,12 +647,12 @@
     <Style x:Key="InstallHubPivotButtonStyle"
            TargetType="ToggleButton">
         <Setter Property="Padding" Value="18,10"/>
-        <Setter Property="MinWidth" Value="140"/>
+        <Setter Property="MinWidth" Value="150"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="#CBD5F5"/>
-        <Setter Property="Background" Value="#111C30"/>
-        <Setter Property="BorderBrush" Value="#1E293B"/>
+        <Setter Property="Foreground" Value="#E2E8F0"/>
+        <Setter Property="Background" Value="{StaticResource InstallSecondaryButtonBrush}"/>
+        <Setter Property="BorderBrush" Value="#2C3E61"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
@@ -506,13 +663,63 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            Padding="{TemplateBinding Padding}">
+                            Padding="{TemplateBinding Padding}"
+                            RenderTransformOrigin="0.5,0.5">
+                        <Border.RenderTransform>
+                            <ScaleTransform x:Name="PivotScale" ScaleX="1" ScaleY="1"/>
+                        </Border.RenderTransform>
+                        <Border.Effect>
+                            <DropShadowEffect x:Name="PivotGlow"
+                                              Color="#38BDF8"
+                                              BlurRadius="20"
+                                              ShadowDepth="0"
+                                              Opacity="0.32"/>
+                        </Border.Effect>
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallSecondaryButtonHoverBrush}"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PivotScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1.03"
+                                                         Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="PivotScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1.03"
+                                                         Duration="0:0:0.16"/>
+                                        <DoubleAnimation Storyboard.TargetName="PivotGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.5"
+                                                         Duration="0:0:0.16"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="PivotScale"
+                                                         Storyboard.TargetProperty="ScaleX"
+                                                         To="1"
+                                                         Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="PivotScale"
+                                                         Storyboard.TargetProperty="ScaleY"
+                                                         To="1"
+                                                         Duration="0:0:0.2"/>
+                                        <DoubleAnimation Storyboard.TargetName="PivotGlow"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0.32"
+                                                         Duration="0:0:0.2"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
                         <Trigger Property="IsChecked" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="#1E3A8A"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallAccentButtonBrush}"/>
                             <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
                             <Setter Property="Foreground" Value="#F8FAFC"/>
                         </Trigger>

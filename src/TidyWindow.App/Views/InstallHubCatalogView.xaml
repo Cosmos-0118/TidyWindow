@@ -5,6 +5,7 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             xmlns:ux="clr-namespace:TidyWindow.App.Controls"
              mc:Ignorable="d"
              Background="Transparent">
     <UserControl.Resources>
@@ -96,14 +97,14 @@
                             </StackPanel>
                         </Grid>
 
-                        <WrapPanel Grid.Row="1"
-                                   Margin="0,26,0,0"
-                                   ItemWidth="240"
-                                   HorizontalAlignment="Left">
+                        <ux:ResponsiveWrapPanel Grid.Row="1"
+                                    Margin="0,26,0,0"
+                                    MinItemWidth="240"
+                                    MaxItemWidth="360"
+                                    HorizontalSpacing="16">
                             <Border Style="{StaticResource InstallFilterCardStyle}"
-                                    Margin="0,0,16,16"
-                                    Padding="18"
-                                    Width="240">
+                                Margin="0,0,16,16"
+                                Padding="18">
                                 <StackPanel>
                                     <TextBlock Text="Queued installs"
                                                Foreground="#94A3B8"
@@ -122,8 +123,7 @@
 
                             <Border Style="{StaticResource InstallFilterCardStyle}"
                                     Margin="0,0,16,16"
-                                    Padding="18"
-                                    Width="240">
+                                    Padding="18">
                                 <StackPanel>
                                     <TextBlock Text="Active runs"
                                                Foreground="#94A3B8"
@@ -142,8 +142,7 @@
 
                             <Border Style="{StaticResource InstallFilterCardStyle}"
                                     Margin="0,0,16,16"
-                                    Padding="18"
-                                    Width="240">
+                                    Padding="18">
                                 <StackPanel>
                                     <TextBlock Text="Visible packages"
                                                Foreground="#94A3B8"
@@ -159,7 +158,7 @@
                                                FontSize="11"/>
                                 </StackPanel>
                             </Border>
-                        </WrapPanel>
+                        </ux:ResponsiveWrapPanel>
 
                         <Border Grid.Row="2"
                                 Margin="0,28,0,0"
@@ -255,13 +254,15 @@
                                     </Border>
                                 </WrapPanel>
 
-                                <WrapPanel Grid.Row="2"
-                                           Grid.ColumnSpan="2"
-                                           Margin="0,16,0,0">
+                                <ux:ResponsiveWrapPanel Grid.Row="2"
+                                            Grid.ColumnSpan="2"
+                                            Margin="0,16,0,0"
+                                            MinItemWidth="260"
+                                            MaxItemWidth="360"
+                                            HorizontalSpacing="16">
                                     <Border Style="{StaticResource InstallFilterCardStyle}"
-                                            Padding="16"
-                                            Margin="0,0,16,16"
-                                            Width="280">
+                                        Padding="16"
+                                        Margin="0,0,16,16">
                                         <StackPanel>
                                             <TextBlock Text="Search catalog"
                                                        Foreground="#CBD5F5"
@@ -279,8 +280,7 @@
 
                                     <Border Style="{StaticResource InstallFilterCardStyle}"
                                             Padding="16"
-                                            Margin="0,0,16,16"
-                                            Width="280">
+                                            Margin="0,0,16,16">
                                         <StackPanel>
                                             <TextBlock Text="Filter by bundle"
                                                        Foreground="#CBD5F5"
@@ -297,7 +297,7 @@
                                                       TextSearch.TextPath="Name"/>
                                         </StackPanel>
                                     </Border>
-                                </WrapPanel>
+                                </ux:ResponsiveWrapPanel>
 
                                 <Border Grid.Row="3"
                                         Grid.ColumnSpan="2"
@@ -420,10 +420,7 @@
                                           Foreground="#F8FAFC"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                          ScrollViewer.CanContentScroll="True"
-                                          VirtualizingPanel.IsVirtualizing="True"
-                                          VirtualizingPanel.VirtualizationMode="Recycling"
-                                          VirtualizingStackPanel.ScrollUnit="Pixel">
+                                          ScrollViewer.CanContentScroll="False">
                                     <ListView.Style>
                                         <Style TargetType="ListView">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -434,10 +431,17 @@
                                             </Style.Triggers>
                                         </Style>
                                     </ListView.Style>
+                                    <ListView.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <ux:ResponsiveWrapPanel MinItemWidth="320"
+                                                                    MaxItemWidth="420"
+                                                                    HorizontalSpacing="18"/>
+                                        </ItemsPanelTemplate>
+                                    </ListView.ItemsPanel>
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
                                             <Setter Property="Padding" Value="0"/>
-                                            <Setter Property="Margin" Value="0,0,0,14"/>
+                                            <Setter Property="Margin" Value="0,0,14,14"/>
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
                                             <Setter Property="Focusable" Value="False"/>
@@ -445,11 +449,8 @@
                                     </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#0F172A"
-                                                    BorderBrush="#1E293B"
-                                                    BorderThickness="1"
-                                                    CornerRadius="12"
-                                                    Padding="16">
+                                            <Border Style="{StaticResource InstallCardBorderStyle}"
+                                                    Padding="20">
                                                 <StackPanel>
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
@@ -471,7 +472,8 @@
                                                             <TextBlock Text="{Binding Definition.Id}"
                                                                        Foreground="#64748B"
                                                                        FontSize="11"
-                                                                       Margin="0,4,0,0"/>
+                                                                       Margin="0,4,0,0"
+                                                                       TextWrapping="Wrap"/>
                                                         </StackPanel>
                                                         <Button Grid.Column="2"
                                                                 Content="Queue"

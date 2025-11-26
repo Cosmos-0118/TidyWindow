@@ -205,7 +205,32 @@
     </Page.Resources>
 
     <Grid>
+        <Grid.Background>
+            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                <GradientStop Color="#040714" Offset="0"/>
+                <GradientStop Color="#060C1C" Offset="0.45"/>
+                <GradientStop Color="#071427" Offset="1"/>
+            </LinearGradientBrush>
+        </Grid.Background>
+        <Canvas IsHitTestVisible="False"
+                Panel.ZIndex="0">
+            <Ellipse Width="520"
+                     Height="520"
+                     Canvas.Left="-120"
+                     Canvas.Top="-160"
+                     Fill="#351563"
+                     Opacity="0.28"
+                     Effect="{StaticResource InstallOverlayShadowEffect}"/>
+            <Ellipse Width="420"
+                     Height="420"
+                     Canvas.Right="-120"
+                     Canvas.Bottom="-60"
+                     Fill="#0E7490"
+                     Opacity="0.22"
+                     Effect="{StaticResource InstallOverlayShadowEffect}"/>
+        </Canvas>
         <ScrollViewer Margin="32"
+                  Panel.ZIndex="1"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch"

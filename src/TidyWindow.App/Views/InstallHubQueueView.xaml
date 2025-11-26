@@ -173,8 +173,9 @@
                                            FontWeight="SemiBold"
                                            Foreground="#F8FAFC"/>
                                     <TextBlock Text="Latest operations appear first. Use filters above to clear or retry."
-                                           Foreground="#94A3B8"
-                                           FontSize="12"/>
+                                         Foreground="#94A3B8"
+                                         FontSize="12"
+                                         TextWrapping="Wrap"/>
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="1"
@@ -248,8 +249,7 @@
                                                                     VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding PackageName}"
                                                                        FontWeight="SemiBold"
-                                                                       TextWrapping="Wrap"
-                                                                       MaxWidth="260"/>
+                                                                       TextWrapping="Wrap"/>
                                                             <TextBlock Text="{Binding StatusLabel}"
                                                                        Margin="10,0,0,0"
                                                                        FontSize="12"

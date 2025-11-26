@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Threading;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Orientation = System.Windows.Controls.Orientation;
 using UserControl = System.Windows.Controls.UserControl;
@@ -18,7 +17,6 @@ public partial class InstallHubBundlesView : UserControl
     private HorizontalAlignment _selectedActionsDefaultHorizontalAlignment;
     private Thickness _secondaryActionButtonDefaultMargin;
     private readonly Thickness _stackedActionsMargin = new(0, 16, 0, 0);
-    private double _maxDetailsHeight;
 
     public InstallHubBundlesView()
     {
@@ -41,7 +39,6 @@ public partial class InstallHubBundlesView : UserControl
         }
 
         ApplyActionLayout(ActualWidth);
-        Dispatcher.InvokeAsync(() => SelectedBundleDetailsCard.MinHeight = SelectedBundleDetailsGrid.ActualHeight, DispatcherPriority.Loaded);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -82,20 +79,4 @@ public partial class InstallHubBundlesView : UserControl
             SelectedBundleSecondaryButton.Margin = _secondaryActionButtonDefaultMargin;
         }
     }
-
-    private void SelectedBundleDetailsGrid_SizeChanged(object sender, SizeChangedEventArgs e)
-    {
-        if (e.NewSize.Height <= 0)
-        {
-            return;
-        }
-
-        if (e.NewSize.Height > _maxDetailsHeight)
-        {
-            _maxDetailsHeight = e.NewSize.Height;
-        }
-
-        SelectedBundleDetailsCard.MinHeight = Math.Max(SelectedBundleDetailsCard.MinHeight, _maxDetailsHeight);
-    }
-
 }
