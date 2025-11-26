@@ -6,18 +6,40 @@
     <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
     <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
-    <SolidColorBrush x:Key="InstallCardBackgroundBrush" Color="#111A2C"/>
-    <SolidColorBrush x:Key="InstallAccentButtonBrush" Color="#4E7BFF"/>
-    <SolidColorBrush x:Key="InstallAccentButtonHoverBrush" Color="#5D89FF"/>
-    <SolidColorBrush x:Key="InstallAccentButtonPressedBrush" Color="#3F63DD"/>
-    <SolidColorBrush x:Key="InstallSecondaryButtonBrush" Color="#182235"/>
-    <SolidColorBrush x:Key="InstallSecondaryButtonHoverBrush" Color="#1E2B43"/>
-    <SolidColorBrush x:Key="InstallSecondaryButtonPressedBrush" Color="#11192A"/>
+    <SolidColorBrush x:Key="InstallCardBackgroundBrush" Color="#101A2B"/>
+    <SolidColorBrush x:Key="InstallAccentButtonBrush" Color="#43B9F5"/>
+    <SolidColorBrush x:Key="InstallAccentButtonHoverBrush" Color="#58C9FF"/>
+    <SolidColorBrush x:Key="InstallAccentButtonPressedBrush" Color="#2F96CC"/>
+    <SolidColorBrush x:Key="InstallSecondaryButtonBrush" Color="#172238"/>
+    <SolidColorBrush x:Key="InstallSecondaryButtonHoverBrush" Color="#1E2D46"/>
+    <SolidColorBrush x:Key="InstallSecondaryButtonPressedBrush" Color="#10182A"/>
+    <SolidColorBrush x:Key="InstallTextPrimaryBrush" Color="#F8FAFC"/>
+    <SolidColorBrush x:Key="InstallTextInverseBrush" Color="#E2E8F0"/>
+    <SolidColorBrush x:Key="InstallTextSecondaryBrush" Color="#CBD5F5"/>
+    <SolidColorBrush x:Key="InstallTextMutedBrush" Color="#8FB0D9"/>
+    <SolidColorBrush x:Key="InstallTextCaptionBrush" Color="#64748B"/>
+    <SolidColorBrush x:Key="InstallTextAccentBrush" Color="#38BDF8"/>
+    <SolidColorBrush x:Key="InstallTextSoftAccentBrush" Color="#93C5FD"/>
+    <SolidColorBrush x:Key="InstallTextInfoBrush" Color="#7FB7D6"/>
+    <SolidColorBrush x:Key="InstallTextTimestampBrush" Color="#475569"/>
+    <SolidColorBrush x:Key="InstallTextSuccessBrush" Color="#22C55E"/>
+    <SolidColorBrush x:Key="InstallTextWarningBrush" Color="#FBBF24"/>
+    <SolidColorBrush x:Key="InstallTextWarningStrongBrush" Color="#F97316"/>
+    <SolidColorBrush x:Key="InstallTextQueuedBrush" Color="#FDE68A"/>
+    <SolidColorBrush x:Key="InstallTextDangerBrush" Color="#F87171"/>
+    <SolidColorBrush x:Key="InstallTextDangerSoftBrush" Color="#FCA5A5"/>
+    <SolidColorBrush x:Key="InstallTextDangerAccentBrush" Color="#FF6B87"/>
+    <SolidColorBrush x:Key="InstallBadgeBackgroundBrush" Color="#1A2D45"/>
+    <SolidColorBrush x:Key="InstallBadgeAltBackgroundBrush" Color="#1B2A44"/>
+    <SolidColorBrush x:Key="InstallBadgeDarkBackgroundBrush" Color="#1F2937"/>
+    <SolidColorBrush x:Key="InstallBadgeQueueBackgroundBrush" Color="#12263F"/>
+    <SolidColorBrush x:Key="InstallBadgeNeutralBackgroundBrush" Color="#1D2337"/>
+    <SolidColorBrush x:Key="InstallBadgeErrorBackgroundBrush" Color="#331A1F"/>
 
     <Style x:Key="InstallAccentButtonStyle"
            TargetType="Button">
         <Setter Property="Background" Value="{StaticResource InstallAccentButtonBrush}"/>
-        <Setter Property="Foreground" Value="#F8FAFC"/>
+        <Setter Property="Foreground" Value="{StaticResource InstallTextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding" Value="14,7"/>
@@ -49,8 +71,8 @@
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallAccentButtonPressedBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Background" Value="#30408A"/>
-                            <Setter Property="Foreground" Value="#94A3B8"/>
+                            <Setter TargetName="Root" Property="Background" Value="#2E4F66"/>
+                            <Setter Property="Foreground" Value="#9FB9CC"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -61,8 +83,8 @@
     <Style x:Key="InstallSecondaryButtonStyle"
            TargetType="Button">
         <Setter Property="Background" Value="{StaticResource InstallSecondaryButtonBrush}"/>
-        <Setter Property="Foreground" Value="#E2E8F0"/>
-        <Setter Property="BorderBrush" Value="#2C3E61"/>
+        <Setter Property="Foreground" Value="{StaticResource InstallTextInverseBrush}"/>
+        <Setter Property="BorderBrush" Value="#2A3C5A"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="12,6"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -86,9 +108,9 @@
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallSecondaryButtonPressedBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Background" Value="#111827"/>
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
-                            <Setter Property="Foreground" Value="#475569"/>
+                            <Setter TargetName="Root" Property="Background" Value="#0F1626"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#1B283E"/>
+                            <Setter Property="Foreground" Value="{StaticResource InstallTextTimestampBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -99,8 +121,8 @@
     <Style x:Key="InstallSecondaryToggleButtonStyle"
            TargetType="ToggleButton">
         <Setter Property="Background" Value="{StaticResource InstallSecondaryButtonBrush}"/>
-        <Setter Property="Foreground" Value="#E2E8F0"/>
-        <Setter Property="BorderBrush" Value="#2C3E61"/>
+        <Setter Property="Foreground" Value="{StaticResource InstallTextInverseBrush}"/>
+        <Setter Property="BorderBrush" Value="#2A3C5A"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="12,6"/>
         <Setter Property="Cursor" Value="Hand"/>
@@ -128,9 +150,9 @@
                             <Setter TargetName="Root" Property="Background" Value="#172337"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Root" Property="Background" Value="#111827"/>
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
-                            <Setter Property="Foreground" Value="#475569"/>
+                            <Setter TargetName="Root" Property="Background" Value="#0F1626"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="#1B283E"/>
+                            <Setter Property="Foreground" Value="{StaticResource InstallTextTimestampBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -140,7 +162,7 @@
 
     <Style x:Key="InstallBadgeStyle"
            TargetType="Border">
-        <Setter Property="Background" Value="#1E293B"/>
+        <Setter Property="Background" Value="{StaticResource InstallBadgeBackgroundBrush}"/>
         <Setter Property="CornerRadius" Value="6"/>
         <Setter Property="Padding" Value="8,4"/>
         <Setter Property="Margin" Value="0,0,8,8"/>
@@ -149,8 +171,8 @@
     <Style x:Key="InstallInfoChipStyle"
            TargetType="Border"
            BasedOn="{StaticResource InstallBadgeStyle}">
-        <Setter Property="Background" Value="#14213D"/>
-        <Setter Property="BorderBrush" Value="#233554"/>
+        <Setter Property="Background" Value="#10263A"/>
+        <Setter Property="BorderBrush" Value="#21405B"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Padding" Value="10,4"/>
@@ -161,7 +183,7 @@
     <Style x:Key="InstallCardBorderStyle"
            TargetType="Border">
         <Setter Property="Background" Value="{StaticResource InstallCardBackgroundBrush}"/>
-        <Setter Property="BorderBrush" Value="#1F2C47"/>
+        <Setter Property="BorderBrush" Value="#1A2E4A"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="18"/>
         <Setter Property="Padding" Value="26"/>
@@ -199,9 +221,9 @@
                 Padding="18"
                 Margin="0,0,22,22">
             <StackPanel>
-                <Rectangle Height="16" Width="130" RadiusX="4" RadiusY="4" Fill="#1F2A44"/>
-                <Rectangle Height="12" Width="180" Margin="0,10,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
-                <Rectangle Height="12" Width="120" Margin="0,10,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+                <Rectangle Height="16" Width="130" RadiusX="4" RadiusY="4" Fill="#193150"/>
+                <Rectangle Height="12" Width="180" Margin="0,10,0,0" RadiusX="4" RadiusY="4" Fill="#12263D"/>
+                <Rectangle Height="12" Width="120" Margin="0,10,0,0" RadiusX="4" RadiusY="4" Fill="#12263D"/>
             </StackPanel>
         </Border>
     </DataTemplate>
@@ -214,9 +236,9 @@
                 Padding="18"
                 Margin="0,0,0,14">
             <StackPanel>
-                <Rectangle Height="16" Width="200" RadiusX="4" RadiusY="4" Fill="#1F2A44"/>
-                <Rectangle Height="12" Width="160" Margin="0,8,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
-                <Rectangle Height="12" Width="240" Margin="0,12,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+                <Rectangle Height="16" Width="200" RadiusX="4" RadiusY="4" Fill="#193150"/>
+                <Rectangle Height="12" Width="160" Margin="0,8,0,0" RadiusX="4" RadiusY="4" Fill="#12263D"/>
+                <Rectangle Height="12" Width="240" Margin="0,12,0,0" RadiusX="4" RadiusY="4" Fill="#12263D"/>
             </StackPanel>
         </Border>
     </DataTemplate>
@@ -229,8 +251,8 @@
                 Padding="16"
                 Margin="0,0,0,12">
             <StackPanel>
-                <Rectangle Height="14" Width="200" RadiusX="4" RadiusY="4" Fill="#1F2A44"/>
-                <Rectangle Height="12" Width="150" Margin="0,8,0,0" RadiusX="4" RadiusY="4" Fill="#13233F"/>
+                <Rectangle Height="14" Width="200" RadiusX="4" RadiusY="4" Fill="#193150"/>
+                <Rectangle Height="12" Width="150" Margin="0,8,0,0" RadiusX="4" RadiusY="4" Fill="#12263D"/>
             </StackPanel>
         </Border>
     </DataTemplate>
@@ -255,8 +277,8 @@
                 <ControlTemplate TargetType="ListViewItem">
                     <Border x:Name="Container"
                             CornerRadius="16"
-                            Background="#101B33"
-                            BorderBrush="#1E293B"
+                            Background="#0F1A30"
+                            BorderBrush="#213552"
                             BorderThickness="1"
                             Padding="20"
                             SnapsToDevicePixels="True">
@@ -289,8 +311,8 @@
                 <ControlTemplate TargetType="ListViewItem">
                     <Border x:Name="Container"
                             CornerRadius="12"
-                            Background="#101B33"
-                            BorderBrush="#1E293B"
+                            Background="#0F1A30"
+                            BorderBrush="#213552"
                             BorderThickness="1"
                             Padding="14"
                             SnapsToDevicePixels="True">
@@ -315,13 +337,13 @@
             <TextBlock Text="{Binding PackageName}"
                        FontSize="18"
                        FontWeight="SemiBold"
-                       Foreground="#F8FAFC"
+                       Foreground="{StaticResource InstallTextPrimaryBrush}"
                        TextWrapping="Wrap"/>
 
             <StackPanel Orientation="Horizontal"
                         Margin="0,8,0,0"
                         VerticalAlignment="Center">
-                <Border Background="#1E293B"
+                <Border Background="{StaticResource InstallBadgeAltBackgroundBrush}"
                         CornerRadius="6"
                         Padding="8,3">
                     <TextBlock Text="{Binding StatusLabel}"
@@ -329,16 +351,16 @@
                                FontWeight="SemiBold">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
-                                <Setter Property="Foreground" Value="#38BDF8"/>
+                                <Setter Property="Foreground" Value="{StaticResource InstallTextAccentBrush}"/>
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding StatusLabel}" Value="Installed">
-                                        <Setter Property="Foreground" Value="#22C55E"/>
+                                        <Setter Property="Foreground" Value="{StaticResource InstallTextSuccessBrush}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding StatusLabel}" Value="Failed">
-                                        <Setter Property="Foreground" Value="#F87171"/>
+                                        <Setter Property="Foreground" Value="{StaticResource InstallTextDangerBrush}"/>
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding StatusLabel}" Value="Cancelled">
-                                        <Setter Property="Foreground" Value="#FBBF24"/>
+                                        <Setter Property="Foreground" Value="{StaticResource InstallTextWarningBrush}"/>
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
@@ -348,7 +370,7 @@
 
                 <TextBlock Text="{Binding CompletedAt, StringFormat=Completed · {0:G}}"
                            Margin="12,0,0,0"
-                           Foreground="#64748B"
+                           Foreground="{StaticResource InstallTextCaptionBrush}"
                            FontSize="12"
                            VerticalAlignment="Center">
                     <TextBlock.Style>
@@ -368,7 +390,7 @@
 
                 <TextBlock Text="{Binding Attempts}"
                            Margin="12,0,0,0"
-                           Foreground="#CBD5F5"
+                           Foreground="{StaticResource InstallTextSecondaryBrush}"
                            FontSize="11"
                            VerticalAlignment="Center">
                     <TextBlock.Style>
@@ -388,7 +410,7 @@
             </StackPanel>
 
             <TextBlock Text="{Binding Message}"
-                       Foreground="#CBD5F5"
+                       Foreground="{StaticResource InstallTextSecondaryBrush}"
                        FontSize="13"
                        TextWrapping="Wrap"
                        Margin="0,10,0,0">
@@ -428,7 +450,7 @@
                                 Visibility="{Binding HasOutput, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Text="Output"
                                    FontSize="12"
-                                   Foreground="#94A3B8"
+                                   Foreground="{StaticResource InstallTextInfoBrush}"
                                    FontWeight="SemiBold"/>
                     </StackPanel>
 
@@ -438,7 +460,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding}"
-                                           Foreground="#E2E8F0"
+                                           Foreground="{StaticResource InstallTextInverseBrush}"
                                            FontSize="12"
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,6"/>
@@ -453,7 +475,7 @@
                                 Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <TextBlock Text="Errors"
                                    FontSize="12"
-                                   Foreground="#F87171"
+                                   Foreground="{StaticResource InstallTextDangerAccentBrush}"
                                    FontWeight="SemiBold"/>
                     </StackPanel>
                     <ItemsControl ItemsSource="{Binding ErrorLines}"
@@ -462,7 +484,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <TextBlock Text="{Binding}"
-                                           Foreground="#FCA5A5"
+                                           Foreground="{StaticResource InstallTextDangerSoftBrush}"
                                            FontSize="12"
                                            TextWrapping="Wrap"
                                            Margin="0,0,0,6"/>
@@ -480,9 +502,9 @@
         <Setter Property="MinWidth" Value="150"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Foreground" Value="#E2E8F0"/>
+        <Setter Property="Foreground" Value="{StaticResource InstallTextInverseBrush}"/>
         <Setter Property="Background" Value="{StaticResource InstallSecondaryButtonBrush}"/>
-        <Setter Property="BorderBrush" Value="#2C3E61"/>
+        <Setter Property="BorderBrush" Value="#2A3C5A"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
@@ -503,8 +525,8 @@
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallAccentButtonBrush}"/>
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
-                            <Setter Property="Foreground" Value="#F8FAFC"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource InstallTextAccentBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource InstallTextPrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Opacity" Value="0.65"/>

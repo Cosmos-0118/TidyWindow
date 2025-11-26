@@ -119,6 +119,9 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private InstallOperationItemViewModel? _selectedOperation;
 
+    [ObservableProperty]
+    private bool _isQueueOperationDetailsVisible;
+
     partial void OnCurrentPivotChanged(CurrentInstallHubPivot value)
     {
         Headline = GetHeadlineForPivot(value);
@@ -296,6 +299,14 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         _searchFilterDebounce.Schedule(ApplyBundleFilter);
     }
 
+    partial void OnSelectedOperationChanged(InstallOperationItemViewModel? oldValue, InstallOperationItemViewModel? newValue)
+    {
+        if (newValue is null && IsQueueOperationDetailsVisible)
+        {
+            IsQueueOperationDetailsVisible = false;
+        }
+    }
+
     [RelayCommand]
     private void QueuePackage(InstallPackageItemViewModel? package)
     {
@@ -466,6 +477,24 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         UpdatePackageQueueStates();
+    }
+
+    [RelayCommand]
+    private void ShowQueueOperationDetails(InstallOperationItemViewModel? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+
+        SelectedOperation = operation;
+        IsQueueOperationDetailsVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseQueueOperationDetails()
+    {
+        IsQueueOperationDetailsVisible = false;
     }
 
     [RelayCommand]

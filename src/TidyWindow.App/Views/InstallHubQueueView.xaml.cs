@@ -1,14 +1,12 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using UserControl = System.Windows.Controls.UserControl;
 
 namespace TidyWindow.App.Views;
 
 public partial class InstallHubQueueView : UserControl
 {
-    private const double TwoColumnBreakpoint = 980d;
     private const double CompactMarginBreakpoint = 720d;
     private Thickness _defaultMargin = new(32, 0, 32, 24);
     private readonly Thickness _compactMargin = new(20, 0, 20, 24);
@@ -49,8 +47,6 @@ public partial class InstallHubQueueView : UserControl
             QueueScrollViewer.SizeChanged -= QueueScrollViewer_SizeChanged;
             _sizeHandlerAttached = false;
         }
-
-        QueueDrawerToggle.IsChecked = false;
     }
 
     private void QueueScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -80,46 +76,6 @@ public partial class InstallHubQueueView : UserControl
             QueueScrollViewer.Margin = targetMargin;
         }
 
-        var stackLayout = viewportWidth <= TwoColumnBreakpoint;
-        if (stackLayout)
-        {
-            QueuePrimaryColumnDefinition.Width = new GridLength(1, GridUnitType.Star);
-            QueueSecondaryColumnDefinition.Width = new GridLength(0, GridUnitType.Pixel);
-            QueueSecondaryColumnDefinition.MinWidth = 0;
-            QueueSpacerColumnDefinition.Width = new GridLength(0);
-
-            QueueSecondaryColumnHost.Visibility = Visibility.Collapsed;
-            QueueDrawerToggle.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            QueuePrimaryColumnDefinition.Width = new GridLength(3, GridUnitType.Star);
-            QueueSecondaryColumnDefinition.Width = new GridLength(2, GridUnitType.Star);
-            QueueSecondaryColumnDefinition.MinWidth = 320;
-            QueueSpacerColumnDefinition.Width = new GridLength(24);
-
-            QueueSecondaryColumnHost.Visibility = Visibility.Visible;
-            QueueDrawerToggle.Visibility = Visibility.Collapsed;
-            if (QueueDrawerToggle.IsChecked == true)
-            {
-                QueueDrawerToggle.IsChecked = false;
-            }
-        }
-    }
-
-    private void DetailsDrawerOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        QueueDrawerToggle.IsChecked = false;
-    }
-
-    private void DetailsDrawerPanel_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-    }
-
-    private void CloseDrawerButton_Click(object sender, RoutedEventArgs e)
-    {
-        QueueDrawerToggle.IsChecked = false;
     }
 
     private static bool ThicknessEquals(Thickness left, Thickness right)

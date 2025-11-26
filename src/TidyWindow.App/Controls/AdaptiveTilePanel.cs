@@ -3,46 +3,56 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using WpfPanel = System.Windows.Controls.Panel;
+using WpfSize = System.Windows.Size;
 
 namespace TidyWindow.App.Controls;
 
-public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
+public sealed class AdaptiveTilePanel : WpfPanel
 {
+    private const double MinimumTileWidth = 60d;
+
     public static readonly DependencyProperty MinColumnWidthProperty = DependencyProperty.Register(
         nameof(MinColumnWidth),
         typeof(double),
         typeof(AdaptiveTilePanel),
-        new FrameworkPropertyMetadata(280d, FrameworkPropertyMetadataOptions.AffectsMeasure));
+        new FrameworkPropertyMetadata(280d, FrameworkPropertyMetadataOptions.AffectsMeasure, null, CoerceMinColumnWidth));
 
     public static readonly DependencyProperty MaxColumnWidthProperty = DependencyProperty.Register(
         nameof(MaxColumnWidth),
         typeof(double),
         typeof(AdaptiveTilePanel),
-        new FrameworkPropertyMetadata(420d, FrameworkPropertyMetadataOptions.AffectsMeasure));
+        new FrameworkPropertyMetadata(420d, FrameworkPropertyMetadataOptions.AffectsMeasure, null, CoerceMaxColumnWidth));
 
     public static readonly DependencyProperty MinColumnsProperty = DependencyProperty.Register(
         nameof(MinColumns),
         typeof(int),
         typeof(AdaptiveTilePanel),
-        new FrameworkPropertyMetadata(1, FrameworkPropertyMetadataOptions.AffectsMeasure));
+        new FrameworkPropertyMetadata(1, FrameworkPropertyMetadataOptions.AffectsMeasure, null, CoerceMinColumns));
 
     public static readonly DependencyProperty MaxColumnsProperty = DependencyProperty.Register(
         nameof(MaxColumns),
         typeof(int),
         typeof(AdaptiveTilePanel),
-        new FrameworkPropertyMetadata(4, FrameworkPropertyMetadataOptions.AffectsMeasure));
+        new FrameworkPropertyMetadata(4, FrameworkPropertyMetadataOptions.AffectsMeasure, null, CoerceMaxColumns));
 
     public static readonly DependencyProperty ColumnSpacingProperty = DependencyProperty.Register(
         nameof(ColumnSpacing),
         typeof(double),
         typeof(AdaptiveTilePanel),
-        new FrameworkPropertyMetadata(24d, FrameworkPropertyMetadataOptions.AffectsMeasure));
+        new FrameworkPropertyMetadata(24d, FrameworkPropertyMetadataOptions.AffectsMeasure, null, CoerceNonNegativeDouble));
 
     public static readonly DependencyProperty RowSpacingProperty = DependencyProperty.Register(
         nameof(RowSpacing),
         typeof(double),
         typeof(AdaptiveTilePanel),
-        new FrameworkPropertyMetadata(24d, FrameworkPropertyMetadataOptions.AffectsMeasure));
+        new FrameworkPropertyMetadata(24d, FrameworkPropertyMetadataOptions.AffectsMeasure, null, CoerceNonNegativeDouble));
+
+    public static readonly DependencyProperty PaddingProperty = DependencyProperty.Register(
+        nameof(Padding),
+        typeof(Thickness),
+        typeof(AdaptiveTilePanel),
+        new FrameworkPropertyMetadata(default(Thickness), FrameworkPropertyMetadataOptions.AffectsMeasure, null, CoercePadding));
 
     public double MinColumnWidth
     {
@@ -80,21 +90,31 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
         set => SetValue(RowSpacingProperty, value);
     }
 
+    public Thickness Padding
+    {
+        get => (Thickness)GetValue(PaddingProperty);
+        set => SetValue(PaddingProperty, value);
+    }
+
     private readonly List<double> _rowHeights = new();
     private ItemsControl? _itemsOwner;
 
-    protected override System.Windows.Size MeasureOverride(System.Windows.Size availableSize)
+    protected override WpfSize MeasureOverride(WpfSize availableSize)
     {
         EnsureOwnerSubscription();
         var viewportWidth = ResolveViewportWidth(availableSize);
-        var (columns, tileWidth) = CalculateLayout(viewportWidth);
+        var padding = Padding;
+        var horizontalPadding = padding.Left + padding.Right;
+        var verticalPadding = padding.Top + padding.Bottom;
+
+        var (columns, tileWidth, usedWidth) = CalculateLayout(Math.Max(0, viewportWidth - horizontalPadding));
         if (columns == 0)
         {
-            return System.Windows.Size.Empty;
+            return WpfSize.Empty;
         }
 
         _rowHeights.Clear();
-        var childConstraint = new System.Windows.Size(tileWidth, double.PositiveInfinity);
+        var childConstraint = new WpfSize(tileWidth, double.PositiveInfinity);
         var columnIndex = 0;
         var currentRowHeight = 0d;
 
@@ -122,23 +142,22 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
             _rowHeights.Add(currentRowHeight);
         }
 
-        var totalHeight = 0d;
-        for (var i = 0; i < _rowHeights.Count; i++)
-        {
-            totalHeight += _rowHeights[i];
-            if (i < _rowHeights.Count - 1)
-            {
-                totalHeight += RowSpacing;
-            }
-        }
+        var totalHeight = verticalPadding + SumHeights(_rowHeights, RowSpacing);
+        var desiredWidth = horizontalPadding + usedWidth;
+        var widthToReport = double.IsInfinity(availableSize.Width)
+            ? desiredWidth
+            : Math.Min(desiredWidth, availableSize.Width);
 
-        return new System.Windows.Size(viewportWidth, totalHeight);
+        return new WpfSize(widthToReport, totalHeight);
     }
 
-    protected override System.Windows.Size ArrangeOverride(System.Windows.Size finalSize)
+    protected override WpfSize ArrangeOverride(WpfSize finalSize)
     {
         var viewportWidth = ResolveViewportWidth(finalSize);
-        var (columns, tileWidth) = CalculateLayout(viewportWidth);
+        var padding = Padding;
+        var horizontalPadding = padding.Left + padding.Right;
+        var verticalPadding = padding.Top + padding.Bottom;
+        var (columns, tileWidth, _) = CalculateLayout(Math.Max(0, viewportWidth - horizontalPadding));
         if (columns == 0)
         {
             return finalSize;
@@ -151,8 +170,14 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
 
         var columnIndex = 0;
         var rowIndex = 0;
-        var x = 0d;
-        var y = 0d;
+        var y = padding.Top;
+        var rowHeight = 0d;
+        var increment = tileWidth + ColumnSpacing;
+        var isRightToLeft = FlowDirection == System.Windows.FlowDirection.RightToLeft;
+        var rowOriginX = isRightToLeft
+            ? padding.Left + Math.Max(0, columns - 1) * increment
+            : padding.Left;
+        var x = rowOriginX;
 
         foreach (UIElement child in InternalChildren)
         {
@@ -161,7 +186,7 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
                 continue;
             }
 
-            var rowHeight = rowIndex < _rowHeights.Count ? _rowHeights[rowIndex] : child.DesiredSize.Height;
+            rowHeight = rowIndex < _rowHeights.Count ? _rowHeights[rowIndex] : child.DesiredSize.Height;
             child.Arrange(new Rect(x, y, tileWidth, rowHeight));
 
             columnIndex++;
@@ -169,22 +194,22 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
             {
                 columnIndex = 0;
                 rowIndex++;
-                x = 0;
+                x = rowOriginX;
                 y += rowHeight + RowSpacing;
             }
             else
             {
-                x += tileWidth + ColumnSpacing;
+                x += isRightToLeft ? -(tileWidth + ColumnSpacing) : (tileWidth + ColumnSpacing);
             }
         }
 
         return finalSize;
     }
 
-    private (int columns, double tileWidth) CalculateLayout(double availableWidth)
+    private (int columns, double tileWidth, double usedWidth) CalculateLayout(double availableWidth)
     {
         var width = double.IsNaN(availableWidth) || availableWidth <= 0 ? MinColumnWidth : availableWidth;
-        var minWidth = Math.Max(60d, MinColumnWidth);
+        var minWidth = Math.Max(MinimumTileWidth, MinColumnWidth);
         var maxWidth = Math.Max(minWidth, MaxColumnWidth);
 
         var minColumns = Math.Max(1, MinColumns);
@@ -213,7 +238,8 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
         }
 
         tileWidth = Math.Max(minWidth, Math.Min(maxWidth, tileWidth));
-        return (columns, tileWidth);
+        var usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * ColumnSpacing;
+        return (columns, tileWidth, usedWidth);
     }
 
     private double ComputeTileWidth(double width, int columns)
@@ -223,7 +249,7 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
         return usableWidth / Math.Max(1, columns);
     }
 
-    private double ResolveViewportWidth(System.Windows.Size size)
+    private double ResolveViewportWidth(WpfSize size)
     {
         if (!double.IsNaN(size.Width) && !double.IsInfinity(size.Width) && size.Width > 0)
         {
@@ -296,5 +322,112 @@ public sealed class AdaptiveTilePanel : System.Windows.Controls.Panel
         {
             InvalidateMeasure();
         }
+    }
+
+    private static object CoerceNonNegativeDouble(DependencyObject d, object baseValue)
+    {
+        if (baseValue is double value && !double.IsNaN(value) && !double.IsInfinity(value))
+        {
+            return Math.Max(0d, value);
+        }
+
+        return 0d;
+    }
+
+    private static object CoerceMinColumnWidth(DependencyObject d, object baseValue)
+    {
+        var value = (double)CoerceNonNegativeDouble(d, baseValue);
+        return Math.Max(MinimumTileWidth, value);
+    }
+
+    private static object CoerceMaxColumnWidth(DependencyObject d, object baseValue)
+    {
+        var panel = (AdaptiveTilePanel)d;
+        var value = (double)CoerceNonNegativeDouble(d, baseValue);
+        return Math.Max(panel.MinColumnWidth, value);
+    }
+
+    private static object CoerceMinColumns(DependencyObject d, object baseValue)
+    {
+        if (baseValue is int value)
+        {
+            return Math.Max(1, value);
+        }
+
+        return 1;
+    }
+
+    private static object CoerceMaxColumns(DependencyObject d, object baseValue)
+    {
+        if (baseValue is not int value)
+        {
+            return ((AdaptiveTilePanel)d).MinColumns;
+        }
+
+        var panel = (AdaptiveTilePanel)d;
+        return Math.Max(panel.MinColumns, value);
+    }
+
+    private static object CoercePadding(DependencyObject d, object baseValue)
+    {
+        if (baseValue is Thickness thickness)
+        {
+            return new Thickness(
+                Math.Max(0, DoubleOrZero(thickness.Left)),
+                Math.Max(0, DoubleOrZero(thickness.Top)),
+                Math.Max(0, DoubleOrZero(thickness.Right)),
+                Math.Max(0, DoubleOrZero(thickness.Bottom)));
+        }
+
+        return new Thickness();
+    }
+
+    private static double DoubleOrZero(double value)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
+    }
+
+    private static double SumHeights(IReadOnlyList<double> heights, double spacing)
+    {
+        if (heights.Count == 0)
+        {
+            return 0d;
+        }
+
+        var total = 0d;
+        for (var i = 0; i < heights.Count; i++)
+        {
+            total += heights[i];
+            if (i < heights.Count - 1)
+            {
+                total += spacing;
+            }
+        }
+
+        return total;
+    }
+
+    protected override void OnPropertyChanged(DependencyPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+
+        if (e.Property == MinColumnWidthProperty)
+        {
+            CoerceValue(MaxColumnWidthProperty);
+        }
+        else if (e.Property == MinColumnsProperty)
+        {
+            CoerceValue(MaxColumnsProperty);
+        }
+        else if (e.Property == FlowDirectionProperty)
+        {
+            InvalidateArrange();
+        }
+    }
+
+    protected override void OnVisualParentChanged(DependencyObject oldParent)
+    {
+        base.OnVisualParentChanged(oldParent);
+        EnsureOwnerSubscription();
     }
 }

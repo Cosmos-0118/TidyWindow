@@ -61,7 +61,7 @@
                                 <TextBlock Text="Browse the full catalog"
                                            FontSize="22"
                                            FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
+                                           Foreground="{StaticResource InstallTextPrimaryBrush}"/>
                                 <ItemsControl Margin="0,8,0,0"
                                               ItemsSource="{StaticResource CatalogHeroChipTexts}">
                                     <ItemsControl.ItemsPanel>
@@ -73,7 +73,7 @@
                                         <DataTemplate>
                                             <Border Style="{StaticResource InstallInfoChipStyle}">
                                                 <TextBlock Text="{Binding}"
-                                                           Foreground="#E2E8F0"
+                                                           Foreground="{StaticResource InstallTextInverseBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
@@ -83,14 +83,14 @@
                                 <WrapPanel Margin="0,18,0,0">
                                     <Border Style="{StaticResource InstallBadgeStyle}">
                                         <TextBlock Text="{Binding Packages.Count, StringFormat={}{0} result(s)}"
-                                                   Foreground="#93C5FD"
+                                                   Foreground="{StaticResource InstallTextSoftAccentBrush}"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"/>
                                     </Border>
                                     <Border Style="{StaticResource InstallBadgeStyle}"
-                                            Background="#1B2A44">
+                                            Background="{StaticResource InstallBadgeAltBackgroundBrush}">
                                         <TextBlock Text="Virtualized list"
-                                                   Foreground="#38BDF8"
+                                                   Foreground="{StaticResource InstallTextAccentBrush}"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"/>
                                     </Border>
@@ -109,16 +109,16 @@
                                 Padding="18">
                                 <StackPanel>
                                     <TextBlock Text="Queued installs"
-                                               Foreground="#94A3B8"
+                                               Foreground="{StaticResource InstallTextMutedBrush}"
                                                FontSize="12"
                                                FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding QueuedOperationCount}"
                                                FontSize="26"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"
+                                               Foreground="{StaticResource InstallTextPrimaryBrush}"
                                                Margin="0,4,0,0"/>
                                     <TextBlock Text="Awaiting automation"
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource InstallTextCaptionBrush}"
                                                FontSize="11"/>
                                 </StackPanel>
                             </Border>
@@ -128,16 +128,16 @@
                                     Padding="18">
                                 <StackPanel>
                                     <TextBlock Text="Active runs"
-                                               Foreground="#94A3B8"
+                                               Foreground="{StaticResource InstallTextMutedBrush}"
                                                FontSize="12"
                                                FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding RunningOperationCount}"
                                                FontSize="26"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"
+                                               Foreground="{StaticResource InstallTextPrimaryBrush}"
                                                Margin="0,4,0,0"/>
                                     <TextBlock Text="Currently installing"
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource InstallTextCaptionBrush}"
                                                FontSize="11"/>
                                 </StackPanel>
                             </Border>
@@ -147,16 +147,16 @@
                                     Padding="18">
                                 <StackPanel>
                                     <TextBlock Text="Visible packages"
-                                               Foreground="#94A3B8"
+                                               Foreground="{StaticResource InstallTextMutedBrush}"
                                                FontSize="12"
                                                FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding Packages.Count}"
                                                FontSize="26"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"
+                                               Foreground="{StaticResource InstallTextPrimaryBrush}"
                                                Margin="0,4,0,0"/>
                                     <TextBlock Text="Matched by filters"
-                                               Foreground="#64748B"
+                                               Foreground="{StaticResource InstallTextCaptionBrush}"
                                                FontSize="11"/>
                                 </StackPanel>
                             </Border>
@@ -186,9 +186,9 @@
                                     <TextBlock Text="Filters"
                                                FontSize="16"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"/>
+                                               Foreground="{StaticResource InstallTextPrimaryBrush}"/>
                                     <TextBlock Text="Combine curated bundles with text search to focus on the right apps"
-                                               Foreground="#94A3B8"
+                                               Foreground="{StaticResource InstallTextMutedBrush}"
                                                FontSize="12"
                                                Margin="0,2,0,0"
                                                TextWrapping="Wrap"/>
@@ -218,11 +218,11 @@
                                         </Border.Style>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="Bundle"
-                                                       Foreground="#94A3B8"
+                                                       Foreground="{StaticResource InstallTextMutedBrush}"
                                                        FontSize="11"
                                                        Margin="0,0,6,0"/>
                                             <TextBlock Text="{Binding SelectedBundle.Name, TargetNullValue=All packages}"
-                                                       Foreground="#F8FAFC"
+                                                       Foreground="{StaticResource InstallTextPrimaryBrush}"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"/>
                                         </StackPanel>
@@ -245,11 +245,11 @@
                                         </Border.Style>
                                         <StackPanel Orientation="Horizontal">
                                             <TextBlock Text="Search"
-                                                       Foreground="#94A3B8"
+                                                       Foreground="{StaticResource InstallTextMutedBrush}"
                                                        FontSize="11"
                                                        Margin="0,0,6,0"/>
                                             <TextBlock Text="{Binding SearchText}"
-                                                       Foreground="#F8FAFC"
+                                                       Foreground="{StaticResource InstallTextPrimaryBrush}"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"/>
                                         </StackPanel>
@@ -268,11 +268,11 @@
                                         Margin="0,0,16,16">
                                         <StackPanel>
                                             <TextBlock Text="Search catalog"
-                                                       Foreground="#CBD5F5"
+                                                       Foreground="{StaticResource InstallTextSecondaryBrush}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"/>
                                             <TextBlock Text="Filter by package name, identifier, or summary"
-                                                       Foreground="#64748B"
+                                                       Foreground="{StaticResource InstallTextCaptionBrush}"
                                                        FontSize="11"
                                                        Margin="0,2,0,10"/>
                                             <TextBox Style="{StaticResource App.TextBoxStyle}"
@@ -286,11 +286,11 @@
                                             Margin="0,0,16,16">
                                         <StackPanel>
                                             <TextBlock Text="Filter by bundle"
-                                                       Foreground="#CBD5F5"
+                                                       Foreground="{StaticResource InstallTextSecondaryBrush}"
                                                        FontSize="13"
                                                        FontWeight="SemiBold"/>
                                             <TextBlock Text="Use curated bundles to narrow to related tooling"
-                                                       Foreground="#64748B"
+                                                       Foreground="{StaticResource InstallTextCaptionBrush}"
                                                        FontSize="11"
                                                        Margin="0,2,0,10"/>
                                             <ComboBox ItemsSource="{Binding Bundles}"
@@ -318,11 +318,11 @@
                                     </Border.Style>
                                     <StackPanel>
                                         <TextBlock Text="Installs in progress"
-                                                   Foreground="#38BDF8"
+                                                   Foreground="{StaticResource InstallTextAccentBrush}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"/>
                                         <TextBlock Text="Queued packages are highlighted so you can avoid duplicates."
-                                                   Foreground="#94A3B8"
+                                                   Foreground="{StaticResource InstallTextMutedBrush}"
                                                    FontSize="11"
                                                    Margin="0,6,0,0"
                                                    TextWrapping="Wrap"/>
@@ -360,28 +360,28 @@
                                     <TextBlock Text="Catalog results"
                                                FontSize="16"
                                                FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"/>
+                                               Foreground="{StaticResource InstallTextPrimaryBrush}"/>
                                     <TextBlock Text="Select packages, then queue or export them"
-                                               Foreground="#94A3B8"
+                                               Foreground="{StaticResource InstallTextMutedBrush}"
                                                FontSize="12"/>
                                     <WrapPanel Margin="0,10,0,0">
                                         <Border Style="{StaticResource InstallBadgeStyle}">
                                             <TextBlock Text="{Binding Packages.Count, StringFormat={}{0} match(es)}"
-                                                       Foreground="#93C5FD"
+                                                       Foreground="{StaticResource InstallTextSoftAccentBrush}"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"/>
                                         </Border>
                                         <Border Style="{StaticResource InstallBadgeStyle}"
-                                                Background="#1B2A44">
+                                                Background="{StaticResource InstallBadgeAltBackgroundBrush}">
                                             <TextBlock Text="{Binding QueuedOperationCount, StringFormat=Queued · {0}}"
-                                                       Foreground="#38BDF8"
+                                                       Foreground="{StaticResource InstallTextAccentBrush}"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"/>
                                         </Border>
                                         <Border Style="{StaticResource InstallBadgeStyle}"
-                                                Background="#1F2937">
+                                                Background="{StaticResource InstallBadgeDarkBackgroundBrush}">
                                             <TextBlock Text="{Binding RunningOperationCount, StringFormat=Running · {0}}"
-                                                       Foreground="#22D3EE"
+                                                       Foreground="{StaticResource InstallTextAccentBrush}"
                                                        FontSize="11"
                                                        FontWeight="SemiBold"/>
                                         </Border>
@@ -420,7 +420,7 @@
                                           Background="Transparent"
                                           BorderThickness="0"
                                           Padding="0"
-                                          Foreground="#F8FAFC"
+                                          Foreground="{StaticResource InstallTextPrimaryBrush}"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           ScrollViewer.CanContentScroll="True"
@@ -472,10 +472,10 @@
                                                             <TextBlock Text="{Binding Definition.Name}"
                                                                        FontSize="16"
                                                                        FontWeight="SemiBold"
-                                                                       Foreground="#F8FAFC"
+                                                                       Foreground="{StaticResource InstallTextPrimaryBrush}"
                                                                        TextWrapping="Wrap"/>
                                                             <TextBlock Text="{Binding Definition.Id}"
-                                                                       Foreground="#64748B"
+                                                                       Foreground="{StaticResource InstallTextCaptionBrush}"
                                                                        FontSize="11"
                                                                        Margin="0,4,0,0"
                                                                        TextWrapping="Wrap"/>
@@ -492,30 +492,30 @@
                                                     <WrapPanel Margin="0,12,0,0">
                                                         <Border Style="{StaticResource InstallBadgeStyle}">
                                                             <TextBlock Text="{Binding ManagerLabel}"
-                                                                       Foreground="#38BDF8"
+                                                                 Foreground="{StaticResource InstallTextAccentBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
                                                         </Border>
                                                         <Border Style="{StaticResource InstallBadgeStyle}"
-                                                                Background="#1F2937"
+                                                             Background="{StaticResource InstallBadgeDarkBackgroundBrush}"
                                                                 Visibility="{Binding RequiresAdmin, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                             <TextBlock Text="Admin"
-                                                                       Foreground="#F97316"
+                                                                 Foreground="{StaticResource InstallTextWarningStrongBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
                                                         </Border>
                                                         <Border Style="{StaticResource InstallBadgeStyle}"
-                                                                Background="#1B2A44"
+                                                             Background="{StaticResource InstallBadgeAltBackgroundBrush}"
                                                                 Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                             <TextBlock Text="Queued"
-                                                                       Foreground="#22C55E"
+                                                                 Foreground="{StaticResource InstallTextSuccessBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
                                                         </Border>
                                                     </WrapPanel>
 
                                                     <TextBlock Text="{Binding Summary}"
-                                                               Foreground="#94A3B8"
+                                                            Foreground="{StaticResource InstallTextMutedBrush}"
                                                                FontSize="12"
                                                                TextWrapping="Wrap"
                                                                Margin="0,10,0,0">
@@ -535,7 +535,7 @@
                                                     </TextBlock>
 
                                                     <TextBlock Text="{Binding TagDisplay}"
-                                                               Foreground="#CBD5F5"
+                                                               Foreground="{StaticResource InstallTextSecondaryBrush}"
                                                                FontSize="11"
                                                                TextWrapping="Wrap"
                                                                Margin="0,8,0,0">
@@ -555,7 +555,7 @@
                                                     </TextBlock>
 
                                                     <TextBlock Text="{Binding LastStatus}"
-                                                               Foreground="#94A3B8"
+                                                               Foreground="{StaticResource InstallTextMutedBrush}"
                                                                FontSize="11"
                                                                Margin="0,10,0,0">
                                                         <TextBlock.Style>
@@ -581,7 +581,7 @@
 
                             <TextBlock Grid.Row="2"
                                        Text="No packages match your filters."
-                                       Foreground="#64748B"
+                                       Foreground="{StaticResource InstallTextCaptionBrush}"
                                        FontSize="12"
                                        HorizontalAlignment="Center"
                                        Margin="0,14,0,0">

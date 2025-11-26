@@ -24,158 +24,6 @@
         <StackPanel x:Name="BundlesPrimaryColumnHost"
                     Grid.Row="0"
                     Margin="0">
-            <Border x:Name="SelectedBundleDetailsCard"
-                    Style="{StaticResource InstallCardBorderStyle}"
-                    Margin="0,0,0,24"
-                    Padding="24">
-                <Grid x:Name="SelectedBundleDetailsGrid">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel>
-                        <TextBlock Text="{Binding SelectedBundle.Name}"
-                                   FontSize="18"
-                                   FontWeight="SemiBold"
-                                   Foreground="#F8FAFC"
-                                   TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedBundle}"
-                                                     Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text="Select a bundle to preview its contents"
-                                   Foreground="#64748B"
-                                   FontSize="13"
-                                   FontStyle="Italic"
-                                   TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedBundle}"
-                                                     Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <TextBlock Text="{Binding SelectedBundle.Description}"
-                                   Foreground="#CBD5F5"
-                                   FontSize="13"
-                                   Margin="0,8,0,0"
-                                   TextWrapping="Wrap">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Visible"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedBundle}"
-                                                     Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
-                        <WrapPanel Margin="0,12,0,0">
-                            <Border>
-                                <Border.Style>
-                                    <Style TargetType="Border"
-                                           BasedOn="{StaticResource InstallBadgeStyle}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedBundle}"
-                                                         Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Text="{Binding SelectedBundle.BundlePackageCount, StringFormat={}{0} package(s)}"
-                                           Foreground="#FDE68A"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"/>
-                            </Border>
-                            <Border>
-                                <Border.Style>
-                                    <Style TargetType="Border"
-                                           BasedOn="{StaticResource InstallBadgeStyle}">
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding SelectedBundle.IsSyntheticAll}"
-                                                         Value="True">
-                                                <Setter Property="Background" Value="#1B2A44"/>
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding SelectedBundle}"
-                                                         Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Border.Style>
-                                <TextBlock Text="All packages"
-                                           Foreground="#38BDF8"
-                                           FontSize="11"
-                                           FontWeight="SemiBold"/>
-                            </Border>
-                        </WrapPanel>
-                    </StackPanel>
-
-                    <StackPanel x:Name="SelectedBundleActionsPanel"
-                                Grid.Column="1"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                VerticalAlignment="Top"
-                                Margin="12,0,0,0">
-                        <Button x:Name="SelectedBundlePrimaryButton"
-                                Content="Queue bundle"
-                                Command="{Binding QueueBundleCommand}"
-                                CommandParameter="{Binding SelectedBundle}">
-                            <Button.Style>
-                                <Style TargetType="Button"
-                                       BasedOn="{StaticResource InstallAccentButtonStyle}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedBundle}"
-                                                     Value="{x:Null}">
-                                            <Setter Property="IsEnabled" Value="False"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding SelectedBundle.IsSyntheticAll, TargetNullValue=False}"
-                                                     Value="True">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                        <Button x:Name="SelectedBundleSecondaryButton"
-                                Content="View details"
-                                Margin="10,0,0,0"
-                                Command="{Binding ViewBundleDetailsCommand}"
-                                CommandParameter="{Binding SelectedBundle}">
-                            <Button.Style>
-                                <Style TargetType="Button"
-                                       BasedOn="{StaticResource InstallSecondaryButtonStyle}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedBundle}"
-                                                     Value="{x:Null}">
-                                            <Setter Property="IsEnabled" Value="False"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                    </StackPanel>
-                </Grid>
-            </Border>
-
             <Border Style="{StaticResource InstallCardBorderStyle}"
                     Padding="12,16,12,18">
                 <Grid>
@@ -194,9 +42,9 @@
                             <TextBlock Text="Bundle library"
                                        FontSize="16"
                                        FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"/>
+                                       Foreground="{StaticResource InstallTextPrimaryBrush}"/>
                             <TextBlock Text="Select a bundle to inspect or queue the whole stack"
-                                       Foreground="#94A3B8"
+                                       Foreground="{StaticResource InstallTextMutedBrush}"
                                        FontSize="12"/>
                         </StackPanel>
                         <Button Grid.Column="1"
@@ -273,21 +121,21 @@
                                                     <TextBlock Text="{Binding Name}"
                                                                FontSize="16"
                                                                FontWeight="SemiBold"
-                                                               Foreground="#F8FAFC"
+                                                               Foreground="{StaticResource InstallTextPrimaryBrush}"
                                                                TextWrapping="Wrap"/>
                                                     <Border Margin="10,0,0,0"
                                                             Visibility="{Binding IsSyntheticAll, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                            Background="#1B2A44"
+                                                            Background="{StaticResource InstallBadgeAltBackgroundBrush}"
                                                             CornerRadius="8"
                                                             Padding="8,3">
                                                         <TextBlock Text="All packages"
-                                                                   Foreground="#38BDF8"
+                                                                   Foreground="{StaticResource InstallTextAccentBrush}"
                                                                    FontSize="11"
                                                                    FontWeight="SemiBold"/>
                                                     </Border>
                                                 </StackPanel>
                                                 <TextBlock Text="{Binding Description}"
-                                                           Foreground="#94A3B8"
+                                                           Foreground="{StaticResource InstallTextMutedBrush}"
                                                            FontSize="12"
                                                            Margin="0,6,0,0"
                                                            TextWrapping="Wrap"/>
@@ -295,17 +143,28 @@
 
                                             <WrapPanel Grid.Row="1"
                                                        Margin="0,12,0,0">
-                                                <Border Style="{StaticResource InstallBadgeStyle}">
+                                                <Border>
                                                     <TextBlock Text="{Binding PackageCountDisplay}"
-                                                               Foreground="#CBD5F5"
+                                                                   Foreground="{StaticResource InstallTextSecondaryBrush}"
                                                                FontSize="11"
                                                                FontWeight="SemiBold"/>
+                                                    <Border.Style>
+                                                        <Style TargetType="Border"
+                                                               BasedOn="{StaticResource InstallBadgeStyle}">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsSyntheticAll}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
                                                 </Border>
                                                 <Border Style="{StaticResource InstallBadgeStyle}"
-                                                        Background="#1B2A44"
+                                                        Background="{StaticResource InstallBadgeAltBackgroundBrush}"
                                                         Visibility="{Binding IsSyntheticAll, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <TextBlock Text="{Binding BundlePackageCount, StringFormat={}{0} packages}"
-                                                               Foreground="#CBD5F5"
+                                                                   Foreground="{StaticResource InstallTextSecondaryBrush}"
                                                                FontSize="11"
                                                                FontWeight="SemiBold"/>
                                                 </Border>
@@ -329,12 +188,6 @@
                                                         </Style>
                                                     </Button.Style>
                                                 </Button>
-                                                <Button Content="View details"
-                                                        Margin="8,0,0,0"
-                                                        Command="{Binding DataContext.ViewBundleDetailsCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                        CommandParameter="{Binding}"
-                                                        Style="{StaticResource InstallSecondaryButtonStyle}"
-                                                        MinWidth="96"/>
                                                 <Button Content="Browse catalog"
                                                         Margin="8,0,0,0"
                                                         Command="{Binding DataContext.NavigatePivotCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
@@ -349,7 +202,7 @@
                         </ListBox>
 
                         <TextBlock Text="No bundles available yet. Refresh the catalog to add definitions."
-                                   Foreground="#64748B"
+                                   Foreground="{StaticResource InstallTextCaptionBrush}"
                                    FontSize="12"
                                    HorizontalAlignment="Center"
                                    Margin="0,20,0,0">
