@@ -11,6 +11,12 @@ using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.ViewModels;
 
+public enum EssentialsPivot
+{
+    Tasks,
+    Queue
+}
+
 public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 {
     private readonly EssentialsTaskCatalog _catalog;
@@ -71,11 +77,50 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     private bool _hasActiveOperations;
 
     [ObservableProperty]
-    private string _headline = "Run high-impact repair and cleanup flows";
+    private EssentialsPivot _currentPivot = EssentialsPivot.Tasks;
+
+    [ObservableProperty]
+    private string _headline = GetHeadlineForPivot(EssentialsPivot.Tasks);
+
+    [ObservableProperty]
+    private EssentialsTaskItemViewModel? _detailsTask;
+
+    [ObservableProperty]
+    private bool _isTaskDetailsVisible;
 
     partial void OnSelectedOperationChanged(EssentialsOperationItemViewModel? oldValue, EssentialsOperationItemViewModel? newValue)
     {
         // No-op hook reserved for future selection side-effects.
+    }
+
+    partial void OnCurrentPivotChanged(EssentialsPivot value)
+    {
+        Headline = GetHeadlineForPivot(value);
+    }
+
+    [RelayCommand]
+    private void NavigatePivot(EssentialsPivot pivot)
+    {
+        CurrentPivot = pivot;
+    }
+
+    [RelayCommand]
+    private void ShowTaskDetails(EssentialsTaskItemViewModel? task)
+    {
+        if (task is null)
+        {
+            return;
+        }
+
+        DetailsTask = task;
+        IsTaskDetailsVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseTaskDetails()
+    {
+        IsTaskDetailsVisible = false;
+        DetailsTask = null;
     }
 
     [RelayCommand]
@@ -109,6 +154,16 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
             _activityLog.LogError("Essentials", $"Failed to queue '{task.Definition.Name}': {ex.Message}");
             _mainViewModel.SetStatusMessage($"Queue failed: {ex.Message}");
         }
+    }
+
+    private static string GetHeadlineForPivot(EssentialsPivot pivot)
+    {
+        return pivot switch
+        {
+            EssentialsPivot.Tasks => "Run high-impact repair and cleanup flows",
+            EssentialsPivot.Queue => "Review queue health and inspect transcripts",
+            _ => "Essentials operations"
+        };
     }
 
     [RelayCommand]
@@ -463,9 +518,6 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     [ObservableProperty]
     private string? _lastStatus;
 
-    [ObservableProperty]
-    private bool _isDetailsVisible;
-
     public void UpdateQueueState(int activeCount, string? status)
     {
         IsActive = activeCount > 0;
@@ -571,17 +623,6 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
         }
 
         return parts.Count > 0 ? string.Join(", ", parts) : null;
-    }
-
-    [RelayCommand]
-    private void ToggleDetails()
-    {
-        if (string.IsNullOrWhiteSpace(DetailedDescription))
-        {
-            return;
-        }
-
-        IsDetailsVisible = !IsDetailsVisible;
     }
 
     partial void OnSkipThreatScanChanged(bool oldValue, bool newValue)
@@ -693,6 +734,9 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
     [ObservableProperty]
     private ImmutableArray<string> _errors = ImmutableArray<string>.Empty;
 
+    [ObservableProperty]
+    private bool _isOutputVisible;
+
     public string AttemptLabel { get; private set; } = string.Empty;
 
     public IReadOnlyList<string> DisplayLines
@@ -719,6 +763,12 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
         AttemptLabel = snapshot.AttemptCount > 1 ? $"Attempt {snapshot.AttemptCount}" : string.Empty;
         OnPropertyChanged(nameof(AttemptLabel));
 
+    }
+
+    [RelayCommand]
+    private void ToggleOutput()
+    {
+        IsOutputVisible = !IsOutputVisible;
     }
 
     partial void OnOutputChanged(ImmutableArray<string> oldValue, ImmutableArray<string> newValue)
