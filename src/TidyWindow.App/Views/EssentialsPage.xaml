@@ -13,6 +13,7 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
+        <converters:AlternationIndexToBrushConverter x:Key="HighlightBrushConverter"/>
 
         <LinearGradientBrush x:Key="EssentialsBackdropBrush" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#050914" Offset="0"/>
@@ -20,13 +21,33 @@
             <GradientStop Color="#0A162C" Offset="1"/>
         </LinearGradientBrush>
 
+        <LinearGradientBrush x:Key="EssentialsPrimaryBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#B572FF" Offset="0"/>
+            <GradientStop Color="#7C3AED" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="EssentialsPrimaryHoverBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#C084FC" Offset="0"/>
+            <GradientStop Color="#8B5CF6" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="EssentialsPrimaryDisabledBrush" Color="#1E1E2E"/>
+
+        <SineEase x:Key="EssentialsPivotEaseIn" EasingMode="EaseOut"/>
+        <SineEase x:Key="EssentialsPivotEaseOut" EasingMode="EaseInOut"/>
+
         <Style x:Key="EssentialsAccentButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#38BDF8"/>
-            <Setter Property="Foreground" Value="#04152B"/>
+            <Setter Property="Background" Value="{StaticResource EssentialsPrimaryBrush}"/>
+            <Setter Property="Foreground" Value="#F8FAFC"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="MinWidth" Value="112"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="0" Color="#662C1F4A"/>
+                </Setter.Value>
+            </Setter>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -41,14 +62,15 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1D9CEC"/>
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource EssentialsPrimaryHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#177FCC"/>
+                                <Setter TargetName="Root" Property="Background" Value="#6D28D9"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Background" Value="#1C2F47"/>
-                                <Setter Property="Foreground" Value="#64748B"/>
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource EssentialsPrimaryDisabledBrush}"/>
+                                <Setter Property="Foreground" Value="#6B7280"/>
+                                <Setter Property="Effect" Value="{x:Null}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -57,11 +79,13 @@
         </Style>
 
         <Style x:Key="EssentialsSecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#152238"/>
+            <Setter Property="Background" Value="#111B33"/>
             <Setter Property="Foreground" Value="#E2E8F0"/>
-            <Setter Property="BorderBrush" Value="#253650"/>
+            <Setter Property="BorderBrush" Value="#243552"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="MinWidth" Value="108"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -77,13 +101,13 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1C2F47"/>
+                                <Setter TargetName="Root" Property="Background" Value="#182448"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#132033"/>
+                                <Setter TargetName="Root" Property="Background" Value="#0F1729"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Background" Value="#0F172A"/>
+                                <Setter TargetName="Root" Property="Background" Value="#0B1120"/>
                                 <Setter Property="Foreground" Value="#475569"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -102,10 +126,10 @@
 
         <Style x:Key="EssentialsPivotToggleStyle" TargetType="ToggleButton">
             <Setter Property="Margin" Value="0,0,12,12"/>
-            <Setter Property="Padding" Value="18,8"/>
-            <Setter Property="Background" Value="#10213A"/>
-            <Setter Property="Foreground" Value="#CBD5F5"/>
-            <Setter Property="BorderBrush" Value="#1F3B66"/>
+            <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="Background" Value="#0F1A2F"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#263654"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -116,7 +140,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
+                                CornerRadius="12"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
@@ -125,10 +149,10 @@
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Root" Property="Background" Value="#7C3AED"/>
                                 <Setter Property="Foreground" Value="#F8FAFC"/>
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#A78BFA"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#C084FC"/>
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#3B82F6"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#7DD3FC"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -140,6 +164,7 @@
             <Setter Property="Opacity" Value="0"/>
             <Setter Property="Visibility" Value="Collapsed"/>
             <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="Panel.ZIndex" Value="0"/>
         </Style>
 
         <Style x:Key="EssentialsTasksPivotStyle" TargetType="FrameworkElement" BasedOn="{StaticResource EssentialsPivotContentBaseStyle}">
@@ -151,9 +176,41 @@
                                  Converter="{StaticResource EnumEqualsConverter}"
                                  ConverterParameter="{x:Static viewModels:EssentialsPivot.Tasks}"/>
                     </DataTrigger.Binding>
-                    <Setter Property="Visibility" Value="Visible"/>
-                    <Setter Property="IsHitTestVisible" Value="True"/>
-                    <Setter Property="Opacity" Value="1"/>
+                    <Setter Property="Panel.ZIndex" Value="1"/>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                    <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
+                                </ObjectAnimationUsingKeyFrames>
+                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
+                                </BooleanAnimationUsingKeyFrames>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="0"
+                                                 To="1"
+                                                 Duration="0:0:0.38"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="1"
+                                                 To="0"
+                                                 Duration="0:0:0.3"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
+                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
+                                </BooleanAnimationUsingKeyFrames>
+                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.3" Value="{x:Static Visibility.Collapsed}"/>
+                                </ObjectAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -167,9 +224,41 @@
                                  Converter="{StaticResource EnumEqualsConverter}"
                                  ConverterParameter="{x:Static viewModels:EssentialsPivot.Queue}"/>
                     </DataTrigger.Binding>
-                    <Setter Property="Visibility" Value="Visible"/>
-                    <Setter Property="IsHitTestVisible" Value="True"/>
-                    <Setter Property="Opacity" Value="1"/>
+                    <Setter Property="Panel.ZIndex" Value="1"/>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                    <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
+                                </ObjectAnimationUsingKeyFrames>
+                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
+                                </BooleanAnimationUsingKeyFrames>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="0"
+                                                 To="1"
+                                                 Duration="0:0:0.38"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="1"
+                                                 To="0"
+                                                 Duration="0:0:0.3"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
+                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
+                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
+                                </BooleanAnimationUsingKeyFrames>
+                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.3" Value="{x:Static Visibility.Collapsed}"/>
+                                </ObjectAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -296,13 +385,6 @@
                                             </Border>
                                         </WrapPanel>
                                     </StackPanel>
-                                    <TextBlock Grid.Column="1"
-                                               Text="Runs in progress"
-                                               FontWeight="SemiBold"
-                                               Foreground="#38BDF8"
-                                               Visibility="{Binding HasActiveOperations, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                               HorizontalAlignment="Right"
-                                               VerticalAlignment="Center"/>
                                 </Grid>
                             </Border>
 
@@ -367,36 +449,14 @@
                                                                                Foreground="#9DB4D3"/>
                                                                 </Border>
                                                                 <Border Margin="10,0,0,0"
-                                                                        Background="#123B51"
-                                                                        CornerRadius="6"
-                                                                        Padding="6,2"
-                                                                        Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                    <TextBlock Text="Running"
-                                                                               FontSize="11"
-                                                                               Foreground="#38BDF8"
-                                                                               FontWeight="SemiBold"/>
-                                                                </Border>
-                                                                <Border Margin="10,0,0,0"
-                                                                        Background="#17253E"
+                                                                        Background="{Binding StatusChipBrush}"
                                                                         CornerRadius="10"
-                                                                        Padding="10,2">
-                                                                    <Border.Style>
-                                                                        <Style TargetType="Border">
-                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding DurationHint}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding DurationHint}" Value="">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-                                                                    <TextBlock Text="{Binding DurationHint}"
-                                                                               Foreground="#FACC15"
+                                                                        Padding="10,2"
+                                                                        Visibility="{Binding HasStatusChip, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <TextBlock Text="{Binding StatusChipLabel}"
                                                                                FontSize="11"
-                                                                               FontWeight="SemiBold"/>
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="#020617"/>
                                                                 </Border>
                                                             </StackPanel>
 
@@ -406,8 +466,37 @@
                                                                        FontSize="12"
                                                                        TextWrapping="Wrap"/>
 
+                                                            <TextBlock Text="{Binding DurationSummary}"
+                                                                       Margin="0,8,0,0"
+                                                                       Foreground="#E2E8F0"
+                                                                       FontSize="12">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding DurationSummary}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding DurationSummary}" Value="">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+
+                                                            <ux:SimpleProgressBar Margin="0,12,0,0"
+                                                                                  Value="{Binding ProgressValue}"
+                                                                                  Maximum="1"
+                                                                                  StatusText="{Binding ProgressStatusText}"
+                                                                                  FillBrush="{StaticResource EssentialsPrimaryBrush}"
+                                                                                  TrackBrush="#081224"
+                                                                                  TextForeground="#F8FAFC"
+                                                                                  Visibility="{Binding HasProgress, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
                                                             <ItemsControl ItemsSource="{Binding Highlights}"
-                                                                          Margin="0,12,0,0">
+                                                                          Margin="0,12,0,0"
+                                                                          AlternationCount="5">
                                                                 <ItemsControl.ItemsPanel>
                                                                     <ItemsPanelTemplate>
                                                                         <WrapPanel/>
@@ -415,98 +504,19 @@
                                                                 </ItemsControl.ItemsPanel>
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate>
-                                                                        <Border Background="#16243A"
-                                                                                CornerRadius="6"
-                                                                                Padding="6,3"
-                                                                                Margin="0,0,8,8">
+                                                                        <Border CornerRadius="10"
+                                                                                Padding="8,4"
+                                                                                Margin="0,0,8,8"
+                                                                                Background="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource HighlightBrushConverter}}">
                                                                             <TextBlock Text="{Binding}"
-                                                                                       Foreground="#CBD5F5"
-                                                                                       FontSize="12"/>
+                                                                                       Foreground="#F8FAFC"
+                                                                                       FontSize="12"
+                                                                                       FontWeight="SemiBold"/>
                                                                         </Border>
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
 
-                                                            <StackPanel Margin="0,14,0,0"
-                                                                        Visibility="{Binding IsDefenderTask, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <TextBlock Text="Scan options"
-                                                                           Foreground="#94A3B8"
-                                                                           FontSize="12"/>
-                                                                <WrapPanel Margin="0,8,0,0">
-                                                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                              Content="Run full scan"
-                                                                              IsChecked="{Binding UseFullScan}"
-                                                                              Foreground="#E2E8F0"
-                                                                              Margin="0,0,12,8"/>
-                                                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                              Content="Skip signature update"
-                                                                              IsChecked="{Binding SkipSignatureUpdate}"
-                                                                              Foreground="#E2E8F0"
-                                                                              Margin="0,0,12,8"/>
-                                                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                              Content="Skip real-time heal"
-                                                                              IsChecked="{Binding SkipRealtimeHeal}"
-                                                                              Foreground="#E2E8F0"
-                                                                              Margin="0,0,12,8"/>
-                                                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                              Content="Skip service repair"
-                                                                              IsChecked="{Binding SkipServiceHeal}"
-                                                                              Foreground="#E2E8F0"
-                                                                              Margin="0,0,12,8"/>
-                                                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                              Content="Skip threat scan"
-                                                                              IsChecked="{Binding SkipThreatScan}"
-                                                                              Foreground="#E2E8F0"
-                                                                              Margin="0,0,12,8"/>
-                                                                </WrapPanel>
-                                                            </StackPanel>
-
-                                                            <StackPanel Margin="0,12,0,0"
-                                                                        Visibility="{Binding HasOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <TextBlock Text="Additional options"
-                                                                           Foreground="#94A3B8"
-                                                                           FontSize="12"/>
-                                                                <ItemsControl ItemsSource="{Binding Options}"
-                                                                              Margin="0,8,0,0">
-                                                                    <ItemsControl.ItemsPanel>
-                                                                        <ItemsPanelTemplate>
-                                                                            <WrapPanel/>
-                                                                        </ItemsPanelTemplate>
-                                                                    </ItemsControl.ItemsPanel>
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate>
-                                                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                                      Content="{Binding Label}"
-                                                                                      ToolTip="{Binding Description}"
-                                                                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
-                                                                                      Foreground="#E2E8F0"
-                                                                                      Margin="0,0,12,8"/>
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                            </StackPanel>
-
-                                                            <TextBlock Text="{Binding LastStatus}"
-                                                                       Margin="0,10,0,0"
-                                                                       Foreground="#22C55E"
-                                                                       FontSize="12">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding LastStatus}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding LastStatus}" Value="">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                                                                <Setter Property="Foreground" Value="#38BDF8"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
                                                         </StackPanel>
 
                                                         <StackPanel Grid.Row="1"
@@ -515,7 +525,6 @@
                                                                 <Grid.ColumnDefinitions>
                                                                     <ColumnDefinition Width="Auto"/>
                                                                     <ColumnDefinition Width="Auto"/>
-                                                                    <ColumnDefinition Width="*"/>
                                                                 </Grid.ColumnDefinitions>
 
                                                                 <Button Grid.Column="0"
@@ -542,18 +551,9 @@
                                                                         Margin="12,0,0,0"
                                                                         Padding="14,6"
                                                                         Content="Run"
-                                                                        Command="{Binding DataContext.QueueTaskCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                    Command="{Binding DataContext.PrepareTaskRunCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
                                                                         CommandParameter="{Binding}"
-                                                                        Style="{StaticResource EssentialsAccentButtonStyle}"/>
-
-                                                                <TextBlock Grid.Column="2"
-                                                                           Text="Queued"
-                                                                           Margin="12,0,0,0"
-                                                                           Foreground="#94A3B8"
-                                                                           FontSize="11"
-                                                                           HorizontalAlignment="Right"
-                                                                           VerticalAlignment="Center"
-                                                                           Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                    Style="{StaticResource EssentialsAccentButtonStyle}"/>
                                                             </Grid>
                                                         </StackPanel>
                                                     </Grid>
@@ -940,7 +940,8 @@
                                            TextWrapping="Wrap"/>
 
                                 <ItemsControl ItemsSource="{Binding Highlights}"
-                                              Margin="0,18,0,0">
+                                              Margin="0,18,0,0"
+                                              AlternationCount="5">
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
                                             <WrapPanel/>
@@ -948,13 +949,14 @@
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Background="#16243A"
-                                                    CornerRadius="8"
+                                            <Border CornerRadius="10"
                                                     Padding="8,4"
-                                                    Margin="0,0,10,10">
+                                                    Margin="0,0,10,10"
+                                                    Background="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource HighlightBrushConverter}}">
                                                 <TextBlock Text="{Binding}"
-                                                           Foreground="#CBD5F5"
-                                                           FontSize="12"/>
+                                                           Foreground="#F8FAFC"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"/>
                                             </Border>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -1064,6 +1066,197 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="EssentialsRunDialogOverlay"
+              Panel.ZIndex="7"
+              Background="#B0020617"
+              Visibility="{Binding IsRunDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsRunDialogVisible}">
+            <Border MaxWidth="760"
+                    Margin="32"
+                    Padding="30"
+                    Background="#0B1729"
+                    BorderBrush="#24344F"
+                    BorderThickness="1"
+                    CornerRadius="26"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel DataContext="{Binding PendingRunTask}">
+                        <TextBlock Text="Configure run"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   FontWeight="SemiBold"/>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,6,0,0"
+                                    VerticalAlignment="Center">
+                            <StackPanel>
+                                <TextBlock Text="{Binding Title, TargetNullValue=Select a task}" 
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Summary}"
+                                           Margin="0,6,0,0"
+                                           Foreground="#9FB0C7"
+                                           FontSize="13"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding DurationSummary}"
+                                           Margin="0,6,0,0"
+                                           Foreground="#E2E8F0"
+                                           FontSize="12">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding DurationSummary}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding DurationSummary}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1"
+                                  Margin="0,20,0,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  MaxHeight="500">
+                        <StackPanel DataContext="{Binding PendingRunTask}">
+                            <ItemsControl ItemsSource="{Binding Highlights}"
+                                          Margin="0,0,0,16"
+                                          AlternationCount="5">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border CornerRadius="10"
+                                                Padding="8,4"
+                                                Margin="0,0,8,8"
+                                                Background="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource HighlightBrushConverter}}">
+                                            <TextBlock Text="{Binding}"
+                                                       Foreground="#F8FAFC"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <StackPanel Margin="0,0,0,16"
+                                        Visibility="{Binding IsDefenderTask, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="Scan options"
+                                           Foreground="#94A3B8"
+                                           FontSize="12"/>
+                                <WrapPanel Margin="0,8,0,0">
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Run full scan"
+                                              IsChecked="{Binding UseFullScan}"
+                                              Foreground="#E2E8F0"
+                                              Margin="0,0,12,8"/>
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Skip signature update"
+                                              IsChecked="{Binding SkipSignatureUpdate}"
+                                              Foreground="#E2E8F0"
+                                              Margin="0,0,12,8"/>
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Skip real-time heal"
+                                              IsChecked="{Binding SkipRealtimeHeal}"
+                                              Foreground="#E2E8F0"
+                                              Margin="0,0,12,8"/>
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Skip service repair"
+                                              IsChecked="{Binding SkipServiceHeal}"
+                                              Foreground="#E2E8F0"
+                                              Margin="0,0,12,8"/>
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                              Content="Skip threat scan"
+                                              IsChecked="{Binding SkipThreatScan}"
+                                              Foreground="#E2E8F0"
+                                              Margin="0,0,12,8"/>
+                                </WrapPanel>
+                            </StackPanel>
+
+                            <StackPanel Margin="0,0,0,16"
+                                        Visibility="{Binding HasOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="Additional options"
+                                           Foreground="#94A3B8"
+                                           FontSize="12"/>
+                                <ItemsControl ItemsSource="{Binding Options}"
+                                              Margin="0,8,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                      Content="{Binding Label}"
+                                                      ToolTip="{Binding Description}"
+                                                      IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                      Foreground="#E2E8F0"
+                                                      Margin="0,0,12,8"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+
+                            <TextBlock Text="No configurable options for this automation."
+                                       Foreground="#64748B"
+                                       FontSize="12">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <MultiDataTrigger>
+                                                <MultiDataTrigger.Conditions>
+                                                    <Condition Binding="{Binding HasOptions}" Value="False"/>
+                                                    <Condition Binding="{Binding IsDefenderTask}" Value="False"/>
+                                                </MultiDataTrigger.Conditions>
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </MultiDataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,24,0,0">
+                        <Button Content="Cancel"
+                                Command="{Binding CloseRunDialogCommand}"
+                                Style="{StaticResource EssentialsSecondaryButtonStyle}"
+                                Padding="12,6"
+                                MinWidth="120"/>
+                        <Button Content="Queue run"
+                                Margin="12,0,0,0"
+                                Padding="14,6"
+                                MinWidth="130"
+                                Command="{Binding QueuePendingTaskCommand}"
+                                Style="{StaticResource EssentialsAccentButtonStyle}"/>
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>

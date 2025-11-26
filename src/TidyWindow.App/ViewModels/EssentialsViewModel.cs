@@ -5,9 +5,12 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using System.Windows.Media;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Maintenance;
 using WpfApplication = System.Windows.Application;
+using MediaBrush = System.Windows.Media.Brush;
+using MediaColor = System.Windows.Media.Color;
 
 namespace TidyWindow.App.ViewModels;
 
@@ -88,6 +91,12 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isTaskDetailsVisible;
 
+    [ObservableProperty]
+    private EssentialsTaskItemViewModel? _pendingRunTask;
+
+    [ObservableProperty]
+    private bool _isRunDialogVisible;
+
     partial void OnSelectedOperationChanged(EssentialsOperationItemViewModel? oldValue, EssentialsOperationItemViewModel? newValue)
     {
         // No-op hook reserved for future selection side-effects.
@@ -121,6 +130,37 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     {
         IsTaskDetailsVisible = false;
         DetailsTask = null;
+    }
+
+    [RelayCommand]
+    private void PrepareTaskRun(EssentialsTaskItemViewModel? task)
+    {
+        if (task is null)
+        {
+            return;
+        }
+
+        PendingRunTask = task;
+        IsRunDialogVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseRunDialog()
+    {
+        IsRunDialogVisible = false;
+        PendingRunTask = null;
+    }
+
+    [RelayCommand]
+    private void QueuePendingTask()
+    {
+        if (PendingRunTask is null)
+        {
+            return;
+        }
+
+        QueueTask(PendingRunTask);
+        CloseRunDialog();
     }
 
     [RelayCommand]
@@ -305,7 +345,7 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
         }
 
         var activeCount = _activeTaskCounts.TryGetValue(snapshot.Task.Id, out var value) ? value : 0;
-        vm.UpdateQueueState(activeCount, snapshot.LastMessage);
+        vm.UpdateQueueState(activeCount, snapshot.LastMessage, snapshot.Status);
 
         HasActiveOperations = _activeTaskCounts.Any(pair => pair.Value > 0);
     }
@@ -321,7 +361,7 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
                 .FirstOrDefault();
 
             var activeCount = _activeTaskCounts.TryGetValue(task.Definition.Id, out var value) ? value : 0;
-            task.UpdateQueueState(activeCount, snapshot?.LastMessage);
+            task.UpdateQueueState(activeCount, snapshot?.LastMessage, snapshot?.Status);
         }
 
         HasActiveOperations = _activeTaskCounts.Any(pair => pair.Value > 0);
@@ -456,6 +496,11 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
 public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 {
+    private static readonly SolidColorBrush RunningChipBrush = new(MediaColor.FromRgb(56, 189, 248));
+    private static readonly SolidColorBrush WaitingChipBrush = new(MediaColor.FromRgb(250, 204, 21));
+    private static readonly SolidColorBrush SuccessChipBrush = new(MediaColor.FromRgb(34, 197, 94));
+    private static readonly SolidColorBrush ErrorChipBrush = new(MediaColor.FromRgb(248, 113, 113));
+
     public EssentialsTaskItemViewModel(EssentialsTaskDefinition definition)
     {
         Definition = definition ?? throw new ArgumentNullException(nameof(definition));
@@ -518,15 +563,124 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     [ObservableProperty]
     private string? _lastStatus;
 
-    public void UpdateQueueState(int activeCount, string? status)
+    [ObservableProperty]
+    private MediaBrush? _statusChipBrush;
+
+    [ObservableProperty]
+    private string? _statusChipLabel;
+
+    [ObservableProperty]
+    private bool _hasStatusChip;
+
+    [ObservableProperty]
+    private double _progressValue;
+
+    [ObservableProperty]
+    private string _progressStatusText = "Ready";
+
+    [ObservableProperty]
+    private bool _hasProgress;
+
+    public string? DurationSummary
     {
-        IsActive = activeCount > 0;
-        IsQueued = activeCount > 0;
+        get
+        {
+            if (string.IsNullOrWhiteSpace(DurationHint))
+            {
+                return null;
+            }
+
+            var text = DurationHint.Trim();
+            if (text.StartsWith("Approx.", StringComparison.OrdinalIgnoreCase))
+            {
+                text = text[7..].Trim();
+            }
+
+            if (text.EndsWith('.') && text.Length > 1)
+            {
+                text = text.TrimEnd('.').Trim();
+            }
+
+            return string.IsNullOrWhiteSpace(text)
+                ? null
+                : $"Approx. time: {text}";
+        }
+    }
+
+    public void UpdateQueueState(int activeCount, string? status, EssentialsQueueStatus? queueStatus)
+    {
+        IsActive = queueStatus == EssentialsQueueStatus.Running || activeCount > 0;
+        IsQueued = queueStatus == EssentialsQueueStatus.Pending;
 
         if (!string.IsNullOrWhiteSpace(status))
         {
             LastStatus = status.Trim();
         }
+
+        UpdateStatusChip(queueStatus);
+    }
+
+    private void UpdateStatusChip(EssentialsQueueStatus? queueStatus)
+    {
+        if (queueStatus is null)
+        {
+            HasStatusChip = false;
+            StatusChipLabel = null;
+            StatusChipBrush = null;
+            HasProgress = false;
+            ProgressValue = 0;
+            ProgressStatusText = "Ready";
+            return;
+        }
+
+        HasStatusChip = true;
+
+        string statusLabel;
+        MediaBrush brush;
+        double progress;
+
+        switch (queueStatus)
+        {
+            case EssentialsQueueStatus.Running:
+                statusLabel = "Running";
+                brush = RunningChipBrush;
+                progress = 0.65;
+                break;
+            case EssentialsQueueStatus.Pending:
+                statusLabel = "Waiting";
+                brush = WaitingChipBrush;
+                progress = 0.3;
+                break;
+            case EssentialsQueueStatus.Failed:
+                statusLabel = "Error";
+                brush = ErrorChipBrush;
+                progress = 1;
+                break;
+            case EssentialsQueueStatus.Succeeded:
+                statusLabel = "Completed";
+                brush = SuccessChipBrush;
+                progress = 1;
+                break;
+            case EssentialsQueueStatus.Cancelled:
+                statusLabel = "Cancelled";
+                brush = WaitingChipBrush;
+                progress = 1;
+                break;
+            default:
+                HasStatusChip = false;
+                StatusChipLabel = null;
+                StatusChipBrush = null;
+                HasProgress = false;
+                ProgressValue = 0;
+                ProgressStatusText = "Ready";
+                return;
+        }
+
+        StatusChipLabel = statusLabel;
+        StatusChipBrush = brush;
+        ProgressValue = progress;
+        ProgressStatusText = statusLabel;
+        HasProgress = queueStatus is EssentialsQueueStatus.Pending or EssentialsQueueStatus.Running;
     }
 
     public IReadOnlyDictionary<string, object?>? BuildParameters()
