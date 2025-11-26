@@ -44,7 +44,7 @@ public sealed class AlternationIndexToBrushConverter : IValueConverter
 
         var gradient = new LinearGradientBrush(startColor, endColor, new MediaPoint(0, 0), new MediaPoint(1, 1))
         {
-            Opacity = 0.9
+            Opacity = 0.45
         };
         gradient.Freeze();
 

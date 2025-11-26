@@ -14,6 +14,7 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
         <converters:PathPilotStatusSeverityToBrushConverter x:Key="PathPilotStatusSeverityToBrushConverter"/>
+        <converters:AlternationIndexToBrushConverter x:Key="AlternationIndexToBrushConverter"/>
         <SolidColorBrush x:Key="PathPilotCardPrimaryBrush"
                  Color="#111D33"/>
         <SolidColorBrush x:Key="PathPilotCardSecondaryBrush"
@@ -179,6 +180,23 @@
             </Setter>
         </Style>
 
+        <Style x:Key="PathPilotDialogShellStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0C172C"/>
+            <Setter Property="BorderBrush" Value="#253552"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="28"/>
+            <Setter Property="Padding" Value="32"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="36"
+                                      ShadowDepth="0"
+                                      Color="#0B1220"
+                                      Opacity="0.65"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="PathPilotCardStyle"
                TargetType="Border">
             <Setter Property="Background"
@@ -195,101 +213,68 @@
 
         <DataTemplate x:Key="PathPilotInstallationTemplate"
                       DataType="{x:Type vm:PathPilotInstallationViewModel}">
-            <Border BorderThickness="1"
-                    CornerRadius="12"
-                    Padding="14"
-                    Margin="0,0,0,12"
+            <Border CornerRadius="16"
+                    BorderThickness="1"
+                    Padding="0"
+                    Margin="0,0,0,16"
+                    Background="#0F1B31"
+                    BorderBrush="#1F2F4A"
                     HorizontalAlignment="Stretch">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Background" Value="#121F34"/>
-                        <Setter Property="BorderBrush" Value="#1F2F46"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}}"
-                                         Value="1">
-                                <Setter Property="Background" Value="#0F1B2E"/>
-                                <Setter Property="BorderBrush" Value="#273B5E"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <DockPanel LastChildFill="True">
-                    <StackPanel DockPanel.Dock="Right"
-                                Width="150"
-                                HorizontalAlignment="Right"
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="6"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="220"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            CornerRadius="16,0,0,16"
+                            Background="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource AlternationIndexToBrushConverter}}"/>
+                    <StackPanel Grid.Column="1"
+                                Margin="20,16"
                                 VerticalAlignment="Center">
-                        <Border CornerRadius="10"
-                                Padding="8,4"
-                                BorderBrush="#38BDF8"
-                                BorderThickness="1"
-                                HorizontalAlignment="Stretch"
-                                Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Color="#60A5FA" Offset="0"/>
-                                    <GradientStop Color="#34D399" Offset="1"/>
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <Border.Effect>
-                                <DropShadowEffect BlurRadius="20" ShadowDepth="0" Opacity="0.65" Color="#60A5FA"/>
-                            </Border.Effect>
-                            <TextBlock Text="Active"
-                                       HorizontalAlignment="Center"
-                                       Foreground="#0F172A"
-                                       FontSize="11"
-                                       FontWeight="SemiBold"/>
-                        </Border>
-                        <Button Content="Prioritize"
-                                Margin="0,8,0,0"
-                                Style="{StaticResource PathPilotSecondaryButtonStyle}"
-                                Command="{Binding DataContext.SwitchRuntimeCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                CommandParameter="{Binding SwitchRequest}"
-                                IsEnabled="{Binding CanSwitch}">
-                            <Button.ToolTip>
-                                <ToolTip Content="Make this installation win PATH immediately"/>
-                            </Button.ToolTip>
-                        </Button>
-                    </StackPanel>
-                    <StackPanel Margin="0,0,16,0">
                         <TextBlock Text="{Binding Caption}"
-                                   FontSize="14"
+                                   FontSize="15"
                                    FontWeight="SemiBold"
                                    Foreground="#F8FAFC"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding Directory}"
                                    Margin="0,6,0,0"
-                                   Foreground="#CBD5F5"
+                                   Foreground="#E2E8F0"
                                    FontSize="12"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"/>
                         <TextBlock Text="{Binding ExecutablePath}"
                                    Margin="0,4,0,0"
-                                   Foreground="#94A3B8"
+                                   Foreground="#C7D2FE"
                                    FontSize="11"
                                    TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"/>
                         <StackPanel Orientation="Horizontal"
-                                    Margin="0,8,0,0">
-                            <Border Background="#1D2E4E"
-                                    CornerRadius="6"
-                                    Padding="8,2"
-                                    Margin="0,0,8,0">
-                                <TextBlock Text="{Binding Source, StringFormat=Source: {0}}"
-                                           Foreground="#C7D2FE"
-                                           FontSize="11"/>
+                                    Margin="0,10,0,0">
+                            <Border Background="#15213A"
+                                    CornerRadius="8"
+                                    Padding="8,3"
+                                    Margin="0,0,8,0"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1">
+                                <TextBlock Text="{Binding Source, StringFormat=Source · {0}}"
+                                           Foreground="#BFDBFE"
+                                           FontSize="10"/>
                             </Border>
-                            <Border Background="#1D2E4E"
-                                    CornerRadius="6"
-                                    Padding="8,2">
-                                <TextBlock Text="{Binding Architecture, StringFormat=Arch: {0}}"
-                                           Foreground="#C7D2FE"
-                                           FontSize="11"/>
+                            <Border Background="#15213A"
+                                    CornerRadius="8"
+                                    Padding="8,3"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1">
+                                <TextBlock Text="{Binding Architecture, StringFormat=Arch · {0}}"
+                                           Foreground="#F3E8FF"
+                                           FontSize="10"/>
                             </Border>
                         </StackPanel>
                         <TextBlock Text="{Binding NotesDisplay}"
-                                   Margin="0,8,0,0"
-                                   Foreground="#FDE047"
+                                   Margin="0,10,0,0"
+                                   Foreground="#FDE68A"
                                    FontSize="11"
                                    TextWrapping="Wrap">
                             <TextBlock.Style>
@@ -304,127 +289,129 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </StackPanel>
-                </DockPanel>
+                    <StackPanel Grid.Column="2"
+                                Margin="16"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center">
+                        <Border CornerRadius="10"
+                                Padding="8,4"
+                                Background="#F8FAFC"
+                                Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="Active winner"
+                                       Foreground="#0F172A"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"/>
+                        </Border>
+                        <Button Content="Prioritize"
+                                Margin="0,10,0,0"
+                                Style="{StaticResource PathPilotSecondaryButtonStyle}"
+                                Command="{Binding DataContext.SwitchRuntimeCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                CommandParameter="{Binding SwitchRequest}"
+                                IsEnabled="{Binding CanSwitch}">
+                            <Button.ToolTip>
+                                <ToolTip Content="Make this installation win PATH immediately"/>
+                            </Button.ToolTip>
+                        </Button>
+                    </StackPanel>
+                </Grid>
             </Border>
         </DataTemplate>
 
         <DataTemplate x:Key="RuntimeCardTemplate"
                       DataType="{x:Type vm:PathPilotRuntimeCardViewModel}">
-            <Border Padding="20">
-                <Border.Style>
-                    <Style TargetType="Border"
-                           BasedOn="{StaticResource PathPilotCardStyle}">
-                        <Setter Property="Background"
-                                Value="{StaticResource PathPilotCardPrimaryBrush}"/>
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
-                                         Value="1">
-                                <Setter Property="Background"
-                                        Value="{StaticResource PathPilotCardSecondaryBrush}"/>
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}}"
-                                         Value="2">
-                                <Setter Property="Background"
-                                        Value="{StaticResource PathPilotCardTertiaryBrush}"/>
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="{Binding FriendlyName}"
-                                           FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"
-                                           TextWrapping="Wrap"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <Border Margin="12,0,0,0"
-                                        CornerRadius="14"
-                                        Padding="10,4"
-                                        BorderThickness="1"
-                                        VerticalAlignment="Center">
-                                    <Border.Style>
-                                        <Style TargetType="Border">
-                                            <Setter Property="Background"
-                                                    Value="{StaticResource PathPilotVersionChipKnownBrush}"/>
-                                            <Setter Property="BorderBrush"
-                                                    Value="#38BDF8"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasActiveVersion}"
-                                                             Value="False">
-                                                    <Setter Property="Background"
-                                                            Value="{StaticResource PathPilotVersionChipUnknownBrush}"/>
-                                                    <Setter Property="BorderBrush"
-                                                            Value="#F472B6"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Border.Style>
-                                    <TextBlock Text="{Binding VersionChipLabel}"
-                                               FontSize="11"
-                                               FontWeight="SemiBold">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground"
-                                                        Value="#CFE9FF"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasActiveVersion}"
-                                                                 Value="False">
-                                                        <Setter Property="Foreground"
-                                                                Value="#FEE2E2"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </Border>
-                            </StackPanel>
-                            <TextBlock Text="{Binding DisplayName}"
-                                       FontSize="14"
-                                       Foreground="#B7C7E6"
-                                       Margin="0,6,0,0"
-                                       TextWrapping="Wrap"
-                                       TextTrimming="CharacterEllipsis"/>
-                            <TextBlock Text="{Binding Summary}"
-                                       Margin="0,8,0,0"
-                                       Foreground="#E2E8F0"
-                                       TextWrapping="Wrap"/>
-                        </StackPanel>
-                        <ItemsControl Grid.Column="1"
-                                      Margin="12,0,0,0"
-                                      ItemsSource="{Binding StatusBadges}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel HorizontalAlignment="Right"
-                                               ItemHeight="Auto"
-                                               ItemWidth="Auto"
-                                               MinWidth="0"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="{Binding Severity, Converter={StaticResource PathPilotStatusSeverityToBrushConverter}}"
-                                            CornerRadius="8"
-                                            Padding="8,4"
-                                            Margin="4,0,0,0">
-                                        <TextBlock Text="{Binding Label}"
-                                                   FontSize="11"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#07111F"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Grid>
+            <Border Style="{StaticResource PathPilotCardStyle}"
+                    Padding="0"
+                    MinHeight="320"
+                    HorizontalAlignment="Stretch">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
 
-                                        <Grid Margin="0,12,0,0">
+                    <Border Grid.Row="0"
+                            Padding="22"
+                            Background="#101D34"
+                            CornerRadius="16,16,0,0">
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Border CornerRadius="12"
+                                    Padding="10,4"
+                                    Background="#172A48"
+                                    BorderBrush="#23324C"
+                                    BorderThickness="1">
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="10"
+                                             Height="10"
+                                             Margin="0,0,8,0"
+                                             Fill="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ListBoxItem}, Converter={StaticResource AlternationIndexToBrushConverter}}"/>
+                                    <TextBlock Text="{Binding FriendlyName}"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Margin="12,0,0,0"
+                                    Background="#12243F"
+                                    CornerRadius="10"
+                                    Padding="10,4"
+                                    BorderBrush="#3B82F6"
+                                    BorderThickness="1">
+                                <TextBlock Text="{Binding VersionChipLabel}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="#E0F2FE"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Grid.Row="1"
+                                Margin="22,14,22,0">
+                        <TextBlock Text="{Binding DisplayName}"
+                                   Foreground="#CBD5F5"
+                                   FontSize="13"
+                                   TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Summary}"
+                                   Margin="0,6,0,0"
+                                   Foreground="#94A3B8"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <ItemsControl Grid.Row="2"
+                                  Margin="22,12,22,0"
+                                  ItemsSource="{Binding StatusBadges}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"
+                                           MinWidth="0"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{Binding Severity, Converter={StaticResource PathPilotStatusSeverityToBrushConverter}}"
+                                        CornerRadius="10"
+                                        Padding="8,3"
+                                        Margin="0,0,8,8"
+                                        BorderBrush="#050A14"
+                                        BorderThickness="1">
+                                    <TextBlock Text="{Binding Label}"
+                                               FontSize="11"
+                                               FontWeight="SemiBold"
+                                               Foreground="#04111E"/>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <Grid Grid.Row="3"
+                          Margin="22,6,22,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
@@ -442,17 +429,16 @@
                             </StackPanel.Style>
                             <TextBlock Text="Active path"
                                        Foreground="#93C5FD"
-                                       FontSize="12"
+                                       FontSize="11"
                                        FontWeight="SemiBold"/>
                             <TextBlock Text="{Binding ActiveExecutablePath}"
-                                       Foreground="#E2E8F0"
-                                       FontSize="12"
-                                       Margin="0,4,0,0"
+                                       Foreground="#F8FAFC"
+                                       FontSize="11"
+                                       Margin="0,4,20,0"
                                        TextWrapping="Wrap"
                                        TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="1"
-                                    Margin="20,0,0,0">
+                        <StackPanel Grid.Column="1">
                             <StackPanel.Style>
                                 <Style TargetType="StackPanel">
                                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -464,11 +450,11 @@
                                 </Style>
                             </StackPanel.Style>
                             <TextBlock Text="PATH entry"
-                                       Foreground="#94A3B8"
+                                       Foreground="#93C5FD"
                                        FontSize="11"
                                        FontWeight="SemiBold"/>
                             <TextBlock Text="{Binding PathEntry}"
-                                       Foreground="#94A3B8"
+                                       Foreground="#E2E8F0"
                                        FontSize="11"
                                        Margin="0,4,0,0"
                                        TextWrapping="Wrap"
@@ -476,101 +462,60 @@
                         </StackPanel>
                     </Grid>
 
-                    <StackPanel Orientation="Horizontal"
-                                Margin="0,18,0,0"
-                                HorizontalAlignment="Left">
-                        <Button Content="{Binding InstallationsToggleLabel}"
-                            Command="{Binding DataContext.ShowInstallationsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                            CommandParameter="{Binding}"
-                                Style="{StaticResource PathPilotSecondaryButtonStyle}"
-                                Visibility="{Binding HasInstallations, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        <Button Content="Resolution order"
-                            Command="{Binding ToggleResolutionOrderCommand}"
-                            Margin="12,0,0,0"
-                                Visibility="{Binding HasResolutionOrder, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource PathPilotSecondaryButtonStyle}">
-                                    <Setter Property="Padding" Value="12,6"/>
+                    <StackPanel Grid.Row="4"
+                                Margin="22,10,22,0">
+                        <TextBlock Text="No installations reported"
+                                   Foreground="#64748B"
+                                   FontSize="11">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsResolutionOrderExpanded}" Value="True">
-                                            <Setter Property="Content" Value="Hide order"/>
+                                        <DataTrigger Binding="{Binding HasInstallations}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
-                            </Button.Style>
-                        </Button>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding ResolutionOrder.Count, StringFormat={}{0} candidate(s) observed on PATH}"
+                                   Foreground="#94A3B8"
+                                   FontSize="11"
+                                   Margin="0,4,0,0">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasResolutionOrder}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
                     </StackPanel>
 
-                    <TextBlock Text="{Binding ResolutionOrderSummary}"
-                               Margin="0,10,0,0"
-                               Foreground="#94A3B8"
-                               FontSize="11"
-                               TextWrapping="Wrap"
-                               Visibility="{Binding HasResolutionOrder, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                    <TextBlock Text="No installations reported."
-                               Foreground="#64748B"
-                               FontSize="12"
-                               Margin="0,12,0,0"
-                               TextWrapping="Wrap">
-                        <TextBlock.Style>
-                            <Style TargetType="TextBlock">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasInstallations}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </TextBlock.Style>
-                    </TextBlock>
-
-                    <Border Margin="0,10,0,0">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed"/>
-                                <Setter Property="Background" Value="#0D1626"/>
-                                <Setter Property="BorderBrush" Value="#1E2F4A"/>
-                                <Setter Property="BorderThickness" Value="1"/>
-                                <Setter Property="CornerRadius" Value="12"/>
-                                <Setter Property="Padding" Value="12"/>
-                                <Style.Triggers>
-                                    <MultiDataTrigger>
-                                        <MultiDataTrigger.Conditions>
-                                            <Condition Binding="{Binding IsResolutionOrderExpanded}" Value="True"/>
-                                            <Condition Binding="{Binding HasResolutionOrder}" Value="True"/>
-                                        </MultiDataTrigger.Conditions>
-                                        <Setter Property="Visibility" Value="Visible"/>
-                                    </MultiDataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <ItemsControl ItemsSource="{Binding ResolutionOrder}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <WrapPanel Orientation="Horizontal"
-                                               Margin="0,0,0,0"/>
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
-                                    <Border Background="#1E2A46"
-                                            CornerRadius="6"
-                                            Padding="8,4"
-                                            Margin="0,0,8,8">
-                                        <TextBlock Text="{Binding}"
-                                                   Foreground="#E2E8F0"
-                                                   FontSize="11"
-                                                   TextWrapping="Wrap"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="280"/>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </Border>
-
-                </StackPanel>
+                    <StackPanel Grid.Row="5"
+                                Orientation="Horizontal"
+                                Margin="22,16,22,22">
+                        <Button Content="{Binding InstallationsToggleLabel}"
+                                Style="{StaticResource PathPilotSecondaryButtonStyle}"
+                                Command="{Binding DataContext.ShowInstallationsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                CommandParameter="{Binding}"
+                                IsEnabled="{Binding HasInstallations}"/>
+                        <Button Content="Details"
+                                Margin="12,0,0,0"
+                                Style="{StaticResource PathPilotSecondaryButtonStyle}"
+                                Command="{Binding DataContext.ShowDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                CommandParameter="{Binding}"/>
+                        <Button Content="Resolution order"
+                                Margin="12,0,0,0"
+                                Style="{StaticResource PathPilotSecondaryButtonStyle}"
+                                Command="{Binding DataContext.ShowResolutionOrderCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                CommandParameter="{Binding}"
+                                IsEnabled="{Binding HasResolutionOrder}"/>
+                    </StackPanel>
+                </Grid>
             </Border>
         </DataTemplate>
 
@@ -741,7 +686,7 @@
                                  ItemTemplate="{StaticResource RuntimeCardTemplate}"
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             AlternationCount="3"
+                             AlternationCount="5"
                                  SelectionMode="Single">
                             <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -847,10 +792,10 @@
         </Grid>
         </ScrollViewer>
 
-        <Grid x:Name="InstallationsDialogOverlay"
+          <Grid x:Name="InstallationsDialogOverlay"
               Margin="32"
               Panel.ZIndex="8"
-              Background="#B3091126">
+              Background="#E60A1428">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed"/>
@@ -865,21 +810,11 @@
                     </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <Border MaxWidth="960"
-                    MaxHeight="720"
-                    Padding="32"
-                    Background="#0F172A"
-                    BorderBrush="#334155"
-                    BorderThickness="1"
-                    CornerRadius="32"
+            <Border Style="{StaticResource PathPilotDialogShellStyle}"
+                    MaxWidth="1040"
+                    MaxHeight="760"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center">
-                <Border.Effect>
-                    <DropShadowEffect BlurRadius="40"
-                                      ShadowDepth="0"
-                                      Color="#1D4ED8"
-                                      Opacity="0.45"/>
-                </Border.Effect>
                 <Border.DataContext>
                     <Binding Path="InstallationsDialogRuntime"/>
                 </Border.DataContext>
@@ -890,58 +825,42 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-
                     <Grid Grid.Row="0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="0">
+                        <StackPanel>
                             <TextBlock Text="{Binding FriendlyName, TargetNullValue=Installations}"
-                                       FontSize="24"
+                                       FontSize="26"
                                        FontWeight="SemiBold"
                                        Foreground="#F8FAFC"/>
-                            <TextBlock Text="{Binding Summary}"
+                            <TextBlock Text="{Binding DisplayName}"
                                        Margin="0,6,0,0"
-                                       Foreground="#93C5FD"
+                                       Foreground="#C7D2FE"
                                        FontSize="13"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="{Binding DisplayName, StringFormat=Runtime: {0}}"
-                                       Margin="0,8,0,0"
-                                       Foreground="#E2E8F0"
-                                       FontSize="12"/>
-                            <TextBlock Text="{Binding ActiveExecutablePath, StringFormat=Active path: {0}}"
-                                       Margin="0,6,0,0"
-                                       Foreground="#94A3B8"
-                                       FontSize="11"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasActivePath}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                            <TextBlock Text="{Binding PathEntry, StringFormat=PATH entry: {0}}"
-                                       Margin="0,4,0,0"
-                                       Foreground="#64748B"
-                                       FontSize="11"
-                                       TextWrapping="Wrap">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
-                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasPathEntry}" Value="True">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
+                            <ItemsControl Margin="0,12,0,0"
+                                          ItemsSource="{Binding StatusBadges}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{Binding Severity, Converter={StaticResource PathPilotStatusSeverityToBrushConverter}}"
+                                                CornerRadius="12"
+                                                Padding="8,4"
+                                                Margin="0,0,8,8">
+                                            <TextBlock Text="{Binding Label}"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#04111E"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                         <StackPanel Grid.Column="1"
                                     Orientation="Horizontal"
@@ -952,49 +871,442 @@
                                     Command="{Binding DataContext.CloseInstallationsCommand, RelativeSource={RelativeSource AncestorType=Page}}"/>
                         </StackPanel>
                     </Grid>
-
                     <Border Grid.Row="1"
-                            Margin="0,20,0,0"
-                            Background="#111F36"
-                            CornerRadius="12"
-                            Padding="14"
-                            BorderBrush="#1E2F4A"
+                            Margin="0,22,0,0"
+                            Background="#0C1A33"
+                            CornerRadius="18"
+                            Padding="18"
+                            BorderBrush="#1F2F4C"
                             BorderThickness="1">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="Installations"
-                                       Foreground="#F8FAFC"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center"/>
-                            <TextBlock Text="{Binding Installations.Count, StringFormat={}{0} detected}"
-                                       Grid.Column="1"
-                                       Foreground="#94A3B8"
-                                       FontSize="12"
-                                       VerticalAlignment="Center"
-                                       TextAlignment="Right"/>
+                            <StackPanel>
+                                <TextBlock Text="Active path"
+                                           Foreground="#A5B4FC"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding ActiveExecutablePath}"
+                                           Margin="0,4,0,0"
+                                           Foreground="#E2E8F0"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1"
+                                        HorizontalAlignment="Right">
+                                <TextBlock Text="{Binding Installations.Count, StringFormat={}{0} installation(s)}"
+                                           Foreground="#C7D2FE"
+                                           FontSize="12"
+                                           TextAlignment="Right"/>
+                                <TextBlock Text="{Binding PathEntry, StringFormat=PATH entry · {0}}"
+                                           Margin="0,4,0,0"
+                                           Foreground="#94A3B8"
+                                           FontSize="11"
+                                           TextAlignment="Right"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
-
                     <ScrollViewer Grid.Row="2"
-                                  Margin="0,20,0,0"
+                                  Margin="0,24,0,0"
                                   VerticalScrollBarVisibility="Auto"
                                   HorizontalScrollBarVisibility="Disabled">
                         <ItemsControl ItemsSource="{Binding Installations}"
-                                      AlternationCount="2"
+                                      AlternationCount="5"
                                       ItemTemplate="{StaticResource PathPilotInstallationTemplate}"/>
                     </ScrollViewer>
-
                     <StackPanel Grid.Row="3"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Right"
-                                Margin="0,28,0,0">
+                                Margin="0,26,0,0">
                         <Button Content="Done"
                                 Style="{StaticResource PathPilotPrimaryButtonStyle}"
                                 Command="{Binding DataContext.CloseInstallationsCommand, RelativeSource={RelativeSource AncestorType=Page}}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+          <Grid x:Name="DetailsDialogOverlay"
+              Margin="32"
+              Panel.ZIndex="9"
+              Background="#E60A1428">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Setter Property="IsHitTestVisible" Value="False"/>
+                    <Setter Property="Opacity" Value="0"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsDetailsDialogOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="IsHitTestVisible" Value="True"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Border Style="{StaticResource PathPilotDialogShellStyle}"
+                    MaxWidth="860"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Border.DataContext>
+                    <Binding Path="DetailsDialogRuntime"/>
+                </Border.DataContext>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="{Binding FriendlyName, TargetNullValue=Runtime details}"
+                                       FontSize="26"
+                                       FontWeight="SemiBold"
+                                       Foreground="#F8FAFC"/>
+                            <TextBlock Text="{Binding DisplayName}"
+                                       Margin="0,6,0,0"
+                                       Foreground="#C7D2FE"
+                                       FontSize="13"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="{Binding Description}"
+                                       Margin="0,6,0,0"
+                                       Foreground="#9FB1D7"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right">
+                            <Button Content="Close"
+                                    Style="{StaticResource PathPilotSecondaryButtonStyle}"
+                                    Command="{Binding DataContext.CloseDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}"/>
+                        </StackPanel>
+                    </Grid>
+                    <UniformGrid Grid.Row="1"
+                                 Columns="2"
+                                 Margin="0,24,0,0"
+                                 HorizontalAlignment="Stretch">
+                        <Border Margin="0,0,12,12"
+                                Background="#0C1A33"
+                                CornerRadius="16"
+                                Padding="16"
+                                BorderBrush="#1F2F4C"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Runtime version"
+                                           Foreground="#A5B4FC"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding VersionChipLabel}"
+                                           Margin="0,6,0,0"
+                                           Foreground="#F8FAFC"
+                                           FontSize="13"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Margin="12,0,0,12"
+                                Background="#0C1A33"
+                                CornerRadius="16"
+                                Padding="16"
+                                BorderBrush="#1F2F4C"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Desired version"
+                                           Foreground="#A5B4FC"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding DesiredVersion}"
+                                           Margin="0,6,0,0"
+                                           Foreground="#F8FAFC"
+                                           FontSize="13">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasDesiredVersion}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="Not specified"
+                                           Margin="0,6,0,0"
+                                           Foreground="#94A3B8"
+                                           FontSize="12">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasDesiredVersion}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        <Border Margin="0,0,12,0"
+                                Background="#0C1A33"
+                                CornerRadius="16"
+                                Padding="16"
+                                BorderBrush="#1F2F4C"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Active path"
+                                           Foreground="#A5B4FC"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding ActiveExecutablePath}"
+                                           Margin="0,6,0,0"
+                                           Foreground="#F8FAFC"
+                                           FontSize="13"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasActivePath}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="No active selection"
+                                           Margin="0,6,0,0"
+                                           Foreground="#94A3B8"
+                                           FontSize="12">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasActivePath}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                        <Border Margin="12,0,0,0"
+                                Background="#0C1A33"
+                                CornerRadius="16"
+                                Padding="16"
+                                BorderBrush="#1F2F4C"
+                                BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="PATH entry"
+                                           Foreground="#A5B4FC"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"/>
+                                <TextBlock Text="{Binding PathEntry}"
+                                           Margin="0,6,0,0"
+                                           Foreground="#F8FAFC"
+                                           FontSize="13"
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPathEntry}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text="No entry recorded"
+                                           Margin="0,6,0,0"
+                                           Foreground="#94A3B8"
+                                           FontSize="12">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasPathEntry}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+                    <StackPanel Grid.Row="2"
+                                Margin="0,18,0,0">
+                        <TextBlock Text="{Binding Summary}"
+                                   Foreground="#E2E8F0"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="Duplicates detected on PATH"
+                                   Margin="0,8,0,0"
+                                   Foreground="#FDE047"
+                                   FontSize="11">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasDuplicates}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="Runtime missing on disk"
+                                   Margin="0,4,0,0"
+                                   Foreground="#F87171"
+                                   FontSize="11">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsMissing}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        <TextBlock Text="{Binding ResolutionOrder.Count, StringFormat={}{0} candidate(s) on PATH}"
+                                   Margin="0,6,0,0"
+                                   Foreground="#94A3B8"
+                                   FontSize="11"
+                                   TextWrapping="Wrap">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasResolutionOrder}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                    <StackPanel Grid.Row="3"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,26,0,0">
+                        <Button Content="Close"
+                                Style="{StaticResource PathPilotPrimaryButtonStyle}"
+                                Command="{Binding DataContext.CloseDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+          <Grid x:Name="ResolutionDialogOverlay"
+              Margin="32"
+              Panel.ZIndex="9"
+              Background="#E60A1428">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Setter Property="IsHitTestVisible" Value="False"/>
+                    <Setter Property="Opacity" Value="0"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsResolutionDialogOpen}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                            <Setter Property="IsHitTestVisible" Value="True"/>
+                            <Setter Property="Opacity" Value="1"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+            <Border Style="{StaticResource PathPilotDialogShellStyle}"
+                    MaxWidth="720"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Border.DataContext>
+                    <Binding Path="ResolutionDialogRuntime"/>
+                </Border.DataContext>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="Resolution order"
+                                       FontSize="26"
+                                       FontWeight="SemiBold"
+                                       Foreground="#F8FAFC"/>
+                            <TextBlock Text="{Binding FriendlyName}"
+                                       Margin="0,6,0,0"
+                                       Foreground="#C7D2FE"
+                                       FontSize="13"/>
+                            <TextBlock Text="{Binding ResolutionOrder.Count, StringFormat={}{0} candidate(s) detected}"
+                                       Margin="0,6,0,0"
+                                       Foreground="#94A3B8"
+                                       FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right">
+                            <Button Content="Close"
+                                    Style="{StaticResource PathPilotSecondaryButtonStyle}"
+                                    Command="{Binding DataContext.CloseResolutionOrderCommand, RelativeSource={RelativeSource AncestorType=Page}}"/>
+                        </StackPanel>
+                    </Grid>
+                    <ScrollViewer Grid.Row="1"
+                                  Margin="0,22,0,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl ItemsSource="{Binding ResolutionOrder}"
+                                      AlternationCount="5">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#101E33"
+                                            CornerRadius="14"
+                                            Padding="12"
+                                            Margin="0,0,0,12"
+                                            BorderBrush="#1E2F4A"
+                                            BorderThickness="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="6"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0"
+                                                    CornerRadius="10"
+                                                    Background="{Binding (ItemsControl.AlternationIndex), RelativeSource={RelativeSource AncestorType=ContentPresenter}, Converter={StaticResource AlternationIndexToBrushConverter}}"/>
+                                            <TextBlock Grid.Column="1"
+                                                       Margin="12,0,0,0"
+                                                       Text="{Binding}"
+                                                       Foreground="#F8FAFC"
+                                                       FontSize="13"
+                                                       TextWrapping="Wrap"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,24,0,0">
+                        <Button Content="Close"
+                                Style="{StaticResource PathPilotPrimaryButtonStyle}"
+                                Command="{Binding DataContext.CloseResolutionOrderCommand, RelativeSource={RelativeSource AncestorType=Page}}"/>
                     </StackPanel>
                 </Grid>
             </Border>

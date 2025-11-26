@@ -58,11 +58,21 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private PathPilotRuntimeCardViewModel? _installationsDialogRuntime;
 
+    [ObservableProperty]
+    private PathPilotRuntimeCardViewModel? _detailsDialogRuntime;
+
+    [ObservableProperty]
+    private PathPilotRuntimeCardViewModel? _resolutionDialogRuntime;
+
     public bool HasRuntimeData => Runtimes.Count > 0;
 
     public bool HasWarnings => Warnings.Count > 0;
 
     public bool IsInstallationsDialogOpen => InstallationsDialogRuntime is not null;
+
+    public bool IsDetailsDialogOpen => DetailsDialogRuntime is not null;
+
+    public bool IsResolutionDialogOpen => ResolutionDialogRuntime is not null;
 
     public string Summary => BuildSummary();
 
@@ -202,6 +212,40 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         InstallationsDialogRuntime = null;
     }
 
+    [RelayCommand]
+    private void ShowDetails(PathPilotRuntimeCardViewModel? runtime)
+    {
+        if (runtime is null)
+        {
+            return;
+        }
+
+        DetailsDialogRuntime = runtime;
+    }
+
+    [RelayCommand]
+    private void CloseDetails()
+    {
+        DetailsDialogRuntime = null;
+    }
+
+    [RelayCommand]
+    private void ShowResolutionOrder(PathPilotRuntimeCardViewModel? runtime)
+    {
+        if (runtime is null || !runtime.HasResolutionOrder)
+        {
+            return;
+        }
+
+        ResolutionDialogRuntime = runtime;
+    }
+
+    [RelayCommand]
+    private void CloseResolutionOrder()
+    {
+        ResolutionDialogRuntime = null;
+    }
+
     private async Task ExportAsync(PathPilotExportFormat format)
     {
         if (IsBusy)
@@ -250,6 +294,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         }
 
         InstallationsDialogRuntime = null;
+        DetailsDialogRuntime = null;
+        ResolutionDialogRuntime = null;
 
         Warnings.Clear();
         foreach (var warning in snapshot.Warnings)
@@ -502,6 +548,16 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     {
         OnPropertyChanged(nameof(IsInstallationsDialogOpen));
     }
+
+    partial void OnDetailsDialogRuntimeChanged(PathPilotRuntimeCardViewModel? value)
+    {
+        OnPropertyChanged(nameof(IsDetailsDialogOpen));
+    }
+
+    partial void OnResolutionDialogRuntimeChanged(PathPilotRuntimeCardViewModel? value)
+    {
+        OnPropertyChanged(nameof(IsResolutionDialogOpen));
+    }
 }
 
 public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
@@ -537,7 +593,6 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
             : runtime.ResolutionOrder.ToArray();
         Summary = BuildSummaryText(runtime, Installations);
 
-        ToggleResolutionOrderCommand = new RelayCommand(ToggleResolutionOrder);
     }
 
     private PathPilotRuntimeStatus Status { get; }
@@ -594,36 +649,12 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
 
     public bool HasInstallations => Installations.Count > 0;
 
-    public bool IsResolutionOrderExpanded
-    {
-        get => _isResolutionOrderExpanded;
-        set => SetProperty(ref _isResolutionOrderExpanded, value);
-    }
-
-    public string ResolutionOrderSummary => HasResolutionOrder
-        ? $"{ResolutionOrder.Count} candidate{(ResolutionOrder.Count == 1 ? string.Empty : "s")} observed on PATH."
-        : "No preference order defined.";
-
-    public IRelayCommand ToggleResolutionOrderCommand { get; }
-
     public string InstallationsToggleLabel => Installations.Count switch
     {
         0 => "Installations",
         1 => "Show 1 installation",
         _ => $"Show {Installations.Count} installations"
     };
-
-    private bool _isResolutionOrderExpanded;
-
-    private void ToggleResolutionOrder()
-    {
-        if (!HasResolutionOrder)
-        {
-            return;
-        }
-
-        IsResolutionOrderExpanded = !IsResolutionOrderExpanded;
-    }
 
 
     private static IEnumerable<PathPilotStatusBadgeViewModel> BuildStatusBadges(PathPilotRuntime runtime)
