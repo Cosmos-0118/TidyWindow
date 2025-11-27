@@ -3,6 +3,7 @@ $moduleParts = @(
     'logging.ps1',
     'packages.ps1',
     'registry.ps1',
+    'apps.ps1',
     'core.ps1'
 )
 
@@ -19,6 +20,7 @@ $exportedFunctions = @(
     'Convert-TidyLogMessage',
     'Write-TidyLog',
     'Get-TidyCommandPath',
+    'Get-TidyInstalledAppInventory',
     'Get-TidyWingetMsixCandidates',
     'Get-TidyWingetInstalledVersion',
     'Get-TidyChocoInstalledVersion',

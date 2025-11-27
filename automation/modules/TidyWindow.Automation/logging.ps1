@@ -35,7 +35,10 @@ function Convert-TidyLogMessage {
 
     if ($InputObject -is [pscustomobject]) {
         $pairs = foreach ($prop in $InputObject.PSObject.Properties) {
-            $key = if ([string]::IsNullOrEmpty($prop.Name)) { '<unnamed>' } else { $prop.Name }
+            $key = '<unnamed>'
+            if (-not [string]::IsNullOrEmpty($prop.Name)) {
+                $key = $prop.Name
+            }
             $value = Convert-TidyLogMessage -InputObject $prop.Value
             "$key=$value"
         }
@@ -46,7 +49,10 @@ function Convert-TidyLogMessage {
     if ($InputObject -is [System.Collections.IDictionary]) {
         $pairs = @()
         foreach ($entry in $InputObject.GetEnumerator()) {
-            $key = if ($null -eq $entry.Key) { '<null>' } else { $entry.Key.ToString() }
+            $key = '<null>'
+            if ($null -ne $entry.Key) {
+                $key = $entry.Key.ToString()
+            }
             $value = Convert-TidyLogMessage -InputObject $entry.Value
             $pairs += "$key=$value"
         }

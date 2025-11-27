@@ -34,7 +34,10 @@ function Select-TidyBestVersion {
         }
 
         $match = [System.Text.RegularExpressions.Regex]::Match($trimmed, '([0-9A-Za-z]+(?:[\._\-+][0-9A-Za-z]+)*)')
-        $candidateValue = if ($match.Success) { $match.Groups[1].Value.Trim() } else { $trimmed }
+        $candidateValue = $trimmed
+        if ($match.Success) {
+            $candidateValue = $match.Groups[1].Value.Trim()
+        }
 
         if (-not [string]::IsNullOrWhiteSpace($candidateValue)) {
             $normalized = $candidateValue.Replace('_', '.').Replace('-', '.')
@@ -166,9 +169,14 @@ function Get-TidyWingetMsixCandidates {
                     $versionString = $null
                 }
 
+                $versionValue = $null
+                if (-not [string]::IsNullOrWhiteSpace($versionString)) {
+                    $versionValue = $versionString
+                }
+
                 $results.Add([pscustomobject]@{
                     Identifier = "MSIX\$fullName"
-                    Version     = if ([string]::IsNullOrWhiteSpace($versionString)) { $null } else { $versionString }
+                    Version     = $versionValue
                 })
             }
         }
@@ -541,7 +549,10 @@ function Get-TidyScoopInstalledVersion {
         # No further fallback available.
     }
 
-    $selectionPool = if ($installedCandidates.Count -gt 0) { $installedCandidates } else { $otherCandidates }
+    $selectionPool = $otherCandidates
+    if ($installedCandidates.Count -gt 0) {
+        $selectionPool = $installedCandidates
+    }
 
     if ($selectionPool.Count -eq 0) {
         return $null
