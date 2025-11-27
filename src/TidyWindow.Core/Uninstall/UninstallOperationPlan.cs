@@ -165,10 +165,20 @@ public sealed class UninstallCommandPlan
                 var ch = _value[_index];
                 _index++;
 
-                if (ch == '\\' && _index < _value.Length)
+                if (ch == '\\')
                 {
-                    buffer.Append(_value[_index]);
-                    _index++;
+                    if (_index < _value.Length)
+                    {
+                        var next = _value[_index];
+                        if (next == '"')
+                        {
+                            buffer.Append('"');
+                            _index++;
+                            continue;
+                        }
+                    }
+
+                    buffer.Append('\\');
                     continue;
                 }
 

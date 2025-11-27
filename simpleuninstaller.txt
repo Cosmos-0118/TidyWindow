@@ -22,11 +22,14 @@ Phase 2 – Orchestration & Maintenance-Style UI [DONE] (see docs/simple-uninsta
 - [DONE] Delivered inline detail pane content (install path, uninstall mode, winget switches) without secondary dialogs so the experience feels like a dashboard.
 - [DONE] Surfaced progress/accessibility affordances: status pills covering Queued/Running/Success/Failed/Cancelled, descriptive log entries, and persistent dry-run toggle adjacent to the hero summary.
 
-Phase 3 – Post-MVP Safe Cleanup (Opt-in)
-1. After v1 ships, introduce optional prompts to delete leftover InstallLocation folders when they are empty or clearly benign; never default to deletion.
-2. Surface suggested shortcut removals (Start Menu, Desktop) only when they point into the removed InstallLocation.
-3. Keep all registry/service cleanup actions outside of scope; instead, log potential items for future scripted fixes.
-4. Present cleanup suggestions in a dedicated pane with per-item confirmations and clear risk copy.
+Phase 3 – Post-MVP Safe Cleanup (Opt-in) [DONE]
+we also do this if every uninstall method fails.
+show this like a pop up when pressed uninstall.
+like we go -> starting uninstall -> running default uninstall -> checking for leftyovers -> summary.
+1. [DONE] Delete leftover InstallLocation folders when they are empty or clearly benign; never default to deletion.
+2. [DONE] Surface all the folders/files linked suggested shortcut removals (Start Menu, Desktop) only when they point into the removed InstallLocation.
+3. [DONE] Keep all registry/service cleanup actions outside of scope; instead, log potential items for future scripted fixes.
+4. [DONE] Present cleanup suggestions in a dedicated pane with per-item confirmations and clear risk copy (Cleanup Assistant overlay).
 
 Phase 4 – Future Enhancements
 1. Add pluggable cleanup providers for specific apps (catalog-driven scripts) and keep them opt-in.

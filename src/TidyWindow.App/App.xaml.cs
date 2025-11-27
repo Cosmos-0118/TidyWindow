@@ -8,6 +8,7 @@ using WpfApplication = System.Windows.Application;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using TidyWindow.App.Services;
+using TidyWindow.App.Services.Cleanup;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views;
 using TidyWindow.Core.Automation;
@@ -83,6 +84,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<PackageMaintenanceService>();
                 services.AddSingleton<IAppInventoryService, AppInventoryService>();
                 services.AddSingleton<IAppUninstallService, AppUninstallService>();
+                services.AddSingleton<AppCleanupPlanner>();
                 services.AddSingleton<EssentialsTaskCatalog>();
                 services.AddSingleton<EssentialsTaskQueue>();
                 services.AddSingleton<IRegistryOptimizerService, RegistryOptimizerService>();

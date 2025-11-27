@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
+using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -8,8 +10,11 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
+using TidyWindow.App.Services.Cleanup;
+using TidyWindow.App.ViewModels.Cleanup;
 using TidyWindow.Core.Uninstall;
 using System.Windows;
+using System.Windows.Data;
 using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.ViewModels;
@@ -20,28 +25,44 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
     private readonly IAppUninstallService _uninstallService;
     private readonly MainViewModel _mainViewModel;
     private readonly ActivityLogService _activityLog;
+    private readonly AppCleanupPlanner _cleanupPlanner;
     private readonly SemaphoreSlim _semaphore = new(1, 1);
+    private readonly Dictionary<string, CleanupFlowStepViewModel> _cleanupStepLookup = new(StringComparer.OrdinalIgnoreCase);
+    private readonly List<CleanupSuggestionViewModel> _cleanupSuggestionPool = new();
     private CancellationTokenSource? _operationCts;
 
     public SimpleUninstallerViewModel(
         IAppInventoryService inventoryService,
         IAppUninstallService uninstallService,
         MainViewModel mainViewModel,
-        ActivityLogService activityLog)
+        ActivityLogService activityLog,
+        AppCleanupPlanner cleanupPlanner)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _uninstallService = uninstallService ?? throw new ArgumentNullException(nameof(uninstallService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
+        _cleanupPlanner = cleanupPlanner ?? throw new ArgumentNullException(nameof(cleanupPlanner));
 
         HeroTitle = "Simple uninstaller";
         HeroSubtitle = "Enumerating installed applications...";
+
+        FilteredApps = CollectionViewSource.GetDefaultView(Apps);
+        FilteredApps.Filter = FilterApp;
+
+        CleanupSuggestions.CollectionChanged += OnCleanupSuggestionsChanged;
+        CleanupRegistryEntries.CollectionChanged += OnCleanupRegistryChanged;
     }
 
     public ObservableCollection<AppRemovalItemViewModel> Apps { get; } = new();
 
+    public ICollectionView FilteredApps { get; }
+
     [ObservableProperty]
     private AppRemovalItemViewModel? _selectedApp;
+
+    [ObservableProperty]
+    private bool _isDetailsPopupOpen;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -58,13 +79,49 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
     [ObservableProperty]
     private string _lastUpdatedText = "Inventory pending";
 
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
+    [ObservableProperty]
+    private SimpleUninstallerPivot _currentPivot = SimpleUninstallerPivot.Inventory;
+
+    public ObservableCollection<CleanupFlowStepViewModel> CleanupSteps { get; } = new();
+
+    public ObservableCollection<CleanupSuggestionViewModel> CleanupSuggestions { get; } = new();
+
+    public ObservableCollection<string> CleanupRegistryEntries { get; } = new();
+
+    [ObservableProperty]
+    private string _cleanupSummary = "Cleanup suggestions will appear after an uninstall.";
+
+    [ObservableProperty]
+    private bool _cleanupApplyInProgress;
+
+    [ObservableProperty]
+    private AppRemovalItemViewModel? _cleanupTarget;
+
     public bool HasApps => Apps.Count > 0;
+
+    public bool HasCleanupSuggestions => CleanupSuggestions.Count > 0;
+
+    public bool HasCleanupRegistryEntries => CleanupRegistryEntries.Count > 0;
+
+    public bool HasCleanupContext => CleanupTarget is not null;
+
+    public string CleanupTargetTitle => CleanupTarget?.Name ?? "No uninstall selected";
 
     public void Dispose()
     {
         _operationCts?.Cancel();
         _operationCts?.Dispose();
         _semaphore.Dispose();
+
+        CleanupSuggestions.CollectionChanged -= OnCleanupSuggestionsChanged;
+        foreach (var suggestion in _cleanupSuggestionPool)
+        {
+            suggestion.PropertyChanged -= OnCleanupSuggestionChanged;
+        }
+        CleanupRegistryEntries.CollectionChanged -= OnCleanupRegistryChanged;
     }
 
     public async Task InitializeAsync()
@@ -121,12 +178,9 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
                 LastUpdatedText = snapshot.GeneratedAt == DateTimeOffset.MinValue
                     ? "Inventory updated"
                     : $"Inventory updated {FormatRelative(snapshot.GeneratedAt)}";
-                HeroSubtitle = ordered.Count == 0
-                    ? "No user-installed applications detected."
-                    : ordered.Count == 1
-                        ? "1 application ready for orchestration"
-                        : $"{ordered.Count} applications ready for orchestration";
+                FilteredApps.Refresh();
                 _mainViewModel.SetStatusMessage($"Inventory ready • {ordered.Count} app(s)");
+                UpdateHeroSubtitle();
             });
 
             _activityLog.LogSuccess(
@@ -163,18 +217,10 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
     }
 
     [RelayCommand]
-    private async Task UninstallSelectedAsync()
+    private async Task UninstallAppAsync(AppRemovalItemViewModel? item)
     {
-        if (IsBusy)
+        if (IsBusy || item is null)
         {
-            return;
-        }
-
-        var targets = Apps.Where(static item => item.IsSelected).ToList();
-        if (targets.Count == 0)
-        {
-            _mainViewModel.SetStatusMessage("Select at least one app to uninstall.");
-            _activityLog.LogWarning("Uninstaller", "Uninstall requested but no apps were selected.");
             return;
         }
 
@@ -182,6 +228,10 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
         _operationCts?.Dispose();
         _operationCts = new CancellationTokenSource();
         var token = _operationCts.Token;
+        var closeDetails = ReferenceEquals(SelectedApp, item);
+
+        BeginCleanupFlow(item);
+        SetCleanupStepState("start", CleanupFlowStepState.Running, "Initializing uninstall...");
 
         await _semaphore.WaitAsync(token);
         try
@@ -189,39 +239,69 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
             IsBusy = true;
             var modeLabel = IsDryRun ? "dry run" : "uninstall";
             _mainViewModel.SetStatusMessage(IsDryRun
-                ? $"Simulating uninstall for {targets.Count} app(s)..."
-                : $"Uninstalling {targets.Count} app(s)...");
+                ? $"Simulating uninstall for {item.Name}..."
+                : $"Uninstalling {item.Name}...");
 
             _activityLog.LogInformation(
                 "Uninstaller",
-                $"Starting {modeLabel} batch for {targets.Count} app(s).",
-                targets.Select(static t => t.Name));
+                $"Starting {modeLabel} for {item.Name}.",
+                new[] { item.Name });
 
-            foreach (var item in targets)
+            token.ThrowIfCancellationRequested();
+            SetCleanupStepState("start", CleanupFlowStepState.Completed, "Queued uninstall flow.");
+
+            SetCleanupStepState("uninstall", CleanupFlowStepState.Running, "Invoking default uninstall...");
+            var uninstallSucceeded = await ProcessItemAsync(item, token);
+            SetCleanupStepState(
+                "uninstall",
+                uninstallSucceeded ? CleanupFlowStepState.Completed : CleanupFlowStepState.Failed,
+                uninstallSucceeded ? "Official uninstall finished." : "Uninstallers reported a failure.");
+
+            SetCleanupStepState("leftovers", CleanupFlowStepState.Running, "Scanning leftover folders...");
+            var plan = await LoadCleanupPlanAsync(item, token);
+            if (plan is not null)
             {
-                token.ThrowIfCancellationRequested();
-                await ProcessItemAsync(item, token);
+                var detail = plan.HasSuggestions
+                    ? $"Found {plan.Suggestions.Count} leftover item(s)."
+                    : "No leftover folders or shortcuts detected.";
+                SetCleanupStepState("leftovers", CleanupFlowStepState.Completed, detail);
             }
+            else
+            {
+                SetCleanupStepState("leftovers", CleanupFlowStepState.Failed, "Unable to inspect leftovers.");
+            }
+
+            var summary = BuildCleanupSummary(uninstallSucceeded, plan);
+            CleanupSummary = summary;
+            SetCleanupStepState("summary", CleanupFlowStepState.Completed, summary);
 
             _mainViewModel.SetStatusMessage(IsDryRun
                 ? "Dry run complete."
-                : "Uninstall batch complete.");
+                : "Uninstall complete.");
 
             _activityLog.LogSuccess(
                 "Uninstaller",
-                $"{modeLabel.ToUpperInvariant()} batch complete",
-                new[] { $"Processed: {targets.Count}", $"Dry run: {IsDryRun}" });
+                $"{modeLabel.ToUpperInvariant()} complete",
+                new[] { $"Target: {item.Name}", $"Dry run: {IsDryRun}" });
         }
         catch (OperationCanceledException)
         {
-            _mainViewModel.SetStatusMessage("Uninstall batch cancelled.");
-            _activityLog.LogWarning("Uninstaller", "Uninstall batch cancelled by user.");
+            _mainViewModel.SetStatusMessage("Uninstall cancelled.");
+            SetCleanupStepState("uninstall", CleanupFlowStepState.Failed, "Cancelled by user.");
+            SetCleanupStepState("leftovers", CleanupFlowStepState.Failed, "Cancelled.");
+            SetCleanupStepState("summary", CleanupFlowStepState.Failed, "Cancelled.");
+            CleanupSummary = "Uninstall cancelled.";
+            _activityLog.LogWarning("Uninstaller", "Uninstall cancelled by user.");
         }
         finally
         {
             IsBusy = false;
             _semaphore.Release();
             UpdateHeroSubtitle();
+            if (closeDetails)
+            {
+                CloseDetails();
+            }
         }
     }
 
@@ -236,18 +316,221 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
         _operationCts?.Cancel();
     }
 
-    [RelayCommand]
-    private void SelectAll()
+    [RelayCommand(CanExecute = nameof(CanApplyCleanup))]
+    private async Task ApplyCleanupAsync()
     {
-        foreach (var app in Apps)
+        if (CleanupTarget is null)
         {
-            app.IsSelected = true;
+            return;
         }
 
-        _mainViewModel.SetStatusMessage($"Selected {Apps.Count} app(s).");
+        var selections = CleanupSuggestions
+            .Where(static suggestion => suggestion.IsSelected)
+            .Select(static suggestion => suggestion.Suggestion)
+            .ToList();
+
+        if (selections.Count == 0)
+        {
+            return;
+        }
+
+        CleanupApplyInProgress = true;
+        try
+        {
+            var result = await _cleanupPlanner.ApplyAsync(selections, CancellationToken.None);
+            foreach (var message in result.Messages)
+            {
+                _activityLog.LogInformation("Uninstaller", message);
+            }
+
+            if (result.Errors.Count > 0)
+            {
+                foreach (var error in result.Errors)
+                {
+                    _activityLog.LogWarning("Uninstaller", error);
+                }
+            }
+
+            CleanupSummary = result.Errors.Count == 0
+                ? $"Deleted {result.Succeeded} leftover item(s)."
+                : $"Deleted {result.Succeeded}/{result.Processed} item(s). Some entries could not be removed.";
+
+            await LoadCleanupPlanAsync(CleanupTarget, CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            CleanupSummary = "Cleanup failed. Check the activity log for details.";
+            _activityLog.LogError("Uninstaller", "Cleanup execution failed", new[] { ex.ToString() });
+        }
+        finally
+        {
+            CleanupApplyInProgress = false;
+        }
     }
 
-    private async Task ProcessItemAsync(AppRemovalItemViewModel item, CancellationToken cancellationToken)
+    private bool CanApplyCleanup()
+    {
+        if (IsDryRun || CleanupApplyInProgress || CleanupTarget is null)
+        {
+            return false;
+        }
+
+        return CleanupSuggestions.Any(static suggestion => suggestion.IsSelected);
+    }
+
+    [RelayCommand]
+    private void SwitchPivot(SimpleUninstallerPivot pivot)
+    {
+        CurrentPivot = pivot;
+    }
+
+    [RelayCommand]
+    private void OpenDetails(AppRemovalItemViewModel? item)
+    {
+        SelectedApp = item;
+        IsDetailsPopupOpen = item is not null;
+    }
+
+    [RelayCommand]
+    private void CloseDetails()
+    {
+        IsDetailsPopupOpen = false;
+        SelectedApp = null;
+    }
+
+    private void BeginCleanupFlow(AppRemovalItemViewModel target)
+    {
+        CleanupTarget = target;
+        CleanupSummary = "Preparing uninstall...";
+        ResetCleanupSuggestions();
+        CleanupSteps.Clear();
+        _cleanupStepLookup.Clear();
+        AddCleanupStep("start", "Starting uninstall");
+        AddCleanupStep("uninstall", "Running default uninstall");
+        AddCleanupStep("leftovers", "Checking leftovers");
+        AddCleanupStep("summary", "Summary");
+        CurrentPivot = SimpleUninstallerPivot.Cleanup;
+    }
+
+    private void ResetCleanupSuggestions()
+    {
+        foreach (var suggestion in _cleanupSuggestionPool)
+        {
+            suggestion.PropertyChanged -= OnCleanupSuggestionChanged;
+        }
+
+        _cleanupSuggestionPool.Clear();
+        CleanupSuggestions.Clear();
+        CleanupRegistryEntries.Clear();
+    }
+
+    private void UpdateCleanupSuggestions(AppCleanupPlan plan)
+    {
+        ResetCleanupSuggestions();
+        foreach (var suggestion in plan.Suggestions)
+        {
+            var vm = new CleanupSuggestionViewModel(suggestion);
+            vm.PropertyChanged += OnCleanupSuggestionChanged;
+            _cleanupSuggestionPool.Add(vm);
+            CleanupSuggestions.Add(vm);
+        }
+
+        UpdateRegistryEntries(plan.DeferredItems);
+    }
+
+    private void UpdateRegistryEntries(IEnumerable<string> entries)
+    {
+        CleanupRegistryEntries.Clear();
+        if (entries is null)
+        {
+            return;
+        }
+
+        foreach (var entry in entries)
+        {
+            if (!string.IsNullOrWhiteSpace(entry))
+            {
+                CleanupRegistryEntries.Add(entry.Trim());
+            }
+        }
+    }
+
+    private async Task<AppCleanupPlan?> LoadCleanupPlanAsync(AppRemovalItemViewModel target, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var plan = await _cleanupPlanner.BuildPlanAsync(target.App, cancellationToken);
+            UpdateCleanupSuggestions(plan);
+
+            foreach (var deferred in plan.DeferredItems)
+            {
+                if (!string.IsNullOrWhiteSpace(deferred))
+                {
+                    _activityLog.LogInformation("Uninstaller", $"Deferred cleanup candidate logged: {deferred}");
+                }
+            }
+
+            return plan;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            ResetCleanupSuggestions();
+            CleanupSummary = "Unable to scan leftovers.";
+            _activityLog.LogError("Uninstaller", $"{target.App.Name}: cleanup discovery failed", new[] { ex.ToString() });
+            return null;
+        }
+    }
+
+    private static string FormatCleanupSummary(bool uninstallSucceeded, AppCleanupPlan? plan, bool isDryRun = false)
+    {
+        var hasSuggestions = plan?.HasSuggestions == true;
+        if (isDryRun)
+        {
+            return hasSuggestions
+                ? "Dry run recorded. Review leftover folders below."
+                : "Dry run recorded. No leftover folders detected.";
+        }
+
+        if (uninstallSucceeded)
+        {
+            return hasSuggestions
+                ? "Uninstall finished. Optional leftovers detected below."
+                : "Uninstall finished with no leftover folders or shortcuts.";
+        }
+
+        return hasSuggestions
+            ? "Default uninstall failed. You can still remove leftover folders or shortcuts below."
+            : "Default uninstall failed. No additional cleanup suggestions detected.";
+    }
+
+    private string BuildCleanupSummary(bool uninstallSucceeded, AppCleanupPlan? plan)
+        => FormatCleanupSummary(uninstallSucceeded, plan, IsDryRun);
+
+    private CleanupFlowStepViewModel AddCleanupStep(string id, string title)
+    {
+        var step = new CleanupFlowStepViewModel(id, title);
+        CleanupSteps.Add(step);
+        _cleanupStepLookup[id] = step;
+        return step;
+    }
+
+    private void SetCleanupStepState(string id, CleanupFlowStepState state, string? detail = null)
+    {
+        if (_cleanupStepLookup.TryGetValue(id, out var step))
+        {
+            step.State = state;
+            if (!string.IsNullOrWhiteSpace(detail))
+            {
+                step.Detail = detail;
+            }
+        }
+    }
+
+    private async Task<bool> ProcessItemAsync(AppRemovalItemViewModel item, CancellationToken cancellationToken)
     {
         item.Status = AppRemovalStatus.Running;
         item.StatusMessage = IsDryRun ? "Simulating uninstall plan..." : "Running uninstall plan...";
@@ -261,7 +544,7 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
                 WingetOnly = item.WingetOnly,
                 MetadataOverrides = new ReadOnlyDictionary<string, string>(new Dictionary<string, string>
                 {
-                    ["UI.Selected"] = item.IsSelected.ToString()
+                    ["UI.Source"] = "SimpleUninstaller"
                 })
             };
 
@@ -281,6 +564,7 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
                     "Uninstaller",
                     $"{item.App.Name}: {(IsDryRun ? "dry run" : "uninstall")} complete.",
                     BuildStepDiagnostics(result));
+                return true;
             }
             else
             {
@@ -294,6 +578,7 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
                     "Uninstaller",
                     $"{item.App.Name}: uninstall failed",
                     BuildStepDiagnostics(result).Concat(errors));
+                return false;
             }
         }
         catch (OperationCanceledException)
@@ -307,22 +592,77 @@ public sealed partial class SimpleUninstallerViewModel : ViewModelBase, IDisposa
             item.Status = AppRemovalStatus.Failed;
             item.StatusMessage = ex.Message;
             _activityLog.LogError("Uninstaller", $"{item.App.Name}: uninstall failed", new[] { ex.ToString() });
-        }
-        finally
-        {
-            item.IsSelected = false;
+            return false;
         }
     }
 
     private void UpdateHeroSubtitle()
     {
-        var selected = Apps.Count(static item => item.IsSelected);
         var total = Apps.Count;
         HeroSubtitle = total == 0
             ? "No user-installed applications detected."
-            : selected == 0
-                ? $"{total} application(s) ready for action"
-                : $"{total} application(s) • {selected} selected";
+            : total == 1
+                ? "1 application ready for action"
+                : $"{total} application(s) ready for action";
+    }
+
+    partial void OnSearchTextChanged(string value)
+    {
+        FilteredApps.Refresh();
+    }
+
+    partial void OnIsDryRunChanged(bool value)
+    {
+        ApplyCleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnCleanupApplyInProgressChanged(bool value)
+    {
+        ApplyCleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnCleanupTargetChanged(AppRemovalItemViewModel? value)
+    {
+        OnPropertyChanged(nameof(CleanupTargetTitle));
+        OnPropertyChanged(nameof(HasCleanupContext));
+        ApplyCleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    private bool FilterApp(object? item)
+    {
+        if (item is not AppRemovalItemViewModel app)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(SearchText))
+        {
+            return true;
+        }
+
+        var query = SearchText.Trim();
+        return app.Name.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (!string.IsNullOrWhiteSpace(app.Publisher) && app.Publisher.Contains(query, StringComparison.OrdinalIgnoreCase))
+            || (!string.IsNullOrWhiteSpace(app.Version) && app.Version.Contains(query, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private void OnCleanupSuggestionsChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasCleanupSuggestions));
+        ApplyCleanupCommand.NotifyCanExecuteChanged();
+    }
+
+    private void OnCleanupSuggestionChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.Equals(e.PropertyName, nameof(CleanupSuggestionViewModel.IsSelected), StringComparison.Ordinal))
+        {
+            ApplyCleanupCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    private void OnCleanupRegistryChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(HasCleanupRegistryEntries));
     }
 
     internal static string FormatRelative(DateTimeOffset timestamp)
@@ -424,12 +764,18 @@ public enum AppRemovalStatus
     Cancelled
 }
 
+public enum SimpleUninstallerPivot
+{
+    Inventory,
+    Cleanup
+}
+
 public sealed partial class AppRemovalItemViewModel : ObservableObject
 {
     public AppRemovalItemViewModel(InstalledApp app)
     {
         App = app ?? throw new ArgumentNullException(nameof(app));
-        StatusMessage = "Idle";
+        StatusMessage = string.Empty;
     }
 
     public InstalledApp App { get; }
@@ -447,9 +793,6 @@ public sealed partial class AppRemovalItemViewModel : ObservableObject
     public bool RequiresElevation => !App.SourceTags.Any(static tag => string.Equals(tag, "User", StringComparison.OrdinalIgnoreCase))
         && (string.IsNullOrWhiteSpace(App.RegistryKey)
             || !App.RegistryKey.Contains("HKEY_CURRENT_USER", StringComparison.OrdinalIgnoreCase));
-
-    [ObservableProperty]
-    private bool _isSelected;
 
     [ObservableProperty]
     private AppRemovalStatus _status = AppRemovalStatus.Idle;
