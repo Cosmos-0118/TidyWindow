@@ -35,6 +35,8 @@
     <SolidColorBrush x:Key="InstallBadgeQueueBackgroundBrush" Color="#12263F"/>
     <SolidColorBrush x:Key="InstallBadgeNeutralBackgroundBrush" Color="#1D2337"/>
     <SolidColorBrush x:Key="InstallBadgeErrorBackgroundBrush" Color="#331A1F"/>
+    <SolidColorBrush x:Key="InstallCardHoverBackgroundBrush" Color="#192C48"/>
+    <SolidColorBrush x:Key="InstallCardHoverBorderBrush" Color="#3F5F97"/>
     <SineEase x:Key="InstallCardHoverEase" EasingMode="EaseOut"/>
 
     <Style x:Key="InstallAccentButtonStyle"
@@ -199,10 +201,11 @@
         </Setter>
         <Setter Property="Effect">
             <Setter.Value>
-                <DropShadowEffect BlurRadius="26"
+                <DropShadowEffect BlurRadius="16"
                                   ShadowDepth="0"
                                   Color="#050A18"
-                                  Opacity="0.18"/>
+                                  Opacity="0.2"
+                                  RenderingBias="Performance"/>
             </Setter.Value>
         </Setter>
     </Style>
@@ -212,40 +215,17 @@
            BasedOn="{StaticResource InstallCardBorderStyle}">
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Trigger.EnterActions>
-                    <BeginStoryboard>
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                             To="1.015"
-                                             Duration="0:0:0.18"
-                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                             To="1.015"
-                                             Duration="0:0:0.18"
-                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
-                                             To="0.4"
-                                             Duration="0:0:0.18"/>
-                        </Storyboard>
-                    </BeginStoryboard>
-                </Trigger.EnterActions>
-                <Trigger.ExitActions>
-                    <BeginStoryboard>
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                             To="1"
-                                             Duration="0:0:0.2"
-                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                             To="1"
-                                             Duration="0:0:0.2"
-                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
-                                             To="0.18"
-                                             Duration="0:0:0.2"/>
-                        </Storyboard>
-                    </BeginStoryboard>
-                </Trigger.ExitActions>
+                <Setter Property="Background" Value="{StaticResource InstallCardHoverBackgroundBrush}"/>
+                <Setter Property="BorderBrush" Value="{StaticResource InstallCardHoverBorderBrush}"/>
+                <Setter Property="Effect">
+                    <Setter.Value>
+                        <DropShadowEffect BlurRadius="18"
+                                          ShadowDepth="0"
+                                          Color="#0A1224"
+                                          Opacity="0.32"
+                                          RenderingBias="Performance"/>
+                    </Setter.Value>
+                </Setter>
             </Trigger>
         </Style.Triggers>
     </Style>

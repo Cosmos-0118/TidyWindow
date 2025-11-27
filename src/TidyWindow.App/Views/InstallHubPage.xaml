@@ -9,9 +9,14 @@
       xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
       xmlns:views="clr-namespace:TidyWindow.App.Views"
     xmlns:sys="clr-namespace:System;assembly=mscorlib"
-      mc:Ignorable="d"
-      Title="Install hub"
-      Background="Transparent">
+    mc:Ignorable="d"
+    Title="Install hub"
+    Background="Transparent"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="Auto"
+    TextOptions.TextHintingMode="Fixed">
     <Page.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

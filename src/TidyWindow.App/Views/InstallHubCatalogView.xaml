@@ -8,7 +8,12 @@
              xmlns:ux="clr-namespace:TidyWindow.App.Controls"
              xmlns:infra="clr-namespace:TidyWindow.App.Infrastructure"
              mc:Ignorable="d"
-             Background="Transparent">
+             Background="Transparent"
+             UseLayoutRounding="True"
+             SnapsToDevicePixels="True"
+             TextOptions.TextFormattingMode="Display"
+             TextOptions.TextRenderingMode="Auto"
+             TextOptions.TextHintingMode="Fixed">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>

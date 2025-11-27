@@ -32,6 +32,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Link the shared app icon so XAML pack URIs can resolve it at runtime -->
+    <Resource Include="..\..\resources\applogo.png">
+      <Link>Assets\AppIcon.png</Link>
+      <LogicalName>Assets/AppIcon.png</LogicalName>
+    </Resource>
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- Ensure automation scripts are deployed alongside the executable so runtime lookups succeed -->
     <Content Include="..\..\automation\**\*.*" Link="automation\%(RecursiveDir)%(Filename)%(Extension)">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

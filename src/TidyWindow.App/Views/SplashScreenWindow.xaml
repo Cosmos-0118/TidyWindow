@@ -15,7 +15,9 @@
         WindowState="Maximized"
         Opacity="0"
         d:DesignWidth="960"
-        d:DesignHeight="540">
+        d:DesignHeight="540"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
     <Window.Resources>
         <LinearGradientBrush x:Key="SplashBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#040A15" Offset="0" />
@@ -174,7 +176,8 @@
                 Width="760"
                 Height="380"
                 HorizontalAlignment="Center"
-                VerticalAlignment="Center">
+            VerticalAlignment="Center"
+            SnapsToDevicePixels="True">
             <Border.RenderTransform>
                 <TransformGroup>
                     <ScaleTransform ScaleX="0.985" ScaleY="0.985" />
@@ -273,7 +276,12 @@
                                     Margin="0,0,0,-10" />
                         </Grid>
                         <Border Width="88" Height="88" CornerRadius="24" Background="#0E192C" BorderBrush="#233554" BorderThickness="1.2" HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <Image Source="pack://application:,,,/resources/applogo.png" Width="56" Height="56" Stretch="Uniform" />
+                            <Image Source="/Assets/AppIcon.png"
+                                   Width="56"
+                                   Height="56"
+                                   Stretch="Uniform"
+                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                   SnapsToDevicePixels="True" />
                         </Border>
                     </Grid>
                 </Grid>
