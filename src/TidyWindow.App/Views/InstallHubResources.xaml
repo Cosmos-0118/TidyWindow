@@ -35,6 +35,7 @@
     <SolidColorBrush x:Key="InstallBadgeQueueBackgroundBrush" Color="#12263F"/>
     <SolidColorBrush x:Key="InstallBadgeNeutralBackgroundBrush" Color="#1D2337"/>
     <SolidColorBrush x:Key="InstallBadgeErrorBackgroundBrush" Color="#331A1F"/>
+    <SineEase x:Key="InstallCardHoverEase" EasingMode="EaseOut"/>
 
     <Style x:Key="InstallAccentButtonStyle"
            TargetType="Button">
@@ -189,6 +190,59 @@
         <Setter Property="Padding" Value="26"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="ClipToBounds" Value="False"/>
+        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+        <Setter Property="RenderTransform">
+            <Setter.Value>
+                <ScaleTransform ScaleX="1"
+                                ScaleY="1"/>
+            </Setter.Value>
+        </Setter>
+        <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect BlurRadius="26"
+                                  ShadowDepth="0"
+                                  Color="#050A18"
+                                  Opacity="0.18"/>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                             To="1.015"
+                                             Duration="0:0:0.18"
+                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                             To="1.015"
+                                             Duration="0:0:0.18"
+                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
+                                             To="0.4"
+                                             Duration="0:0:0.18"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                             To="1"
+                                             Duration="0:0:0.2"
+                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                             To="1"
+                                             Duration="0:0:0.2"
+                                             EasingFunction="{StaticResource InstallCardHoverEase}"/>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
+                                             To="0.18"
+                                             Duration="0:0:0.2"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <x:Array x:Key="InstallHubBundleSkeletonItems" Type="{x:Type sys:Int32}">

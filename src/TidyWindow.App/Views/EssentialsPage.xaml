@@ -995,8 +995,7 @@
                                                                     </Style>
                                                                 </Border.Style>
                                                                 <TextBlock FontSize="11"
-                                                                           FontWeight="SemiBold"
-                                                                           Text="Skipped">
+                                                                           FontWeight="SemiBold">
                                                                     <TextBlock.Style>
                                                                         <Style TargetType="TextBlock">
                                                                             <Setter Property="Foreground" Value="#F97316"/>

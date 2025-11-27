@@ -584,7 +584,6 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
         Installations.CollectionChanged += (_, __) =>
         {
             OnPropertyChanged(nameof(HasInstallations));
-            OnPropertyChanged(nameof(InstallationsToggleLabel));
         };
         ActiveVersionLabel = BuildActiveVersionLabel(runtime, Installations);
         StatusBadges = new ObservableCollection<PathPilotStatusBadgeViewModel>(BuildStatusBadges(runtime));
@@ -648,13 +647,6 @@ public sealed partial class PathPilotRuntimeCardViewModel : ObservableObject
     public bool HasResolutionOrder => ResolutionOrder.Count > 0;
 
     public bool HasInstallations => Installations.Count > 0;
-
-    public string InstallationsToggleLabel => Installations.Count switch
-    {
-        0 => "Installations",
-        1 => "Show 1 installation",
-        _ => $"Show {Installations.Count} installations"
-    };
 
 
     private static IEnumerable<PathPilotStatusBadgeViewModel> BuildStatusBadges(PathPilotRuntime runtime)
