@@ -21,6 +21,8 @@ public sealed class RegistryPreferenceService
     private readonly string _filePath;
     private readonly object _syncRoot = new();
     private Dictionary<string, string> _customValues;
+    private Dictionary<string, bool> _tweakStates;
+    private string? _selectedPresetId;
 
     public RegistryPreferenceService()
         : this(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "TidyWindow", PreferencesFileName))
@@ -36,6 +38,7 @@ public sealed class RegistryPreferenceService
 
         _filePath = filePath;
         _customValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        _tweakStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
 
         LoadFromDisk();
     }
@@ -90,6 +93,64 @@ public sealed class RegistryPreferenceService
         }
     }
 
+    public bool TryGetTweakState(string tweakId, out bool value)
+    {
+        value = default;
+        if (string.IsNullOrWhiteSpace(tweakId))
+        {
+            return false;
+        }
+
+        lock (_syncRoot)
+        {
+            return _tweakStates.TryGetValue(tweakId.Trim(), out value);
+        }
+    }
+
+    public void SetTweakState(string tweakId, bool value)
+    {
+        if (string.IsNullOrWhiteSpace(tweakId))
+        {
+            return;
+        }
+
+        var normalizedId = tweakId.Trim();
+
+        lock (_syncRoot)
+        {
+            if (_tweakStates.TryGetValue(normalizedId, out var existing) && existing == value)
+            {
+                return;
+            }
+
+            _tweakStates[normalizedId] = value;
+            SaveToDiskLocked();
+        }
+    }
+
+    public string? GetSelectedPresetId()
+    {
+        lock (_syncRoot)
+        {
+            return _selectedPresetId;
+        }
+    }
+
+    public void SetSelectedPresetId(string? presetId)
+    {
+        lock (_syncRoot)
+        {
+            var normalized = string.IsNullOrWhiteSpace(presetId) ? null : presetId!.Trim();
+            if (string.Equals(_selectedPresetId, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _selectedPresetId = normalized;
+            SaveToDiskLocked();
+        }
+    }
+
     private void LoadFromDisk()
     {
         try
@@ -101,16 +162,31 @@ public sealed class RegistryPreferenceService
 
             using var stream = File.OpenRead(_filePath);
             var model = JsonSerializer.Deserialize<RegistryPreferenceModel>(stream, SerializerOptions);
-            if (model?.CustomValues is null)
+            if (model is null)
             {
                 return;
             }
 
-            _customValues = new Dictionary<string, string>(model.CustomValues, StringComparer.OrdinalIgnoreCase);
+            if (model.CustomValues is not null)
+            {
+                _customValues = new Dictionary<string, string>(model.CustomValues, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (model.TweakStates is not null)
+            {
+                _tweakStates = new Dictionary<string, bool>(model.TweakStates, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (!string.IsNullOrWhiteSpace(model.SelectedPresetId))
+            {
+                _selectedPresetId = model.SelectedPresetId;
+            }
         }
         catch
         {
             _customValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            _tweakStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            _selectedPresetId = null;
         }
     }
 
@@ -126,7 +202,9 @@ public sealed class RegistryPreferenceService
 
             var model = new RegistryPreferenceModel
             {
-                CustomValues = new Dictionary<string, string>(_customValues, StringComparer.OrdinalIgnoreCase)
+                CustomValues = new Dictionary<string, string>(_customValues, StringComparer.OrdinalIgnoreCase),
+                TweakStates = new Dictionary<string, bool>(_tweakStates, StringComparer.OrdinalIgnoreCase),
+                SelectedPresetId = _selectedPresetId
             };
 
             using var stream = File.Create(_filePath);
@@ -141,5 +219,9 @@ public sealed class RegistryPreferenceService
     private sealed class RegistryPreferenceModel
     {
         public Dictionary<string, string>? CustomValues { get; set; }
+
+        public Dictionary<string, bool>? TweakStates { get; set; }
+
+        public string? SelectedPresetId { get; set; }
     }
 }

@@ -23,6 +23,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private readonly IRegistryOptimizerService _registryService;
     private readonly RegistryPreferenceService _registryPreferenceService;
     private bool _isInitialized;
+    private bool _isRestoringState;
 
     public event EventHandler<RegistryRestorePointCreatedEventArgs>? RestorePointCreated;
 
@@ -42,7 +43,16 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
         PopulateFromConfiguration();
 
-        SelectedPreset = Presets.FirstOrDefault(preset => preset.IsDefault) ?? Presets.FirstOrDefault();
+        var restoredUserState = RestoreUserSelectionsFromPreferences();
+        var initialPreset = DetermineInitialPreset();
+
+        if (initialPreset is not null)
+        {
+            _isRestoringState = restoredUserState;
+            SelectedPreset = initialPreset;
+            _isRestoringState = false;
+        }
+
         foreach (var tweak in Tweaks)
         {
             tweak.CommitSelection();
@@ -85,15 +95,26 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasRestorePoint;
 
+    [ObservableProperty]
+    private DateTimeOffset? _latestRestorePointLocalTime;
+
     partial void OnSelectedPresetChanged(RegistryPresetViewModel? oldValue, RegistryPresetViewModel? newValue)
     {
         if (newValue is null)
+        {
+            _registryPreferenceService.SetSelectedPresetId(null);
+            UpdatePresetCustomizationState();
+            return;
+        }
+
+        if (_isRestoringState)
         {
             UpdatePresetCustomizationState();
             return;
         }
 
         ApplyPreset(newValue);
+        _registryPreferenceService.SetSelectedPresetId(newValue.Id);
         if (_isInitialized)
         {
             _mainViewModel.SetStatusMessage($"Preset '{newValue.Name}' loaded.");
@@ -286,6 +307,37 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         UpdateValidationState();
     }
 
+    private bool RestoreUserSelectionsFromPreferences()
+    {
+        var restored = false;
+
+        foreach (var tweak in Tweaks)
+        {
+            if (_registryPreferenceService.TryGetTweakState(tweak.Id, out var state))
+            {
+                tweak.SetSelection(state);
+                restored = true;
+            }
+        }
+
+        return restored;
+    }
+
+    private RegistryPresetViewModel? DetermineInitialPreset()
+    {
+        var storedPresetId = _registryPreferenceService.GetSelectedPresetId();
+        if (!string.IsNullOrWhiteSpace(storedPresetId))
+        {
+            var storedPreset = Presets.FirstOrDefault(preset => string.Equals(preset.Id, storedPresetId, StringComparison.OrdinalIgnoreCase));
+            if (storedPreset is not null)
+            {
+                return storedPreset;
+            }
+        }
+
+        return Presets.FirstOrDefault(preset => preset.IsDefault) ?? Presets.FirstOrDefault();
+    }
+
     private void UpdatePendingChanges()
     {
         var pending = Tweaks.Any(tweak => tweak.HasPendingChanges);
@@ -407,6 +459,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private void UpdateRestorePointState(RegistryRestorePoint? restorePoint)
     {
         LatestRestorePoint = restorePoint;
+        LatestRestorePointLocalTime = restorePoint?.CreatedUtc.ToLocalTime();
     }
 
     private void OnRestorePointCreated(RegistryRestorePoint restorePoint)
@@ -522,6 +575,11 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasPendingChanges))]
     private bool _isSelected;
+
+    partial void OnIsSelectedChanged(bool oldValue, bool newValue)
+    {
+        _preferences.SetTweakState(Id, newValue);
+    }
 
     [ObservableProperty]
     private string? _recommendedValue;

@@ -135,12 +135,45 @@
         </Style.Triggers>
     </Style>
 
+
     <Style x:Key="RegistryTweakCardContainerStyle"
            TargetType="Border"
            BasedOn="{StaticResource RegistryToggleRowStyle}">
         <Setter Property="BorderBrush"
                 Value="Transparent"/>
         <Style.Triggers>
+                        <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                                                           Value="False"/>
+                                        <Condition Binding="{Binding RiskLevel}" Value="Safe"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="BorderBrush" Value="#29A373"/>
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                                                           Value="False"/>
+                                        <Condition Binding="{Binding RiskLevel}" Value="Moderate"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="BorderBrush" Value="#F97316"/>
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                                                           Value="False"/>
+                                        <Condition Binding="{Binding RiskLevel}" Value="Caution"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="BorderBrush" Value="#FACC15"/>
+                        </MultiDataTrigger>
+                        <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
+                                                           Value="False"/>
+                                        <Condition Binding="{Binding RiskLevel}" Value="Advanced"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="BorderBrush" Value="#F87171"/>
+                        </MultiDataTrigger>
             <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
                          Value="True">
                 <Setter Property="Background"
@@ -205,6 +238,35 @@
                 Value="#243654"/>
         <Setter Property="BorderThickness"
                 Value="1"/>
+    </Style>
+
+    <Style x:Key="RegistryDangerChipStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource RegistryMetaPillStyle}">
+        <Setter Property="Background" Value="#132A42"/>
+        <Setter Property="BorderBrush" Value="#1F3B57"/>
+        <Style.Triggers>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Safe">
+                <Setter Property="Background" Value="#0F2D23"/>
+                <Setter Property="BorderBrush" Value="#34D399"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Moderate">
+                <Setter Property="Background" Value="#3B2410"/>
+                <Setter Property="BorderBrush" Value="#F97316"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Caution">
+                <Setter Property="Background" Value="#332805"/>
+                <Setter Property="BorderBrush" Value="#FACC15"/>
+            </DataTrigger>
+            <DataTrigger Binding="{Binding RiskLevel}"
+                         Value="Advanced">
+                <Setter Property="Background" Value="#3C1316"/>
+                <Setter Property="BorderBrush" Value="#F87171"/>
+            </DataTrigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="RegistryValueChipStyle"
