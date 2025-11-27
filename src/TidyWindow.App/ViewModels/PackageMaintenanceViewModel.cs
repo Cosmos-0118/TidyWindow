@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Threading;
@@ -2172,8 +2173,16 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     public string DisplayName
     {
         get => _displayName;
-        private set => SetProperty(ref _displayName, value ?? string.Empty);
+        private set
+        {
+            if (SetProperty(ref _displayName, value ?? string.Empty))
+            {
+                OnPropertyChanged(nameof(DisplayInitial));
+            }
+        }
     }
+
+    public string DisplayInitial => TryGetInitial(DisplayName);
 
     public string InstalledVersion
     {
@@ -2510,5 +2519,30 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
         }
 
         return candidate.Trim('.');
+    }
+
+    private static string TryGetInitial(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "?";
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.Length == 0)
+        {
+            return "?";
+        }
+
+        var enumerator = StringInfo.GetTextElementEnumerator(trimmed);
+        if (enumerator.MoveNext())
+        {
+            var element = enumerator.GetTextElement();
+            return string.IsNullOrWhiteSpace(element)
+                ? "?"
+                : element.ToUpperInvariant();
+        }
+
+        return "?";
     }
 }

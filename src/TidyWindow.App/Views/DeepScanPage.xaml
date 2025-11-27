@@ -2,9 +2,10 @@
       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
-    xmlns:controls="clr-namespace:TidyWindow.App.Views"
+            xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+        xmlns:controls="clr-namespace:TidyWindow.App.Views"
+        xmlns:ux="clr-namespace:TidyWindow.App.Controls"
       mc:Ignorable="d"
       Title="Deep scan"
       Background="Transparent">
@@ -413,13 +414,19 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <StackPanel Orientation="Vertical"
-                                Margin="0,0,0,16">
-                        <WrapPanel Margin="0"
-                                   HorizontalAlignment="Stretch">
+                        <StackPanel Orientation="Vertical"
+                            Margin="0,0,0,16">
+                        <ux:AdaptiveTilePanel Margin="0"
+                                      MinColumnWidth="240"
+                                      MaxColumnWidth="420"
+                                      MinColumns="1"
+                                      MaxColumns="4"
+                                      ColumnSpacing="20"
+                                      RowSpacing="16"
+                                      Padding="0">
                             <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="320"
-                                    MaxWidth="480">
+                                MinWidth="320"
+                                MaxWidth="480">
                                 <StackPanel>
                                     <TextBlock Text="Target location"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -467,7 +474,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource FilterCardBorderStyle}"
+                                <Border Style="{StaticResource FilterCardBorderStyle}"
                                     MinWidth="240"
                                     MaxWidth="320">
                                 <StackPanel>
@@ -499,7 +506,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource FilterCardBorderStyle}"
+                                <Border Style="{StaticResource FilterCardBorderStyle}"
                                     MinWidth="220"
                                     MaxWidth="260">
                                 <StackPanel>
@@ -521,7 +528,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border Style="{StaticResource FilterCardBorderStyle}"
+                                <Border Style="{StaticResource FilterCardBorderStyle}"
                                     MinWidth="280"
                                     MaxWidth="360">
                                 <StackPanel>
@@ -543,7 +550,7 @@
                                               Foreground="#E2E8F0"/>
                                 </StackPanel>
                             </Border>
-                        </WrapPanel>
+                        </ux:AdaptiveTilePanel>
                     </StackPanel>
 
                     <Grid Grid.Row="1">
@@ -586,21 +593,21 @@
                             </StackPanel>
                         </DockPanel>
 
-                        <ListView x:Name="FindingsListView"
-                                  Grid.Row="1"
-                                  ItemsSource="{Binding VisibleFindings}"
-                                  Background="Transparent"
-                                  BorderThickness="0"
-                                  Foreground="#F8FAFC"
-                                  ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  ScrollViewer.CanContentScroll="True"
-                                  VirtualizingPanel.IsVirtualizing="True"
-                                  VirtualizingPanel.VirtualizationMode="Recycling"
-                                  VirtualizingPanel.CacheLength="1"
-                                  VirtualizingPanel.CacheLengthUnit="Item"
-                                  VirtualizingStackPanel.ScrollUnit="Pixel"
-                                  Loaded="FindingsListView_Loaded">
+                        <ux:BubbleScrollListView x:Name="FindingsListView"
+                                                 Grid.Row="1"
+                                                 ItemsSource="{Binding VisibleFindings}"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Foreground="#F8FAFC"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.CanContentScroll="True"
+                                                 VirtualizingPanel.IsVirtualizing="True"
+                                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                                 VirtualizingPanel.CacheLength="1"
+                                                 VirtualizingPanel.CacheLengthUnit="Item"
+                                                 VirtualizingStackPanel.ScrollUnit="Pixel"
+                                                 ParentScrollViewerName="RootScrollViewer">
                             <ListView.Resources>
                                 <Style x:Key="DeepScanChipStyle"
                                        TargetType="Border">
@@ -915,7 +922,7 @@
                                 <Binding Path="IsBusy"
                                          Converter="{StaticResource InverseBooleanConverter}"/>
                             </ListView.IsEnabled>
-                        </ListView>
+                        </ux:BubbleScrollListView>
 
                         <TextBlock Grid.Row="1"
                                    Text="No findings yet. Adjust the filters and run a scan."

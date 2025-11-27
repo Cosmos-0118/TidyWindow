@@ -107,14 +107,14 @@ public sealed class AdaptiveTilePanel : WpfPanel
         var horizontalPadding = padding.Left + padding.Right;
         var verticalPadding = padding.Top + padding.Bottom;
 
-        var (columns, tileWidth, usedWidth) = CalculateLayout(Math.Max(0, viewportWidth - horizontalPadding));
-        if (columns == 0)
+        var layout = CalculateLayout(Math.Max(0, viewportWidth - horizontalPadding));
+        if (layout.Columns == 0)
         {
             return WpfSize.Empty;
         }
 
         _rowHeights.Clear();
-        var childConstraint = new WpfSize(tileWidth, double.PositiveInfinity);
+        var childConstraint = new WpfSize(layout.TileWidth, double.PositiveInfinity);
         var columnIndex = 0;
         var currentRowHeight = 0d;
 
@@ -129,7 +129,7 @@ public sealed class AdaptiveTilePanel : WpfPanel
             currentRowHeight = Math.Max(currentRowHeight, child.DesiredSize.Height);
             columnIndex++;
 
-            if (columnIndex == columns)
+            if (columnIndex == layout.Columns)
             {
                 _rowHeights.Add(currentRowHeight);
                 columnIndex = 0;
@@ -143,10 +143,16 @@ public sealed class AdaptiveTilePanel : WpfPanel
         }
 
         var totalHeight = verticalPadding + SumHeights(_rowHeights, RowSpacing);
-        var desiredWidth = horizontalPadding + usedWidth;
-        var widthToReport = double.IsInfinity(availableSize.Width)
-            ? desiredWidth
-            : Math.Min(desiredWidth, availableSize.Width);
+        var desiredWidth = horizontalPadding + layout.UsedWidth;
+        double widthToReport;
+        if (double.IsInfinity(availableSize.Width))
+        {
+            widthToReport = Math.Max(desiredWidth, viewportWidth);
+        }
+        else
+        {
+            widthToReport = Math.Min(desiredWidth, availableSize.Width);
+        }
 
         return new WpfSize(widthToReport, totalHeight);
     }
@@ -157,8 +163,8 @@ public sealed class AdaptiveTilePanel : WpfPanel
         var padding = Padding;
         var horizontalPadding = padding.Left + padding.Right;
         var verticalPadding = padding.Top + padding.Bottom;
-        var (columns, tileWidth, _) = CalculateLayout(Math.Max(0, viewportWidth - horizontalPadding));
-        if (columns == 0)
+        var layout = CalculateLayout(Math.Max(0, viewportWidth - horizontalPadding));
+        if (layout.Columns == 0)
         {
             return finalSize;
         }
@@ -172,10 +178,10 @@ public sealed class AdaptiveTilePanel : WpfPanel
         var rowIndex = 0;
         var y = padding.Top;
         var rowHeight = 0d;
-        var increment = tileWidth + ColumnSpacing;
+        var increment = layout.TileWidth + layout.Spacing;
         var isRightToLeft = FlowDirection == System.Windows.FlowDirection.RightToLeft;
         var rowOriginX = isRightToLeft
-            ? padding.Left + Math.Max(0, columns - 1) * increment
+            ? padding.Left + Math.Max(0, layout.Columns - 1) * increment
             : padding.Left;
         var x = rowOriginX;
 
@@ -187,10 +193,10 @@ public sealed class AdaptiveTilePanel : WpfPanel
             }
 
             rowHeight = rowIndex < _rowHeights.Count ? _rowHeights[rowIndex] : child.DesiredSize.Height;
-            child.Arrange(new Rect(x, y, tileWidth, rowHeight));
+            child.Arrange(new Rect(x, y, layout.TileWidth, rowHeight));
 
             columnIndex++;
-            if (columnIndex == columns)
+            if (columnIndex == layout.Columns)
             {
                 columnIndex = 0;
                 rowIndex++;
@@ -199,14 +205,15 @@ public sealed class AdaptiveTilePanel : WpfPanel
             }
             else
             {
-                x += isRightToLeft ? -(tileWidth + ColumnSpacing) : (tileWidth + ColumnSpacing);
+                var delta = layout.TileWidth + layout.Spacing;
+                x += isRightToLeft ? -delta : delta;
             }
         }
 
         return finalSize;
     }
 
-    private (int columns, double tileWidth, double usedWidth) CalculateLayout(double availableWidth)
+    private LayoutResult CalculateLayout(double availableWidth)
     {
         var width = double.IsNaN(availableWidth) || availableWidth <= 0 ? MinColumnWidth : availableWidth;
         var minWidth = Math.Max(MinimumTileWidth, MinColumnWidth);
@@ -238,8 +245,40 @@ public sealed class AdaptiveTilePanel : WpfPanel
         }
 
         tileWidth = Math.Max(minWidth, Math.Min(maxWidth, tileWidth));
-        var usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * ColumnSpacing;
-        return (columns, tileWidth, usedWidth);
+
+        var spacing = ColumnSpacing;
+        var usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;
+
+        if (columns > 1)
+        {
+            var leftover = Math.Max(0, width - usedWidth);
+            if (leftover > 0)
+            {
+                spacing += leftover / (columns - 1); // stretch spacing to soak up free width
+                usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;
+            }
+        }
+
+        return new LayoutResult(columns, tileWidth, usedWidth, spacing);
+    }
+
+    private readonly struct LayoutResult
+    {
+        public LayoutResult(int columns, double tileWidth, double usedWidth, double spacing)
+        {
+            Columns = columns;
+            TileWidth = tileWidth;
+            UsedWidth = usedWidth;
+            Spacing = spacing;
+        }
+
+        public int Columns { get; }
+
+        public double TileWidth { get; }
+
+        public double UsedWidth { get; }
+
+        public double Spacing { get; }
     }
 
     private double ComputeTileWidth(double width, int columns)
@@ -254,6 +293,12 @@ public sealed class AdaptiveTilePanel : WpfPanel
         if (!double.IsNaN(size.Width) && !double.IsInfinity(size.Width) && size.Width > 0)
         {
             return size.Width;
+        }
+
+        var scrollViewerWidth = FindScrollViewerWidth(this);
+        if (scrollViewerWidth > 0)
+        {
+            return scrollViewerWidth;
         }
 
         if (Parent is FrameworkElement parent && parent.ActualWidth > 0)
@@ -278,6 +323,30 @@ public sealed class AdaptiveTilePanel : WpfPanel
         }
 
         return MinColumnWidth;
+    }
+
+    private static double FindScrollViewerWidth(DependencyObject source)
+    {
+        var current = source;
+        while (current != null)
+        {
+            if (current is ScrollViewer scrollViewer)
+            {
+                if (scrollViewer.ViewportWidth > 0)
+                {
+                    return scrollViewer.ViewportWidth;
+                }
+
+                if (scrollViewer.ActualWidth > 0)
+                {
+                    return scrollViewer.ActualWidth;
+                }
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return double.NaN;
     }
 
     private static double FindAncestorWidth(DependencyObject source)

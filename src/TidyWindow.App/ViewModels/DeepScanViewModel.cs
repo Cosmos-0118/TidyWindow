@@ -276,8 +276,9 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             var existsOnDisk = item.IsDirectory ? Directory.Exists(path) : File.Exists(path);
             if (!existsOnDisk)
             {
-                RemoveFinding(item.Finding);
-                _mainViewModel.SetStatusMessage($"'{name}' was already missing. Removed from the results.");
+                var removedCount = RemoveFinding(item.Finding);
+                var suffix = removedCount > 1 ? $" and {removedCount - 1} related item(s)" : string.Empty;
+                _mainViewModel.SetStatusMessage($"'{name}' was already missing. Removed from the results{suffix}.");
                 return;
             }
 
@@ -286,8 +287,9 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
             if (success)
             {
-                RemoveFinding(item.Finding);
-                _mainViewModel.SetStatusMessage($"Deleted '{name}'.");
+                var removedCount = RemoveFinding(item.Finding);
+                var suffix = removedCount > 1 ? $" and {removedCount - 1} nested item(s)" : string.Empty;
+                _mainViewModel.SetStatusMessage($"Deleted '{name}'{suffix}.");
             }
             else
             {
@@ -364,32 +366,52 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         SetTotalFindings(0, resetPage: true, forceRefresh: true);
     }
 
-    private void RemoveFinding(DeepScanFinding? finding)
+    private int RemoveFinding(DeepScanFinding? finding)
     {
         if (finding is null)
         {
-            return;
+            return 0;
         }
 
-        var removed = false;
+        var comparison = StringComparison.OrdinalIgnoreCase;
+        var directoryPrefix = finding.IsDirectory ? NormalizeDirectoryPrefix(finding.Path) : null;
+        var removed = 0;
         for (var index = _allFindings.Count - 1; index >= 0; index--)
         {
             var current = _allFindings[index];
-            if (ReferenceEquals(current, finding) || string.Equals(current.Path, finding.Path, StringComparison.OrdinalIgnoreCase))
+            if (ReferenceEquals(current, finding)
+                || string.Equals(current.Path, finding.Path, comparison)
+                || (directoryPrefix is not null && current.Path.StartsWith(directoryPrefix, comparison)))
             {
                 _allFindings.RemoveAt(index);
-                removed = true;
-                break;
+                removed++;
             }
         }
 
-        if (!removed)
+        if (removed == 0)
         {
-            return;
+            return 0;
         }
 
         SetTotalFindings(_allFindings.Count, resetPage: false, forceRefresh: true);
         UpdateSummaryFromFindings();
+        return removed;
+    }
+
+    private static string? NormalizeDirectoryPrefix(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        path = path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        return path.EndsWith(Path.DirectorySeparatorChar) ? path : path + Path.DirectorySeparatorChar;
     }
 
     private void UpdateSummaryFromFindings()

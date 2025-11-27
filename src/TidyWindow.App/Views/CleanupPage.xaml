@@ -7,6 +7,7 @@
     xmlns:converters="clr-namespace:TidyWindow.App.Converters"
         xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
         xmlns:controls="clr-namespace:TidyWindow.App.Views"
+        xmlns:ux="clr-namespace:TidyWindow.App.Controls"
             mc:Ignorable="d"
             Title="Cleanup"
             UseLayoutRounding="True"
@@ -1763,24 +1764,25 @@
                 Background="{StaticResource CleanupSurfaceBrush}"
                 CornerRadius="10"
                 Effect="{StaticResource CardShadowEffect}">
-                            <ListView x:Name="CategoryListView"
-                                      ItemsSource="{Binding Targets}"
-                                      SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
-                                      Background="Transparent"
-                                      BorderThickness="0"
-                                      Foreground="{StaticResource CleanupSoftTextBrush}"
-                                      Padding="12,12,12,4"
-                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                      ScrollViewer.CanContentScroll="True"
-                                      ScrollViewer.IsDeferredScrollingEnabled="True"
-                                      VirtualizingPanel.IsVirtualizing="True"
-                                      VirtualizingPanel.IsVirtualizingWhenGrouping="True"
-                                      VirtualizingPanel.IsContainerVirtualizable="True"
-                                      VirtualizingPanel.ScrollUnit="Pixel"
-                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                      VirtualizingPanel.CacheLength="1"
-                                      VirtualizingPanel.CacheLengthUnit="Page">
+                            <ux:BubbleScrollListView x:Name="CategoryListView"
+                                                     ItemsSource="{Binding Targets}"
+                                                     SelectedItem="{Binding SelectedTarget, Mode=TwoWay}"
+                                                     Background="Transparent"
+                                                     BorderThickness="0"
+                                                     Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                     Padding="12,12,12,4"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                     ScrollViewer.CanContentScroll="True"
+                                                     ScrollViewer.IsDeferredScrollingEnabled="True"
+                                                     VirtualizingPanel.IsVirtualizing="True"
+                                                     VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                                     VirtualizingPanel.IsContainerVirtualizable="True"
+                                                     VirtualizingPanel.ScrollUnit="Pixel"
+                                                     VirtualizingPanel.VirtualizationMode="Recycling"
+                                                     VirtualizingPanel.CacheLength="1"
+                                                     VirtualizingPanel.CacheLengthUnit="Page"
+                                                     ParentScrollViewerName="RootScrollViewer">
                                 <ListView.ItemsPanel>
                                     <ItemsPanelTemplate>
                                         <VirtualizingStackPanel
@@ -1905,7 +1907,7 @@
                                     <Binding Path="IsBusy"
                                              Converter="{StaticResource InverseBooleanConverter}"/>
                                 </ListView.IsEnabled>
-                            </ListView>
+                            </ux:BubbleScrollListView>
                         </Border>
 
             <Border x:Name="ItemListHost"
@@ -1955,23 +1957,24 @@
 
                                 <Grid Grid.Row="1"
                                       Margin="8,0,8,12">
-                                    <ListView x:Name="ItemListView"
-                                              ItemsSource="{Binding FilteredItems}"
-                                              Background="Transparent"
-                                              BorderThickness="0"
-                                              Foreground="{StaticResource CleanupSoftTextBrush}"
-                                              Padding="8,8,8,4"
-                                              ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                              ScrollViewer.CanContentScroll="True"
-                                              ScrollViewer.IsDeferredScrollingEnabled="True"
-                                              VirtualizingPanel.IsVirtualizing="True"
-                                              VirtualizingPanel.IsVirtualizingWhenGrouping="True"
-                                              VirtualizingPanel.IsContainerVirtualizable="True"
-                                              VirtualizingPanel.ScrollUnit="Pixel"
-                                              VirtualizingPanel.VirtualizationMode="Recycling"
-                                              VirtualizingPanel.CacheLength="1"
-                                              VirtualizingPanel.CacheLengthUnit="Page">
+                                    <ux:BubbleScrollListView x:Name="ItemListView"
+                                                             ItemsSource="{Binding FilteredItems}"
+                                                             Background="Transparent"
+                                                             BorderThickness="0"
+                                                             Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                             Padding="8,8,8,4"
+                                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                             ScrollViewer.CanContentScroll="True"
+                                                             ScrollViewer.IsDeferredScrollingEnabled="True"
+                                                             VirtualizingPanel.IsVirtualizing="True"
+                                                             VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                                                             VirtualizingPanel.IsContainerVirtualizable="True"
+                                                             VirtualizingPanel.ScrollUnit="Pixel"
+                                                             VirtualizingPanel.VirtualizationMode="Recycling"
+                                                             VirtualizingPanel.CacheLength="1"
+                                                             VirtualizingPanel.CacheLengthUnit="Page"
+                                                             ParentScrollViewerName="RootScrollViewer">
                                         <ListView.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <VirtualizingStackPanel
@@ -2111,7 +2114,7 @@
                                             <Binding Path="IsBusy"
                                                      Converter="{StaticResource InverseBooleanConverter}"/>
                                         </ListView.IsEnabled>
-                                    </ListView>
+                                    </ux:BubbleScrollListView>
 
                                     <TextBlock Text="Select a category to review its items."
                                                Foreground="{StaticResource CleanupMutedTextBrush}"

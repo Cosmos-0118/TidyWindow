@@ -637,16 +637,16 @@
                                Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <ux:AdaptiveTilePanel Margin="0,18,0,0"
-                                      MinColumnWidth="120"
-                                      ColumnSpacing="12"
-                                      RowSpacing="12">
-                    <Button Content="Q"
+                <ux:AdaptiveTilePanel Margin="0,20,0,0"
+                                      MinColumnWidth="180"
+                                      ColumnSpacing="16"
+                                      RowSpacing="16">
+                    <Button Content="Queue update"
                             Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                            Width="42"
-                            Height="36"
-                            Padding="0"
+                            MinWidth="180"
+                            Height="44"
+                            Padding="18,8"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
                             AutomationProperties.Name="Queue update">
@@ -673,12 +673,12 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="R"
+                        <Button Content="Remove"
                             Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                            Width="42"
-                            Height="36"
-                            Padding="0"
+                            MinWidth="160"
+                            Height="44"
+                            Padding="18,8"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
                             AutomationProperties.Name="Remove">
@@ -705,12 +705,12 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                    <Button Content="F"
+                        <Button Content="Force cleanup"
                             Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                            Width="42"
-                            Height="36"
-                            Padding="0"
+                            MinWidth="160"
+                            Height="44"
+                            Padding="18,8"
                             HorizontalContentAlignment="Center"
                             VerticalContentAlignment="Center"
                             AutomationProperties.Name="Force cleanup">
@@ -931,55 +931,89 @@
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
 
-                                        <ux:AdaptiveTilePanel Grid.Row="1"
-                                                 MinColumnWidth="200"
-                                                 ColumnSpacing="12"
-                                                 RowSpacing="12">
-                                        <TextBox MinWidth="220"
-                                             Style="{StaticResource App.TextBoxStyle}"
-                                             ToolTip="Filter by package name, identifier, manager, or tag"
-                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
-                                        <ComboBox Width="180"
-                                              ItemsSource="{Binding ManagerFilters}"
-                                              SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
-                                              Style="{StaticResource App.ComboBoxStyle}"/>
-                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                              Content="Updates only"
-                                              IsChecked="{Binding UpdatesOnly, Mode=TwoWay}"
-                                              Foreground="#F8FAFC"
-                                              VerticalAlignment="Center"/>
-                                        <Button Content="Queue selected"
-                                            Command="{Binding QueueSelectedUpdatesCommand}"
-                                            Style="{StaticResource AccentButtonStyle}"/>
-                                        </ux:AdaptiveTilePanel>
-
-                                    <ux:AdaptiveTilePanel Grid.Row="2"
-                                                         MinColumnWidth="120"
-                                                         ColumnSpacing="12"
-                                                         RowSpacing="8"
-                                                         Margin="0,4,0,0">
-                                        <Border Background="#1E293B"
-                                                CornerRadius="4"
-                                                Padding="6,2">
-                                            <TextBlock Text="Q → Queue update"
+                                    <ux:AdaptiveTilePanel Grid.Row="1"
+                                                         MinColumnWidth="260"
+                                                         ColumnSpacing="24"
+                                                         RowSpacing="18"
+                                                         Padding="0,4,0,4">
+                                        <StackPanel>
+                                            <TextBlock Text="Keyword"
                                                        Foreground="#94A3B8"
-                                                       FontSize="11"/>
-                                        </Border>
-                                        <Border Background="#1E293B"
-                                                CornerRadius="4"
-                                                Padding="6,2">
-                                            <TextBlock Text="R → Remove"
+                                                       FontSize="11"
+                                                       Margin="0,0,0,6"/>
+                                            <TextBox MinWidth="240"
+                                                     Style="{StaticResource App.TextBoxStyle}"
+                                                     ToolTip="Filter by package name, identifier, manager, or tag"
+                                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Manager"
                                                        Foreground="#94A3B8"
-                                                       FontSize="11"/>
-                                        </Border>
-                                        <Border Background="#1E293B"
-                                                CornerRadius="4"
-                                                Padding="6,2">
-                                            <TextBlock Text="F → Force cleanup"
+                                                       FontSize="11"
+                                                       Margin="0,0,0,6"/>
+                                            <ComboBox MinWidth="220"
+                                                      ItemsSource="{Binding ManagerFilters}"
+                                                      SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
+                                                      Style="{StaticResource App.ComboBoxStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Scope"
                                                        Foreground="#94A3B8"
-                                                       FontSize="11"/>
-                                        </Border>
+                                                       FontSize="11"
+                                                       Margin="0,0,0,6"/>
+                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                      Content="Updates only"
+                                                      IsChecked="{Binding UpdatesOnly, Mode=TwoWay}"
+                                                      Foreground="#F8FAFC"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Bulk actions"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="11"
+                                                       Margin="0,0,0,6"/>
+                                            <Button Content="Queue selected"
+                                                    MinWidth="200"
+                                                    Height="42"
+                                                    Command="{Binding QueueSelectedUpdatesCommand}"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                        </StackPanel>
                                     </ux:AdaptiveTilePanel>
+
+                                    <StackPanel Grid.Row="2"
+                                                Margin="0,16,0,0">
+                                        <TextBlock Text="Keyboard shortcuts"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="11"
+                                                   Margin="0,0,0,6"/>
+                                        <ux:AdaptiveTilePanel MinColumnWidth="150"
+                                                             ColumnSpacing="16"
+                                                             RowSpacing="10">
+                                            <Border Background="#101A2A"
+                                                    CornerRadius="6"
+                                                    Padding="10,4">
+                                                <TextBlock Text="Q → Queue update"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="11"
+                                                           TextAlignment="Center"/>
+                                            </Border>
+                                            <Border Background="#101A2A"
+                                                    CornerRadius="6"
+                                                    Padding="10,4">
+                                                <TextBlock Text="R → Remove"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="11"
+                                                           TextAlignment="Center"/>
+                                            </Border>
+                                            <Border Background="#101A2A"
+                                                    CornerRadius="6"
+                                                    Padding="10,4">
+                                                <TextBlock Text="F → Force cleanup"
+                                                           Foreground="#CBD5F5"
+                                                           FontSize="11"
+                                                           TextAlignment="Center"/>
+                                            </Border>
+                                        </ux:AdaptiveTilePanel>
+                                    </StackPanel>
                                 </Grid>
                             </Border>
 
@@ -1113,9 +1147,10 @@
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
 
                                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
@@ -1124,7 +1159,23 @@
                                                                   VerticalAlignment="Top"
                                                                   Margin="0,6,16,0"/>
 
-                                                        <StackPanel Grid.Column="1"
+                                                        <Border Grid.Column="1"
+                                                                Width="48"
+                                                                Height="48"
+                                                                Background="#132032"
+                                                                CornerRadius="16"
+                                                                Margin="0,0,18,0"
+                                                                VerticalAlignment="Top"
+                                                                HorizontalAlignment="Center">
+                                                            <TextBlock Text="{Binding DisplayInitial}"
+                                                                       FontWeight="SemiBold"
+                                                                       FontSize="18"
+                                                                       Foreground="#F8FAFC"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"/>
+                                                        </Border>
+
+                                                        <StackPanel Grid.Column="2"
                                                                     Margin="0,0,28,0"
                                                                     VerticalAlignment="Top">
                                                             <StackPanel Orientation="Horizontal"
@@ -1276,7 +1327,7 @@
                                                             </TextBlock>
                                                         </StackPanel>
 
-                                                        <StackPanel Grid.Column="2"
+                                                        <StackPanel Grid.Column="3"
                                                                     Margin="0,0,24,0"
                                                                     VerticalAlignment="Top"
                                                                     MinWidth="180">
@@ -1296,7 +1347,7 @@
                                                                        TextWrapping="Wrap"/>
                                                         </StackPanel>
 
-                                                        <StackPanel Grid.Column="3"
+                                                        <StackPanel Grid.Column="4"
                                                                     Orientation="Vertical"
                                                                     VerticalAlignment="Top"
                                                                     HorizontalAlignment="Right">
@@ -1661,14 +1712,42 @@
 
                     <DockPanel Margin="0,0,0,16"
                                LastChildFill="False">
-                        <StackPanel DockPanel.Dock="Left">
-                            <TextBlock Text="{Binding SelectedPackage.DisplayName, TargetNullValue=Package details}"
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"/>
-                            <TextBlock Text="{Binding SelectedPackage.ManagerDisplay}"
-                                       FontSize="12"
-                                       Foreground="#94A3B8"/>
+                        <StackPanel DockPanel.Dock="Left"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center">
+                            <Border Width="54"
+                                    Height="54"
+                                    CornerRadius="18"
+                                    Background="#132032"
+                                    Margin="0,0,12,0"
+                                    VerticalAlignment="Center">
+                                <Border.Style>
+                                    <Style TargetType="Border">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SelectedPackage}"
+                                                         Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <TextBlock Text="{Binding SelectedPackage.DisplayInitial}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel>
+                                <TextBlock Text="{Binding SelectedPackage.DisplayName, TargetNullValue=Package details}"
+                                           FontSize="18"
+                                           FontWeight="SemiBold"
+                                           Foreground="#F8FAFC"/>
+                                <TextBlock Text="{Binding SelectedPackage.ManagerDisplay}"
+                                           FontSize="12"
+                                           Foreground="#94A3B8"/>
+                            </StackPanel>
                         </StackPanel>
                         <Button Content="Close"
                                 Command="{Binding ClosePackageDetailsCommand}"
