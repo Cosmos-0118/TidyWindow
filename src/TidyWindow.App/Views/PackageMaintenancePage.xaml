@@ -3,9 +3,10 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-      xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
-    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
-    xmlns:controls="clr-namespace:TidyWindow.App.Views"
+            xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+            xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+            xmlns:controls="clr-namespace:TidyWindow.App.Views"
+            xmlns:ux="clr-namespace:TidyWindow.App.Controls"
       mc:Ignorable="d"
       Title="Package maintenance"
       Background="Transparent"
@@ -14,6 +15,7 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
         <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
+        <converters:AlternationIndexToBrushConverter x:Key="MaintenanceAlternationBrushConverter"/>
     <converters:StringLengthToFontSizeConverter x:Key="PackageNameFontSizeConverter"
                             LargeSize="15"
                             MediumSize="13"
@@ -255,78 +257,48 @@
                     Value="True"/>
         </Style>
 
-        <Style x:Key="AnimatedGridRowItemStyle"
+        <Style x:Key="MaintenanceCardListItemStyle"
                TargetType="ListViewItem">
+            <Setter Property="Padding"
+                    Value="22"/>
+            <Setter Property="Margin"
+                    Value="0,12"/>
             <Setter Property="HorizontalContentAlignment"
                     Value="Stretch"/>
-            <Setter Property="Padding"
-                    Value="0"/>
-        <Setter Property="Margin"
-            Value="0,14"/>
-            <Setter Property="Background"
-                    Value="Transparent"/>
-            <Setter Property="Foreground"
-                    Value="#F8FAFC"/>
+            <Setter Property="SnapsToDevicePixels"
+                    Value="True"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
                         <Border x:Name="Container"
-                                CornerRadius="14"
-                                Background="#101B33"
-                                BorderBrush="#1E293B"
-                                BorderThickness="1"
-                                Padding="20"
-                                SnapsToDevicePixels="True"
-                                Opacity="0"
-                                RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform>
-                                <TranslateTransform Y="16"/>
-                            </Border.RenderTransform>
+                                Background="#0B1628"
+                                BorderBrush="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource MaintenanceAlternationBrushConverter}}"
+                                BorderThickness="2"
+                                CornerRadius="18"
+                                Padding="{TemplateBinding Padding}"
+                                Opacity="0.95"
+                                SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Stretch"
-                                              VerticalAlignment="Stretch"/>
+                                              VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Container"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.24">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                        <DoubleAnimation Storyboard.TargetName="Container"
-                                                         Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
-                                                         To="0"
-                                                         Duration="0:0:0.28">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <Trigger Property="IsSelected"
-                                     Value="True">
-                                <Setter TargetName="Container"
-                                        Property="Background"
-                                        Value="#1E3A8A"/>
-                                <Setter TargetName="Container"
-                                        Property="BorderBrush"
-                                        Value="#38BDF8"/>
-                                <Setter Property="Foreground"
-                                        Value="#F8FAFC"/>
-                            </Trigger>
                             <Trigger Property="IsMouseOver"
                                      Value="True">
                                 <Setter TargetName="Container"
-                                        Property="Background"
-                                        Value="#162643"/>
+                                        Property="BorderBrush"
+                                        Value="#38BDF8"/>
+                                <Setter TargetName="Container"
+                                        Property="Opacity"
+                                        Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected"
+                                     Value="True">
                                 <Setter TargetName="Container"
                                         Property="BorderBrush"
-                                        Value="#1E3A8A"/>
+                                        Value="#7C3AED"/>
+                                <Setter TargetName="Container"
+                                        Property="Opacity"
+                                        Value="1"/>
                             </Trigger>
                             <Trigger Property="IsEnabled"
                                      Value="False">
@@ -340,88 +312,13 @@
             </Setter>
         </Style>
 
-        <Style x:Key="AnimatedQueueItemStyle"
-               TargetType="ListViewItem">
-            <Setter Property="HorizontalContentAlignment"
-                    Value="Stretch"/>
+        <Style x:Key="MaintenanceQueueItemStyle"
+               TargetType="ListViewItem"
+               BasedOn="{StaticResource MaintenanceCardListItemStyle}">
             <Setter Property="Padding"
-                    Value="12"/>
+                    Value="18"/>
             <Setter Property="Margin"
-                    Value="0,4"/>
-            <Setter Property="Background"
-                    Value="#0F172A"/>
-            <Setter Property="Foreground"
-                    Value="#F8FAFC"/>
-            <Setter Property="BorderBrush"
-                    Value="Transparent"/>
-            <Setter Property="BorderThickness"
-                    Value="0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ListViewItem">
-                        <Border x:Name="Container"
-                                CornerRadius="10"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                Padding="{TemplateBinding Padding}"
-                                SnapsToDevicePixels="True"
-                                Opacity="0"
-                                RenderTransformOrigin="0.5,0.5">
-                            <Border.RenderTransform>
-                                <TranslateTransform Y="12"/>
-                            </Border.RenderTransform>
-                            <ContentPresenter HorizontalAlignment="Stretch"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                                <BeginStoryboard>
-                                    <Storyboard>
-                                        <DoubleAnimation Storyboard.TargetName="Container"
-                                                         Storyboard.TargetProperty="Opacity"
-                                                         To="1"
-                                                         Duration="0:0:0.24">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                        <DoubleAnimation Storyboard.TargetName="Container"
-                                                         Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
-                                                         To="0"
-                                                         Duration="0:0:0.26">
-                                            <DoubleAnimation.EasingFunction>
-                                                <CubicEase EasingMode="EaseOut"/>
-                                            </DoubleAnimation.EasingFunction>
-                                        </DoubleAnimation>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </EventTrigger>
-                            <DataTrigger Binding="{Binding IsActive}"
-                                         Value="True">
-                                <Setter TargetName="Container"
-                                        Property="BorderBrush"
-                                        Value="#38BDF8"/>
-                                <Setter TargetName="Container"
-                                        Property="BorderThickness"
-                                        Value="1"/>
-                            </DataTrigger>
-                            <Trigger Property="IsSelected"
-                                     Value="True">
-                                <Setter TargetName="Container"
-                                        Property="Background"
-                                        Value="#1E3A8A"/>
-                            </Trigger>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="Container"
-                                        Property="Background"
-                                        Value="#1B2942"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
+                    Value="0,8"/>
         </Style>
 
         <DataTemplate x:Key="OperationDetailsTemplate"
@@ -464,16 +361,19 @@
                                MaxWidth="260"/>
                 </StackPanel>
 
-                <WrapPanel Margin="0,8,0,0"
-                           HorizontalAlignment="Left">
+                  <ux:AdaptiveTilePanel Margin="0,8,0,0"
+                               MinColumnWidth="140"
+                               ColumnSpacing="10"
+                               RowSpacing="6"
+                               HorizontalAlignment="Left">
                     <TextBlock Text="{Binding EnqueuedAt, StringFormat=Enqueued · {0:t}}"
                                Foreground="#64748B"
                                FontSize="11"
-                               Margin="0,0,12,6"/>
+                           Margin="0,0,12,0"/>
                     <TextBlock Text="{Binding StartedAt, StringFormat=Started · {0:t}}"
                                Foreground="#64748B"
                                FontSize="11"
-                               Margin="0,0,12,6">
+                           Margin="0,0,12,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility"
@@ -491,7 +391,7 @@
                     <TextBlock Text="{Binding CompletedAt, StringFormat=Completed · {0:t}}"
                                Foreground="#64748B"
                                FontSize="11"
-                               Margin="0,0,12,6">
+                               Margin="0,0,12,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility"
@@ -509,7 +409,7 @@
                     <TextBlock Text="{Binding Attempts}"
                                Foreground="#64748B"
                                FontSize="11"
-                               Margin="0,0,0,6">
+                               Margin="0,0,0,0">
                         <TextBlock.Style>
                             <Style TargetType="TextBlock">
                                 <Setter Property="Visibility"
@@ -529,7 +429,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                </WrapPanel>
+                </ux:AdaptiveTilePanel>
 
                 <Border Background="#0F172A"
                         BorderBrush="#1E293B"
@@ -577,33 +477,62 @@
                            Foreground="#F8FAFC"
                            TextWrapping="Wrap"/>
 
-                <StackPanel Orientation="Horizontal"
-                            Margin="0,6,0,0"
-                            VerticalAlignment="Center">
-                    <Border Background="#1E293B"
-                            CornerRadius="6"
-                            Padding="8,3"
-                            Margin="0,0,12,0">
-                        <TextBlock Text="{Binding ManagerDisplay}"
-                                   Foreground="#38BDF8"
-                                   FontSize="12"
-                                   FontWeight="SemiBold"/>
+                <ux:AdaptiveTilePanel Margin="0,10,0,0"
+                                     MinColumnWidth="160"
+                                     ColumnSpacing="12"
+                                     RowSpacing="10">
+                    <Border Background="#132032"
+                            CornerRadius="8"
+                            Padding="10,8">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="Manager"
+                                       Foreground="#94A3B8"
+                                       FontSize="11"
+                                       TextAlignment="Center"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding ManagerDisplay}"
+                                       Foreground="#38BDF8"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
                     </Border>
-                    <TextBlock Text="{Binding VersionDisplay}"
-                               Foreground="#E2E8F0"
-                               FontSize="13"
-                               VerticalAlignment="Center"/>
-                    <Border Background="#1F2937"
-                            CornerRadius="6"
-                            Padding="6,2"
-                            Margin="12,0,0,0"
+                    <Border Background="#132032"
+                            CornerRadius="8"
+                            Padding="10,8">
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="Version"
+                                       Foreground="#94A3B8"
+                                       FontSize="11"
+                                       TextAlignment="Center"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding VersionDisplay}"
+                                       Foreground="#E2E8F0"
+                                       FontSize="13"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Background="#132032"
+                            CornerRadius="8"
+                            Padding="10,8"
                             Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <TextBlock Text="Update available"
-                                   Foreground="#22C55E"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"/>
+                        <StackPanel HorizontalAlignment="Center">
+                            <TextBlock Text="Update"
+                                       Foreground="#94A3B8"
+                                       FontSize="11"
+                                       TextAlignment="Center"
+                                       Margin="0,0,0,4"/>
+                            <TextBlock Text="Available"
+                                       Foreground="#22C55E"
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextAlignment="Center"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
                     </Border>
-                </StackPanel>
+                </ux:AdaptiveTilePanel>
 
                 <TextBlock Text="{Binding Summary}"
                            Foreground="#94A3B8"
@@ -623,7 +552,9 @@
                                   Visibility="{Binding TagsDisplay, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <ItemsControl.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <WrapPanel/>
+                                <ux:AdaptiveTilePanel MinColumnWidth="120"
+                                                      ColumnSpacing="8"
+                                                      RowSpacing="8"/>
                             </ItemsPanelTemplate>
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
@@ -634,7 +565,9 @@
                                         Margin="0,0,6,6">
                                     <TextBlock Text="{Binding}"
                                                Foreground="#E2E8F0"
-                                               FontSize="11"/>
+                                               FontSize="11"
+                                               TextAlignment="Center"
+                                               HorizontalAlignment="Center"/>
                                 </Border>
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
@@ -704,11 +637,13 @@
                                Margin="0,4,0,0"/>
                 </StackPanel>
 
-                <WrapPanel Margin="0,18,0,0">
+                <ux:AdaptiveTilePanel Margin="0,18,0,0"
+                                      MinColumnWidth="120"
+                                      ColumnSpacing="12"
+                                      RowSpacing="12">
                     <Button Content="Q"
                             Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                            Margin="0,0,8,8"
                             Width="42"
                             Height="36"
                             Padding="0"
@@ -741,7 +676,6 @@
                     <Button Content="R"
                             Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                            Margin="0,0,8,8"
                             Width="42"
                             Height="36"
                             Padding="0"
@@ -771,22 +705,21 @@
                             </Style>
                         </Button.Style>
                     </Button>
-            <Button Content="F"
+                    <Button Content="F"
                             Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                             CommandParameter="{Binding}"
-                Margin="0,0,0,8"
-                Width="42"
-                Height="36"
-                Padding="0"
-                HorizontalContentAlignment="Center"
-                VerticalContentAlignment="Center"
-                AutomationProperties.Name="Force cleanup">
-            <Button.ToolTip>Force cleanup</Button.ToolTip>
+                            Width="42"
+                            Height="36"
+                            Padding="0"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            AutomationProperties.Name="Force cleanup">
+                        <Button.ToolTip>Force cleanup</Button.ToolTip>
                         <Button.Style>
                             <Style TargetType="Button"
                                    BasedOn="{StaticResource DangerButtonStyle}">
-                <Setter Property="FontWeight"
-                    Value="Bold"/>
+                                <Setter Property="FontWeight"
+                                        Value="Bold"/>
                                 <Setter Property="IsEnabled"
                                         Value="True"/>
                                 <Style.Triggers>
@@ -804,7 +737,7 @@
                             </Style>
                         </Button.Style>
                     </Button>
-                </WrapPanel>
+                </ux:AdaptiveTilePanel>
             </StackPanel>
         </DataTemplate>
 
@@ -998,47 +931,43 @@
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
 
-                                    <WrapPanel Grid.Row="1"
-                                               VerticalAlignment="Center">
+                                        <ux:AdaptiveTilePanel Grid.Row="1"
+                                                 MinColumnWidth="200"
+                                                 ColumnSpacing="12"
+                                                 RowSpacing="12">
                                         <TextBox MinWidth="220"
-                                                 MaxWidth="260"
-                                                 Margin="0,0,12,8"
-                                                 Style="{StaticResource App.TextBoxStyle}"
-                                                 ToolTip="Filter by package name, identifier, manager, or tag"
-                                                 Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
+                                             Style="{StaticResource App.TextBoxStyle}"
+                                             ToolTip="Filter by package name, identifier, manager, or tag"
+                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         <ComboBox Width="180"
-                                                  Margin="0,0,12,8"
-                                                  ItemsSource="{Binding ManagerFilters}"
-                                                  SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
-                                                  Style="{StaticResource App.ComboBoxStyle}"/>
+                                              ItemsSource="{Binding ManagerFilters}"
+                                              SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
+                                              Style="{StaticResource App.ComboBoxStyle}"/>
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                  Content="Updates only"
-                                                  Margin="0,0,12,8"
-                                                  IsChecked="{Binding UpdatesOnly, Mode=TwoWay}"
-                                                  Foreground="#F8FAFC"
-                                                  VerticalAlignment="Center"/>
+                                              Content="Updates only"
+                                              IsChecked="{Binding UpdatesOnly, Mode=TwoWay}"
+                                              Foreground="#F8FAFC"
+                                              VerticalAlignment="Center"/>
                                         <Button Content="Queue selected"
-                                                Margin="0,0,12,8"
-                                                Command="{Binding QueueSelectedUpdatesCommand}"
-                                                Style="{StaticResource AccentButtonStyle}"/>
-                                    </WrapPanel>
+                                            Command="{Binding QueueSelectedUpdatesCommand}"
+                                            Style="{StaticResource AccentButtonStyle}"/>
+                                        </ux:AdaptiveTilePanel>
 
-                                    <StackPanel Grid.Row="2"
-                                                Orientation="Horizontal"
-                                                Margin="0,4,0,0"
-                                                HorizontalAlignment="Left">
+                                    <ux:AdaptiveTilePanel Grid.Row="2"
+                                                         MinColumnWidth="120"
+                                                         ColumnSpacing="12"
+                                                         RowSpacing="8"
+                                                         Margin="0,4,0,0">
                                         <Border Background="#1E293B"
                                                 CornerRadius="4"
-                                                Padding="6,2"
-                                                Margin="0,0,8,0">
+                                                Padding="6,2">
                                             <TextBlock Text="Q → Queue update"
                                                        Foreground="#94A3B8"
                                                        FontSize="11"/>
                                         </Border>
                                         <Border Background="#1E293B"
                                                 CornerRadius="4"
-                                                Padding="6,2"
-                                                Margin="0,0,8,0">
+                                                Padding="6,2">
                                             <TextBlock Text="R → Remove"
                                                        Foreground="#94A3B8"
                                                        FontSize="11"/>
@@ -1050,7 +979,7 @@
                                                        Foreground="#94A3B8"
                                                        FontSize="11"/>
                                         </Border>
-                                    </StackPanel>
+                                    </ux:AdaptiveTilePanel>
                                 </Grid>
                             </Border>
 
@@ -1157,6 +1086,7 @@
                                                   Background="Transparent"
                                                   BorderThickness="0"
                                                   Foreground="#F8FAFC"
+                                                  AlternationCount="5"
                                                   ScrollViewer.VerticalScrollBarVisibility="Auto"
                                                   ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                   ScrollViewer.CanContentScroll="True"
@@ -1164,7 +1094,7 @@
                                                   VirtualizingPanel.VirtualizationMode="Recycling"
                                                   VirtualizingStackPanel.ScrollUnit="Pixel"
                                                   Loaded="PackagesListView_Loaded"
-                                                  ItemContainerStyle="{StaticResource AnimatedGridRowItemStyle}">
+                                                  ItemContainerStyle="{StaticResource MaintenanceCardListItemStyle}">
                                             <ListView.Style>
                                                 <Style TargetType="ListView">
                                                     <Setter Property="Visibility"
@@ -1207,34 +1137,61 @@
                                                                            TextWrapping="Wrap"/>
                                                             </StackPanel>
 
-                                                            <WrapPanel Margin="0,10,0,0">
-                                                                <Border Background="#1E293B"
-                                                                        CornerRadius="6"
-                                                                        Padding="8,3"
-                                                                        Margin="0,0,8,8">
-                                                                    <TextBlock Text="{Binding ManagerDisplay}"
-                                                                               Foreground="#38BDF8"
-                                                                               FontSize="11"
-                                                                               FontWeight="SemiBold"/>
+                                                            <ux:AdaptiveTilePanel Margin="0,10,0,0"
+                                                                                 MinColumnWidth="150"
+                                                                                 ColumnSpacing="10"
+                                                                                 RowSpacing="8">
+                                                                <Border Background="#132032"
+                                                                        CornerRadius="8"
+                                                                        Padding="10,8">
+                                                                    <StackPanel HorizontalAlignment="Center">
+                                                                        <TextBlock Text="Manager"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="10"
+                                                                                   TextAlignment="Center"
+                                                                                   Margin="0,0,0,4"/>
+                                                                        <TextBlock Text="{Binding ManagerDisplay}"
+                                                                                   Foreground="#38BDF8"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="SemiBold"
+                                                                                   TextAlignment="Center"
+                                                                                   HorizontalAlignment="Center"/>
+                                                                    </StackPanel>
                                                                 </Border>
-                                                                <Border Background="#1E293B"
-                                                                        CornerRadius="6"
-                                                                        Padding="8,3"
-                                                                        Margin="0,0,8,8"
+                                                                <Border Background="#132032"
+                                                                        CornerRadius="8"
+                                                                        Padding="10,8"
                                                                         Visibility="{Binding Source, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                    <TextBlock Text="{Binding Source}"
-                                                                               Foreground="#E2E8F0"
-                                                                               FontSize="11"/>
+                                                                    <StackPanel HorizontalAlignment="Center">
+                                                                        <TextBlock Text="Source"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="10"
+                                                                                   TextAlignment="Center"
+                                                                                   Margin="0,0,0,4"/>
+                                                                        <TextBlock Text="{Binding Source}"
+                                                                                   Foreground="#E2E8F0"
+                                                                                   FontSize="12"
+                                                                                   TextAlignment="Center"
+                                                                                   HorizontalAlignment="Center"/>
+                                                                    </StackPanel>
                                                                 </Border>
-                                                                <Border Background="#0F172A"
-                                                                        CornerRadius="6"
-                                                                        Padding="8,3"
-                                                                        Margin="0,0,8,8">
-                                                                    <TextBlock Text="{Binding VersionDisplay}"
-                                                                               Foreground="#CBD5F5"
-                                                                               FontSize="11"/>
+                                                                <Border Background="#132032"
+                                                                        CornerRadius="8"
+                                                                        Padding="10,8">
+                                                                    <StackPanel HorizontalAlignment="Center">
+                                                                        <TextBlock Text="Version"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="10"
+                                                                                   TextAlignment="Center"
+                                                                                   Margin="0,0,0,4"/>
+                                                                        <TextBlock Text="{Binding VersionDisplay}"
+                                                                                   Foreground="#CBD5F5"
+                                                                                   FontSize="12"
+                                                                                   TextAlignment="Center"
+                                                                                   HorizontalAlignment="Center"/>
+                                                                    </StackPanel>
                                                                 </Border>
-                                                            </WrapPanel>
+                                                            </ux:AdaptiveTilePanel>
 
                                                             <Border Background="#1E3A8A"
                                                                     CornerRadius="6"
@@ -1244,7 +1201,9 @@
                                                                 <TextBlock Text="{Binding QueueStatus}"
                                                                            Foreground="#DCE7FF"
                                                                            FontSize="11"
-                                                                           FontWeight="SemiBold"/>
+                                                                           FontWeight="SemiBold"
+                                                                           TextAlignment="Center"
+                                                                           HorizontalAlignment="Center"/>
                                                             </Border>
 
                                                             <TextBlock Text="{Binding Summary}"
@@ -1259,7 +1218,9 @@
                                                                           Visibility="{Binding TagsDisplay, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                                 <ItemsControl.ItemsPanel>
                                                                     <ItemsPanelTemplate>
-                                                                        <WrapPanel/>
+                                                                        <ux:AdaptiveTilePanel MinColumnWidth="120"
+                                                                                            ColumnSpacing="8"
+                                                                                            RowSpacing="8"/>
                                                                     </ItemsPanelTemplate>
                                                                 </ItemsControl.ItemsPanel>
                                                                 <ItemsControl.ItemTemplate>
@@ -1270,7 +1231,9 @@
                                                                                 Margin="0,0,6,6">
                                                                             <TextBlock Text="{Binding}"
                                                                                        Foreground="#E2E8F0"
-                                                                                       FontSize="11"/>
+                                                                                       FontSize="11"
+                                                                                       TextAlignment="Center"
+                                                                                       HorizontalAlignment="Center"/>
                                                                         </Border>
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
@@ -1533,17 +1496,19 @@
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
 
-                                    <WrapPanel Grid.Row="1"
-                                               Margin="0,14,0,0"
-                                               HorizontalAlignment="Left">
+                                        <ux:AdaptiveTilePanel Grid.Row="1"
+                                                 Margin="0,14,0,0"
+                                                 HorizontalAlignment="Left"
+                                                 MinColumnWidth="160"
+                                                 ColumnSpacing="12"
+                                                 RowSpacing="12">
                                         <Button Content="Retry failed"
-                                                Command="{Binding RetryFailedCommand}"
-                                                Style="{StaticResource SecondaryButtonStyle}"/>
+                                            Command="{Binding RetryFailedCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
                                         <Button Content="Clear completed"
-                                                Command="{Binding ClearCompletedCommand}"
-                                                Margin="8,0,0,0"
-                                                Style="{StaticResource SecondaryButtonStyle}"/>
-                                    </WrapPanel>
+                                            Command="{Binding ClearCompletedCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"/>
+                                        </ux:AdaptiveTilePanel>
 
                                     <ListView x:Name="OperationsListView"
                                               Grid.Row="2"
@@ -1553,13 +1518,14 @@
                                               Background="Transparent"
                                               BorderThickness="0"
                                               Foreground="#F8FAFC"
+                                              AlternationCount="5"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                               ScrollViewer.CanContentScroll="True"
                                               VirtualizingPanel.IsVirtualizing="True"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               VirtualizingStackPanel.ScrollUnit="Pixel"
-                                              ItemContainerStyle="{StaticResource AnimatedQueueItemStyle}">
+                                              ItemContainerStyle="{StaticResource MaintenanceQueueItemStyle}">
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
                                                 <StackPanel>
