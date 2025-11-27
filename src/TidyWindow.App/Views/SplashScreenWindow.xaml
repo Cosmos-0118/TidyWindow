@@ -112,11 +112,21 @@
                              Duration="0:0:1.4"
                              AutoReverse="True"
                              EasingFunction="{StaticResource SplashEaseOut}" />
-            <DoubleAnimation Storyboard.TargetName="SpinnerOrbitRotate"
+            <DoubleAnimation Storyboard.TargetName="SpinnerOrbitDot1Rotate"
                              Storyboard.TargetProperty="Angle"
                              From="0"
                              To="360"
-                             Duration="0:0:2.8" />
+                             Duration="0:0:3.2" />
+            <DoubleAnimation Storyboard.TargetName="SpinnerOrbitDot2Rotate"
+                             Storyboard.TargetProperty="Angle"
+                             From="360"
+                             To="0"
+                             Duration="0:0:4.1" />
+            <DoubleAnimation Storyboard.TargetName="SpinnerOrbitDot3Rotate"
+                             Storyboard.TargetProperty="Angle"
+                             From="0"
+                             To="360"
+                             Duration="0:0:2.6" />
         </Storyboard>
 
         <Storyboard x:Key="ProgressStoryboard" RepeatBehavior="Forever">
@@ -222,11 +232,45 @@
                         </Grid>
                         <Grid RenderTransformOrigin="0.5,0.5">
                             <Grid.RenderTransform>
-                                <RotateTransform x:Name="SpinnerOrbitRotate" Angle="0" />
+                                <RotateTransform x:Name="SpinnerOrbitDot1Rotate" Angle="0" />
                             </Grid.RenderTransform>
-                            <Border Width="18" Height="18" CornerRadius="9" Background="{StaticResource AccentBrush}" BorderBrush="#0F243A" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,-8,0,0" />
-                            <Border Width="22" Height="22" CornerRadius="11" Background="{StaticResource AccentSecondaryBrush}" BorderBrush="#2A1F15" BorderThickness="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,-8,0" />
-                            <Border Width="14" Height="14" CornerRadius="7" Background="{StaticResource AccentSuccessBrush}" BorderBrush="#123726" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,-8" />
+                            <Border Width="18"
+                                    Height="18"
+                                    CornerRadius="9"
+                                    Background="{StaticResource AccentBrush}"
+                                    BorderBrush="#0F243A"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Top"
+                                    Margin="0,-10,0,0" />
+                        </Grid>
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <RotateTransform x:Name="SpinnerOrbitDot2Rotate" Angle="120" />
+                            </Grid.RenderTransform>
+                            <Border Width="22"
+                                    Height="22"
+                                    CornerRadius="11"
+                                    Background="{StaticResource AccentSecondaryBrush}"
+                                    BorderBrush="#2A1F15"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,-10,0" />
+                        </Grid>
+                        <Grid RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <RotateTransform x:Name="SpinnerOrbitDot3Rotate" Angle="240" />
+                            </Grid.RenderTransform>
+                            <Border Width="14"
+                                    Height="14"
+                                    CornerRadius="7"
+                                    Background="{StaticResource AccentSuccessBrush}"
+                                    BorderBrush="#123726"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,0,-10" />
                         </Grid>
                         <Border Width="88" Height="88" CornerRadius="24" Background="#0E192C" BorderBrush="#233554" BorderThickness="1.2" HorizontalAlignment="Center" VerticalAlignment="Center">
                             <Image Source="pack://application:,,,/resources/applogo.png" Width="56" Height="56" Stretch="Uniform" />
