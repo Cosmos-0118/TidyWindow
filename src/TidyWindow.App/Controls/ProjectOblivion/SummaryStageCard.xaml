@@ -1,0 +1,55 @@
+<UserControl x:Class="TidyWindow.App.Controls.ProjectOblivion.SummaryStageCard"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance Type=viewModels:ProjectOblivionTimelineStageViewModel}">
+    <Border Style="{StaticResource PopupCardStyle}" Margin="0,0,0,18">
+        <StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="📊" FontSize="30" Margin="0,0,12,0"/>
+                <StackPanel>
+                    <TextBlock Text="{Binding Title}"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="{Binding Description}"
+                               Foreground="#94A3B8"
+                               FontSize="13"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </StackPanel>
+
+            <TextBlock Text="Review total impact, export the log, and return to inventory when you're ready."
+                       Foreground="#CBD5F5"
+                       FontSize="12"
+                       Margin="0,12,0,0"
+                       TextWrapping="Wrap"/>
+
+            <Grid Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="{Binding DataContext.Summary.FreedDisplay, RelativeSource={RelativeSource AncestorType=Page}, TargetNullValue='Awaiting summary'}"
+                               Foreground="#A5B4FC"
+                               FontSize="20"
+                               FontWeight="SemiBold"/>
+                    <TextBlock Text="{Binding Detail}"
+                               Foreground="#E2E8F0"
+                               FontSize="13"
+                               Margin="0,6,0,0"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+                <Button Grid.Column="1"
+                        Content="Open run log"
+                        Style="{StaticResource PopupSecondaryButtonStyle}"
+                        Command="{Binding DataContext.ViewRunLogCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                        IsEnabled="{Binding DataContext.HasRunLog, RelativeSource={RelativeSource AncestorType=Page}}"/>
+            </Grid>
+        </StackPanel>
+    </Border>
+</UserControl>

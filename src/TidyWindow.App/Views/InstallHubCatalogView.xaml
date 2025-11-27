@@ -454,7 +454,7 @@
                                     </ListView.ItemContainerStyle>
                                     <ListView.ItemTemplate>
                                         <DataTemplate>
-                                            <Border Style="{StaticResource InstallCardBorderStyle}"
+                                                <Border Style="{StaticResource InstallInteractiveCardBorderStyle}"
                                                     Padding="20">
                                                 <StackPanel>
                                                     <Grid>

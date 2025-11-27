@@ -1,0 +1,130 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="PopupBackdropBrush" Color="#010615"/>
+    <SolidColorBrush x:Key="PopupPanelBrush" Color="#0C1426"/>
+    <SolidColorBrush x:Key="PopupCardBrush" Color="#111D33"/>
+    <SolidColorBrush x:Key="PopupCardAlternateBrush" Color="#152540"/>
+    <SolidColorBrush x:Key="PopupAccentBrush" Color="#34D399"/>
+    <SolidColorBrush x:Key="PopupAccentSecondaryBrush" Color="#38BDF8"/>
+
+    <Style x:Key="PopupPrimaryButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="#04111E"/>
+        <Setter Property="BorderBrush" Value="#34D399"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="Margin" Value="0,0,12,0"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="PrimaryButtonRoot"
+                            CornerRadius="12"
+                            Padding="{TemplateBinding Padding}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#34D399" Offset="0"/>
+                                <GradientStop Color="#10B981" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="PrimaryButtonRoot" Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="1.02" ScaleY="1.02"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="PrimaryButtonRoot" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect BlurRadius="14"
+                                                      Direction="270"
+                                                      Color="#22C55E"
+                                                      Opacity="0.55"
+                                                      ShadowDepth="2"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="PrimaryButtonRoot" Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.99" ScaleY="0.99"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="PrimaryButtonRoot" Property="Opacity" Value="0.55"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PopupSecondaryButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="#E2E8F0"/>
+        <Setter Property="BorderBrush" Value="#334155"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="14,8"/>
+        <Setter Property="Margin" Value="0,0,12,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="SecondaryButtonRoot"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#172640" Offset="0"/>
+                                <GradientStop Color="#1F2D4B" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="SecondaryButtonRoot" Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="1.01" ScaleY="1.01"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="SecondaryButtonRoot" Property="Effect">
+                                <Setter.Value>
+                                    <DropShadowEffect BlurRadius="10"
+                                                      Direction="270"
+                                                      Color="#1D4ED8"
+                                                      Opacity="0.45"
+                                                      ShadowDepth="2"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="SecondaryButtonRoot" Property="RenderTransform">
+                                <Setter.Value>
+                                    <ScaleTransform ScaleX="0.99" ScaleY="0.99"/>
+                                </Setter.Value>
+                            </Setter>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="SecondaryButtonRoot" Property="Opacity" Value="0.55"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="PopupCardStyle" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource PopupCardBrush}"/>
+        <Setter Property="BorderBrush" Value="#1F2F46"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="16"/>
+        <Setter Property="Padding" Value="18"/>
+    </Style>
+</ResourceDictionary>

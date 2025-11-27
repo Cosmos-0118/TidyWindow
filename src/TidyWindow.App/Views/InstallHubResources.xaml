@@ -181,8 +181,8 @@
         <Setter Property="SnapsToDevicePixels" Value="True"/>
     </Style>
 
-    <Style x:Key="InstallCardBorderStyle"
-           TargetType="Border">
+        <Style x:Key="InstallCardBorderStyle"
+            TargetType="Border">
         <Setter Property="Background" Value="{StaticResource InstallCardBackgroundBrush}"/>
         <Setter Property="BorderBrush" Value="#1A2E4A"/>
         <Setter Property="BorderThickness" Value="1"/>
@@ -205,6 +205,11 @@
                                   Opacity="0.18"/>
             </Setter.Value>
         </Setter>
+    </Style>
+
+    <Style x:Key="InstallInteractiveCardBorderStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource InstallCardBorderStyle}">
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Trigger.EnterActions>

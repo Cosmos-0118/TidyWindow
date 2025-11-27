@@ -107,7 +107,7 @@
                             </ListBox.ItemContainerStyle>
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource InstallCardBorderStyle}"
+                                        <Border Style="{StaticResource InstallInteractiveCardBorderStyle}"
                                             Padding="20">
                                         <Grid>
                                             <Grid.RowDefinitions>

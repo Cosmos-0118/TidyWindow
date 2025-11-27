@@ -11,6 +11,7 @@
                 <ResourceDictionary Source="pack://application:,,,/TidyWindow;component/Resources/CheckBoxes.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/TidyWindow;component/Resources/ComboBoxes.xaml"/>
                 <ResourceDictionary Source="pack://application:,,,/TidyWindow;component/Resources/TextBoxes.xaml"/>
+                <ResourceDictionary Source="pack://application:,,,/TidyWindow;component/Resources/ProjectOblivionPopup.xaml"/>
             </ResourceDictionary.MergedDictionaries>
             <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
             <converters:BooleanToYesNoConverter x:Key="BooleanToYesNoConverter"/>
