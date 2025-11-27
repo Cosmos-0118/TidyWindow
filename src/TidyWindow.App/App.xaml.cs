@@ -17,6 +17,7 @@ using TidyWindow.Core.Diagnostics;
 using TidyWindow.Core.Install;
 using TidyWindow.Core.Maintenance;
 using TidyWindow.Core.PathPilot;
+using TidyWindow.Core.Uninstall;
 
 namespace TidyWindow.App;
 
@@ -80,6 +81,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<BundlePresetService>();
                 services.AddSingleton<PackageInventoryService>();
                 services.AddSingleton<PackageMaintenanceService>();
+                services.AddSingleton<IAppInventoryService, AppInventoryService>();
+                services.AddSingleton<IAppUninstallService, AppUninstallService>();
                 services.AddSingleton<EssentialsTaskCatalog>();
                 services.AddSingleton<EssentialsTaskQueue>();
                 services.AddSingleton<IRegistryOptimizerService, RegistryOptimizerService>();
@@ -95,6 +98,7 @@ public partial class App : WpfApplication
                 services.AddTransient<SettingsViewModel>();
                 services.AddTransient<InstallHubViewModel>();
                 services.AddTransient<PackageMaintenanceViewModel>();
+                services.AddTransient<SimpleUninstallerViewModel>();
                 services.AddTransient<LogsViewModel>();
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
@@ -106,6 +110,7 @@ public partial class App : WpfApplication
                 services.AddTransient<SettingsPage>();
                 services.AddTransient<InstallHubPage>();
                 services.AddTransient<PackageMaintenancePage>();
+                services.AddTransient<SimpleUninstallerPage>();
                 services.AddTransient<LogsPage>();
                 services.AddTransient<EssentialsPage>();
                 services.AddTransient<RegistryOptimizerPage>();

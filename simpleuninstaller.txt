@@ -14,13 +14,13 @@ Phase 1 – Inventory & Data Services [DONE] (see docs/simple-uninstaller-phase1
 - [DONE] Filter defaults: skip `SystemComponent=1` and ReleaseType=Update, but keep toggles for advanced users; cache enumerations until users request a refresh to keep UI snappy.
 - [DONE] Expose the inventory through `IAppInventoryService` with async refresh, dry-run logging hooks, and diagnostics metadata for the UI layer.
 
-Phase 2 – Orchestration & Maintenance-Style UI
-1. Implement the uninstall decision tree (MSI → QuietUninstall → UninstallString → winget fallback) inside `IAppUninstallService`, emitting structured `UninstallResult` objects with exit codes, stdout/stderr, and timestamps.
-2. For MSI entries, extract GUIDs and call `msiexec /x {GUID} /qn /norestart`; include a dry-run path that only logs the command. For EXE uninstallers, detect installer families (Inno/NSIS/InstallShield) via binary metadata before appending silent flags.
-3. Offer optional `winget uninstall --id <Id> --silent --accept-*` when a catalog match exists and the user opts in.
-4. Design a simple, modern “maintenance page” layout: full-height single column with (a) hero header describing system status, (b) segmented card that lists apps in a slim table, (c) right-aligned action bar with Refresh, Dry Run, and Uninstall buttons, and (d) bottom drawer for activity log; keep colors neutral, lean on typography, and avoid heavy chrome.
-5. Keep UI content minimal: app list shows Name, Version, Source badge, and checkbox; detail pane slides in on selection with install path, uninstall mode toggle, and “winget fallback” switch. No nested dialogs—use inline confirmation banners.
-6. Implement progress and accessibility affordances (Queued → Running → Success/Failed/Cancelled status pills, keyboard navigation, confirmations) plus a lightweight toast for completion; dry-run toggle stays visible near the hero blurb so the page feels like a maintenance dashboard.
+Phase 2 – Orchestration & Maintenance-Style UI [DONE] (see docs/simple-uninstaller-phase2.md)
+- [DONE] Implemented the uninstall decision tree (MSI → QuietUninstall → UninstallString → winget fallback) inside `IAppUninstallService`, emitting structured results with exit codes, stdout/stderr, and timestamps.
+- [DONE] Added MSI GUID extraction with `msiexec /x {GUID} /qn /norestart`, plus EXE heuristics that detect installer families (Inno/NSIS/InstallShield) before appending silent flags; dry-run mode logs the exact command sequence instead of executing.
+- [DONE] Provided optional `winget uninstall --id <Id> --silent --accept-*` fallback whenever catalog metadata exists and the user enables the toggle.
+- [DONE] Shipped the maintenance-style WPF surface featuring the hero header, slim inventory table, action bar (Refresh, Dry Run, Uninstall, Cancel), and activity drawer while adhering to the neutral typography-forward palette.
+- [DONE] Delivered inline detail pane content (install path, uninstall mode, winget switches) without secondary dialogs so the experience feels like a dashboard.
+- [DONE] Surfaced progress/accessibility affordances: status pills covering Queued/Running/Success/Failed/Cancelled, descriptive log entries, and persistent dry-run toggle adjacent to the hero summary.
 
 Phase 3 – Post-MVP Safe Cleanup (Opt-in)
 1. After v1 ships, introduce optional prompts to delete leftover InstallLocation folders when they are empty or clearly benign; never default to deletion.

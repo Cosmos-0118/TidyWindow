@@ -30,6 +30,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("PathPilot", "Control runtime precedence and PATH backups", typeof(PathPilotPage)),
             new("Registry optimizer", "Stage registry defaults safely", typeof(RegistryOptimizerPage)),
             new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),
+            new("Simple uninstaller", "Dry-run friendly uninstall orchestration", typeof(SimpleUninstallerPage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),
             new("Cleanup", "Preview clutter before removing files", typeof(CleanupPage)),
             new("Logs", "Inspect activity across automation features", typeof(LogsPage)),

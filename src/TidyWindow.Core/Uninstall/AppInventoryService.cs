@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Automation;
@@ -27,6 +28,11 @@ public sealed class AppInventoryService : IAppInventoryService
     private AppInventorySnapshot? _cachedSnapshot;
     private AppInventoryOptions _cachedOptions = AppInventoryOptions.Default;
     private string? _scriptPath;
+
+    static AppInventoryService()
+    {
+        _jsonOptions.Converters.Add(new FlexibleStringConverter());
+    }
 
     public AppInventoryService(PowerShellInvoker powerShellInvoker, TimeSpan? cacheDuration = null)
     {
@@ -335,6 +341,7 @@ public sealed class AppInventoryService : IAppInventoryService
 
         public List<string>? SourceTags { get; set; }
 
+        [JsonConverter(typeof(FlexibleStringListConverter))]
         public List<string>? InstallerHints { get; set; }
 
         public string? RegistryKey { get; set; }
@@ -360,5 +367,96 @@ public sealed class AppInventoryService : IAppInventoryService
         public string? WingetAvailableVersion { get; set; }
 
         public Dictionary<string, string?>? Metadata { get; set; }
+    }
+
+    private sealed class FlexibleStringListConverter : JsonConverter<List<string>?>
+    {
+        public override List<string>? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                return null;
+            }
+
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                var value = reader.GetString();
+                return string.IsNullOrWhiteSpace(value)
+                    ? null
+                    : new List<string> { value };
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                throw new JsonException("Expected string or array when parsing installer hints.");
+            }
+
+            var list = new List<string>();
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                if (element.ValueKind == JsonValueKind.String)
+                {
+                    var text = element.GetString();
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        list.Add(text);
+                    }
+                }
+                else if (element.ValueKind == JsonValueKind.Number || element.ValueKind == JsonValueKind.True || element.ValueKind == JsonValueKind.False)
+                {
+                    list.Add(element.ToString());
+                }
+            }
+
+            return list.Count == 0 ? null : list;
+        }
+
+        public override void Write(Utf8JsonWriter writer, List<string>? value, JsonSerializerOptions options)
+        {
+            if (value is null || value.Count == 0)
+            {
+                writer.WriteNullValue();
+                return;
+            }
+
+            writer.WriteStartArray();
+            foreach (var item in value)
+            {
+                writer.WriteStringValue(item);
+            }
+
+            writer.WriteEndArray();
+        }
+    }
+
+    private sealed class FlexibleStringConverter : JsonConverter<string?>
+    {
+        public override string? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        {
+            if (reader.TokenType == JsonTokenType.Null)
+            {
+                return null;
+            }
+
+            if (reader.TokenType == JsonTokenType.String)
+            {
+                return reader.GetString();
+            }
+
+            using var document = JsonDocument.ParseValue(ref reader);
+            return document.RootElement.ToString();
+        }
+
+        public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
+        {
+            if (value is null)
+            {
+                writer.WriteNullValue();
+                return;
+            }
+
+            writer.WriteStringValue(value);
+        }
     }
 }

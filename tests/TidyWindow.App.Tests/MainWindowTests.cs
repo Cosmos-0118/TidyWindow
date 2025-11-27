@@ -111,7 +111,11 @@ public sealed class MainWindowTests
 
             var services = new ServiceCollection();
             services.AddSingleton<ActivityLogService>();
-            services.AddSingleton(provider => new NavigationService(provider));
+            services.AddSingleton(provider =>
+            {
+                var activityLog = provider.GetRequiredService<ActivityLogService>();
+                return new NavigationService(provider, activityLog);
+            });
             services.AddSingleton<MainViewModel>();
             services.AddSingleton<UserPreferencesService>();
             services.AddSingleton<ITrayService, TestTrayService>();

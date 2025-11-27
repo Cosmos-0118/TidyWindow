@@ -15,6 +15,7 @@ namespace TidyWindow.App.Services;
 public sealed class NavigationService
 {
     private readonly IServiceProvider _serviceProvider;
+    private readonly ActivityLogService _activityLog;
     private readonly Dictionary<Type, Page> _pageCache = new();
     private Frame? _frame;
     private readonly Duration _transitionDuration = new(TimeSpan.FromMilliseconds(220));
@@ -24,9 +25,10 @@ public sealed class NavigationService
     private Type? _queuedNavigation;
     private Type? _activeNavigationTarget;
 
-    public NavigationService(IServiceProvider serviceProvider)
+    public NavigationService(IServiceProvider serviceProvider, ActivityLogService activityLog)
     {
-        _serviceProvider = serviceProvider;
+        _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+        _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
     }
 
     public bool IsInitialized => _frame is not null;
@@ -64,6 +66,7 @@ public sealed class NavigationService
 
         if (_frame.Content?.GetType() == pageType)
         {
+            _activityLog.LogInformation("Navigation", $"Navigation skipped; already on {pageType.Name}.");
             return;
         }
 
@@ -71,12 +74,16 @@ public sealed class NavigationService
         {
             if (_activeNavigationTarget == pageType)
             {
+                _activityLog.LogInformation("Navigation", $"Navigation already in progress for {pageType.Name}.");
                 return;
             }
 
             _queuedNavigation = pageType;
+            _activityLog.LogInformation("Navigation", $"Navigation queued for {pageType.Name} while transition completes.");
             return;
         }
+
+        _activityLog.LogInformation("Navigation", $"Navigating to {pageType.Name}");
 
         var page = ResolvePage(pageType);
 
@@ -129,7 +136,7 @@ public sealed class NavigationService
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine($"Navigation failure for {pageType.FullName}: {ex}");
+                _activityLog.LogError("Navigation", $"Navigation failure for {pageType.FullName}", new object?[] { ex });
                 _pageCache.Remove(pageType);
                 _frame.Opacity = 1d;
                 ResetTransition();
@@ -193,6 +200,10 @@ public sealed class NavigationService
                 {
                     Navigate(pending);
                 }
+            }
+            else if (_frame.Content is Page currentPage)
+            {
+                _activityLog.LogInformation("Navigation", $"Navigation complete: {currentPage.GetType().Name}");
             }
         }
 
