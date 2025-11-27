@@ -1,0 +1,263 @@
+Shortest honest answer: there is no 100% “nothing left at all” generic uninstaller on Windows, because each app can drop files, drivers, services and scheduled tasks anywhere. But you can build a simple, robust uninstaller UI that:​
+
+Enumerates all “normal” installed apps (like Add/Remove Programs) via registry + winget
+
+Calls each app’s own uninstall command (MSI, EXE, Store, winget) silently where possible
+
+Optionally does some extra cleanup for well‑known locations (per‑user AppData, leftover empty folders)
+
+Below is a practical, minimal design that fits your C# + PowerShell + WPF MVVM stack.
+
+What you can and cannot guarantee
+You can reliably:
+
+List almost everything that shows in “Apps & features” by reading the ARP uninstall registry keys for 32‑bit and 64‑bit, plus registered Store/winget apps.​
+
+Call the official uninstall string or MSI product code (msiexec) so the app removes itself as designed.​
+
+You cannot reliably:
+
+Detect and remove arbitrary files an app dropped outside of its own install locations, unless you build a snapshot driver / file system monitor like Revo (which is complex and risky).
+
+Be 100% sure “nothing is left” for all apps; some purposely leave config/logs or cache.​
+
+So “best and simplest” = orchestrate the OS’s own uninstall mechanisms + small, optional cleanup, not a deep file‑system scrubber.
+
+Enumerating installed apps (backend design)
+Use a small PowerShell module or C# service to aggregate from multiple sources, then expose a simple DTO to your WPF UI.
+
+Classic Win32/desktop apps from registry (main source)
+
+Read these keys for both HKLM (machine) and HKCU (per‑user):​
+
+HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall
+
+HKLM\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall
+
+HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall
+
+For each subkey:
+
+If it has DisplayName and either UninstallString or QuietUninstallString, treat it as an installed app.​
+
+Capture:
+
+DisplayName
+
+Publisher
+
+DisplayVersion
+
+InstallLocation
+
+UninstallString
+
+QuietUninstallString (if present)
+
+SystemComponent / WindowsInstaller flags, etc.​
+
+PowerShell example to prototype enumeration logic (then port to C#):
+
+Keys:​
+
+Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall','HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall','HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall' |
+Get-ItemProperty |
+Where-Object { $_.DisplayName } |
+Select-Object DisplayName, DisplayVersion, Publisher, InstallLocation, UninstallString, QuietUninstallString, SystemComponent, WindowsInstaller
+
+Filter out:
+
+SystemComponent = 1 (hidden system entries) only if you want a “normal view”; you can add a “show system/hidden” toggle in the UI.​
+
+Optional: entries with ReleaseType like “Update” to hide hotfixes/patches.​
+
+MSI‑installed products (for reliability)
+
+MSI apps appear under those same registry keys, but they are also queryable via product code.​
+
+You can:
+
+Detect WindowsInstaller = 1 under the uninstall keys.​
+
+Extract the MSI product code (GUID) from either:
+
+The UninstallString (usually contains {GUID}).​
+
+Or use MSI APIs / WMI queries if needed.​
+
+Store/packaged apps and winget
+
+For a “covers almost everything” list, add:
+
+winget list for installed apps (this includes Win32, MSIX, some Store apps).​
+
+You can run winget from PowerShell/C# and merge its results:
+
+Fields: Name, Id, Version, Source.​
+
+Use the registry as your primary source and winget as supplemental info/backup.
+
+Don’t rely on Win32_Product for listing
+
+Win32_Product is slow and can trigger repairs. It’s widely recommended to avoid it for inventory.​
+
+Stick to registry + winget.
+
+Running the uninstall reliably
+Core idea: for each selected app, decide the uninstall method, then run it silently if possible.
+
+Decide uninstall method
+For each app from the registry:
+
+If WindowsInstaller = 1 or uninstall string contains “msiexec” and a {GUID}, treat as MSI.​
+
+Else, if QuietUninstallString exists, prefer that.​
+
+Else, fallback to UninstallString.
+
+For winget‑detected apps, you can support “uninstall via winget” as an option:
+
+winget uninstall <AppId or Name>.​
+
+Uninstall MSI apps (best‑case scenario)
+
+Extract product code GUID from uninstall string (regex on {…}).​
+
+Call:
+
+msiexec /x {GUID} /qn /norestart
+
+From C#, use ProcessStartInfo with:
+
+FileName = "msiexec.exe"
+
+Arguments = $"/x {productCode} /qn /norestart"
+
+UseShellExecute = false
+
+CreateNoWindow = true
+
+From PowerShell, you can prototype with Start-Process msiexec -ArgumentList "/x $productCode /qn /norestart" -Wait.​
+
+Uninstall EXE‑based apps
+
+If QuietUninstallString is present, run that as‑is (respecting its switches).​
+
+Else UninstallString:
+
+Try to add common silent flags if they’re not already present, but keep it conservative because it is heuristic:
+
+/quiet, /qn, /s, /S, /silent depending on installer type (Inno, NSIS, InstallShield, etc.).​
+
+Safer option: default to interactive uninstall when silent flag is unknown; allow user to choose “silent (best‑effort)” vs “interactive”.
+
+Execute with Process in C# or & in PowerShell.
+
+Uninstall via winget (optional)
+
+If the user checks a “use winget if possible” option:
+
+For apps that have a matching winget Id, run:
+
+winget uninstall --id <Id> --silent --accept-source-agreements --accept-package-agreements
+
+Make sure to show progress and capture exit codes.​
+
+Handle errors and progress
+
+Non‑negotiable for reliability:
+
+Run uninstalls one per process, wait for exit, capture exit code and any stderr.
+
+Show result in UI: Success, Failed (code), or Cancelled.
+
+Don’t immediately delete registry entries or folders yourself if uninstall fails; that’s where things get dangerous.
+
+“No leftovers” vs safe cleanup
+Realistically, the only safe “cleanup” you can do generically:
+
+After uninstall exit code == 0, you may:
+
+If InstallLocation is set and points to a directory:
+
+If directory exists and is either empty or only contains obvious leftover logs/config, allow user to delete it via a confirmation: “Folder still exists at X. Delete it?”​
+
+Optionally clean:
+
+Start menu shortcuts under %ProgramData%\Microsoft\Windows\Start Menu\Programs related to the app name.​
+
+Desktop shortcut (if it matches app’s name and points into InstallLocation).
+
+Do NOT automatically:
+
+Delete arbitrary Program Files subfolders that don’t match InstallLocation.
+
+Remove services, drivers, or scheduled tasks unless you specifically know they belong to that app.
+
+You can add a “deep scan (advanced, risky)” mode later that searches for:
+
+Directories named by product name under AppData, ProgramData, Program Files and proposes them as optional deletions.
+
+That keeps your app simple and much safer than “try to vacuum everything”.
+
+Architecture for your C# + WPF MVVM app
+Recommended structure:
+
+Core library (C#):
+
+Class InstalledApp with properties: Name, Version, Publisher, InstallLocation, IsMSI, ProductCode, UninstallString, QuietUninstallString, IsSystemComponent, Source (Registry/Winget).
+
+Service IAppInventoryService:
+
+Task<List<InstalledApp>> GetInstalledAppsAsync(bool includeSystem, bool includeStore, bool includeUser);
+
+Service IAppUninstallService:
+
+Task<UninstallResult> UninstallAsync(InstalledApp app, UninstallMode mode /Interactive, SilentBestEffort, WingetIfAvailable/);
+
+PowerShell:
+
+If you’re more productive with PS for registry work, put the enumeration logic into a script or module and call it from C# via PowerShell SDK, then map to InstalledApp.​
+
+WPF UI (MVVM):
+
+ViewModel:
+
+ObservableCollection<InstalledAppViewModel> Apps
+
+Commands: Refresh, UninstallSelected, ToggleShowSystem
+
+Views:
+
+Main grid listing all apps (filter/search by name, publisher, size).
+
+Details pane with uninstall options (silent, interactive, via winget).
+
+Progress dialog with per‑app status.
+
+This keeps your UI decoupled and the uninstall logic testable.
+
+Practical “simplest and best” recipe
+If you want a concrete roadmap:
+
+Implement registry‑based inventory (HKLM/HKCU uninstall keys, both bitness) and expose it in your app.​
+
+Detect MSI vs non‑MSI and extract product code when MSI.​
+
+Implement an uninstall pipeline:
+
+MSI: msiexec /x {GUID} /qn /norestart
+
+Non‑MSI: QuietUninstallString if present, else UninstallString (interactive by default, optional best‑effort silent).
+
+Add winget list/uninstall integration as an optional enhancement.​
+
+Add minimal, opt‑in cleanup:
+
+Offer to delete InstallLocation if it still exists and is safe.
+
+Optionally offer to remove obvious shortcuts.
+
+Clearly mark “advanced cleanup” features as potentially risky; keep default mode conservative and reliable.
+
+If you want, next step can be: “show me sample C# code for enumerating the uninstall keys and running msiexec/uninstall strings,” and a compact PowerShell helper that you can embed or load at runtime.
