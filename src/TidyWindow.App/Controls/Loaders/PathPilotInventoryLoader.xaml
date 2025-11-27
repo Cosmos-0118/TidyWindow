@@ -1,0 +1,208 @@
+<UserControl x:Class="TidyWindow.App.Controls.Loaders.PathPilotInventoryLoader"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignWidth="900"
+             d:DesignHeight="460">
+    <UserControl.Resources>
+        <LinearGradientBrush x:Key="InventoryLoaderBackdropBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#C0101528" Offset="0"/>
+            <GradientStop Color="#C015203A" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="InventoryLoaderSurfaceBrush" Color="#0F1B2F"/>
+        <SolidColorBrush x:Key="InventoryLoaderAccentBrush" Color="#38BDF8"/>
+        <SolidColorBrush x:Key="InventoryLoaderSecondaryBrush" Color="#34D399"/>
+        <SolidColorBrush x:Key="InventoryLoaderWarningBrush" Color="#FDE047"/>
+        <SolidColorBrush x:Key="InventoryLoaderBodyBrush" Color="#C7D2FE"/>
+
+        <Storyboard x:Key="InventorySpinnerStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="InventoryRingRotate"
+                             Storyboard.TargetProperty="Angle"
+                             From="0"
+                             To="360"
+                             Duration="0:0:2.6">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="InventoryDotTranslate"
+                             Storyboard.TargetProperty="X"
+                             From="-18"
+                             To="18"
+                             Duration="0:0:1.3"
+                             AutoReverse="True">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="InventoryPulseScale"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="0.9"
+                             To="1.06"
+                             Duration="0:0:1.1"
+                             AutoReverse="True">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="InventoryPulseScale"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="0.9"
+                             To="1.06"
+                             Duration="0:0:1.1"
+                             AutoReverse="True">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+            <DoubleAnimation Storyboard.TargetName="InventoryProgressTranslate"
+                             Storyboard.TargetProperty="X"
+                             From="-220"
+                             To="220"
+                             Duration="0:0:1.8"
+                             AutoReverse="True">
+                <DoubleAnimation.EasingFunction>
+                    <SineEase EasingMode="EaseInOut"/>
+                </DoubleAnimation.EasingFunction>
+            </DoubleAnimation>
+        </Storyboard>
+    </UserControl.Resources>
+
+    <Grid x:Name="OverlayRoot"
+          Background="{StaticResource InventoryLoaderBackdropBrush}"
+          Opacity="0"
+          Visibility="Collapsed"
+          IsHitTestVisible="{Binding IsActive, RelativeSource={RelativeSource AncestorType=UserControl}}">
+        <Border HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Padding="38"
+                CornerRadius="30"
+                Background="{StaticResource InventoryLoaderSurfaceBrush}"
+                BorderBrush="#1F2F4C"
+                BorderThickness="1.5"
+                MaxWidth="920">
+            <Border.Effect>
+                <DropShadowEffect Color="#020915"
+                                  BlurRadius="34"
+                                  ShadowDepth="0"
+                                  Opacity="0.55"/>
+            </Border.Effect>
+            <Grid HorizontalAlignment="Stretch">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="3*"/>
+                    <ColumnDefinition Width="2.2*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            Margin="0,0,32,0"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Scanning runtime inventory"
+                               FontSize="26"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="Reviewing PATH, resolving runtime footprints, and aligning the dashboard copy."
+                               Margin="0,10,0,0"
+                               Foreground="{StaticResource InventoryLoaderBodyBrush}"
+                               FontSize="13"
+                               TextWrapping="Wrap"/>
+                    <TextBlock Text="{Binding Summary}"
+                               Margin="0,6,0,0"
+                               Foreground="#8AB4FF"
+                               FontSize="12"
+                               TextWrapping="Wrap"/>
+
+                    <Border Margin="0,18,0,0"
+                            Height="8"
+                            CornerRadius="4"
+                            Background="#13233C">
+                        <Grid ClipToBounds="True">
+                            <Rectangle Fill="#1E3354"
+                                       Opacity="0.8"/>
+                            <Rectangle Width="160"
+                                       Height="8"
+                                       Fill="{StaticResource InventoryLoaderAccentBrush}">
+                                <Rectangle.RenderTransform>
+                                    <TranslateTransform x:Name="InventoryProgressTranslate"
+                                                        X="-220"/>
+                                </Rectangle.RenderTransform>
+                            </Rectangle>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Margin="0,22,0,0">
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource InventoryLoaderAccentBrush}"/>
+                            <TextBlock Text="Enumerating registered runtimes"
+                                       Margin="10,0,0,0"
+                                       Foreground="#E0F2FE"
+                                       FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource InventoryLoaderSecondaryBrush}"/>
+                            <TextBlock Text="Detecting PATH conflicts and duplicates"
+                                       Margin="10,0,0,0"
+                                       Foreground="#BBF7D0"
+                                       FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource InventoryLoaderWarningBrush}"/>
+                            <TextBlock Text="Flagging drift or missing installations"
+                                       Margin="10,0,0,0"
+                                       Foreground="#FDE68A"
+                                       FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+
+                <Grid Grid.Column="1"
+                      Width="240"
+                      Height="240"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Ellipse Width="240"
+                             Height="240"
+                             Stroke="#152036"
+                             StrokeThickness="2"/>
+                    <Ellipse Width="200"
+                             Height="200"
+                             Stroke="#1E2F4C"
+                             StrokeThickness="2"
+                             StrokeDashArray="8 14"/>
+                    <Ellipse Width="162"
+                             Height="162"
+                             Stroke="{StaticResource InventoryLoaderAccentBrush}"
+                             StrokeThickness="6"
+                             StrokeDashArray="4 12"
+                             StrokeStartLineCap="Round"
+                             StrokeEndLineCap="Round"
+                             RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform>
+                            <RotateTransform x:Name="InventoryRingRotate"/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse Width="124"
+                             Height="124"
+                             Fill="#17233A"
+                             Opacity="0.55"
+                             RenderTransformOrigin="0.5,0.5">
+                        <Ellipse.RenderTransform>
+                            <ScaleTransform x:Name="InventoryPulseScale" ScaleX="1" ScaleY="1"/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Border Width="22"
+                            Height="22"
+                            CornerRadius="11"
+                            Background="{StaticResource InventoryLoaderSecondaryBrush}"
+                            BorderBrush="#0A3627"
+                            BorderThickness="1">
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="InventoryDotTranslate"/>
+                        </Border.RenderTransform>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

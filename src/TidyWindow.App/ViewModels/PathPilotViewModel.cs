@@ -47,6 +47,12 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private bool _isBusy;
 
     [ObservableProperty]
+    private bool _isInventoryLoading;
+
+    [ObservableProperty]
+    private bool _isSwitchingPath;
+
+    [ObservableProperty]
     private bool _isMachineScopeWarningDismissed;
 
     [ObservableProperty]
@@ -89,6 +95,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         }
 
         IsBusy = true;
+        IsInventoryLoading = true;
         _mainViewModel.SetStatusMessage("Scanning runtimes...");
 
         try
@@ -109,7 +116,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            await RunOnUiThreadAsync(() => IsBusy = false).ConfigureAwait(false);
+            await RunOnUiThreadAsync(() =>
+            {
+                IsBusy = false;
+                IsInventoryLoading = false;
+            }).ConfigureAwait(false);
         }
     }
 
@@ -128,6 +139,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         }
 
         IsBusy = true;
+        IsSwitchingPath = true;
         var runtimeName = string.IsNullOrWhiteSpace(request.RuntimeName) ? request.RuntimeId : request.RuntimeName;
         _mainViewModel.SetStatusMessage($"Switching {runtimeName}...");
 
@@ -179,7 +191,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         }
         finally
         {
-            await RunOnUiThreadAsync(() => IsBusy = false).ConfigureAwait(false);
+            await RunOnUiThreadAsync(() =>
+            {
+                IsBusy = false;
+                IsSwitchingPath = false;
+            }).ConfigureAwait(false);
         }
     }
 
