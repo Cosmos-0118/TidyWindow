@@ -160,28 +160,6 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 
 > Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.
 
-## Project Oblivion Popup Deep Clean
-
-Reference sources: `projectoblivion.txt`, `Future-ideas/idea2.txt`, PathPilot animation patterns, and Cleanup artifact scanners.
-
-[x] Step 13.1: Enhance `automation/scripts/get-installed-app-footprint.ps1` to emit install roots, suspected services/process names, uninstall metadata, and confidence scores so the popup can start scanning immediately.
-[x] Step 13.2: Create `automation/scripts/uninstall-app-deep.ps1` that performs the stage pipeline (native uninstall → process sweep → artifact discovery → user-selected cleanup → summary) while streaming JSON events for the UI.
-[x] Step 13.3: Extend `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1` with helpers for process correlation, artifact scanning, deletion ordering, and structured logging shared by the deep script.
-[x] Step 13.4: Implement `ProjectOblivionViewModel` (list surface) and `ProjectOblivionPopupViewModel` (timeline, checklist, summary) that consume the streaming events and manage user selections.
-[x] Step 13.5: Build `Views/ProjectOblivionPage.xaml` plus the modal popup (PathPilot-style animation ring, timeline chips, collapsible log, artifact checklist, summary card) with responsive states.
-[x] Step 13.6: Persist run telemetry under `data/cleanup/<AppId>/oblivion-run.json`, surface inline success/error toasts, and expose a `View log` CTA from the summary.
-
-## Project Oblivion Safety Rework
-
-Reference: `rework.md` (risk assessment) plus `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1` + `automation/scripts/oblivion-*.ps1`.
-
-[x] Step 13.7: Harden the selection handshake so `Resolve-ArtifactSelection` (force-cleanup + uninstall scripts) fails closed when no valid selection JSON is supplied, simplify the schema to `{ selectedIds, deselectedIds }`, and persist selections alongside inventory snapshots with checksum validation (completed Nov 25 2025 via `ProjectOblivionPopupViewModel` persistence + `oblivion-force-cleanup.ps1` signature enforcement).
-[x] Step 13.8: Rebuild `Invoke-OblivionArtifactDiscovery` to require trusted anchors (install roots, explicit hints, registry install locations), demote heuristic matches to opt-in candidates, cap token scans by depth/count, and annotate each artifact with provenance metadata for the popup (completed Nov 25 2025 via anchored scope scanning and candidate metadata in `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1`).
-[x] Step 13.9: Refactor `Find-TidyRelatedProcesses`/`Invoke-OblivionProcessSweep` to match processes/services via full image paths or explicit hints only, blacklist `%SystemRoot%` binaries, and stop feeding substring matches back into discovery (completed Nov 25 2025 by anchoring process matching and blocked-root checks inside `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1`).
-[x] Step 13.10: Gate `Invoke-OblivionForce*` removals behind path validation (must reside under approved roots or whitelisted registry keys), remove robocopy/pending-delete fallbacks for unknown paths, and emit pre-execution dry-run summaries so operators can review destructive actions (completed Nov 25 2025 with new artifact validation + `forceRemovalPlan` events in `automation/modules/TidyWindow.Automation/TidyWindow.Automation.psm1`).
-[x] Step 13.11: Split inventory/dedupe logic so each source (registry, manager, AppX, portable) keeps its own identity, ship a committed `data/catalog/oblivion-inventory.json` template for CLI scenarios, and move the dedupe heuristics into a testable helper with opt-in merges inside `ProjectOblivionViewModel` (completed Nov 26 2025 via `ProjectOblivionInventoryDeduplicator`, the new `MergeSources` toggle, and the committed template snapshot).
-[x] Step 13.12: Expand automated coverage with fixture-based discovery tests (decoy system paths), selection-handshake integration tests (timeouts, corrupt JSON, resume), and regression tests ensuring rejected artifacts/services are logged for telemetry (completed Nov 26 2025 with new `ProjectOblivionScriptTests` coverage for discovery heuristics plus timeout/corrupt/resume selection flows).
-
 ## Settings Control Center Redesign
 
 Reference: `Future-ideas/idea4.txt` (Settings Redesign blueprint).
@@ -189,7 +167,7 @@ Reference: `Future-ideas/idea4.txt` (Settings Redesign blueprint).
 [ ] Step 14.1: Introduce `Views/SettingsShellPage.xaml` + `SettingsShellViewModel` hosting a nav rail and content frame that loads discrete `Settings*.xaml` pages.
 [ ] Step 14.2: Split the current settings monolith into scoped views (`SettingsGeneralPage`, `SettingsAutomationPage`, `SettingsNotificationsPage`, `SettingsIntegrationsPage`, `SettingsDataPage`, `SettingsLabsPage`) each with dedicated view models and responsive layouts.
 [ ] Step 14.3: Build `AutomationScheduleService` to persist per-task schedules (JSON under `%ProgramData%/TidyWindow/`) and surface shared scheduler UI (upcoming runs, last status, run-now actions).
-[ ] Step 14.4: Wire feature modules (Maintenance, Cleanup, Install Hub, Version Control, Project Oblivion) to register automation metadata and respond to schedule changes.
+[ ] Step 14.4: Wire feature modules (Maintenance, Cleanup, Install Hub, Version Control) to register automation metadata and respond to schedule changes.
 [ ] Step 14.5: Add search/help affordances, reset/export buttons, and telemetry so the new control center becomes the canonical home for automation, notifications, integrations, and safety policies.
 
 ## Registry Optimizer Rework
@@ -210,5 +188,4 @@ Reference: `Future-ideas/startupcontroller.txt` (Startup Controller concept).
 [ ] Step 16.2: Develop `StartupControllerService` (Windows service or scheduled task) that runs at boot, reads a stored schedule, launches items in waves, and logs telemetry.
 [ ] Step 16.3: Build `StartupControllerViewModel` plus modular views (`Views/StartupController/StartupControllerShell.xaml`, `StartupOverviewCardView.xaml`, `StartupListView.xaml`, `DiagnosticsTimelineView.xaml`, `ProfileManagerView.xaml`) so reorderable lists, sliders, and diagnostics remain isolated and maintainable.
 [ ] Step 16.4: Implement apply/reset logic that safely disables native startup entries, stores backups, writes schedule JSON, and offers a panic "Restore defaults" action.
-[ ] Step 16.5: Integrate with Project Oblivion and Activity Log so startup changes stay in sync with installs/uninstalls and users can export/import profiles.
-
+[ ] Step 16.5: Integrate with the Activity Log so startup changes stay in sync with installs/uninstalls and users can export/import profiles.

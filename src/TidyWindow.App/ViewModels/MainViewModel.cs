@@ -32,7 +32,6 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),
             new("Deep scan", "Find the heaviest files using automation", typeof(DeepScanPage)),
             new("Cleanup", "Preview clutter before removing files", typeof(CleanupPage)),
-            new("Project Oblivion", "Focused uninstall cleanup timelines", typeof(ProjectOblivionPage)),
             new("Logs", "Inspect activity across automation features", typeof(LogsPage)),
             new("Settings", "Configure preferences and integrations", typeof(SettingsPage))
         };

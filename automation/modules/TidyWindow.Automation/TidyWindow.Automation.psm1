@@ -3,9 +3,7 @@ $moduleParts = @(
     'logging.ps1',
     'packages.ps1',
     'registry.ps1',
-    'core.ps1',
-    'oblivion.core.ps1',
-    'oblivion.force.ps1'
+    'core.ps1'
 )
 
 foreach ($part in $moduleParts) {
@@ -53,16 +51,7 @@ $exportedFunctions = @(
     'Stop-TidyProcesses',
     'ConvertTo-TidyRegistryPath',
     'Measure-TidyDirectoryBytes',
-    'New-TidyArtifactId',
-    'New-TidyFileArtifact',
-    'New-TidyRegistryArtifact',
-    'New-TidyServiceArtifact',
-    'Get-TidyCandidateDataFolders',
-    'Get-TidyArtifacts',
-    'Remove-TidyArtifacts',
-    'Invoke-OblivionProcessSweep',
-    'Invoke-OblivionArtifactDiscovery',
-    'Invoke-OblivionForceRemoval'
+    'New-TidyArtifactId'
 )
 
 Export-ModuleMember -Function $exportedFunctions

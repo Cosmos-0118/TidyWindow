@@ -49,6 +49,5 @@ Implementation steps
 5. Telemetry/logs so users can see what launched, what failed, and how much time each step took.
 
 Stretch goals
-- Integrate with Project Oblivion so uninstalling an app also removes its startup entry.
 - Provide an “Only on AC power” option for heavy apps.
 - Sync schedules via cloud export/import.
