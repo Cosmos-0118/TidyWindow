@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using TidyWindow.Core.Processes;
@@ -60,6 +61,31 @@ public sealed class ProcessStateStoreTests
             Assert.Single(hits);
             Assert.Equal(SuspicionLevel.Orange, hits.Single().Level);
             Assert.Equal("abc123", hits.Single().Hash);
+        }
+        finally
+        {
+            DeleteIfExists(path);
+        }
+    }
+
+    [Fact]
+    public void QuestionnaireSnapshot_RoundTrips()
+    {
+        var path = CreateTempPath();
+        try
+        {
+            var store = new ProcessStateStore(path);
+            var answers = ImmutableDictionary.CreateBuilder<string, string>(StringComparer.OrdinalIgnoreCase);
+            answers["usage.gaming"] = "no";
+            var autoStops = ImmutableHashSet.Create(StringComparer.OrdinalIgnoreCase, "spooler");
+            var snapshot = new ProcessQuestionnaireSnapshot(DateTimeOffset.UtcNow, answers.ToImmutable(), autoStops);
+
+            store.SaveQuestionnaireSnapshot(snapshot);
+
+            var reloaded = new ProcessStateStore(path);
+            var observed = reloaded.GetQuestionnaireSnapshot();
+            Assert.Equal("no", observed.Answers["usage.gaming"]);
+            Assert.Contains("spooler", observed.AutoStopProcessIds);
         }
         finally
         {

@@ -15,7 +15,7 @@ public sealed class ProcessStateStore
 {
     private const string StateOverrideEnvironmentVariable = "TIDYWINDOW_PROCESS_STATE_PATH";
     private const string DefaultFileName = "uiforprocesses-state.json";
-    internal const int LatestSchemaVersion = 1;
+    internal const int LatestSchemaVersion = 2;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -182,6 +182,33 @@ public sealed class ProcessStateStore
         }
     }
 
+    public ProcessQuestionnaireSnapshot GetQuestionnaireSnapshot()
+    {
+        lock (_syncRoot)
+        {
+            return _snapshot.Questionnaire;
+        }
+    }
+
+    public void SaveQuestionnaireSnapshot(ProcessQuestionnaireSnapshot snapshot)
+    {
+        if (snapshot is null)
+        {
+            throw new ArgumentNullException(nameof(snapshot));
+        }
+
+        lock (_syncRoot)
+        {
+            _snapshot = _snapshot with
+            {
+                Questionnaire = snapshot,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+
+            SaveSnapshotLocked();
+        }
+    }
+
     private ProcessStateSnapshot LoadFromDisk()
     {
         try
@@ -225,8 +252,10 @@ public sealed class ProcessStateStore
                     .Cast<SuspiciousProcessHit>()
                     .ToImmutableDictionary(static hit => hit.Id, StringComparer.OrdinalIgnoreCase);
 
+            var questionnaire = ToQuestionnaireSnapshot(model.Questionnaire);
+
             var updatedAt = model.UpdatedAtUtc == default ? DateTimeOffset.UtcNow : model.UpdatedAtUtc;
-            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits);
+            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits, questionnaire);
         }
         catch
         {
@@ -285,6 +314,32 @@ public sealed class ProcessStateStore
             model.Notes);
     }
 
+    private static ProcessQuestionnaireSnapshot ToQuestionnaireSnapshot(ProcessQuestionnaireModel? model)
+    {
+        if (model is null)
+        {
+            return ProcessQuestionnaireSnapshot.Empty;
+        }
+
+        var answers = model.Answers is null
+            ? ImmutableDictionary.Create<string, string>(StringComparer.OrdinalIgnoreCase)
+            : model.Answers
+                .Where(static pair => !string.IsNullOrWhiteSpace(pair.Key) && !string.IsNullOrWhiteSpace(pair.Value))
+                .ToImmutableDictionary(
+                    static pair => pair.Key.Trim().ToLowerInvariant(),
+                    static pair => pair.Value.Trim().ToLowerInvariant(),
+                    StringComparer.OrdinalIgnoreCase);
+
+        var processes = model.AutoStopProcessIds is null
+            ? ImmutableHashSet.Create<string>(StringComparer.OrdinalIgnoreCase)
+            : model.AutoStopProcessIds
+                .Where(static id => !string.IsNullOrWhiteSpace(id))
+                .Select(ProcessCatalogEntry.NormalizeIdentifier)
+                .ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return new ProcessQuestionnaireSnapshot(model.CompletedAtUtc, answers, processes);
+    }
+
     private static ProcessStateModel UpgradeModel(ProcessStateModel model)
     {
         model.SchemaVersion = LatestSchemaVersion;
@@ -317,6 +372,8 @@ public sealed class ProcessStateStore
 
         public List<SuspiciousProcessHitModel>? SuspiciousHits { get; set; }
 
+        public ProcessQuestionnaireModel? Questionnaire { get; set; }
+
         public static ProcessStateModel FromSnapshot(ProcessStateSnapshot snapshot)
         {
             return new ProcessStateModel
@@ -346,7 +403,8 @@ public sealed class ProcessStateStore
                         Source = hit.Source,
                         Notes = hit.Notes
                     })
-                    .ToList()
+                    .ToList(),
+                Questionnaire = ProcessQuestionnaireModel.FromSnapshot(snapshot.Questionnaire)
             };
         }
     }
@@ -384,6 +442,25 @@ public sealed class ProcessStateStore
 
         public string? Notes { get; set; }
     }
+
+    private sealed class ProcessQuestionnaireModel
+    {
+        public DateTimeOffset? CompletedAtUtc { get; set; }
+
+        public Dictionary<string, string>? Answers { get; set; }
+
+        public List<string>? AutoStopProcessIds { get; set; }
+
+        public static ProcessQuestionnaireModel FromSnapshot(ProcessQuestionnaireSnapshot snapshot)
+        {
+            return new ProcessQuestionnaireModel
+            {
+                CompletedAtUtc = snapshot.CompletedAtUtc,
+                Answers = snapshot.Answers.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+                AutoStopProcessIds = snapshot.AutoStopProcessIds.ToList()
+            };
+        }
+    }
 }
 
 /// <summary>
@@ -393,7 +470,8 @@ public sealed record ProcessStateSnapshot(
     int SchemaVersion,
     DateTimeOffset UpdatedAtUtc,
     IImmutableDictionary<string, ProcessPreference> Preferences,
-    IImmutableDictionary<string, SuspiciousProcessHit> SuspiciousHits)
+    IImmutableDictionary<string, SuspiciousProcessHit> SuspiciousHits,
+    ProcessQuestionnaireSnapshot Questionnaire)
 {
     public static ProcessStateSnapshot CreateEmpty(int schemaVersion)
     {
@@ -401,6 +479,21 @@ public sealed record ProcessStateSnapshot(
             schemaVersion,
             DateTimeOffset.MinValue,
             ImmutableDictionary.Create<string, ProcessPreference>(StringComparer.OrdinalIgnoreCase),
-            ImmutableDictionary.Create<string, SuspiciousProcessHit>(StringComparer.OrdinalIgnoreCase));
+            ImmutableDictionary.Create<string, SuspiciousProcessHit>(StringComparer.OrdinalIgnoreCase),
+            ProcessQuestionnaireSnapshot.Empty);
     }
+}
+
+/// <summary>
+/// Stores questionnaire answers and derived recommendations.
+/// </summary>
+public sealed record ProcessQuestionnaireSnapshot(
+    DateTimeOffset? CompletedAtUtc,
+    IImmutableDictionary<string, string> Answers,
+    IImmutableSet<string> AutoStopProcessIds)
+{
+    public static ProcessQuestionnaireSnapshot Empty { get; } = new(
+        null,
+        ImmutableDictionary.Create<string, string>(StringComparer.OrdinalIgnoreCase),
+        ImmutableHashSet.Create<string>(StringComparer.OrdinalIgnoreCase));
 }

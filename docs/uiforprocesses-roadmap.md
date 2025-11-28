@@ -36,11 +36,11 @@
 -   Built a resilient `ProcessCatalogParser` that ingests `listofknown.txt`, preserves caution guidance, and surfaces structured `ProcessCatalogSnapshot` data for the UI.
 -   Introduced a JSON-backed `ProcessStateStore` (with schema versioning + migration hooks) ready to persist questionnaire answers, auto-stop overrides, and anti-system decisions (preferences + detection history already flow through it).
 
-### Phase 1 – Questionnaire Engine (2-3 days)
+### Phase 1 – Questionnaire Engine (✅ Done)
 
--   Implement question model + scoring rules mapping answers to catalog categories.
--   Create first-run modal/page with validation and “remind me later” path.
--   Persist results and expose derived auto-stop recommendations via service.
+-   Shipped the `ProcessQuestionnaireEngine` + models (`ProcessQuestion`, `ProcessQuestionnaireDefinition`, `ProcessQuestionnaireResult`) to encapsulate the first-run flow and scoring rules that map answers to catalog categories/process IDs.
+-   Added questionnaire persistence (`ProcessQuestionnaireSnapshot`) inside `ProcessStateStore`, including schema v2 with immutable answers + derived auto-stop identifiers and helper APIs to reload/clear state.
+-   Engine now normalizes answers, evaluates declarative rules, and syncs questionnaire-sourced `ProcessPreference`s (respecting user overrides) while emitting telemetry-friendly notes for the UI layer.
 
 ### Phase 2 – Known Processes Tab (3-4 days)
 
