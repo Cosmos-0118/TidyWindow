@@ -6,10 +6,16 @@
       xmlns:controls="clr-namespace:TidyWindow.App.Views"
       xmlns:converters="clr-namespace:TidyWindow.App.Converters"
       xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
-      xmlns:ux="clr-namespace:TidyWindow.App.Controls"
-      mc:Ignorable="d"
-      Title="Essentials"
-      Background="Transparent">
+    xmlns:ux="clr-namespace:TidyWindow.App.Controls"
+    mc:Ignorable="d"
+    Title="Essentials"
+    Background="Transparent"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="ClearType"
+    TextOptions.TextHintingMode="Fixed"
+    RenderOptions.BitmapScalingMode="HighQuality">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
@@ -30,6 +36,25 @@
             <GradientStop Color="#8B5CF6" Offset="1"/>
         </LinearGradientBrush>
         <SolidColorBrush x:Key="EssentialsPrimaryDisabledBrush" Color="#1E1E2E"/>
+        <SolidColorBrush x:Key="EssentialsHeroTitleBrush" Color="#FDFEFE"/>
+        <SolidColorBrush x:Key="EssentialsHeroSubtitleBrush" Color="#C8D6F6"/>
+        <SolidColorBrush x:Key="EssentialsMutedTextBrush" Color="#9DA9C6"/>
+
+        <Style x:Key="EssentialsHeroTitleTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource EssentialsHeroTitleBrush}"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style x:Key="EssentialsHeroBodyTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource EssentialsHeroSubtitleBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
 
         <SineEase x:Key="EssentialsPivotEaseIn" EasingMode="EaseOut"/>
         <SineEase x:Key="EssentialsPivotEaseOut" EasingMode="EaseInOut"/>
@@ -122,6 +147,14 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="16"/>
             <Setter Property="Padding" Value="24"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+            <Setter Property="CacheMode">
+                <Setter.Value>
+                    <BitmapCache EnableClearType="True"/>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="EssentialsPivotToggleStyle" TargetType="ToggleButton">
@@ -165,6 +198,12 @@
             <Setter Property="Visibility" Value="Collapsed"/>
             <Setter Property="IsHitTestVisible" Value="False"/>
             <Setter Property="Panel.ZIndex" Value="0"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="14"/>
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="EssentialsTasksPivotStyle" TargetType="FrameworkElement" BasedOn="{StaticResource EssentialsPivotContentBaseStyle}">
@@ -177,19 +216,22 @@
                                  ConverterParameter="{x:Static viewModels:EssentialsPivot.Tasks}"/>
                     </DataTrigger.Binding>
                     <Setter Property="Panel.ZIndex" Value="1"/>
+                    <Setter Property="IsHitTestVisible" Value="True"/>
                     <DataTrigger.EnterActions>
                         <BeginStoryboard>
                             <Storyboard>
                                 <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
                                     <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
                                 </ObjectAnimationUsingKeyFrames>
-                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
-                                </BooleanAnimationUsingKeyFrames>
                                 <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                  From="0"
                                                  To="1"
-                                                 Duration="0:0:0.38"
+                                                 Duration="0:0:0.22"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                 From="14"
+                                                 To="0"
+                                                 Duration="0:0:0.22"
                                                  EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
                             </Storyboard>
                         </BeginStoryboard>
@@ -198,15 +240,15 @@
                         <BeginStoryboard>
                             <Storyboard>
                                 <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                 From="1"
                                                  To="0"
-                                                 Duration="0:0:0.3"
+                                                 Duration="0:0:0.18"
                                                  EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
-                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
-                                </BooleanAnimationUsingKeyFrames>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                 To="14"
+                                                 Duration="0:0:0.18"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
                                 <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
-                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.3" Value="{x:Static Visibility.Collapsed}"/>
+                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.18" Value="{x:Static Visibility.Collapsed}"/>
                                 </ObjectAnimationUsingKeyFrames>
                             </Storyboard>
                         </BeginStoryboard>
@@ -225,19 +267,22 @@
                                  ConverterParameter="{x:Static viewModels:EssentialsPivot.Queue}"/>
                     </DataTrigger.Binding>
                     <Setter Property="Panel.ZIndex" Value="1"/>
+                    <Setter Property="IsHitTestVisible" Value="True"/>
                     <DataTrigger.EnterActions>
                         <BeginStoryboard>
                             <Storyboard>
                                 <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
                                     <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
                                 </ObjectAnimationUsingKeyFrames>
-                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
-                                </BooleanAnimationUsingKeyFrames>
                                 <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                  From="0"
                                                  To="1"
-                                                 Duration="0:0:0.38"
+                                                 Duration="0:0:0.22"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                 From="14"
+                                                 To="0"
+                                                 Duration="0:0:0.22"
                                                  EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
                             </Storyboard>
                         </BeginStoryboard>
@@ -246,15 +291,15 @@
                         <BeginStoryboard>
                             <Storyboard>
                                 <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                                 From="1"
                                                  To="0"
-                                                 Duration="0:0:0.3"
+                                                 Duration="0:0:0.18"
                                                  EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
-                                <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                    <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
-                                </BooleanAnimationUsingKeyFrames>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                 To="14"
+                                                 Duration="0:0:0.18"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
                                 <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
-                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.3" Value="{x:Static Visibility.Collapsed}"/>
+                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.18" Value="{x:Static Visibility.Collapsed}"/>
                                 </ObjectAnimationUsingKeyFrames>
                             </Storyboard>
                         </BeginStoryboard>
@@ -341,14 +386,10 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <TextBlock Text="Zero-guesswork maintenance"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#F8FAFC"/>
+                                                   Style="{StaticResource EssentialsHeroTitleTextStyle}"/>
                                         <TextBlock Text="Run curated repair flows with contextual tips, options, and links to deeper docs."
-                                                   Margin="0,8,0,0"
-                                                   Foreground="#9DB4D3"
-                                                   FontSize="13"
-                                                   TextWrapping="Wrap"/>
+                                                   Style="{StaticResource EssentialsHeroBodyTextStyle}"
+                                                   Margin="0,8,0,0"/>
                                         <WrapPanel Margin="0,18,0,0">
                                             <Border Background="#13233E"
                                                     CornerRadius="8"
@@ -357,7 +398,7 @@
                                                     BorderBrush="#1E3454"
                                                     BorderThickness="1">
                                                 <TextBlock Text="Curated shortcuts"
-                                                           Foreground="#C7D2FE"
+                                                           Foreground="{StaticResource EssentialsHeroSubtitleBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
@@ -368,7 +409,7 @@
                                                     BorderBrush="#1E3454"
                                                     BorderThickness="1">
                                                 <TextBlock Text="Live telemetry"
-                                                           Foreground="#C7D2FE"
+                                                           Foreground="{StaticResource EssentialsHeroSubtitleBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
@@ -379,7 +420,7 @@
                                                     BorderBrush="#1E3454"
                                                     BorderThickness="1">
                                                 <TextBlock Text="Guided decisions"
-                                                           Foreground="#C7D2FE"
+                                                           Foreground="{StaticResource EssentialsHeroSubtitleBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
@@ -393,13 +434,11 @@
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Stretch">
                                         <StackPanel>
                                             <TextBlock Text="Maintenance essentials"
-                                                       FontSize="18"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="#F1F5F9"/>
+                                                     Style="{StaticResource EssentialsHeroTitleTextStyle}"
+                                                     FontSize="18"/>
                                             <TextBlock Text="Queue trusted automations with one click"
-                                                       FontSize="12"
-                                                       Foreground="#8AA0BF"
-                                                       Margin="0,4,0,0"/>
+                                                     Style="{StaticResource EssentialsHeroBodyTextStyle}"
+                                                     FontSize="12"/>
                                         </StackPanel>
                                     </StackPanel>
 

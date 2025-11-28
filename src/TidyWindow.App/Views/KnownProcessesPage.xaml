@@ -10,16 +10,37 @@
     xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
     mc:Ignorable="d"
     Title="Known Processes"
-    Background="{DynamicResource SystemControlBackgroundBaseLowBrush}">
+    Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="ClearType"
+    TextOptions.TextHintingMode="Fixed"
+    RenderOptions.BitmapScalingMode="HighQuality">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:EnumEqualsConverter x:Key="EnumEqualsConverter" />
         <converters:SuspicionLevelToBrushConverter x:Key="SuspicionBrush" />
 
-        <SolidColorBrush x:Key="ProcessHeadlineBrush" Color="#F8FAFC" />
-        <SolidColorBrush x:Key="ProcessBodyBrush" Color="#CBD5F5" />
-        <SolidColorBrush x:Key="ProcessMutedBrush" Color="#94A3B8" />
+        <SolidColorBrush x:Key="ProcessHeadlineBrush" Color="#FDFEFE" />
+        <SolidColorBrush x:Key="ProcessBodyBrush" Color="#D5E0FF" />
+        <SolidColorBrush x:Key="ProcessMutedBrush" Color="#A9B8D4" />
         <SolidColorBrush x:Key="ProcessStatusLabelBrush" Color="#34D399" />
+                <Style x:Key="ProcessHeroTitleTextStyle" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="20" />
+                    <Setter Property="FontWeight" Value="SemiBold" />
+                    <Setter Property="Foreground" Value="{StaticResource ProcessHeadlineBrush}" />
+                    <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                </Style>
+
+                <Style x:Key="ProcessHeroBodyTextStyle" TargetType="TextBlock">
+                    <Setter Property="FontSize" Value="13" />
+                    <Setter Property="Foreground" Value="{StaticResource ProcessBodyBrush}" />
+                    <Setter Property="TextWrapping" Value="Wrap" />
+                    <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+                    <Setter Property="SnapsToDevicePixels" Value="True" />
+                </Style>
         <SolidColorBrush x:Key="ProcessSourceBadgeBrush" Color="#10253E" />
         <SolidColorBrush x:Key="ProcessSourceBadgeForegroundBrush" Color="#7DD3FC" />
         <SolidColorBrush x:Key="ProcessDangerActionHoverBrush" Color="#EF4444" />
@@ -172,6 +193,14 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Margin" Value="0,0,16,16" />
             <Setter Property="Effect" Value="{StaticResource ProcessCardShadowEffect}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+            <Setter Property="CacheMode">
+                <Setter.Value>
+                    <BitmapCache EnableClearType="True" />
+                </Setter.Value>
+            </Setter>
         </Style>
 
         <Style x:Key="ProcessSettingsCardStyle" TargetType="Border" BasedOn="{StaticResource ProcessCardStyle}">
@@ -196,6 +225,9 @@
             <Setter Property="BorderBrush" Value="#1E293B" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
         </Style>
 
         <Style x:Key="RuleBadgeStyle" TargetType="Border">
@@ -213,6 +245,9 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="Effect" Value="{StaticResource ProcessCardShadowEffect}" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Level}" Value="{x:Static core:SuspicionLevel.Red}">
                     <Setter Property="Background" Value="{StaticResource AntiSystemCriticalBrush}" />
@@ -284,12 +319,16 @@
             <Setter Property="Foreground" Value="#F8FAFC" />
             <Setter Property="FontSize" Value="18" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
         <Style x:Key="SettingsSectionSubtitleTextStyle" TargetType="TextBlock">
             <Setter Property="Foreground" Value="#94A3B8" />
             <Setter Property="FontSize" Value="12" />
             <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
         <Style x:Key="SettingsToggleSwitchStyle" TargetType="ToggleButton">
@@ -370,12 +409,11 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel>
                             <TextBlock Text="Keep Windows services tidy by applying questionnaire-driven auto-stop recommendations."
-                                       TextWrapping="Wrap"
-                                       Foreground="{StaticResource ProcessBodyBrush}" />
+                                       Style="{StaticResource ProcessHeroBodyTextStyle}" />
                             <TextBlock Text="Lean on curated cues to keep Xbox, Game Bar, and background helpers quiet when you do not need them."
                                        Margin="0,6,0,0"
-                                       Foreground="{StaticResource ProcessMutedBrush}"
-                                       TextWrapping="Wrap" />
+                                       Style="{StaticResource ProcessHeroBodyTextStyle}"
+                                       Foreground="{StaticResource ProcessMutedBrush}" />
                         </StackPanel>
                         <WrapPanel Grid.Column="1"
                                    HorizontalAlignment="Right"
