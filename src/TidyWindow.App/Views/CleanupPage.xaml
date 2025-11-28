@@ -2552,39 +2552,36 @@
                         </Popup>
                             </StackPanel>
                         </StackPanel>
-                        <StackPanel Grid.Column="1"
-                                    Margin="0,0,0,0">
-                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                           <StackPanel Grid.Column="1"
+                                 Margin="0,0,0,0">
+                           <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                   Content="Send to Recycle Bin when possible"
                                   IsChecked="{Binding UseRecycleBin, Mode=TwoWay}"
                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                   FontSize="13"
                                   Margin="0,0,0,8"/>
-                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                  Content="Generate cleanup report"
-                                  IsChecked="{Binding GenerateCleanupReport, Mode=TwoWay}"
-                                  Foreground="{StaticResource CleanupSoftTextBrush}"
-                                  FontSize="13"/>
-                           <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                              <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                   Content="Skip files that are still locked"
                                   IsChecked="{Binding SkipLockedItems, Mode=TwoWay}"
+                                      IsEnabled="{Binding RepairPermissionsBeforeDelete, Converter={StaticResource InverseBooleanConverter}}"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                  FontSize="13"/>
+                              <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                  Content="Force delete locked items"
+                                  IsChecked="{Binding RepairPermissionsBeforeDelete, Mode=TwoWay}"
                                   Foreground="{StaticResource CleanupSoftTextBrush}"
                                   FontSize="13"
                                   Margin="0,8,0,0"/>
                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                  Content="Repair permissions before deleting (force delete)"
-                                  IsChecked="{Binding RepairPermissionsBeforeDelete, Mode=TwoWay}"
+                                  Content="Generate cleanup report"
+                                  IsChecked="{Binding GenerateCleanupReport, Mode=TwoWay}"
                                   Foreground="{StaticResource CleanupSoftTextBrush}"
-                                  FontSize="13"/>
-                           <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                  Content="Schedule locked items for deletion after restart"
-                                  IsChecked="{Binding ScheduleLockedItemsForReboot, Mode=TwoWay}"
-                                  Foreground="{StaticResource CleanupSoftTextBrush}"
-                                  FontSize="13"/>
-                        <TextBlock Text="Reports save under Documents\TidyWindow\Reports."
-                                   FontSize="11"
-                                   Foreground="{StaticResource CleanupMutedTextBrush}"
-                                   Margin="24,4,0,0">
+                                  FontSize="13"
+                                  Margin="0,8,0,0"/>
+                           <TextBlock Text="Reports save under Documents\TidyWindow\Reports."
+                                FontSize="11"
+                                Foreground="{StaticResource CleanupMutedTextBrush}"
+                                Margin="24,4,0,0">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
                                     <Setter Property="Visibility"
@@ -2599,7 +2596,7 @@
                                 </Style>
                             </TextBlock.Style>
                         </TextBlock>
-                        <TextBlock Text="Force delete and reboot scheduling can remove files in use — use these only when you're sure the files are safe to delete."
+                        <TextBlock Text="Force delete takes ownership, clears read-only protections, and overrides Skip locked so stubborn items are removed immediately. Use only when you're certain the files are safe to remove."
                                    FontSize="11"
                                    Foreground="#FBBF24"
                                    Margin="24,4,0,0"
@@ -2610,11 +2607,6 @@
                                             Value="Collapsed"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding RepairPermissionsBeforeDelete}"
-                                                     Value="True">
-                                            <Setter Property="Visibility"
-                                                    Value="Visible"/>
-                                        </DataTrigger>
-                                        <DataTrigger Binding="{Binding ScheduleLockedItemsForReboot}"
                                                      Value="True">
                                             <Setter Property="Visibility"
                                                     Value="Visible"/>
@@ -2631,8 +2623,9 @@
                                         Style="{StaticResource FlatButtonStyle}"
                                         Background="{StaticResource CleanupSurfaceBrush}"
                                         Margin="0"/>
-                                <Button Content="Run cleanup"
-                                        Command="{Binding ConfirmCleanupCommand}"
+                                <Button x:Name="RunCleanupButton"
+                                        Content="Run cleanup"
+                                        Command="{Binding ShowRunConfirmationPopupCommand}"
                                         Background="{StaticResource CleanupAccentBrushSecondary}"
                                         Foreground="#041225"
                                         FontWeight="Semibold"
@@ -2670,6 +2663,52 @@
                                                  Converter="{StaticResource InverseBooleanConverter}"/>
                                     </Button.IsEnabled>
                                 </Button>
+                                <Popup Placement="Top"
+                                       PlacementTarget="{Binding ElementName=RunCleanupButton}"
+                                       AllowsTransparency="True"
+                                       PopupAnimation="Slide"
+                                       StaysOpen="False"
+                                       IsOpen="{Binding IsRunConfirmationPopupOpen, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                    <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="12"
+                                            Padding="16"
+                                            Effect="{StaticResource SurfaceShadowEffect}">
+                                        <StackPanel>
+                                            <TextBlock Text="Ready to run cleanup?"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                            <TextBlock Text="{Binding PendingDeletionItemSummary, StringFormat={}Deleting {0} across selected categories.}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       Margin="0,4,0,0"
+                                                       TextWrapping="Wrap"/>
+                                            <TextBlock Text="This will remove the selected items."
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       Margin="0,4,0,0"/>
+                                            <StackPanel Orientation="Horizontal"
+                                                        Margin="0,12,0,0"
+                                                        HorizontalAlignment="Right">
+                                                <Button Content="Cancel"
+                                                        Command="{Binding HideRunConfirmationPopupCommand}"
+                                                        Style="{StaticResource FlatButtonStyle}"/>
+                                                <Button Content="Delete now"
+                                                        Command="{Binding ConfirmCleanupCommand}"
+                                                        Margin="8,0,0,0"
+                                                        Style="{StaticResource FlatButtonStyle}"
+                                                        Padding="12,4">
+                                                    <Button.IsEnabled>
+                                                        <Binding Path="IsBusy"
+                                                                 Converter="{StaticResource InverseBooleanConverter}"/>
+                                                    </Button.IsEnabled>
+                                                </Button>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Popup>
                             </StackPanel>
                         </StackPanel>
                     </Grid>

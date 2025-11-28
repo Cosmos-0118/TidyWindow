@@ -100,7 +100,6 @@ public partial class App : WpfApplication
                 services.AddTransient<SettingsViewModel>();
                 services.AddTransient<InstallHubViewModel>();
                 services.AddTransient<PackageMaintenanceViewModel>();
-                services.AddTransient<SimpleUninstallerViewModel>();
                 services.AddTransient<LogsViewModel>();
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
@@ -112,7 +111,6 @@ public partial class App : WpfApplication
                 services.AddTransient<SettingsPage>();
                 services.AddTransient<InstallHubPage>();
                 services.AddTransient<PackageMaintenancePage>();
-                services.AddTransient<SimpleUninstallerPage>();
                 services.AddTransient<LogsPage>();
                 services.AddTransient<EssentialsPage>();
                 services.AddTransient<RegistryOptimizerPage>();

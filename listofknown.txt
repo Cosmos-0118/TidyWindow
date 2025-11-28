@@ -1,0 +1,126 @@
+✅ FULL EXPANDED — Safe to disable (home PCs, no feature use)
+
+Grouped and simplified — copy-paste friendly.
+
+A. Xbox / Gaming (safe if you do not use Xbox/GamePass/Game Bar)
+GamingServices
+GamingServicesNet
+XboxGipSvc
+XboxNetApiSvc
+XblGameSave
+GameInput
+GameBarPresenceWriter
+GameBar
+XblAuthManager
+
+B. Mixed Reality / VR (safe if no VR headset)
+MixedRealityOpenXRSvc
+HolographicShell
+SpatialAudioService
+MixedRealityRuntime
+MixedRealityPortal
+
+C. Printing / Fax (safe if no local printer / fax)
+Spooler        # Print Spooler (disable if you truly have no printers)
+Fax            # Fax service (rarely used)
+
+D. Telemetry / Microsoft “UX” / Diagnostics (safe; you lose crash/telemetry)
+DiagTrack             # Connected User Experiences & Telemetry
+WerSvc / WerFault     # Windows Error Reporting service/process
+WaaSMedicSvc?*        # Windows Update Medic — generally NOT recommended to disable (leave alone)
+
+
+*Note: WaaSMedicSvc is not safe to permanently disable on many systems — skip disabling this one.
+
+E. Phone Link / Device Sync / Push (safe if you don’t use Phone Link / notifications)
+CDPSvc
+CDPUserSvc_*         # CDP user instances
+DeviceAssociationBroker
+DevicePicker
+WpnService
+WpnUserService_*
+
+F. Location / Maps (safe if you don’t use geolocation/Maps)
+MapsBroker
+lfsvc  # Geolocation Service
+
+G. Ink / Touch / Tablet (safe if non-touch laptop)
+TabletInputService    # TextInputHost, Touch keyboard
+TouchKeyboardAndHandwritingPanelService
+
+H. Developer / Telemetry / Helper services (usually safe)
+RetailDemo
+RemoteRegistry
+Downloaded maps manager (MapsBroker handled above)
+
+I. Performance helpers (optional; safe but may change perf behavior)
+SysMain   # Superfetch (can be disabled on SSDs / problematic systems)
+
+J. Misc optional items (safe in most home setups)
+XblGameSave
+GameInput
+PhoneSvc (only if not using cellular features)
+
+⚠️ Items to treat with CAUTION (don’t disable unless you know you don’t need them)
+
+These are sometimes safe but can break networking/updates/Windows features:
+
+iphlpsvc (IP Helper) — safe if you don’t use IPv6 / Teredo / portproxy features; otherwise keep.
+
+BITS (Background Intelligent Transfer Service) — used by some installers/Windows Update/certain apps; prefer Manual if testing.
+
+wuauserv (Windows Update) — DO NOT disable.
+
+winmgmt (WMI) — required for many tools; do not disable.
+
+🔁 Quick safe workflow (PowerShell): backup, disable, revert easily
+
+Run as admin.
+
+1) Export current service config (backup):
+
+# backup current start types
+Get-Service | Select-Object Name, Status, @{n='StartType';e={(Get-CimInstance Win32_Service -Filter "Name='$_'").StartMode}} |
+  Export-Csv C:\service-backup.csv -NoTypeInformation
+
+
+2) Disable a service safely (example SysMain):
+
+# set to Manual first for testing
+Set-Service -Name SysMain -StartupType Manual
+# if all good after reboot, set Disabled:
+Set-Service -Name SysMain -StartupType Disabled
+
+
+3) Disable multiple safe services (example list):
+
+$safe = @('GamingServices','GamingServicesNet','XboxGipSvc','XboxNetApiSvc','XblGameSave','GameBar','WerSvc','DiagTrack','RemoteRegistry','SysMain')
+foreach($s in $safe){
+    try{
+        Set-Service -Name $s -StartupType Disabled -ErrorAction Stop
+    } catch {
+        Write-Warning "Could not change $s: $_"
+    }
+}
+
+
+4) Revert from backup:
+
+Import-Csv C:\service-backup.csv | ForEach-Object {
+  $name = $_.Name
+  $mode = $_.StartType
+  if ($mode -in @('Auto','Automatic')) { Set-Service -Name $name -StartupType Automatic }
+  elseif ($mode -in @('Manual')) { Set-Service -Name $name -StartupType Manual }
+  elseif ($mode -in @('Disabled')) { Set-Service -Name $name -StartupType Disabled }
+}
+
+🧾 Extra checks before toggling a service
+
+See dependent services:
+
+Get-Service -Name <ServiceName> | Select-Object -ExpandProperty DependentServices
+
+
+Check executable path (confirm it’s genuine):
+
+Get-CimInstance Win32_Service -Filter "Name='SysMain'" | Select-Object Name, PathName

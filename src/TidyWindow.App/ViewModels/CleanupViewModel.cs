@@ -344,7 +344,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private string _pendingDeletionCategoryList = string.Empty;
 
     [ObservableProperty]
-    private bool _useRecycleBin = true;
+    private bool _useRecycleBin;
 
     [ObservableProperty]
     private bool _generateCleanupReport;
@@ -356,7 +356,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private bool _repairPermissionsBeforeDelete;
 
     [ObservableProperty]
-    private bool _scheduleLockedItemsForReboot;
+    private bool _isRunConfirmationPopupOpen;
 
     [ObservableProperty]
     private CleanupPhase _currentPhase = CleanupPhase.Setup;
@@ -913,6 +913,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
             return;
         }
 
+        IsRunConfirmationPopupOpen = false;
+
         var snapshot = _pendingDeletionItems
             .Where(static tuple => tuple.group.Items.Contains(tuple.item))
             .ToList();
@@ -933,11 +935,30 @@ public sealed partial class CleanupViewModel : ViewModelBase
             PreferRecycleBin = useRecycleBin,
             AllowPermanentDeleteFallback = true,
             SkipLockedItems = SkipLockedItems,
-            TakeOwnershipOnAccessDenied = RepairPermissionsBeforeDelete,
-            AllowDeleteOnReboot = ScheduleLockedItemsForReboot
+            TakeOwnershipOnAccessDenied = RepairPermissionsBeforeDelete
         };
 
         await ExecuteDeletionAsync(snapshot, deletionOptions, generateReport);
+    }
+
+    private bool CanShowRunConfirmationPopup() => CanConfirmCleanup();
+
+    [RelayCommand(CanExecute = nameof(CanShowRunConfirmationPopup))]
+    private void ShowRunConfirmationPopup()
+    {
+        if (!IsRunConfirmationPopupOpen)
+        {
+            IsRunConfirmationPopupOpen = true;
+        }
+    }
+
+    [RelayCommand]
+    private void HideRunConfirmationPopup()
+    {
+        if (IsRunConfirmationPopupOpen)
+        {
+            IsRunConfirmationPopupOpen = false;
+        }
     }
 
     private bool CanDeleteSelected() => !IsBusy && HasSelection && !IsConfirmationSheetVisible;
@@ -955,16 +976,17 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         PendingDeletionCategoryList = BuildCategoryListText(categoryNames);
 
-        UseRecycleBin = true;
+        UseRecycleBin = false;
         GenerateCleanupReport = false;
         SkipLockedItems = true;
         RepairPermissionsBeforeDelete = false;
-        ScheduleLockedItemsForReboot = false;
+        IsRunConfirmationPopupOpen = false;
 
         BuildPendingDeletionRisks(itemsToDelete);
 
         IsConfirmationSheetVisible = true;
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
+        ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
 
         BeginLockInspection(itemsToDelete);
     }
@@ -975,6 +997,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         LockingProcesses.Clear();
         LockInspectionStatusMessage = string.Empty;
         IsLockingProcessPopupOpen = false;
+        IsRunConfirmationPopupOpen = false;
         UpdateLockingProcessSummary();
         _pendingDeletionItems = null;
         if (IsConfirmationSheetVisible)
@@ -990,6 +1013,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         _pendingDeletionCategories.Clear();
         OnPropertyChanged(nameof(HasPendingDeletionRisks));
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
+        ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
         DeleteSelectedCommand.NotifyCanExecuteChanged();
     }
 
@@ -1676,6 +1700,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 }
             }
 
+            LogCleanupActivity(
+                combinedResult,
+                deletionOptions,
+                stopwatch.Elapsed,
+                itemsToDelete.Count,
+                totalSizeMb,
+                reportPath,
+                reportError);
+
             _mainViewModel.SetStatusMessage(deletionSummary);
 
             if (combinedResult.HasErrors && combinedResult.Errors.Count > 0)
@@ -1709,6 +1742,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         catch (Exception ex)
         {
             _mainViewModel.SetStatusMessage($"Delete failed: {ex.Message}");
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Cleanup", "Delete failed", new[] { ex.ToString() });
             DeletionStatusMessage = ex.Message;
         }
         finally
@@ -1719,6 +1753,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
             ConfirmCleanupCommand.NotifyCanExecuteChanged();
+            ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(SelectionSummaryText));
             OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
         }
@@ -1843,6 +1878,86 @@ public sealed partial class CleanupViewModel : ViewModelBase
             error = ex.Message;
             return null;
         }
+    }
+
+    private void LogCleanupActivity(
+        CleanupDeletionResult result,
+        CleanupDeletionOptions options,
+        TimeSpan duration,
+        int requestedItems,
+        double requestedMegabytes,
+        string? reportPath,
+        string? reportError)
+    {
+        if (result is null)
+        {
+            return;
+        }
+
+        var reclaimedMegabytes = Math.Max(result.TotalBytesDeleted / 1_048_576d, 0d);
+        var skippedMegabytes = Math.Max(result.TotalBytesSkipped / 1_048_576d, 0d);
+        var failedMegabytes = Math.Max(result.TotalBytesFailed / 1_048_576d, 0d);
+        var deleteOnRebootAllowed = options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied;
+        var rebootEntries = result.Entries.Where(static entry => IsDeleteOnRebootEntry(entry)).ToList();
+
+        var details = new List<string>
+        {
+            $"Elapsed: {duration.TotalSeconds:F2}s",
+            $"Requested items: {requestedItems:N0}",
+            $"Requested size: {FormatSize(Math.Max(requestedMegabytes, 0d))}",
+            $"Deleted: {result.DeletedCount:N0} ({FormatSize(reclaimedMegabytes)})",
+            $"Skipped: {result.SkippedCount:N0} ({FormatSize(skippedMegabytes)})",
+            $"Failed: {result.FailedCount:N0} ({FormatSize(failedMegabytes)})",
+            $"Force delete enabled: {options.TakeOwnershipOnAccessDenied}",
+            $"Skip locked items: {options.SkipLockedItems}",
+            $"Delete-on-reboot allowed: {deleteOnRebootAllowed}"
+        };
+
+        if (!string.IsNullOrWhiteSpace(reportPath))
+        {
+            details.Add($"Report path: {reportPath}");
+        }
+        else if (!string.IsNullOrWhiteSpace(reportError))
+        {
+            details.Add($"Report failed: {reportError}");
+        }
+
+        if (deleteOnRebootAllowed)
+        {
+            if (rebootEntries.Count > 0)
+            {
+                details.Add($"Delete-on-reboot scheduled for {rebootEntries.Count:N0} item(s).");
+                foreach (var entry in rebootEntries.Take(5))
+                {
+                    details.Add($"  ↳ {entry.Path}");
+                }
+
+                if (rebootEntries.Count > 5)
+                {
+                    details.Add($"  (+{rebootEntries.Count - 5:N0} more)");
+                }
+            }
+            else
+            {
+                details.Add("Delete-on-reboot allowed but not needed.");
+            }
+        }
+        else
+        {
+            details.Add("Delete-on-reboot disabled for this cleanup run.");
+        }
+
+        var level = result.FailedCount > 0 ? ActivityLogLevel.Warning : ActivityLogLevel.Success;
+        var summary = result.FailedCount > 0
+            ? $"Cleanup completed with {result.FailedCount:N0} failure(s)."
+            : $"Cleanup completed — {FormatSize(reclaimedMegabytes)} reclaimed.";
+
+        if (result.SkippedCount > 0)
+        {
+            summary += $" Skipped {result.SkippedCount:N0}.";
+        }
+
+        _mainViewModel.LogActivity(level, "Cleanup", summary, details);
     }
 
     private async Task ShowCleanupCelebrationAsync(
@@ -2399,6 +2514,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     {
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
+        ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnBusyStatusMessageChanged(string value)
@@ -2480,6 +2596,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(PendingDeletionItemSummary));
         OnPropertyChanged(nameof(HasPendingDeletion));
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
+        ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
     }
 
     partial void OnPendingDeletionTotalSizeMegabytesChanged(double value)
@@ -2495,6 +2612,14 @@ public sealed partial class CleanupViewModel : ViewModelBase
     partial void OnPendingDeletionCategoryListChanged(string value)
     {
         OnPropertyChanged(nameof(PendingDeletionCategoryListDisplay));
+    }
+
+    partial void OnRepairPermissionsBeforeDeleteChanged(bool value)
+    {
+        if (value && SkipLockedItems)
+        {
+            SkipLockedItems = false;
+        }
     }
 
     partial void OnCelebrationReclaimedMegabytesChanged(double value)
@@ -2516,6 +2641,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
     {
         DeleteSelectedCommand.NotifyCanExecuteChanged();
         ConfirmCleanupCommand.NotifyCanExecuteChanged();
+        ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
+        if (!value)
+        {
+            IsRunConfirmationPopupOpen = false;
+        }
     }
 
     partial void OnCurrentPhaseChanged(CleanupPhase value)
@@ -2862,6 +2992,16 @@ public sealed partial class CleanupViewModel : ViewModelBase
         ClearCurrentSelectionCommand.NotifyCanExecuteChanged();
         SelectAllPagesCommand.NotifyCanExecuteChanged();
         SelectPageRangeCommand.NotifyCanExecuteChanged();
+    }
+
+    private static bool IsDeleteOnRebootEntry(CleanupDeletionEntry entry)
+    {
+        if (entry is null || string.IsNullOrWhiteSpace(entry.Reason))
+        {
+            return false;
+        }
+
+        return entry.Reason.IndexOf("Scheduled for removal", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string FormatSize(double megabytes)

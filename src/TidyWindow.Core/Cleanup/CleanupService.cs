@@ -3,8 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Security.AccessControl;
-using System.Security.Principal;
+using System.Runtime.Versioning;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,6 +15,7 @@ namespace TidyWindow.Core.Cleanup;
 public sealed class CleanupService
 {
     private readonly CleanupScanner _scanner;
+    private static readonly string[] ProtectedRoots = BuildProtectedRoots();
 
     public CleanupService()
         : this(new CleanupScanner(new CleanupDefinitionProvider()))
@@ -96,7 +96,7 @@ public sealed class CleanupService
             cancellationToken.ThrowIfCancellationRequested();
 
             var path = item.FullName;
-            var normalizedPath = path.Trim();
+            var normalizedPath = NormalizeFullPath(path);
             if (normalizedPath.Length == 0)
             {
                 continue;
@@ -104,6 +104,17 @@ public sealed class CleanupService
 
             index++;
             progress?.Report(new CleanupDeletionProgress(index, total, normalizedPath));
+
+            if (IsProtectedPath(normalizedPath))
+            {
+                entries.Add(new CleanupDeletionEntry(
+                    normalizedPath,
+                    Math.Max(item.SizeBytes, 0),
+                    item.IsDirectory,
+                    CleanupDeletionDisposition.Skipped,
+                    "Protected system location skipped"));
+                continue;
+            }
 
             var isDirectory = item.IsDirectory || Directory.Exists(normalizedPath);
             var fileExists = !isDirectory && File.Exists(normalizedPath);
@@ -157,7 +168,7 @@ public sealed class CleanupService
             }
 
             var repairedPermissions = false;
-            if (IsUnauthorizedAccessError(failure) && options.TakeOwnershipOnAccessDenied)
+            if (OperatingSystem.IsWindows() && IsUnauthorizedAccessError(failure) && options.TakeOwnershipOnAccessDenied)
             {
                 repairedPermissions = TryRepairPermissions(normalizedPath, isDirectory);
                 if (repairedPermissions && TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out failure))
@@ -167,23 +178,45 @@ public sealed class CleanupService
                         Math.Max(item.SizeBytes, 0),
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
-                        "Deleted after repairing permissions."));
+                        "Deleted after preparing for force delete."));
+                    continue;
+                }
+
+                if (repairedPermissions && TryForceDelete(normalizedPath, isDirectory, cancellationToken, out failure))
+                {
+                    entries.Add(new CleanupDeletionEntry(
+                        normalizedPath,
+                        Math.Max(item.SizeBytes, 0),
+                        isDirectory,
+                        CleanupDeletionDisposition.Deleted,
+                        "Deleted using force cleanup."));
                     continue;
                 }
             }
 
             if (IsInUseError(failure))
             {
+                if (options.TakeOwnershipOnAccessDenied && TryForceDelete(normalizedPath, isDirectory, cancellationToken, out failure))
+                {
+                    entries.Add(new CleanupDeletionEntry(
+                        normalizedPath,
+                        Math.Max(item.SizeBytes, 0),
+                        isDirectory,
+                        CleanupDeletionDisposition.Deleted,
+                        "Deleted after releasing locks."));
+                    continue;
+                }
+
                 if (!options.SkipLockedItems)
                 {
-                    if (options.AllowDeleteOnReboot && TryScheduleDeleteOnReboot(normalizedPath))
+                    if ((options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied) && TryScheduleDeleteOnReboot(normalizedPath))
                     {
                         entries.Add(new CleanupDeletionEntry(
                             normalizedPath,
                             Math.Max(item.SizeBytes, 0),
                             isDirectory,
                             CleanupDeletionDisposition.Deleted,
-                            "Scheduled for removal after restart."));
+                            BuildDeleteOnRebootMessage(options.TakeOwnershipOnAccessDenied)));
                         continue;
                     }
 
@@ -213,14 +246,14 @@ public sealed class CleanupService
                 reason = "Permission repair failed — delete still blocked.";
             }
 
-            if (options.AllowDeleteOnReboot && TryScheduleDeleteOnReboot(normalizedPath))
+            if ((options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied) && TryScheduleDeleteOnReboot(normalizedPath))
             {
                 entries.Add(new CleanupDeletionEntry(
                     normalizedPath,
                     Math.Max(item.SizeBytes, 0),
                     isDirectory,
                     CleanupDeletionDisposition.Deleted,
-                    "Scheduled for removal after restart."));
+                    BuildDeleteOnRebootMessage(options.TakeOwnershipOnAccessDenied)));
                 continue;
             }
 
@@ -333,6 +366,181 @@ public sealed class CleanupService
 
     private static bool IsUnauthorizedAccessError(Exception? exception) => exception is UnauthorizedAccessException;
 
+    private static bool TryForceDelete(string path, bool isDirectory, CancellationToken cancellationToken, out Exception? failure)
+    {
+        failure = null;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return true;
+        }
+
+        TryClearAttributes(path);
+        if (TryDeletePath(path, isDirectory, out failure))
+        {
+            return true;
+        }
+
+        if (isDirectory && Directory.Exists(path))
+        {
+            TryAggressiveDirectoryCleanup(path, cancellationToken);
+            if (TryDeletePath(path, isDirectory, out failure))
+            {
+                return true;
+            }
+        }
+
+        var tombstone = TryRenameToTombstone(path, isDirectory, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(tombstone))
+        {
+            if (TryDeletePath(tombstone!, isDirectory, out failure))
+            {
+                return true;
+            }
+
+            if (OperatingSystem.IsWindows() && TryScheduleDeleteOnReboot(tombstone!))
+            {
+                failure = null;
+                return true;
+            }
+        }
+
+        if (OperatingSystem.IsWindows() && TryScheduleDeleteOnReboot(path))
+        {
+            failure = null;
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool TryDeletePath(string path, bool isDirectory, out Exception? failure)
+    {
+        failure = null;
+
+        try
+        {
+            if (isDirectory)
+            {
+                if (!Directory.Exists(path))
+                {
+                    return true;
+                }
+
+                Directory.Delete(path, recursive: true);
+            }
+            else
+            {
+                if (!File.Exists(path))
+                {
+                    return true;
+                }
+
+                File.Delete(path);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+            return false;
+        }
+    }
+
+    private static void TryAggressiveDirectoryCleanup(string root, CancellationToken cancellationToken)
+    {
+        if (!Directory.Exists(root))
+        {
+            return;
+        }
+
+        var pending = new Stack<string>();
+        pending.Push(root);
+
+        while (pending.Count > 0)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var current = pending.Pop();
+
+            string[] directories;
+            try
+            {
+                directories = Directory.GetDirectories(current);
+            }
+            catch
+            {
+                directories = Array.Empty<string>();
+            }
+
+            foreach (var directory in directories)
+            {
+                TryClearAttributes(directory);
+                pending.Push(directory);
+            }
+
+            string[] files;
+            try
+            {
+                files = Directory.GetFiles(current);
+            }
+            catch
+            {
+                files = Array.Empty<string>();
+            }
+
+            foreach (var file in files)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                TryClearAttributes(file);
+                try
+                {
+                    File.Delete(file);
+                }
+                catch
+                {
+                    if (OperatingSystem.IsWindows())
+                    {
+                        TryScheduleDeleteOnReboot(file);
+                    }
+                }
+            }
+        }
+    }
+
+    private static string? TryRenameToTombstone(string path, bool isDirectory, CancellationToken cancellationToken)
+    {
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var trimmed = Path.TrimEndingDirectorySeparator(path);
+            var parent = Path.GetDirectoryName(trimmed);
+            if (string.IsNullOrWhiteSpace(parent))
+            {
+                return null;
+            }
+
+            var tombstone = Path.Combine(parent, $".tidywindow-deleting-{Guid.NewGuid():N}");
+            TryClearAttributes(tombstone);
+
+            if (isDirectory)
+            {
+                Directory.Move(path, tombstone);
+            }
+            else
+            {
+                File.Move(path, tombstone);
+            }
+
+            return tombstone;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    [SupportedOSPlatform("windows")]
     private static bool TryRepairPermissions(string path, bool isDirectory)
     {
         if (!OperatingSystem.IsWindows())
@@ -342,37 +550,7 @@ public sealed class CleanupService
 
         try
         {
-            using var identity = WindowsIdentity.GetCurrent();
-            var user = identity?.User;
-            if (user is null)
-            {
-                return false;
-            }
-
-            if (isDirectory)
-            {
-                var directoryInfo = new DirectoryInfo(path);
-                var security = directoryInfo.GetAccessControl(AccessControlSections.All);
-                security.SetOwner(user);
-                var rule = new FileSystemAccessRule(
-                    user,
-                    FileSystemRights.FullControl,
-                    InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit,
-                    PropagationFlags.None,
-                    AccessControlType.Allow);
-                security.AddAccessRule(rule);
-                directoryInfo.SetAccessControl(security);
-            }
-            else
-            {
-                var fileInfo = new FileInfo(path);
-                var security = fileInfo.GetAccessControl(AccessControlSections.Owner | AccessControlSections.Access);
-                security.SetOwner(user);
-                var rule = new FileSystemAccessRule(user, FileSystemRights.FullControl, AccessControlType.Allow);
-                security.AddAccessRule(rule);
-                fileInfo.SetAccessControl(security);
-            }
-
+            NormalizeAttributes(path, isDirectory);
             return true;
         }
         catch
@@ -396,6 +574,181 @@ public sealed class CleanupService
         {
             return false;
         }
+    }
+
+    private static string BuildDeleteOnRebootMessage(bool forceDeleteRequested)
+    {
+        return forceDeleteRequested
+            ? "Scheduled for removal after restart (force delete fallback)."
+            : "Scheduled for removal after restart.";
+    }
+
+    private static void NormalizeAttributes(string path, bool isDirectory)
+    {
+        TryClearAttributes(path);
+        if (!isDirectory)
+        {
+            return;
+        }
+
+        try
+        {
+            foreach (var entry in Directory.EnumerateFileSystemEntries(path, "*", SearchOption.AllDirectories))
+            {
+                TryClearAttributes(entry);
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void TryClearAttributes(string path)
+    {
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            var normalized = attributes & ~(FileAttributes.ReadOnly | FileAttributes.System);
+            if (normalized == attributes)
+            {
+                return;
+            }
+
+            if (normalized == 0)
+            {
+                normalized = FileAttributes.Normal;
+            }
+
+            File.SetAttributes(path, normalized);
+        }
+        catch
+        {
+        }
+    }
+
+    private static string[] BuildProtectedRoots()
+    {
+        var roots = new List<string>();
+
+        void AddIfValid(string? candidate)
+        {
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                return;
+            }
+
+            var normalized = NormalizeFullPath(candidate);
+            if (normalized.Length == 0)
+            {
+                return;
+            }
+
+            if (!roots.Any(root => string.Equals(root, normalized, StringComparison.OrdinalIgnoreCase)))
+            {
+                roots.Add(normalized);
+            }
+        }
+
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        var systemRoot = Environment.GetEnvironmentVariable("SystemRoot");
+        var winDir = Environment.GetEnvironmentVariable("WinDir");
+        AddIfValid(windows);
+        AddIfValid(systemRoot);
+        AddIfValid(winDir);
+
+        void AddWindowsChild(string child)
+        {
+            if (!string.IsNullOrWhiteSpace(windows))
+            {
+                AddIfValid(Path.Combine(windows, child));
+            }
+        }
+
+        AddWindowsChild("System32");
+        AddWindowsChild("WinSxS");
+        AddWindowsChild("Installer");
+
+        AddIfValid(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        AddIfValid(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
+        AddIfValid(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData));
+
+        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+        if (!string.IsNullOrWhiteSpace(appData))
+        {
+            AddIfValid(Path.Combine(appData, "Microsoft"));
+        }
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
+        {
+            AddIfValid(Path.Combine(localAppData, "Packages"));
+        }
+
+        AddIfValid(Environment.ExpandEnvironmentVariables(@"%AppData%\Microsoft"));
+        AddIfValid(Environment.ExpandEnvironmentVariables(@"%LocalAppData%\Packages"));
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            AddIfValid(Path.Combine(userProfile, "AppData", "Roaming", "Microsoft"));
+        }
+
+        return roots.ToArray();
+    }
+
+    private static string NormalizeFullPath(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(path);
+            return Path.GetFullPath(expanded);
+        }
+        catch
+        {
+            return path.Trim();
+        }
+    }
+
+    private static bool IsProtectedPath(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        foreach (var root in ProtectedRoots)
+        {
+            if (IsSameOrSubPath(path, root))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsSameOrSubPath(string candidate, string root)
+    {
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return false;
+        }
+
+        if (candidate.Equals(root, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (!root.EndsWith(Path.DirectorySeparatorChar))
+        {
+            root += Path.DirectorySeparatorChar;
+        }
+
+        return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 
     private static FileAttributes? TryGetAttributes(string path)

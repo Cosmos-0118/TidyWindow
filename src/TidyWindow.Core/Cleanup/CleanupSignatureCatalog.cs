@@ -125,7 +125,7 @@ internal static class CleanupSignatureCatalog
         {
             return new SignatureSnapshot(
                 BuildSet(
-                    ".tmp", ".temp", ".bak", ".old", ".chk", "._mp", ".partial", ".part", ".cache", ".copy", ".swo", ".swp", ".tmpx", ".~", ".tmp1", ".tmp2", ".tmp3", ".tmp4", ".gsd", ".sbstore"),
+                    ".tmp", ".temp", ".bak", ".old", ".chk", "._mp", ".partial", ".part", ".cache", ".copy", ".swo", ".swp", ".tmpx", ".~", ".tmp1", ".tmp2", ".tmp3", ".tmp4", ".gsd", ".sbstore", ".msi", ".msp", ".cab"),
                 BuildSet(
                     ".dmp", ".mdmp", ".hdmp", ".wer", ".mdmp2"),
                 BuildSet(
@@ -143,6 +143,12 @@ internal static class CleanupSignatureCatalog
                     "\\ProgramData\\Microsoft\\Windows\\WER",
                     "\\Windows\\Minidump",
                     "\\ProgramData\\Package Cache",
+                    "\\ProgramData\\CrashDumps",
+                    "\\Users\\Default\\AppData\\Local\\CrashDumps",
+                    "\\Windows\\LiveKernelReports",
+                    "\\ProgramData\\Microsoft\\Windows\\WER\\ReportArchive",
+                    "\\ProgramData\\Microsoft\\Windows\\WER\\Temp",
+                    "\\ProgramData\\Microsoft\\Windows\\Installer\\$PatchCache$",
                     "\\Windows\\Logs\\WindowsUpdate"
                 },
                 2);
