@@ -7,9 +7,16 @@
             xmlns:converters="clr-namespace:TidyWindow.App.Converters"
             xmlns:controls="clr-namespace:TidyWindow.App.Views"
             xmlns:ux="clr-namespace:TidyWindow.App.Controls"
-      mc:Ignorable="d"
-      Title="Package maintenance"
-      Background="Transparent"
+    mc:Ignorable="d"
+    Title="Package maintenance"
+    Background="Transparent"
+    FontFamily="Segoe UI Variable Text"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="ClearType"
+    TextOptions.TextHintingMode="Fixed"
+    RenderOptions.ClearTypeHint="Enabled"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True"
       d:DataContext="{d:DesignInstance Type=viewModels:PackageMaintenanceViewModel, IsDesignTimeCreatable=False}">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
@@ -630,7 +637,7 @@
                              Margin="0,4,0,0"
                              Style="{StaticResource App.TextBoxStyle}"
                              ToolTip="Provide a specific version to install. Leave blank for the latest release."/>
-                    <TextBlock Text="Leave blank to install the latest version available from the package manager."
+                    <TextBlock Text="Leave blank to install the latest release offered by the package manager."
                                Foreground="#64748B"
                                FontSize="11"
                                TextWrapping="Wrap"
@@ -770,7 +777,9 @@
     </Page.Resources>
 
     <Grid>
-        <Grid x:Name="MainContentHost">
+        <Grid x:Name="MainContentHost"
+              UseLayoutRounding="True"
+              SnapsToDevicePixels="True">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Opacity" Value="1"/>
@@ -809,11 +818,15 @@
                           HorizontalScrollBarVisibility="Disabled"
                           HorizontalContentAlignment="Stretch"
                           CanContentScroll="False"
-                          PanningMode="VerticalOnly">
+                          PanningMode="VerticalOnly"
+                          UseLayoutRounding="True"
+                          SnapsToDevicePixels="True">
                 <Grid x:Name="PageContentGrid"
                       MinWidth="0"
                       MaxWidth="1360"
-                      HorizontalAlignment="Center">
+                      HorizontalAlignment="Center"
+                      UseLayoutRounding="True"
+                      SnapsToDevicePixels="True">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -925,7 +938,7 @@
                                                    Foreground="#E2E8F0"
                                                    FontSize="16"
                                                    FontWeight="SemiBold"/>
-                                        <TextBlock Text="Search inventory, filter by manager, and queue updates in bulk"
+                                        <TextBlock Text="Search packages, filter by manager, and queue updates faster."
                                                    Foreground="#64748B"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"/>
@@ -1037,7 +1050,7 @@
                                                        Foreground="#E2E8F0"
                                                        FontSize="16"
                                                        FontWeight="SemiBold"/>
-                                            <TextBlock Text="Select packages to queue updates or removals"
+                                            <TextBlock Text="Review installed packages, then queue updates or removals right here."
                                                        Foreground="#64748B"
                                                        FontSize="12"
                                                        TextWrapping="Wrap"/>
@@ -1127,6 +1140,8 @@
                                                   VirtualizingPanel.IsVirtualizing="True"
                                                   VirtualizingPanel.VirtualizationMode="Recycling"
                                                   VirtualizingStackPanel.ScrollUnit="Pixel"
+                                                  UseLayoutRounding="True"
+                                                  SnapsToDevicePixels="True"
                                                   Loaded="PackagesListView_Loaded"
                                                   ItemContainerStyle="{StaticResource MaintenanceCardListItemStyle}">
                                             <ListView.Style>
