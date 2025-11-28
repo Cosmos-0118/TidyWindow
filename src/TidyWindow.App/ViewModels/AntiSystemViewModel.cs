@@ -239,6 +239,23 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         hit.LastActionMessage = success
             ? "Process terminated. Re-run scan to confirm."
             : "No running processes matched that file.";
+
+        if (!string.IsNullOrWhiteSpace(hit.FilePath))
+        {
+            try
+            {
+                var entry = AntiSystemQuarantineEntry.Create(
+                    hit.ProcessName,
+                    hit.FilePath,
+                    notes: success ? "Process terminated via Anti-System" : "Marked for quarantine",
+                    addedBy: Environment.UserName);
+                _stateStore.UpsertQuarantineEntry(entry);
+            }
+            catch
+            {
+                // Ignore persistence errors so the quarantine action result still surfaces to the user.
+            }
+        }
     }
 
     private string BuildSummary(AntiSystemDetectionResult result)

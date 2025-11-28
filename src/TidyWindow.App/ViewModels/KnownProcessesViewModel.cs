@@ -121,12 +121,17 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void SwitchSection(KnownProcessViewSection section)
+    private async Task SwitchSectionAsync(KnownProcessViewSection section)
     {
         ActiveSection = section;
         if (section == KnownProcessViewSection.AntiSystem)
         {
             AntiSystem.EnsureInitialized();
+        }
+
+        if (section == KnownProcessViewSection.Settings)
+        {
+            await Preferences.TriggerQuestionnaireIfFirstRunAsync();
         }
     }
 

@@ -3,109 +3,287 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:converters="clr-namespace:TidyWindow.App.Converters"
         xmlns:vm="clr-namespace:TidyWindow.App.ViewModels.Dialogs"
         mc:Ignorable="d"
         Title="Process questionnaire"
-        Height="600"
-        Width="760"
-        Background="#0B1120"
-        Foreground="#E2E8F0"
+        Height="640"
+        Width="820"
+        Background="#050A16"
+        Foreground="#F8FAFC"
         WindowStartupLocation="CenterOwner">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-        <converters:QuestionnaireOptionSelectionConverter x:Key="QuestionnaireOptionSelectionConverter" />
-        <Style TargetType="RadioButton" x:Key="QuestionnaireRadioButtonStyle">
+
+        <SolidColorBrush x:Key="QuestionnaireCardBrush" Color="#0B1120" />
+        <SolidColorBrush x:Key="QuestionnaireCardBorderBrush" Color="#1D2A44" />
+        <SolidColorBrush x:Key="QuestionnaireAccentBrush" Color="#7C3AED" />
+        <SolidColorBrush x:Key="QuestionnaireMutedBrush" Color="#94A3B8" />
+
+        <DropShadowEffect x:Key="QuestionnaireCardShadow"
+                          BlurRadius="25"
+                          ShadowDepth="0"
+                          Opacity="0.45"
+                          Color="#010814" />
+
+        <Style x:Key="QuestionnairePrimaryButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#F8FAFC" />
-            <Setter Property="Margin" Value="0,4,0,0" />
+            <Setter Property="Padding" Value="20,10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#7C3AED" Offset="0" />
+                        <GradientStop Color="#2563EB" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}"
+                                Effect="{StaticResource QuestionnaireCardShadow}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.85" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="QuestionnaireSecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="Padding" Value="18,10" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Background" Value="#142033" />
+            <Setter Property="BorderBrush" Value="#253453" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1C2D4A" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="QuestionnaireQuestionCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource QuestionnaireCardBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource QuestionnaireCardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Margin" Value="0,0,0,18" />
+            <Setter Property="Effect" Value="{StaticResource QuestionnaireCardShadow}" />
+        </Style>
+
+        <Style x:Key="QuestionnaireOptionToggleStyle" TargetType="RadioButton">
+            <Setter Property="Margin" Value="0,0,12,12" />
+            <Setter Property="Padding" Value="18,14" />
+            <Setter Property="Background" Value="#111C36" />
+            <Setter Property="BorderBrush" Value="#1F2A44" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#7C3AED" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1D4ED8" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#2563EB" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </Window.Resources>
 
-    <Grid Margin="24">
+    <Grid Margin="32">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <TextBlock Text="First-run questionnaire"
-                       FontSize="24"
-                       FontWeight="SemiBold" />
-            <TextBlock Text="Answer a few capability questions so TidyWindow can tailor auto-stop recommendations."
-                       Foreground="#94A3B8"
-                       Margin="0,4,0,0" />
-        </StackPanel>
+        <Border Grid.Row="0"
+                Background="#0D1930"
+                BorderBrush="#1D2F52"
+                BorderThickness="1"
+                CornerRadius="18"
+                Padding="24"
+                Margin="0,0,0,20">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Text="Tailor recommendations"
+                               FontSize="26"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="Toggle the scenarios that matter so TidyWindow can pre-select safe auto-stop actions."
+                               FontSize="14"
+                               Foreground="#CBD5F5"
+                               Margin="0,6,0,0"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="Your answers stay on this PC and can be rerun anytime from the Settings tab."
+                               Foreground="{StaticResource QuestionnaireMutedBrush}"
+                               Margin="0,6,0,0"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+                <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Border Background="#102C4A"
+                            BorderBrush="#1E3A5F"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="18,8">
+                        <TextBlock Text="{Binding Questions.Count, StringFormat={}{0} questions}"
+                                   FontSize="14"
+                                   FontWeight="SemiBold" />
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <Border Grid.Row="1"
-                Background="#0F172A"
-                BorderBrush="#1D2A44"
+                Background="#050A16"
+                BorderBrush="#0F172A"
                 BorderThickness="1"
-                CornerRadius="12"
-                Padding="16">
+                CornerRadius="16"
+                Padding="0"
+                ClipToBounds="True">
             <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <ItemsControl ItemsSource="{Binding Questions}">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type vm:ProcessQuestionDialogQuestionViewModel}">
-                            <Border Background="#111C36"
-                                    BorderBrush="#1F2A44"
-                                    BorderThickness="1"
-                                    CornerRadius="10"
-                                    Padding="16"
-                                    Margin="0,0,0,16">
-                                <StackPanel>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Title}"
-                                                   FontSize="16"
-                                                   FontWeight="SemiBold" />
-                                        <TextBlock Text="Required"
-                                                   Foreground="#F97316"
-                                                   Margin="12,0,0,0"
-                                                   Visibility="{Binding Required, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                <StackPanel Margin="0,0,4,0">
+                    <ItemsControl ItemsSource="{Binding Questions}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:ProcessQuestionDialogQuestionViewModel}">
+                                <Border Style="{StaticResource QuestionnaireQuestionCardStyle}">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold" />
+                                            <Border Background="#2F1F4D"
+                                                    Padding="10,2"
+                                                    CornerRadius="10"
+                                                    Margin="12,0,0,0"
+                                                    Visibility="{Binding Required, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="Required"
+                                                           Foreground="#FBBF24"
+                                                           FontWeight="SemiBold"
+                                                           FontSize="12" />
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding Prompt}"
+                                                   Foreground="{StaticResource QuestionnaireMutedBrush}"
+                                                   Margin="0,6,0,16"
+                                                   TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{Binding Options}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemContainerStyle>
+                                                <Style TargetType="ContentPresenter">
+                                                    <Setter Property="Margin" Value="0" />
+                                                </Style>
+                                            </ItemsControl.ItemContainerStyle>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <RadioButton Style="{StaticResource QuestionnaireOptionToggleStyle}"
+                                                                 IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                                                        <RadioButton.ContentTemplate>
+                                                            <DataTemplate>
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding Label}"
+                                                                               FontWeight="SemiBold" />
+                                                                    <TextBlock Text="{Binding Description}"
+                                                                               Margin="0,4,0,0"
+                                                                               Foreground="{StaticResource QuestionnaireMutedBrush}"
+                                                                               TextWrapping="Wrap"
+                                                                               Visibility="{Binding Description, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                                </StackPanel>
+                                                            </DataTemplate>
+                                                        </RadioButton.ContentTemplate>
+                                                    </RadioButton>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
                                     </StackPanel>
-                                    <TextBlock Text="{Binding Prompt}"
-                                               Foreground="#94A3B8"
-                                               Margin="0,4,0,12" />
-                                    <ItemsControl ItemsSource="{Binding Options}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel Margin="0,6,0,0">
-                                                    <RadioButton Content="{Binding Label}"
-                                                                 GroupName="{Binding DataContext.Id, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                 Style="{StaticResource QuestionnaireRadioButtonStyle}"
-                                                                    IsChecked="{Binding DataContext.SelectedOptionId,
-                                                                                             RelativeSource={RelativeSource AncestorType=ContentPresenter},
-                                                                                             Converter={StaticResource QuestionnaireOptionSelectionConverter},
-                                                                                             ConverterParameter={Binding Id}}" />
-                                                    <TextBlock Text="{Binding Description}"
-                                                               Foreground="#94A3B8"
-                                                               Margin="24,0,0,0"
-                                                               Visibility="{Binding Description, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                               TextWrapping="Wrap" />
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
             </ScrollViewer>
         </Border>
 
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
-                    Margin="0,16,0,0">
+                    Margin="0,20,0,0">
             <Button Content="Cancel"
-                    MinWidth="100"
+                    MinWidth="120"
                     Margin="0,0,12,0"
+                    Style="{StaticResource QuestionnaireSecondaryButtonStyle}"
                     Click="CancelButton_OnClick" />
             <Button Content="Apply recommendations"
-                    MinWidth="180"
-                    Background="#7C3AED"
-                    Foreground="White"
+                    MinWidth="200"
+                    Style="{StaticResource QuestionnairePrimaryButtonStyle}"
                     Click="RunButton_OnClick"
                     IsDefault="True" />
         </StackPanel>

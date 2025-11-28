@@ -17,6 +17,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
         : this(
             toggleAction,
             entry?.Identifier ?? throw new ArgumentNullException(nameof(entry)),
+            entry.CategoryKey,
             entry.DisplayName,
             entry.CategoryName,
             entry.CategoryDescription,
@@ -34,6 +35,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
     private ProcessPreferenceRowViewModel(
         Action<ProcessPreferenceRowViewModel> toggleAction,
         string identifier,
+        string categoryKey,
         string displayName,
         string categoryName,
         string? categoryDescription,
@@ -48,6 +50,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
     {
         _toggleAction = toggleAction ?? throw new ArgumentNullException(nameof(toggleAction));
         Identifier = ProcessCatalogEntry.NormalizeIdentifier(identifier);
+        CategoryKey = string.IsNullOrWhiteSpace(categoryKey) ? "general" : categoryKey.Trim().ToLowerInvariant();
         DisplayName = string.IsNullOrWhiteSpace(displayName) ? Identifier : displayName;
         CategoryName = string.IsNullOrWhiteSpace(categoryName) ? "General" : categoryName;
         CategoryDescription = categoryDescription;
@@ -67,6 +70,8 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
     public string Identifier { get; }
 
     public string DisplayName { get; }
+
+    public string CategoryKey { get; }
 
     public string CategoryName { get; }
 
@@ -144,6 +149,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
         return new ProcessPreferenceRowViewModel(
             toggleAction,
             preference.ProcessIdentifier,
+            "custom",
             preference.ProcessIdentifier,
             "Custom",
             "Imported preference",

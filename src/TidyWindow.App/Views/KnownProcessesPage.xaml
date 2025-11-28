@@ -291,6 +291,49 @@
             <Setter Property="FontSize" Value="12" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+
+        <Style x:Key="SettingsToggleSwitchStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="52" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Background" Value="#1F2937" />
+            <Setter Property="BorderBrush" Value="#1F2937" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"
+                                    CornerRadius="14" />
+                            <Ellipse x:Name="Thumb"
+                                     Width="22"
+                                     Height="22"
+                                     Fill="#F8FAFC"
+                                     Margin="4,3,26,3" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#7C3AED" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED" />
+                                <Setter TargetName="Thumb" Property="Margin" Value="26,3,4,3" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Background" Value="#1F2937" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#1F2937" />
+                                <Setter TargetName="Thumb" Property="Fill" Value="#475569" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </Page.Resources>
 
     <Grid Margin="24">
@@ -611,107 +654,108 @@
                             BorderBrush="#1D2A44"
                             BorderThickness="1"
                             Margin="0,0,0,24">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-
-                            <StackPanel Grid.Row="0">
-                                <TextBlock Text="Process auto-stop preferences"
-                                           Style="{StaticResource SettingsSectionHeaderTextStyle}" />
-                                <TextBlock Text="Review every known service, override its status, and keep questionnaire recommendations in sync."
-                                           Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                           Margin="0,6,0,12" />
+                        <StackPanel>
+                            <TextBlock Text="Process automation controls"
+                                       Style="{StaticResource SettingsSectionHeaderTextStyle}" />
+                            <TextBlock Text="Keep questionnaire guidance handy and jump to the most important adjustments without scrolling through every catalog card."
+                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                       Margin="0,6,0,16" />
+                            <StackPanel>
                                 <TextBlock Text="{Binding ProcessSummary}"
                                            Foreground="#60A5FA"
                                            FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding AutoStopSummary}"
+                                           Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                           Margin="0,4,0,0" />
                                 <TextBlock Text="{Binding QuestionnaireSummary}"
                                            Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                            Margin="0,4,0,0" />
                             </StackPanel>
-
-                            <Grid Grid.Row="1" Margin="0,16,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBox Width="260"
-                                             Style="{StaticResource App.TextBoxStyle}"
-                                             ToolTip="Filter by name or rationale"
-                                             Text="{Binding ProcessFilterText, UpdateSourceTrigger=PropertyChanged}" />
-                                    <CheckBox Content="Auto-stop only"
-                                              Style="{StaticResource App.CheckBoxStyle}"
-                                              IsChecked="{Binding ShowAutoStopOnly}" />
-                                </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="Refresh catalog"
-                                            Margin="0,0,12,0"
-                                        Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                        Command="{Binding RefreshProcessPreferencesCommand}" />
-                                    <Button Content="Show auto-stop processes"
-                                            Margin="0,0,12,0"
+                            <WrapPanel Margin="0,16,0,0" HorizontalAlignment="Left">
+                                <Button Content="Refresh catalog"
+                                        Margin="0,0,12,12"
                                         Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding ToggleAutoStopPanelCommand}" />
-                                    <Button Content="Rerun questionnaire"
-                                            Margin="0,0,12,0"
+                                        Command="{Binding RefreshProcessPreferencesCommand}" />
+                                <Button Content="Rerun questionnaire"
+                                        Margin="0,0,12,12"
                                         Style="{StaticResource ProcessPrimaryButtonStyle}"
                                         Command="{Binding RerunQuestionnaireCommand}" />
-                                    <Button Content="Reset to defaults"
-                                            Margin="0,0,12,0"
+                                <Button Content="Reset to recommended"
+                                        Margin="0,0,12,12"
                                         Style="{StaticResource ProcessDangerButtonStyle}"
                                         Command="{Binding ResetProcessPreferencesCommand}" />
-                                    <Button Content="Export settings"
-                                            Margin="0,0,12,0"
+                                <Button Content="Manage allow &amp; quarantine"
+                                        Margin="0,0,0,12"
                                         Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding ExportProcessSettingsCommand}" />
-                                    <Button Content="Import settings"
-                                            Margin="0,0,0,0"
-                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding ImportProcessSettingsCommand}" />
-                                </StackPanel>
-                            </Grid>
+                                        Command="{Binding ShowAntiSystemHoldingsCommand}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
 
-                            <Border Grid.Row="2"
-                                    Background="#111827"
-                                    BorderBrush="#1D2A44"
-                                    BorderThickness="1"
-                                    CornerRadius="8"
-                                    Padding="12"
-                                    Margin="0,0,0,12"
-                                    Visibility="{Binding IsProcessSettingsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ProgressBar Width="160" Height="6" IsIndeterminate="True" />
-                                    <TextBlock Text="Loading preferences..."
-                                               Margin="12,0,0,0"
-                                               Style="{StaticResource SettingsSectionSubtitleTextStyle}" />
-                                </StackPanel>
-                            </Border>
+                    <Border Background="#111827"
+                            BorderBrush="#1D2A44"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Padding="12"
+                            Margin="0,0,0,24"
+                            Visibility="{Binding IsProcessSettingsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <ProgressBar Width="160"
+                                         Height="6"
+                                         IsIndeterminate="True" />
+                            <TextBlock Text="Loading preferences..."
+                                       Margin="12,0,0,0"
+                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}" />
+                        </StackPanel>
+                    </Border>
 
-                            <StackPanel Grid.Row="3">
-                                <ItemsControl ItemsSource="{Binding ProcessEntriesView}"
-                                              Margin="0,0,0,16">
-                                    <ItemsControl.ItemsPanel>
-                                        <ItemsPanelTemplate>
-                                            <ux:AdaptiveTilePanel MinColumnWidth="360"
-                                                                  MaxColumnWidth="580"
-                                                                  MinColumns="1"
-                                                                  MaxColumns="3"
-                                                                  ColumnSpacing="16"
-                                                                  RowSpacing="16"
-                                                                  Padding="0" />
-                                        </ItemsPanelTemplate>
-                                    </ItemsControl.ItemsPanel>
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border Style="{StaticResource ProcessSettingsCardStyle}">
+                    <Border Background="#0B1120"
+                            Padding="24"
+                            CornerRadius="16"
+                            BorderBrush="#1D2A44"
+                            BorderThickness="1"
+                            Margin="0,0,0,24">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Segment quick toggles"
+                                           Style="{StaticResource SettingsSectionHeaderTextStyle}" />
+                                <Border Background="#2F1F4D"
+                                        Padding="10,2"
+                                        CornerRadius="10"
+                                        Margin="12,0,0,0">
+                                    <TextBlock Text="{Binding Segments.Count, StringFormat={}{0} segments}" Foreground="#C084FC" FontWeight="SemiBold" />
+                                </Border>
+                            </StackPanel>
+                            <TextBlock Text="{Binding SegmentSummary}"
+                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                       Margin="0,6,0,16" />
+                            <ItemsControl ItemsSource="{Binding Segments}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <ux:AdaptiveTilePanel MinColumnWidth="360"
+                                                              MaxColumnWidth="520"
+                                                              MinColumns="1"
+                                                              MaxColumns="3"
+                                                              ColumnSpacing="16"
+                                                              RowSpacing="16" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Margin" Value="0" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate DataType="{x:Type viewModels:ProcessPreferenceSegmentViewModel}">
+                                        <Border Style="{StaticResource ProcessSettingsCardStyle}" Margin="0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
                                                 <StackPanel>
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding DisplayName}"
+                                                        <TextBlock Text="{Binding Title}"
                                                                    FontSize="17"
                                                                    FontWeight="SemiBold"
                                                                    Foreground="{StaticResource ProcessHeadlineBrush}" />
@@ -726,7 +770,7 @@
                                                                        FontWeight="SemiBold" />
                                                         </Border>
                                                     </StackPanel>
-                                                    <TextBlock Text="{Binding CategoryDescription}"
+                                                    <TextBlock Text="{Binding Description}"
                                                                Foreground="{StaticResource ProcessMutedBrush}"
                                                                Margin="0,6,0,0"
                                                                TextWrapping="Wrap">
@@ -734,150 +778,53 @@
                                                             <Style TargetType="TextBlock">
                                                                 <Setter Property="Visibility" Value="Visible" />
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding CategoryDescription}" Value="{x:Null}">
+                                                                    <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
                                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                                     </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding CategoryDescription}" Value="">
+                                                                    <DataTrigger Binding="{Binding Description}" Value="">
                                                                         <Setter Property="Visibility" Value="Collapsed" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
-                                                    <TextBlock Text="{Binding Rationale}"
+                                                    <TextBlock Text="{Binding Summary}"
                                                                Foreground="{StaticResource ProcessBodyBrush}"
-                                                               TextWrapping="Wrap"
-                                                               Margin="0,6,0,0" />
-                                                    <ux:AdaptiveTilePanel Margin="0,12,0,0"
-                                                                          MinColumnWidth="150"
-                                                                          MaxColumnWidth="220"
-                                                                          ColumnSpacing="12"
-                                                                          RowSpacing="12">
-                                                        <Border Style="{StaticResource ProcessInfoChipStyle}">
-                                                            <StackPanel>
-                                                                <TextBlock Text="Category"
-                                                                           Foreground="{StaticResource ProcessMutedBrush}"
-                                                                           FontSize="11" />
-                                                                <TextBlock Text="{Binding CategoryName}"
-                                                                           Foreground="{StaticResource ProcessHeadlineBrush}"
-                                                                           FontWeight="SemiBold" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                        <Border Style="{StaticResource ProcessInfoChipStyle}">
-                                                            <StackPanel>
-                                                                <TextBlock Text="Recommendation"
-                                                                           Foreground="{StaticResource ProcessMutedBrush}"
-                                                                           FontSize="11" />
-                                                                <TextBlock Text="{Binding RecommendationLabel}"
-                                                                           Foreground="{StaticResource ProcessBodyBrush}"
-                                                                           FontWeight="SemiBold" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                        <Border Style="{StaticResource ProcessInfoChipStyle}">
-                                                            <StackPanel>
-                                                                <TextBlock Text="Status"
-                                                                           Foreground="{StaticResource ProcessMutedBrush}"
-                                                                           FontSize="11" />
-                                                                <TextBlock Text="{Binding StatusLabel}"
-                                                                           Foreground="{StaticResource ProcessStatusLabelBrush}"
-                                                                           FontWeight="SemiBold" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                        <Border Style="{StaticResource ProcessInfoChipStyle}">
-                                                            <StackPanel>
-                                                                <TextBlock Text="Source"
-                                                                           Foreground="{StaticResource ProcessMutedBrush}"
-                                                                           FontSize="11" />
-                                                                <TextBlock Text="{Binding SourceLabel}"
-                                                                           Foreground="{StaticResource ProcessBodyBrush}" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                        <Border Style="{StaticResource ProcessInfoChipStyle}">
-                                                            <StackPanel>
-                                                                <TextBlock Text="Updated"
-                                                                           Foreground="{StaticResource ProcessMutedBrush}"
-                                                                           FontSize="11" />
-                                                                <TextBlock Text="{Binding UpdatedLabel}"
-                                                                           Foreground="{StaticResource ProcessBodyBrush}" />
-                                                            </StackPanel>
-                                                        </Border>
-                                                    </ux:AdaptiveTilePanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                                        <Button Content="{Binding ToggleActionLabel}"
-                                                                Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                                                Command="{Binding TogglePreferenceCommand}" />
-                                                    </StackPanel>
+                                                               Margin="0,8,0,0" />
                                                 </StackPanel>
-                                            </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-
-                                <TextBlock Text="No processes match the current filter."
-                                           HorizontalAlignment="Center"
-                                           FontSize="14"
-                                           Foreground="{StaticResource ProcessMutedBrush}"
-                                           Margin="0,12,0,0">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed" />
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding ProcessEntriesView.IsEmpty}" Value="True">
-                                                    <Setter Property="Visibility" Value="Visible" />
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                            </StackPanel>
-
-                            <Expander Grid.Row="4"
-                                      Header="Auto-stop processes"
-                                      IsExpanded="{Binding IsAutoStopPanelVisible}">
-                                <StackPanel Margin="0,8,0,0">
-                                    <TextBlock Text="{Binding AutoStopSummary}"
-                                               Style="{StaticResource SettingsSectionSubtitleTextStyle}" />
-                                    <TextBlock Text="No processes configured to auto-stop."
-                                               Margin="0,8,0,0"
-                                               Visibility="{Binding HasAutoStopEntries, Converter={StaticResource BooleanToVisibilityConverter}, ConverterParameter=False}" />
-                                    <ItemsControl ItemsSource="{Binding AutoStopEntriesView}"
-                                                  Margin="0,8,0,0">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="#0F172A"
-                                                        BorderBrush="#1D2A44"
-                                                        BorderThickness="1"
-                                                        CornerRadius="8"
-                                                        Padding="12"
-                                                        Margin="0,0,0,8">
-                                                    <StackPanel Orientation="Horizontal"
-                                                                HorizontalAlignment="Stretch"
-                                                                VerticalAlignment="Center">
-                                                        <StackPanel>
-                                                            <TextBlock Text="{Binding DisplayName}"
-                                                                       FontWeight="SemiBold" />
-                                                            <TextBlock Text="{Binding CategoryName}"
-                                                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}" />
-                                                        </StackPanel>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                    HorizontalAlignment="Right"
-                                                                    Margin="16,0,0,0">
-                                                            <TextBlock Text="{Binding StatusLabel}"
-                                                                       VerticalAlignment="Center"
-                                                                       FontWeight="SemiBold" />
-                                                            <Button Content="{Binding ToggleActionLabel}"
-                                                                    Margin="12,0,0,0"
-                                                                    Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                                                    Command="{Binding TogglePreferenceCommand}" />
-                                                        </StackPanel>
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </Expander>
-                        </Grid>
+                                                <StackPanel Grid.Column="1"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Center">
+                                                    <ToggleButton Width="52"
+                                                                  Height="28"
+                                                                  Margin="0,0,0,6"
+                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
+                                                                  IsChecked="{Binding SegmentToggleValue, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasProcesses}" />
+                                                    <TextBlock Text="{Binding StateLabel}"
+                                                               Foreground="{StaticResource ProcessMutedBrush}"
+                                                               FontSize="12"
+                                                               HorizontalAlignment="Right" />
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Text="Catalog segments will appear as soon as the recommendations load."
+                                       Margin="0,12,0,0">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource SettingsSectionSubtitleTextStyle}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasSegments}" Value="False">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
                     </Border>
                 </StackPanel>
             </ScrollViewer>

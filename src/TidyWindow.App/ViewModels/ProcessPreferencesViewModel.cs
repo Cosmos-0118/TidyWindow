@@ -36,6 +36,8 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     private readonly ProcessQuestionnaireEngine _questionnaireEngine;
     private readonly IUserConfirmationService _confirmationService;
     private readonly ObservableCollection<ProcessPreferenceRowViewModel> _processEntries = new();
+    private readonly ObservableCollection<ProcessPreferenceSegmentViewModel> _segments = new();
+    private bool _hasPromptedFirstRunQuestionnaire;
 
     public ProcessPreferencesViewModel(
         MainViewModel mainViewModel,
@@ -56,12 +58,16 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         AutoStopEntriesView = new ListCollectionView(_processEntries);
         AutoStopEntriesView.Filter = static item => item is ProcessPreferenceRowViewModel row && row.IsAutoStop;
 
+        Segments = new ReadOnlyObservableCollection<ProcessPreferenceSegmentViewModel>(_segments);
+
         _ = RefreshProcessPreferencesAsync();
     }
 
     public ICollectionView ProcessEntriesView { get; }
 
     public ICollectionView AutoStopEntriesView { get; }
+
+    public ReadOnlyObservableCollection<ProcessPreferenceSegmentViewModel> Segments { get; }
 
     [ObservableProperty]
     private bool _isProcessSettingsBusy;
@@ -86,6 +92,12 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showAutoStopOnly;
+
+    [ObservableProperty]
+    private bool _hasSegments;
+
+    [ObservableProperty]
+    private string _segmentSummary = "Loading catalog segments...";
 
     partial void OnProcessFilterTextChanged(string value)
     {
@@ -130,6 +142,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
 
             ProcessEntriesView.Refresh();
             AutoStopEntriesView.Refresh();
+            RebuildSegments(snapshot, rows);
             UpdateProcessSummaries();
         }
         catch (Exception ex)
@@ -148,6 +161,42 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     private void ToggleAutoStopPanel()
     {
         IsAutoStopPanelVisible = !IsAutoStopPanelVisible;
+    }
+
+    [RelayCommand]
+    private void ShowAntiSystemHoldings()
+    {
+        var whitelist = _processStateStore.GetWhitelistEntries()
+            .OrderByDescending(static entry => entry.AddedAtUtc)
+            .Select(static entry => new AntiSystemWhitelistEntryViewModel(
+                entry.Id,
+                entry.Kind,
+                entry.Value,
+                entry.Notes,
+                entry.AddedBy,
+                entry.AddedAtUtc))
+            .ToList();
+
+        var quarantine = _processStateStore.GetQuarantineEntries()
+            .Select(static entry => new AntiSystemQuarantineEntryViewModel(
+                entry.Id,
+                entry.ProcessName,
+                entry.FilePath,
+                entry.Notes,
+                entry.AddedBy,
+                entry.QuarantinedAtUtc))
+            .ToList();
+
+        var dialogViewModel = new AntiSystemHoldingsDialogViewModel(whitelist, quarantine);
+        var window = new AntiSystemHoldingsWindow(dialogViewModel)
+        {
+            Owner = WpfApplication.Current?.MainWindow,
+            WindowStartupLocation = WpfApplication.Current?.MainWindow is null
+                ? WindowStartupLocation.CenterScreen
+                : WindowStartupLocation.CenterOwner
+        };
+
+        window.ShowDialog();
     }
 
     private void ToggleProcessPreference(ProcessPreferenceRowViewModel? row)
@@ -285,6 +334,29 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     [RelayCommand]
     private async Task RerunQuestionnaireAsync()
     {
+        await RunQuestionnaireFlowAsync(isAutoTrigger: false);
+    }
+
+    public async Task TriggerQuestionnaireIfFirstRunAsync()
+    {
+        if (_hasPromptedFirstRunQuestionnaire)
+        {
+            return;
+        }
+
+        var snapshot = _processStateStore.GetQuestionnaireSnapshot();
+        if (snapshot.CompletedAtUtc is not null)
+        {
+            _hasPromptedFirstRunQuestionnaire = true;
+            return;
+        }
+
+        _hasPromptedFirstRunQuestionnaire = true;
+        await RunQuestionnaireFlowAsync(isAutoTrigger: true, snapshot);
+    }
+
+    private async Task RunQuestionnaireFlowAsync(bool isAutoTrigger, ProcessQuestionnaireSnapshot? snapshotOverride = null)
+    {
         if (IsProcessSettingsBusy)
         {
             return;
@@ -297,12 +369,14 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
             return;
         }
 
-        var snapshot = _processStateStore.GetQuestionnaireSnapshot();
+        var snapshot = snapshotOverride ?? _processStateStore.GetQuestionnaireSnapshot();
         var dialogViewModel = new ProcessQuestionnaireDialogViewModel(definition, snapshot);
         var window = new ProcessQuestionnaireWindow(dialogViewModel)
         {
             Owner = WpfApplication.Current?.MainWindow,
-            WindowStartupLocation = WpfApplication.Current?.MainWindow is null ? WindowStartupLocation.CenterScreen : WindowStartupLocation.CenterOwner
+            WindowStartupLocation = WpfApplication.Current?.MainWindow is null
+                ? WindowStartupLocation.CenterScreen
+                : WindowStartupLocation.CenterOwner
         };
 
         var result = window.ShowDialog();
@@ -314,11 +388,13 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         try
         {
             IsProcessSettingsBusy = true;
-            _mainViewModel.SetStatusMessage("Evaluating questionnaire...");
+            _mainViewModel.SetStatusMessage(isAutoTrigger ? "Applying questionnaire guidance..." : "Evaluating questionnaire...");
 
             await Task.Run(() => _questionnaireEngine.EvaluateAndApply(dialogViewModel.Answers));
             await RefreshProcessPreferencesAsync();
-            _mainViewModel.LogActivityInformation("Process settings", "Questionnaire answers applied.");
+            _mainViewModel.LogActivityInformation(
+                "Process settings",
+                isAutoTrigger ? "First-run questionnaire answers applied." : "Questionnaire answers applied.");
         }
         catch (Exception ex)
         {
@@ -380,6 +456,100 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
             .ToList();
     }
 
+    private void RebuildSegments(ProcessCatalogSnapshot snapshot, IReadOnlyList<ProcessPreferenceRowViewModel> rows)
+    {
+        _segments.Clear();
+
+        var groupedRows = rows
+            .GroupBy(row => row.CategoryKey, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.ToList(), StringComparer.OrdinalIgnoreCase);
+
+        foreach (var category in snapshot.Categories.OrderBy(static cat => cat.Order))
+        {
+            if (!groupedRows.TryGetValue(category.Key, out var categoryRows) || categoryRows.Count == 0)
+            {
+                continue;
+            }
+
+            var segment = new ProcessPreferenceSegmentViewModel(this, category, categoryRows);
+            segment.RefreshCounts();
+            _segments.Add(segment);
+            groupedRows.Remove(category.Key);
+        }
+
+        foreach (var leftover in groupedRows.Values)
+        {
+            if (leftover.Count == 0)
+            {
+                continue;
+            }
+
+            var fallbackMetadata = new ProcessCatalogCategory(
+                leftover[0].CategoryKey,
+                leftover[0].CategoryName,
+                leftover[0].CategoryDescription,
+                leftover[0].IsCaution,
+                int.MaxValue);
+
+            var segment = new ProcessPreferenceSegmentViewModel(this, fallbackMetadata, leftover);
+            segment.RefreshCounts();
+            _segments.Add(segment);
+        }
+
+        UpdateSegmentSummaries();
+    }
+
+    private void UpdateSegmentSummaries()
+    {
+        foreach (var segment in _segments)
+        {
+            segment.RefreshCounts();
+        }
+
+        HasSegments = _segments.Count > 0;
+        SegmentSummary = HasSegments
+            ? $"Quick toggles ready for {_segments.Count} segments."
+            : "No catalog segments available.";
+    }
+
+    internal void ApplySegmentPreference(ProcessPreferenceSegmentViewModel segment, ProcessActionPreference action)
+    {
+        if (segment is null)
+        {
+            return;
+        }
+
+        var targets = segment.Rows
+            .Where(row => row.EffectiveAction != action)
+            .ToList();
+
+        if (targets.Count == 0)
+        {
+            segment.RefreshCounts();
+            return;
+        }
+
+        try
+        {
+            foreach (var row in targets)
+            {
+                var preference = new ProcessPreference(row.Identifier, action, ProcessPreferenceSource.UserOverride, DateTimeOffset.UtcNow, $"Segment '{segment.Title}' quick toggle");
+                _processStateStore.UpsertPreference(preference);
+                row.ApplyPreference(preference.Action, preference.Source, preference.UpdatedAtUtc, preference.Notes);
+            }
+
+            ProcessEntriesView.Refresh();
+            AutoStopEntriesView.Refresh();
+            UpdateProcessSummaries();
+            UpdateSegmentSummaries();
+            _mainViewModel.LogActivityInformation("Process settings", $"Segment '{segment.Title}' set to {(action == ProcessActionPreference.AutoStop ? "auto-stop" : "keep")} ({targets.Count} processes).");
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Process settings", $"Unable to update segment '{segment.Title}'.", new[] { ex.Message });
+        }
+    }
+
     private void ApplyProcessPreference(ProcessPreferenceRowViewModel row, ProcessActionPreference action)
     {
         try
@@ -390,6 +560,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
             ProcessEntriesView.Refresh();
             AutoStopEntriesView.Refresh();
             UpdateProcessSummaries();
+            UpdateSegmentSummaries();
             _mainViewModel.LogActivityInformation("Process settings", $"{row.DisplayName} set to {row.StatusLabel}.");
         }
         catch (Exception ex)
@@ -437,5 +608,84 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
 
         var completed = snapshot.CompletedAtUtc.Value.ToLocalTime();
         return $"Questionnaire last completed on {completed:G}.";
+    }
+}
+
+public sealed partial class ProcessPreferenceSegmentViewModel : ObservableObject
+{
+    private readonly ProcessPreferencesViewModel _owner;
+    private readonly IReadOnlyList<ProcessPreferenceRowViewModel> _rows;
+
+    internal ProcessPreferenceSegmentViewModel(ProcessPreferencesViewModel owner, ProcessCatalogCategory metadata, IReadOnlyList<ProcessPreferenceRowViewModel> rows)
+    {
+        _owner = owner ?? throw new ArgumentNullException(nameof(owner));
+        _rows = rows ?? throw new ArgumentNullException(nameof(rows));
+        Key = metadata?.Key ?? throw new ArgumentNullException(nameof(metadata));
+        Title = string.IsNullOrWhiteSpace(metadata.Name) ? Key : metadata.Name;
+        Description = metadata.Description;
+        IsCaution = metadata.IsCaution;
+        DisplayOrder = metadata.Order;
+        _autoStopCount = rows.Count(static row => row.IsAutoStop);
+    }
+
+    public string Key { get; }
+
+    public string Title { get; }
+
+    public string? Description { get; }
+
+    public bool IsCaution { get; }
+
+    public int DisplayOrder { get; }
+
+    public int TotalCount => _rows.Count;
+
+    public bool HasProcesses => TotalCount > 0;
+
+    [ObservableProperty]
+    private int _autoStopCount;
+
+    public string Summary => !HasProcesses
+        ? "No catalog entries"
+        : $"{AutoStopCount} of {TotalCount} auto-stop";
+
+    public bool IsMixed => HasProcesses && AutoStopCount > 0 && AutoStopCount < TotalCount;
+
+    public string StateLabel => !HasProcesses
+        ? "No catalog entries"
+        : IsMixed
+            ? "Mixed preferences"
+            : AutoStopCount == TotalCount
+                ? "Auto-stopping all"
+                : "Keeping all";
+
+    public bool SegmentToggleValue
+    {
+        get => HasProcesses && AutoStopCount == TotalCount;
+        set
+        {
+            if (!HasProcesses)
+            {
+                return;
+            }
+
+            var targetAction = value ? ProcessActionPreference.AutoStop : ProcessActionPreference.Keep;
+            _owner.ApplySegmentPreference(this, targetAction);
+        }
+    }
+
+    internal IReadOnlyList<ProcessPreferenceRowViewModel> Rows => _rows;
+
+    internal void RefreshCounts()
+    {
+        AutoStopCount = _rows.Count(static row => row.IsAutoStop);
+    }
+
+    partial void OnAutoStopCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(SegmentToggleValue));
+        OnPropertyChanged(nameof(Summary));
+        OnPropertyChanged(nameof(StateLabel));
+        OnPropertyChanged(nameof(IsMixed));
     }
 }

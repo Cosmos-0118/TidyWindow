@@ -71,7 +71,7 @@ public sealed partial class ProcessQuestionDialogQuestionViewModel : ObservableO
 
         foreach (var option in question.Options)
         {
-            Options.Add(new ProcessQuestionDialogOptionViewModel(option));
+            Options.Add(new ProcessQuestionDialogOptionViewModel(this, option));
         }
 
         SelectedOptionId = selectedOptionId;
@@ -89,12 +89,23 @@ public sealed partial class ProcessQuestionDialogQuestionViewModel : ObservableO
 
     [ObservableProperty]
     private string? _selectedOptionId;
+
+    partial void OnSelectedOptionIdChanged(string? value)
+    {
+        foreach (var option in Options)
+        {
+            option.NotifySelectionChanged();
+        }
+    }
 }
 
-public sealed class ProcessQuestionDialogOptionViewModel
+public sealed partial class ProcessQuestionDialogOptionViewModel : ObservableObject
 {
-    public ProcessQuestionDialogOptionViewModel(ProcessQuestionOption option)
+    private readonly ProcessQuestionDialogQuestionViewModel _question;
+
+    public ProcessQuestionDialogOptionViewModel(ProcessQuestionDialogQuestionViewModel question, ProcessQuestionOption option)
     {
+        _question = question ?? throw new ArgumentNullException(nameof(question));
         if (option is null)
         {
             throw new ArgumentNullException(nameof(option));
@@ -110,4 +121,24 @@ public sealed class ProcessQuestionDialogOptionViewModel
     public string Label { get; }
 
     public string? Description { get; }
+
+    public bool IsSelected
+    {
+        get => string.Equals(_question.SelectedOptionId, Id, StringComparison.OrdinalIgnoreCase);
+        set
+        {
+            if (!value)
+            {
+                OnPropertyChanged(nameof(IsSelected));
+                return;
+            }
+
+            if (!string.Equals(_question.SelectedOptionId, Id, StringComparison.OrdinalIgnoreCase))
+            {
+                _question.SelectedOptionId = Id;
+            }
+        }
+    }
+
+    internal void NotifySelectionChanged() => OnPropertyChanged(nameof(IsSelected));
 }

@@ -15,7 +15,7 @@ public sealed class ProcessStateStore
 {
     private const string StateOverrideEnvironmentVariable = "TIDYWINDOW_PROCESS_STATE_PATH";
     private const string DefaultFileName = "uiforprocesses-state.json";
-    internal const int LatestSchemaVersion = 3;
+    internal const int LatestSchemaVersion = 4;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -167,6 +167,65 @@ public sealed class ProcessStateStore
             _snapshot = _snapshot with
             {
                 WhitelistEntries = updated,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+
+            SaveSnapshotLocked();
+            return true;
+        }
+    }
+
+    public IReadOnlyCollection<AntiSystemQuarantineEntry> GetQuarantineEntries()
+    {
+        lock (_syncRoot)
+        {
+            return _snapshot.QuarantineEntries.Values
+                .OrderByDescending(static entry => entry.QuarantinedAtUtc)
+                .ToArray();
+        }
+    }
+
+    public void UpsertQuarantineEntry(AntiSystemQuarantineEntry entry)
+    {
+        if (entry is null)
+        {
+            throw new ArgumentNullException(nameof(entry));
+        }
+
+        var normalized = entry.Normalize();
+
+        lock (_syncRoot)
+        {
+            var updated = _snapshot.QuarantineEntries.SetItem(normalized.Id, normalized);
+            _snapshot = _snapshot with
+            {
+                QuarantineEntries = updated,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+
+            SaveSnapshotLocked();
+        }
+    }
+
+    public bool RemoveQuarantineEntry(string entryId)
+    {
+        if (string.IsNullOrWhiteSpace(entryId))
+        {
+            return false;
+        }
+
+        var key = entryId.Trim();
+        lock (_syncRoot)
+        {
+            if (!_snapshot.QuarantineEntries.ContainsKey(key))
+            {
+                return false;
+            }
+
+            var updated = _snapshot.QuarantineEntries.Remove(key);
+            _snapshot = _snapshot with
+            {
+                QuarantineEntries = updated,
                 UpdatedAtUtc = DateTimeOffset.UtcNow
             };
 
@@ -335,10 +394,18 @@ public sealed class ProcessStateStore
                     .Cast<AntiSystemWhitelistEntry>()
                     .ToImmutableDictionary(static entry => entry.Id, StringComparer.OrdinalIgnoreCase);
 
+            var quarantineEntries = model.QuarantineEntries is null
+                ? ImmutableDictionary.Create<string, AntiSystemQuarantineEntry>(StringComparer.OrdinalIgnoreCase)
+                : model.QuarantineEntries
+                    .Select(ToQuarantineEntry)
+                    .Where(static entry => entry is not null)
+                    .Cast<AntiSystemQuarantineEntry>()
+                    .ToImmutableDictionary(static entry => entry.Id, StringComparer.OrdinalIgnoreCase);
+
             var questionnaire = ToQuestionnaireSnapshot(model.Questionnaire);
 
             var updatedAt = model.UpdatedAtUtc == default ? DateTimeOffset.UtcNow : model.UpdatedAtUtc;
-            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits, questionnaire, whitelistEntries);
+            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits, questionnaire, whitelistEntries, quarantineEntries);
         }
         catch
         {
@@ -393,6 +460,29 @@ public sealed class ProcessStateStore
                 model.Notes,
                 model.AddedBy,
                 model.AddedAtUtc);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static AntiSystemQuarantineEntry? ToQuarantineEntry(AntiSystemQuarantineEntryModel? model)
+    {
+        if (model is null || string.IsNullOrWhiteSpace(model.ProcessName) || string.IsNullOrWhiteSpace(model.FilePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return new AntiSystemQuarantineEntry(
+                model.Id ?? string.Empty,
+                model.ProcessName,
+                model.FilePath,
+                model.Notes,
+                model.AddedBy,
+                model.QuarantinedAtUtc);
         }
         catch
         {
@@ -480,6 +570,8 @@ public sealed class ProcessStateStore
 
         public List<AntiSystemWhitelistEntryModel>? WhitelistEntries { get; set; }
 
+        public List<AntiSystemQuarantineEntryModel>? QuarantineEntries { get; set; }
+
         public ProcessQuestionnaireModel? Questionnaire { get; set; }
 
         public static ProcessStateModel FromSnapshot(ProcessStateSnapshot snapshot)
@@ -507,6 +599,17 @@ public sealed class ProcessStateStore
                         Notes = entry.Notes,
                         AddedBy = entry.AddedBy,
                         AddedAtUtc = entry.AddedAtUtc
+                    })
+                    .ToList(),
+                QuarantineEntries = snapshot.QuarantineEntries.Values
+                    .Select(static entry => new AntiSystemQuarantineEntryModel
+                    {
+                        Id = entry.Id,
+                        ProcessName = entry.ProcessName,
+                        FilePath = entry.FilePath,
+                        Notes = entry.Notes,
+                        AddedBy = entry.AddedBy,
+                        QuarantinedAtUtc = entry.QuarantinedAtUtc
                     })
                     .ToList(),
                 SuspiciousHits = snapshot.SuspiciousHits.Values
@@ -554,6 +657,21 @@ public sealed class ProcessStateStore
         public string? AddedBy { get; set; }
 
         public DateTimeOffset AddedAtUtc { get; set; }
+    }
+
+    private sealed class AntiSystemQuarantineEntryModel
+    {
+        public string? Id { get; set; }
+
+        public string? ProcessName { get; set; }
+
+        public string? FilePath { get; set; }
+
+        public string? Notes { get; set; }
+
+        public string? AddedBy { get; set; }
+
+        public DateTimeOffset QuarantinedAtUtc { get; set; }
     }
 
     private sealed class SuspiciousProcessHitModel
@@ -606,7 +724,8 @@ public sealed record ProcessStateSnapshot(
     IImmutableDictionary<string, ProcessPreference> Preferences,
     IImmutableDictionary<string, SuspiciousProcessHit> SuspiciousHits,
     ProcessQuestionnaireSnapshot Questionnaire,
-    IImmutableDictionary<string, AntiSystemWhitelistEntry> WhitelistEntries)
+    IImmutableDictionary<string, AntiSystemWhitelistEntry> WhitelistEntries,
+    IImmutableDictionary<string, AntiSystemQuarantineEntry> QuarantineEntries)
 {
     public static ProcessStateSnapshot CreateEmpty(int schemaVersion)
     {
@@ -616,7 +735,8 @@ public sealed record ProcessStateSnapshot(
             ImmutableDictionary.Create<string, ProcessPreference>(StringComparer.OrdinalIgnoreCase),
             ImmutableDictionary.Create<string, SuspiciousProcessHit>(StringComparer.OrdinalIgnoreCase),
             ProcessQuestionnaireSnapshot.Empty,
-            ImmutableDictionary.Create<string, AntiSystemWhitelistEntry>(StringComparer.OrdinalIgnoreCase));
+            ImmutableDictionary.Create<string, AntiSystemWhitelistEntry>(StringComparer.OrdinalIgnoreCase),
+            ImmutableDictionary.Create<string, AntiSystemQuarantineEntry>(StringComparer.OrdinalIgnoreCase));
     }
 }
 
