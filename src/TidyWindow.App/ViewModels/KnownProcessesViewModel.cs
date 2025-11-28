@@ -25,17 +25,25 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         ProcessStateStore stateStore,
         ProcessControlService controlService,
         IUserConfirmationService confirmationService,
-        MainViewModel mainViewModel)
+        MainViewModel mainViewModel,
+        ProcessPreferencesViewModel processPreferencesViewModel,
+        AntiSystemViewModel antiSystemViewModel)
     {
         _catalogParser = catalogParser ?? throw new ArgumentNullException(nameof(catalogParser));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _controlService = controlService ?? throw new ArgumentNullException(nameof(controlService));
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        Preferences = processPreferencesViewModel ?? throw new ArgumentNullException(nameof(processPreferencesViewModel));
+        AntiSystem = antiSystemViewModel ?? throw new ArgumentNullException(nameof(antiSystemViewModel));
         Categories = new ObservableCollection<KnownProcessCategoryViewModel>();
     }
 
     public ObservableCollection<KnownProcessCategoryViewModel> Categories { get; }
+
+    public ProcessPreferencesViewModel Preferences { get; }
+
+    public AntiSystemViewModel AntiSystem { get; }
 
     [ObservableProperty]
     private bool _isBusy;
@@ -46,6 +54,9 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasProcesses;
 
+    [ObservableProperty]
+    private KnownProcessViewSection _activeSection = KnownProcessViewSection.Catalog;
+
     public void EnsureInitialized()
     {
         if (_isInitialized)
@@ -54,6 +65,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         }
 
         Refresh();
+        AntiSystem.EnsureInitialized();
         _isInitialized = true;
     }
 
@@ -105,6 +117,16 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         {
             IsBusy = false;
             _mainViewModel.SetStatusMessage("Ready");
+        }
+    }
+
+    [RelayCommand]
+    private void SwitchSection(KnownProcessViewSection section)
+    {
+        ActiveSection = section;
+        if (section == KnownProcessViewSection.AntiSystem)
+        {
+            AntiSystem.EnsureInitialized();
         }
     }
 
@@ -270,6 +292,13 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
 
         return lookup;
     }
+}
+
+public enum KnownProcessViewSection
+{
+    Catalog,
+    Settings,
+    AntiSystem
 }
 
 public sealed partial class KnownProcessCategoryViewModel : ObservableObject

@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
@@ -39,9 +41,17 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
                 new AntiSystemSeverityGroupViewModel(SuspicionLevel.Orange, "Elevated", "Review and confirm intent"),
                 new AntiSystemSeverityGroupViewModel(SuspicionLevel.Yellow, "Watch", "Likely safe but worth triage")
             });
+
+        Hits = new ObservableCollection<AntiSystemHitViewModel>();
+        HitsView = CollectionViewSource.GetDefaultView(Hits);
+        HitsView.Filter = FilterHit;
     }
 
     public ObservableCollection<AntiSystemSeverityGroupViewModel> SeverityGroups { get; }
+
+    public ObservableCollection<AntiSystemHitViewModel> Hits { get; }
+
+    public ICollectionView HitsView { get; }
 
     [ObservableProperty]
     private bool _isBusy;
@@ -54,6 +64,12 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
 
     [ObservableProperty]
     private DateTimeOffset? _lastScanCompletedAt;
+
+    [ObservableProperty]
+    private string _filterText = string.Empty;
+
+    [ObservableProperty]
+    private SuspicionLevel? _filterLevel;
 
     public string? LastScanSummary => LastScanCompletedAt is null
         ? "Scan has not been run this session."
@@ -247,6 +263,8 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
             group.Hits.Clear();
         }
 
+        Hits.Clear();
+
         foreach (var hit in hits.OrderByDescending(static h => h.ObservedAtUtc))
         {
             var targetGroup = SeverityGroups.FirstOrDefault(group => group.Level == hit.Level);
@@ -255,10 +273,13 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
                 continue;
             }
 
-            targetGroup.Hits.Add(new AntiSystemHitViewModel(this, hit));
+            var vm = new AntiSystemHitViewModel(this, hit);
+            targetGroup.Hits.Add(vm);
+            Hits.Add(vm);
         }
 
         HasHits = SeverityGroups.Any(group => group.Hits.Count > 0);
+        HitsView.Refresh();
     }
 
     private void RemoveHit(AntiSystemHitViewModel hit)
@@ -270,7 +291,9 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
 
         group.Hits.Remove(hit);
+        Hits.Remove(hit);
         HasHits = SeverityGroups.Any(g => g.Hits.Count > 0);
+        HitsView.Refresh();
     }
 
     private static bool TerminateProcessesByPath(string? filePath)
@@ -309,6 +332,40 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
 
         return terminated;
+    }
+
+    partial void OnFilterTextChanged(string value) => HitsView.Refresh();
+
+    partial void OnFilterLevelChanged(SuspicionLevel? value) => HitsView.Refresh();
+
+    private bool FilterHit(object? obj)
+    {
+        if (obj is not AntiSystemHitViewModel hit)
+        {
+            return false;
+        }
+
+        if (FilterLevel is not null && hit.Level != FilterLevel)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(FilterText))
+        {
+            return true;
+        }
+
+        var query = FilterText.Trim();
+        return hit.ProcessName.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || hit.FilePath.Contains(query, StringComparison.OrdinalIgnoreCase)
+            || (hit.MatchedRules is { Count: > 0 } && hit.MatchedRules.Any(rule => rule.Contains(query, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [RelayCommand]
+    private void ClearFilters()
+    {
+        FilterText = string.Empty;
+        FilterLevel = null;
     }
 }
 

@@ -109,6 +109,7 @@ public partial class App : WpfApplication
                 services.AddTransient<CleanupViewModel>();
                 services.AddTransient<DeepScanViewModel>();
                 services.AddTransient<SettingsViewModel>();
+                services.AddTransient<ProcessPreferencesViewModel>();
                 services.AddTransient<InstallHubViewModel>();
                 services.AddTransient<PackageMaintenanceViewModel>();
                 services.AddTransient<LogsViewModel>();
@@ -129,7 +130,6 @@ public partial class App : WpfApplication
                 services.AddTransient<RegistryOptimizerPage>();
                 services.AddTransient<PathPilotPage>();
                 services.AddTransient<KnownProcessesPage>();
-                services.AddTransient<AntiSystemPage>();
 
                 services.AddSingleton<MainWindow>();
             })

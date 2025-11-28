@@ -12,29 +12,56 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Win32;
 using TidyWindow.App.Models;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels.Dialogs;
 using TidyWindow.App.Views.Dialogs;
 using TidyWindow.Core.Processes;
-using TidyWindow.App.Services;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.ViewModels;
 
-public sealed partial class SettingsViewModel
+public sealed partial class ProcessPreferencesViewModel : ViewModelBase
 {
-    private static readonly JsonSerializerOptions ProcessSettingsSerializerOptions = new()
+    private static readonly JsonSerializerOptions SerializerOptions = new()
     {
         WriteIndented = true,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    private readonly MainViewModel _mainViewModel;
+    private readonly ProcessCatalogParser _catalogParser;
+    private readonly ProcessStateStore _processStateStore;
+    private readonly ProcessQuestionnaireEngine _questionnaireEngine;
+    private readonly IUserConfirmationService _confirmationService;
     private readonly ObservableCollection<ProcessPreferenceRowViewModel> _processEntries = new();
 
-    public ICollectionView ProcessEntriesView { get; private set; } = null!;
+    public ProcessPreferencesViewModel(
+        MainViewModel mainViewModel,
+        ProcessCatalogParser catalogParser,
+        ProcessStateStore processStateStore,
+        ProcessQuestionnaireEngine questionnaireEngine,
+        IUserConfirmationService confirmationService)
+    {
+        _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _catalogParser = catalogParser ?? throw new ArgumentNullException(nameof(catalogParser));
+        _processStateStore = processStateStore ?? throw new ArgumentNullException(nameof(processStateStore));
+        _questionnaireEngine = questionnaireEngine ?? throw new ArgumentNullException(nameof(questionnaireEngine));
+        _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
 
-    public ICollectionView AutoStopEntriesView { get; private set; } = null!;
+        ProcessEntriesView = CollectionViewSource.GetDefaultView(_processEntries);
+        ProcessEntriesView.Filter = FilterProcessEntry;
+
+        AutoStopEntriesView = new ListCollectionView(_processEntries);
+        AutoStopEntriesView.Filter = static item => item is ProcessPreferenceRowViewModel row && row.IsAutoStop;
+
+        _ = RefreshProcessPreferencesAsync();
+    }
+
+    public ICollectionView ProcessEntriesView { get; }
+
+    public ICollectionView AutoStopEntriesView { get; }
 
     [ObservableProperty]
     private bool _isProcessSettingsBusy;
@@ -60,25 +87,14 @@ public sealed partial class SettingsViewModel
     [ObservableProperty]
     private bool _showAutoStopOnly;
 
-    partial void InitializeProcessPreferences()
-    {
-        ProcessEntriesView = CollectionViewSource.GetDefaultView(_processEntries);
-        ProcessEntriesView.Filter = FilterProcessEntry;
-
-        AutoStopEntriesView = new ListCollectionView(_processEntries);
-        AutoStopEntriesView.Filter = static item => item is ProcessPreferenceRowViewModel row && row.IsAutoStop;
-
-        _ = RefreshProcessPreferencesAsync();
-    }
-
     partial void OnProcessFilterTextChanged(string value)
     {
-        ProcessEntriesView?.Refresh();
+        ProcessEntriesView.Refresh();
     }
 
     partial void OnShowAutoStopOnlyChanged(bool value)
     {
-        ProcessEntriesView?.Refresh();
+        ProcessEntriesView.Refresh();
     }
 
     partial void OnHasAutoStopEntriesChanged(bool value)
@@ -199,7 +215,7 @@ public sealed partial class SettingsViewModel
 
             var snapshot = _processStateStore.GetSnapshot();
             var model = ProcessSettingsPortableModel.FromSnapshot(snapshot);
-            var json = JsonSerializer.Serialize(model, ProcessSettingsSerializerOptions);
+            var json = JsonSerializer.Serialize(model, SerializerOptions);
             await File.WriteAllTextAsync(dialog.FileName, json);
             _mainViewModel.LogActivityInformation("Process settings", $"Exported {model.Preferences.Count} preferences to '{dialog.FileName}'.");
         }
@@ -233,7 +249,7 @@ public sealed partial class SettingsViewModel
             _mainViewModel.SetStatusMessage("Importing process settings...");
 
             var json = await File.ReadAllTextAsync(dialog.FileName);
-            var model = JsonSerializer.Deserialize<ProcessSettingsPortableModel>(json, ProcessSettingsSerializerOptions);
+            var model = JsonSerializer.Deserialize<ProcessSettingsPortableModel>(json, SerializerOptions);
             if (model is null)
             {
                 throw new InvalidOperationException("Invalid settings file.");
@@ -368,7 +384,7 @@ public sealed partial class SettingsViewModel
     {
         try
         {
-            var preference = new ProcessPreference(row.Identifier, action, ProcessPreferenceSource.UserOverride, DateTimeOffset.UtcNow, "Updated via Settings tab");
+            var preference = new ProcessPreference(row.Identifier, action, ProcessPreferenceSource.UserOverride, DateTimeOffset.UtcNow, "Updated via Processes settings");
             _processStateStore.UpsertPreference(preference);
             row.ApplyPreference(preference.Action, preference.Source, preference.UpdatedAtUtc, preference.Notes);
             ProcessEntriesView.Refresh();

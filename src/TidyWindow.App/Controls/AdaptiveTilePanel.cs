@@ -143,7 +143,7 @@ public sealed class AdaptiveTilePanel : WpfPanel
         }
 
         var totalHeight = verticalPadding + SumHeights(_rowHeights, RowSpacing);
-        var desiredWidth = horizontalPadding + layout.UsedWidth;
+        var desiredWidth = horizontalPadding + layout.TotalWidth;
         double widthToReport;
         if (double.IsInfinity(availableSize.Width))
         {
@@ -179,10 +179,11 @@ public sealed class AdaptiveTilePanel : WpfPanel
         var y = padding.Top;
         var rowHeight = 0d;
         var increment = layout.TileWidth + layout.Spacing;
+        var inset = layout.Inset;
         var isRightToLeft = FlowDirection == System.Windows.FlowDirection.RightToLeft;
         var rowOriginX = isRightToLeft
-            ? padding.Left + Math.Max(0, layout.Columns - 1) * increment
-            : padding.Left;
+            ? padding.Left + inset + Math.Max(0, layout.Columns - 1) * increment
+            : padding.Left + inset;
         var x = rowOriginX;
 
         foreach (UIElement child in InternalChildren)
@@ -247,38 +248,42 @@ public sealed class AdaptiveTilePanel : WpfPanel
         tileWidth = Math.Max(minWidth, Math.Min(maxWidth, tileWidth));
 
         var spacing = ColumnSpacing;
+        var inset = 0d;
         var usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;
-
-        if (columns > 1)
+        var leftover = Math.Max(0, width - usedWidth);
+        if (columns > 0 && leftover > 0)
         {
-            var leftover = Math.Max(0, width - usedWidth);
-            if (leftover > 0)
-            {
-                spacing += leftover / (columns - 1); // stretch spacing to soak up free width
-                usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;
-            }
+            var smartGap = leftover / (columns + 1);
+            inset = smartGap;
+            spacing += smartGap;
+            usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;
         }
 
-        return new LayoutResult(columns, tileWidth, usedWidth, spacing);
+        var totalWidth = usedWidth + inset * 2;
+
+        return new LayoutResult(columns, tileWidth, spacing, inset, totalWidth);
     }
 
     private readonly struct LayoutResult
     {
-        public LayoutResult(int columns, double tileWidth, double usedWidth, double spacing)
+        public LayoutResult(int columns, double tileWidth, double spacing, double inset, double totalWidth)
         {
             Columns = columns;
             TileWidth = tileWidth;
-            UsedWidth = usedWidth;
             Spacing = spacing;
+            Inset = inset;
+            TotalWidth = totalWidth;
         }
 
         public int Columns { get; }
 
         public double TileWidth { get; }
 
-        public double UsedWidth { get; }
-
         public double Spacing { get; }
+
+        public double Inset { get; }
+
+        public double TotalWidth { get; }
     }
 
     private double ComputeTileWidth(double width, int columns)

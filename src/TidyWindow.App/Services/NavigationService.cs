@@ -94,9 +94,17 @@ public sealed class NavigationService
     {
         if (!_pageCache.TryGetValue(pageType, out var page))
         {
-            page = _serviceProvider.GetService(pageType) as Page
-                   ?? ActivatorUtilities.CreateInstance(_serviceProvider, pageType) as Page
-                   ?? throw new InvalidOperationException($"Unable to resolve page instance for {pageType.FullName}.");
+            try
+            {
+                page = _serviceProvider.GetService(pageType) as Page
+                       ?? ActivatorUtilities.CreateInstance(_serviceProvider, pageType) as Page
+                       ?? throw new InvalidOperationException($"Unable to resolve page instance for {pageType.FullName}.");
+            }
+            catch (Exception ex)
+            {
+                _activityLog.LogError("Navigation", $"Failed to materialize {pageType.FullName}", new object?[] { ex });
+                throw;
+            }
 
             if (page is ICacheablePage)
             {
