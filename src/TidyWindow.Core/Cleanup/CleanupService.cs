@@ -650,11 +650,6 @@ public sealed class CleanupService
         }
 
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        var systemRoot = Environment.GetEnvironmentVariable("SystemRoot");
-        var winDir = Environment.GetEnvironmentVariable("WinDir");
-        AddIfValid(windows);
-        AddIfValid(systemRoot);
-        AddIfValid(winDir);
 
         void AddWindowsChild(string child)
         {
@@ -664,32 +659,34 @@ public sealed class CleanupService
             }
         }
 
-        AddWindowsChild("System32");
-        AddWindowsChild("WinSxS");
-        AddWindowsChild("Installer");
-
-        AddIfValid(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
-        AddIfValid(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
-        AddIfValid(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData));
-
-        var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        if (!string.IsNullOrWhiteSpace(appData))
+        var criticalWindowsChildren = new[]
         {
-            AddIfValid(Path.Combine(appData, "Microsoft"));
+            "System32",
+            "SysWOW64",
+            "WinSxS",
+            "SystemApps",
+            "SystemResources",
+            "servicing",
+            "assembly",
+            "Installer",
+            "Fonts"
+        };
+
+        foreach (var child in criticalWindowsChildren)
+        {
+            AddWindowsChild(child);
         }
 
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (!string.IsNullOrWhiteSpace(localAppData))
+        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrWhiteSpace(programFiles))
         {
-            AddIfValid(Path.Combine(localAppData, "Packages"));
+            AddIfValid(Path.Combine(programFiles, "WindowsApps"));
         }
 
-        AddIfValid(Environment.ExpandEnvironmentVariables(@"%AppData%\Microsoft"));
-        AddIfValid(Environment.ExpandEnvironmentVariables(@"%LocalAppData%\Packages"));
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!string.IsNullOrWhiteSpace(userProfile))
+        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        if (!string.IsNullOrWhiteSpace(programFilesX86))
         {
-            AddIfValid(Path.Combine(userProfile, "AppData", "Roaming", "Microsoft"));
+            AddIfValid(Path.Combine(programFilesX86, "WindowsApps"));
         }
 
         return roots.ToArray();
