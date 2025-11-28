@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media.Animation;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
@@ -34,6 +35,7 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         StateChanged += OnStateChanged;
         _trayService.Attach(this);
+        UpdateMaximizeVisualState();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -77,6 +79,8 @@ public partial class MainWindow : Window
 
     private void OnStateChanged(object? sender, EventArgs e)
     {
+        UpdateMaximizeVisualState();
+
         if (WindowState == WindowState.Minimized && _preferences.Current.RunInBackground)
         {
             _trayService.HideToTray(showHint: true);
@@ -146,5 +150,59 @@ public partial class MainWindow : Window
 
         _trayService.PrepareForExit();
         base.OnClosing(e);
+    }
+
+    private void TitleBar_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            e.Handled = true;
+            ToggleWindowState();
+            return;
+        }
+
+        if (e.LeftButton == MouseButtonState.Pressed)
+        {
+            try
+            {
+                DragMove();
+            }
+            catch (InvalidOperationException)
+            {
+                // Swallow drag exceptions that can happen during state transitions.
+            }
+        }
+    }
+
+    private void MinimizeButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        ToggleWindowState();
+    }
+
+    private void CloseButton_OnClick(object sender, RoutedEventArgs e)
+    {
+        Close();
+    }
+
+    private void ToggleWindowState()
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        UpdateMaximizeVisualState();
+    }
+
+    private void UpdateMaximizeVisualState()
+    {
+        if (MaximizeGlyph is null)
+        {
+            return;
+        }
+
+        MaximizeGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        MaximizeGlyph.ToolTip = WindowState == WindowState.Maximized ? "Restore Down" : "Maximize";
     }
 }

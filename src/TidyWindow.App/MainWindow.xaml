@@ -4,15 +4,31 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
-    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+        xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="TidyWindow"
-    x:Name="RootWindow"
+        x:Name="RootWindow"
         Width="1024"
         Height="640"
         MinWidth="900"
         MinHeight="540"
-        Background="{DynamicResource ShellBackgroundBrush}">
+        WindowStyle="None"
+        AllowsTransparency="False"
+        Background="{DynamicResource ShellBackgroundBrush}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
+        TextOptions.TextHintingMode="Fixed"
+        RenderOptions.BitmapScalingMode="HighQuality">
+    <WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="0"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            ResizeBorderThickness="6"
+                            UseAeroCaptionButtons="False"/>
+    </WindowChrome.WindowChrome>
     <Window.Resources>
         <SolidColorBrush x:Key="ShellBackgroundBrush"
                          Color="#0B1120"/>
@@ -34,6 +50,18 @@
                          Color="#151F32"/>
         <SolidColorBrush x:Key="ContentBackgroundBrush"
                          Color="#0F172A"/>
+        <SolidColorBrush x:Key="TitleBarBrush"
+                 Color="#101828"/>
+        <SolidColorBrush x:Key="TitleBarBorderBrush"
+                 Color="#1F2937"/>
+        <SolidColorBrush x:Key="TitleBarButtonHoverBrush"
+                 Color="#1E2332"/>
+        <SolidColorBrush x:Key="TitleBarButtonPressedBrush"
+                 Color="#2B3245"/>
+        <SolidColorBrush x:Key="TitleBarCloseHoverBrush"
+                 Color="#8B1D27"/>
+        <SolidColorBrush x:Key="TitleBarClosePressedBrush"
+                 Color="#BD1F2D"/>
         <DropShadowEffect x:Key="LoadingCardShadow"
                           Color="#000000"
                           BlurRadius="24"
@@ -41,13 +69,134 @@
                           Opacity="0.45"/>
         <QuarticEase x:Key="SpinnerEase"
                      EasingMode="EaseInOut"/>
-    <converters:NavigationWidthConverter x:Key="NavWidthConverter"
+        <Style x:Key="TitleBarButtonStyle"
+               TargetType="Button">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonRoot"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver"
+                                     Value="True">
+                                <Setter TargetName="ButtonRoot"
+                                        Property="Background"
+                                        Value="{StaticResource TitleBarButtonHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed"
+                                     Value="True">
+                                <Setter TargetName="ButtonRoot"
+                                        Property="Background"
+                                        Value="{StaticResource TitleBarButtonPressedBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled"
+                                     Value="False">
+                                <Setter Property="Opacity"
+                                        Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="TitleBarCloseButtonStyle"
+               BasedOn="{StaticResource TitleBarButtonStyle}"
+               TargetType="Button">
+            <Setter Property="Foreground" Value="#FEE2E2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonRoot"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonRoot"
+                                        Property="Background"
+                                        Value="{StaticResource TitleBarCloseHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonRoot"
+                                        Property="Background"
+                                        Value="{StaticResource TitleBarClosePressedBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <converters:NavigationWidthConverter x:Key="NavWidthConverter"
                          Ratio="0.23"
                          MinWidth="220"
                          MaxWidth="340"/>
     </Window.Resources>
-    <Grid x:Name="RootGrid" Background="{DynamicResource ShellBackgroundBrush}">
-        <DockPanel Background="{DynamicResource ShellBackgroundBrush}">
+        <Grid x:Name="RootGrid"
+            Background="{DynamicResource ShellBackgroundBrush}"
+            RenderOptions.BitmapScalingMode="HighQuality">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Border Grid.Row="0"
+                x:Name="TitleBar"
+                Background="{DynamicResource TitleBarBrush}"
+                BorderBrush="{DynamicResource TitleBarBorderBrush}"
+                BorderThickness="0,0,0,1"
+                MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <Grid/>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,0,8,0">
+                    <Button x:Name="MinimizeButton"
+                            Style="{StaticResource TitleBarButtonStyle}"
+                            Click="MinimizeButton_OnClick">
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Text="&#xE921;"/>
+                    </Button>
+                    <Button x:Name="MaximizeButton"
+                            Style="{StaticResource TitleBarButtonStyle}"
+                            Click="MaximizeButton_OnClick">
+                        <TextBlock x:Name="MaximizeGlyph"
+                                   FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Text="&#xE922;"/>
+                    </Button>
+                    <Button x:Name="CloseButton"
+                            Style="{StaticResource TitleBarCloseButtonStyle}"
+                            Click="CloseButton_OnClick">
+                        <TextBlock FontFamily="Segoe MDL2 Assets"
+                                   FontSize="12"
+                                   Text="&#xE8BB;"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+        <DockPanel Grid.Row="1"
+                   Background="{DynamicResource ShellBackgroundBrush}">
             <StatusBar DockPanel.Dock="Bottom"
                        Background="{DynamicResource NavBackgroundBrush}"
                        Foreground="{DynamicResource NavForegroundBrush}">
@@ -168,6 +317,7 @@
         </DockPanel>
 
         <Border x:Name="LoadingOverlay"
+            Grid.RowSpan="2"
                 Visibility="Collapsed"
                 Opacity="0"
                 Background="#E610172A"
