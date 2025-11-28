@@ -23,6 +23,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
     private bool _isDisposed;
+    private bool _hasAcknowledgedMachineScopeWarning;
+    private PathPilotSwitchRequest? _pendingSwitchRequest;
 
     public PathPilotViewModel(PathPilotInventoryService inventoryService, ActivityLogService activityLogService, MainViewModel mainViewModel)
     {
@@ -53,7 +55,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private bool _isSwitchingPath;
 
     [ObservableProperty]
-    private bool _isMachineScopeWarningDismissed;
+    private bool _isMachineScopeWarningOpen;
 
     [ObservableProperty]
     private DateTimeOffset? _lastRefreshedAt;
@@ -125,9 +127,23 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private void DismissMachineScopeWarning()
+    private async Task DismissMachineScopeWarning()
     {
-        IsMachineScopeWarningDismissed = true;
+        _hasAcknowledgedMachineScopeWarning = true;
+        IsMachineScopeWarningOpen = false;
+
+        if (_pendingSwitchRequest is { } pendingRequest)
+        {
+            _pendingSwitchRequest = null;
+            await ExecuteSwitchRuntimeAsync(pendingRequest).ConfigureAwait(false);
+        }
+    }
+
+    [RelayCommand]
+    private void CancelMachineScopeWarning()
+    {
+        _pendingSwitchRequest = null;
+        IsMachineScopeWarningOpen = false;
     }
 
     [RelayCommand]
@@ -138,6 +154,24 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        if (!_hasAcknowledgedMachineScopeWarning)
+        {
+            _pendingSwitchRequest = request;
+            IsMachineScopeWarningOpen = true;
+            return;
+        }
+
+        await ExecuteSwitchRuntimeAsync(request).ConfigureAwait(false);
+    }
+
+    private async Task ExecuteSwitchRuntimeAsync(PathPilotSwitchRequest request)
+    {
+        if (IsBusy)
+        {
+            return;
+        }
+
+        _pendingSwitchRequest = null;
         IsBusy = true;
         IsSwitchingPath = true;
         var runtimeName = string.IsNullOrWhiteSpace(request.RuntimeName) ? request.RuntimeId : request.RuntimeName;

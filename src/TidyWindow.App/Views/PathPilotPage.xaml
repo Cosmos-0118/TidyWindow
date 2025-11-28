@@ -8,9 +8,15 @@
     xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
     xmlns:ux="clr-namespace:TidyWindow.App.Controls"
     xmlns:loaders="clr-namespace:TidyWindow.App.Controls.Loaders"
-      Title="PathPilot"
-      mc:Ignorable="d"
-      Background="Transparent">
+    Title="PathPilot"
+    mc:Ignorable="d"
+    Background="Transparent"
+    UseLayoutRounding="True"
+    SnapsToDevicePixels="True"
+    TextOptions.TextFormattingMode="Display"
+    TextOptions.TextRenderingMode="ClearType"
+    TextOptions.TextHintingMode="Fixed"
+    RenderOptions.BitmapScalingMode="HighQuality">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
@@ -26,7 +32,29 @@
                  Color="#0E2B3F"/>
         <SolidColorBrush x:Key="PathPilotVersionChipUnknownBrush"
                  Color="#3B1A27"/>
+        <SolidColorBrush x:Key="PathPilotHeroTitleBrush"
+                          Color="#FDFEFE"/>
+        <SolidColorBrush x:Key="PathPilotHeroBodyBrush"
+                          Color="#C9D7FF"/>
         <SineEase x:Key="PathPilotHoverEase" EasingMode="EaseOut"/>
+
+        <Style x:Key="PathPilotHeroTitleTextStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource PathPilotHeroTitleBrush}"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style x:Key="PathPilotHeroBodyTextStyle"
+               TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{StaticResource PathPilotHeroBodyBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
 
         <Style x:Key="PathPilotPrimaryButtonStyle"
                TargetType="Button">
@@ -256,13 +284,16 @@
                     Value="16"/>
             <Setter Property="Padding"
                     Value="20"/>
-            <Setter Property="RenderTransformOrigin"
-                    Value="0.5,0.5"/>
-            <Setter Property="RenderTransform">
-                <Setter.Value>
-                    <ScaleTransform ScaleX="1"
-                                    ScaleY="1"/>
-                </Setter.Value>
+            <Setter Property="SnapsToDevicePixels"
+                Value="True"/>
+            <Setter Property="UseLayoutRounding"
+                Value="True"/>
+            <Setter Property="RenderOptions.BitmapScalingMode"
+                Value="HighQuality"/>
+            <Setter Property="CacheMode">
+            <Setter.Value>
+                <BitmapCache EnableClearType="True"/>
+            </Setter.Value>
             </Setter>
             <Setter Property="Effect">
                 <Setter.Value>
@@ -278,34 +309,20 @@
                     <Trigger.EnterActions>
                         <BeginStoryboard>
                             <Storyboard>
-                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1.02"
-                                                 Duration="0:0:0.18"
-                                                 EasingFunction="{StaticResource PathPilotHoverEase}"/>
-                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1.02"
-                                                 Duration="0:0:0.18"
-                                                 EasingFunction="{StaticResource PathPilotHoverEase}"/>
                                 <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
-                                                 To="0.4"
-                                                 Duration="0:0:0.18"/>
+                                                 To="0.35"
+                                                 Duration="0:0:0.18"
+                                                 EasingFunction="{StaticResource PathPilotHoverEase}"/>
                             </Storyboard>
                         </BeginStoryboard>
                     </Trigger.EnterActions>
                     <Trigger.ExitActions>
                         <BeginStoryboard>
                             <Storyboard>
-                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
-                                                 To="1"
-                                                 Duration="0:0:0.2"
-                                                 EasingFunction="{StaticResource PathPilotHoverEase}"/>
-                                <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
-                                                 To="1"
-                                                 Duration="0:0:0.2"
-                                                 EasingFunction="{StaticResource PathPilotHoverEase}"/>
                                 <DoubleAnimation Storyboard.TargetProperty="(UIElement.Effect).(DropShadowEffect.Opacity)"
                                                  To="0.15"
-                                                 Duration="0:0:0.2"/>
+                                                 Duration="0:0:0.2"
+                                                 EasingFunction="{StaticResource PathPilotHoverEase}"/>
                             </Storyboard>
                         </BeginStoryboard>
                     </Trigger.ExitActions>
@@ -697,16 +714,35 @@
                                                FontSize="12"
                                                FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding Summary}"
-                                               FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"
-                                               Margin="0,8,0,0"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock Text="Guard PATH stability and keep one winner per runtime."
-                                               Foreground="#94A3B8"
-                                               FontSize="12"
                                                Margin="0,6,0,0"
-                                               TextWrapping="Wrap"/>
+                                               Style="{StaticResource PathPilotHeroTitleTextStyle}"/>
+                                    <UniformGrid Columns="2"
+                                                 Margin="0,12,0,0"
+                                                 HorizontalAlignment="Stretch">
+                                        <StackPanel Margin="0,0,12,0">
+                                            <TextBlock Text="Runtimes"
+                                                       Foreground="#93C5FD"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Runtimes.Count, StringFormat={}{0}}"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F8FAFC"/>
+                                        </StackPanel>
+                                        <StackPanel>
+                                            <TextBlock Text="Warnings"
+                                                       Foreground="#93C5FD"
+                                                       FontSize="11"
+                                                       FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Warnings.Count, StringFormat={}{0}}"
+                                                       FontSize="18"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F8FAFC"/>
+                                        </StackPanel>
+                                    </UniformGrid>
+                                    <TextBlock Text="Guard PATH stability and keep one promoted directory per runtime."
+                                               Margin="0,12,0,0"
+                                               Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
                                 </StackPanel>
                             </Border>
                                 <Border Style="{StaticResource PathPilotCardStyle}"
@@ -718,17 +754,31 @@
                                                FontSize="12"
                                                FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding LastRefreshedDisplay}"
-                                               FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Foreground="#F8FAFC"
-                                               Margin="0,8,0,0"
-                                               TextWrapping="Wrap"
-                                               TextTrimming="CharacterEllipsis"/>
-                                    <TextBlock Text="Exports include the latest inventory snapshot."
-                                               Foreground="#94A3B8"
-                                               FontSize="12"
                                                Margin="0,6,0,0"
-                                               TextWrapping="Wrap"/>
+                                               Style="{StaticResource PathPilotHeroTitleTextStyle}"
+                                               TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="Exports always include the latest snapshot."
+                                               Margin="0,12,0,0"
+                                               Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
+                                    <StackPanel Orientation="Horizontal"
+                                                Margin="0,12,0,0"
+                                                HorizontalAlignment="Left">
+                                        <Border Background="#15213A"
+                                                CornerRadius="8"
+                                                Padding="10,6">
+                                            <TextBlock Text="JSON"
+                                                       FontSize="11"
+                                                       Foreground="#BFDBFE"/>
+                                        </Border>
+                                        <Border Background="#15213A"
+                                                CornerRadius="8"
+                                                Padding="10,6"
+                                                Margin="8,0,0,0">
+                                            <TextBlock Text="Markdown"
+                                                       FontSize="11"
+                                                       Foreground="#BFDBFE"/>
+                                        </Border>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource PathPilotCardStyle}"
@@ -740,15 +790,12 @@
                                                FontSize="12"
                                                FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding MachineScopeWarning}"
-                                               FontSize="13"
-                                               Foreground="#FDE047"
-                                               Margin="0,8,0,0"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock Text="Always confirm target directories before switching."
-                                               Foreground="#94A3B8"
-                                               FontSize="12"
                                                Margin="0,6,0,0"
-                                               TextWrapping="Wrap"/>
+                                               Style="{StaticResource PathPilotHeroBodyTextStyle}"
+                                               Foreground="#FDE047"/>
+                                    <TextBlock Text="Switch requests update HKLM + machine PATH. Confirm the destination directory before promoting."
+                                               Margin="0,10,0,0"
+                                               Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
                                 </StackPanel>
                             </Border>
                         </ux:AdaptiveTilePanel>
@@ -763,15 +810,12 @@
                             Background="#102038">
                         <StackPanel>
                             <TextBlock Text="Switch without surprises"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"/>
-                            <TextBlock Text="Select a runtime to review its installations, then promote the desired directory to the top of PATH."
-                                       Margin="0,6,0,0"
-                                       Foreground="#94A3B8"
-                                       FontSize="12"
-                                       TextWrapping="Wrap"/>
-                            <TextBlock Text="PathPilot keeps a registry backup in %ProgramData%/TidyWindow/PathPilot before editing machine PATH."
+                                       Style="{StaticResource PathPilotHeroTitleTextStyle}"
+                                       FontSize="18"/>
+                            <TextBlock Text="Review PATH candidates inside each runtime card before promoting a directory to the top of PATH."
+                                       Margin="0,8,0,0"
+                                       Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
+                            <TextBlock Text="PathPilot snapshots HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment before editing PATH."
                                        Margin="0,10,0,0"
                                        Foreground="#38BDF8"
                                        FontSize="11"
@@ -802,7 +846,11 @@
                                  ItemTemplate="{StaticResource RuntimeCardTemplate}"
                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             AlternationCount="5"
+                             ScrollViewer.CanContentScroll="True"
+                                 VirtualizingStackPanel.IsVirtualizing="True"
+                                 VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                 VirtualizingPanel.CacheLength="2"
+                                 AlternationCount="5"
                                  SelectionMode="Single">
                             <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
@@ -828,6 +876,13 @@
                                             Value="0"/>
                                     <Setter Property="Focusable"
                                             Value="False"/>
+                                        <Setter Property="SnapsToDevicePixels"
+                                            Value="True"/>
+                                        <Setter Property="CacheMode">
+                                        <Setter.Value>
+                                            <BitmapCache EnableClearType="True"/>
+                                        </Setter.Value>
+                                        </Setter>
                                 </Style>
                             </ListBox.ItemContainerStyle>
                         </ListBox>
@@ -1412,10 +1467,12 @@
                 <Style TargetType="Grid">
                     <Setter Property="Visibility" Value="Collapsed"/>
                     <Setter Property="IsHitTestVisible" Value="False"/>
+                    <Setter Property="Opacity" Value="0"/>
                     <Style.Triggers>
-                        <DataTrigger Binding="{Binding IsMachineScopeWarningDismissed}" Value="False">
+                        <DataTrigger Binding="{Binding IsMachineScopeWarningOpen}" Value="True">
                             <Setter Property="Visibility" Value="Visible"/>
                             <Setter Property="IsHitTestVisible" Value="True"/>
+                            <Setter Property="Opacity" Value="1"/>
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
@@ -1444,17 +1501,21 @@
                                Foreground="#FAF5FF"
                                FontSize="13"
                                TextWrapping="Wrap"/>
-                    <TextBlock Text="Always confirm the target directories before you re-order PATH."
-                               Margin="0,8,0,0"
-                               Foreground="#C7D2FE"
-                               FontSize="12"
-                               TextWrapping="Wrap"/>
+                    <TextBlock Text="Switching here edits HKLM and propagates to every user account. Continue only if you trust the directory you're promoting."
+                           Margin="0,8,0,0"
+                           Foreground="#C7D2FE"
+                           FontSize="12"
+                           TextWrapping="Wrap"/>
                     <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                Margin="0,22,0,0">
-                        <Button Content="Understood"
-                                Command="{Binding DismissMachineScopeWarningCommand}"
-                                Style="{StaticResource PathPilotSecondaryButtonStyle}"/>
+                        HorizontalAlignment="Right"
+                        Margin="0,22,0,0">
+                    <Button Content="Cancel"
+                        Style="{StaticResource PathPilotSecondaryButtonStyle}"
+                        Command="{Binding CancelMachineScopeWarningCommand}"/>
+                    <Button Content="Switch now"
+                        Margin="12,0,0,0"
+                        Style="{StaticResource PathPilotPrimaryButtonStyle}"
+                        Command="{Binding DismissMachineScopeWarningCommand}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
