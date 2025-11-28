@@ -17,6 +17,8 @@ using TidyWindow.Core.PackageManagers;
 using TidyWindow.Core.Diagnostics;
 using TidyWindow.Core.Install;
 using TidyWindow.Core.Maintenance;
+using TidyWindow.Core.Processes;
+using TidyWindow.Core.Processes.AntiSystem;
 using TidyWindow.Core.PathPilot;
 using TidyWindow.Core.Uninstall;
 
@@ -67,6 +69,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<AppRestartService>();
                 services.AddSingleton<ITrayService, TrayService>();
                 services.AddSingleton<IHighFrictionPromptService, HighFrictionPromptService>();
+                services.AddSingleton<IUserConfirmationService, UserConfirmationService>();
                 services.AddSingleton<BackgroundPresenceService>();
                 services.AddSingleton<PulseGuardService>();
                 services.AddSingleton<IBrowserCleanupService, BrowserCleanupService>();
@@ -92,6 +95,13 @@ public partial class App : WpfApplication
                 services.AddSingleton<IRegistryStateService, RegistryStateService>();
                 services.AddSingleton<RegistryStateWatcher>();
                 services.AddSingleton<PathPilotInventoryService>();
+                services.AddSingleton<ProcessCatalogParser>();
+                services.AddSingleton<ProcessStateStore>();
+                services.AddSingleton<ProcessQuestionnaireEngine>();
+                services.AddSingleton<ProcessControlService>();
+                services.AddSingleton<IThreatIntelProvider, WindowsDefenderThreatIntelProvider>();
+                services.AddSingleton<IThreatIntelProvider, MalwareHashBlocklist>();
+                services.AddSingleton<AntiSystemDetectionService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -104,6 +114,7 @@ public partial class App : WpfApplication
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
                 services.AddTransient<PathPilotViewModel>();
+                services.AddTransient<KnownProcessesViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -115,6 +126,7 @@ public partial class App : WpfApplication
                 services.AddTransient<EssentialsPage>();
                 services.AddTransient<RegistryOptimizerPage>();
                 services.AddTransient<PathPilotPage>();
+                services.AddTransient<KnownProcessesPage>();
 
                 services.AddSingleton<MainWindow>();
             })

@@ -1,13 +1,18 @@
 using System;
 using System.Windows;
 using TidyWindow.App.Services;
+using TidyWindow.Core.Processes;
 
 namespace TidyWindow.App.ViewModels;
 
-public sealed class SettingsViewModel : ViewModelBase
+public sealed partial class SettingsViewModel : ViewModelBase
 {
     private readonly MainViewModel _mainViewModel;
     private readonly UserPreferencesService _preferences;
+    private readonly ProcessCatalogParser _catalogParser;
+    private readonly ProcessStateStore _processStateStore;
+    private readonly ProcessQuestionnaireEngine _questionnaireEngine;
+    private readonly IUserConfirmationService _confirmationService;
 
     private bool _telemetryEnabled;
     private bool _runInBackground;
@@ -19,15 +24,29 @@ public sealed class SettingsViewModel : ViewModelBase
     private PrivilegeMode _currentPrivilegeMode;
     private bool _isApplyingPreferences;
 
-    public SettingsViewModel(MainViewModel mainViewModel, IPrivilegeService privilegeService, UserPreferencesService preferences)
+    public SettingsViewModel(
+        MainViewModel mainViewModel,
+        IPrivilegeService privilegeService,
+        UserPreferencesService preferences,
+        ProcessCatalogParser catalogParser,
+        ProcessStateStore processStateStore,
+        ProcessQuestionnaireEngine questionnaireEngine,
+        IUserConfirmationService confirmationService)
     {
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
+        _catalogParser = catalogParser ?? throw new ArgumentNullException(nameof(catalogParser));
+        _processStateStore = processStateStore ?? throw new ArgumentNullException(nameof(processStateStore));
+        _questionnaireEngine = questionnaireEngine ?? throw new ArgumentNullException(nameof(questionnaireEngine));
+        _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _currentPrivilegeMode = privilegeService?.CurrentMode ?? PrivilegeMode.Administrator;
 
         ApplyPreferences(_preferences.Current);
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.AddHandler(_preferences, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
+        InitializeProcessPreferences();
     }
+
+    partial void InitializeProcessPreferences();
 
     public bool TelemetryEnabled
     {

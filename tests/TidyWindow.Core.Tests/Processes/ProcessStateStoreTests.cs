@@ -93,6 +93,29 @@ public sealed class ProcessStateStoreTests
         }
     }
 
+    [Fact]
+    public void WhitelistEntries_RoundTrip()
+    {
+        var path = CreateTempPath();
+        try
+        {
+            var store = new ProcessStateStore(path);
+            var entry = AntiSystemWhitelistEntry.CreateDirectory("C:/Tools", notes: "Dev Tools");
+
+            store.UpsertWhitelistEntry(entry);
+
+            var reloaded = new ProcessStateStore(path);
+            var entries = reloaded.GetWhitelistEntries();
+            Assert.Single(entries);
+            Assert.Contains(entries, candidate => candidate.Notes == "Dev Tools");
+            Assert.True(reloaded.TryMatchWhitelist("C:/Tools/MyApp/app.exe", null, null, out _));
+        }
+        finally
+        {
+            DeleteIfExists(path);
+        }
+    }
+
     private static string CreateTempPath()
     {
         return Path.Combine(Path.GetTempPath(), $"TidyWindow_State_{Guid.NewGuid():N}.json");

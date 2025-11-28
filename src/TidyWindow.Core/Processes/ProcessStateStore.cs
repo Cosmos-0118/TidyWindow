@@ -15,7 +15,7 @@ public sealed class ProcessStateStore
 {
     private const string StateOverrideEnvironmentVariable = "TIDYWINDOW_PROCESS_STATE_PATH";
     private const string DefaultFileName = "uiforprocesses-state.json";
-    internal const int LatestSchemaVersion = 2;
+    internal const int LatestSchemaVersion = 3;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -116,6 +116,81 @@ public sealed class ProcessStateStore
             SaveSnapshotLocked();
             return true;
         }
+    }
+
+    public IReadOnlyCollection<AntiSystemWhitelistEntry> GetWhitelistEntries()
+    {
+        lock (_syncRoot)
+        {
+            return _snapshot.WhitelistEntries.Values.ToArray();
+        }
+    }
+
+    public void UpsertWhitelistEntry(AntiSystemWhitelistEntry entry)
+    {
+        if (entry is null)
+        {
+            throw new ArgumentNullException(nameof(entry));
+        }
+
+        var normalized = entry.Normalize();
+
+        lock (_syncRoot)
+        {
+            var updated = _snapshot.WhitelistEntries.SetItem(normalized.Id, normalized);
+            _snapshot = _snapshot with
+            {
+                WhitelistEntries = updated,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+
+            SaveSnapshotLocked();
+        }
+    }
+
+    public bool RemoveWhitelistEntry(string entryId)
+    {
+        if (string.IsNullOrWhiteSpace(entryId))
+        {
+            return false;
+        }
+
+        var key = entryId.Trim();
+        lock (_syncRoot)
+        {
+            if (!_snapshot.WhitelistEntries.ContainsKey(key))
+            {
+                return false;
+            }
+
+            var updated = _snapshot.WhitelistEntries.Remove(key);
+            _snapshot = _snapshot with
+            {
+                WhitelistEntries = updated,
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+
+            SaveSnapshotLocked();
+            return true;
+        }
+    }
+
+    public bool TryMatchWhitelist(string? filePath, string? sha256, string? processName, out AntiSystemWhitelistEntry? entry)
+    {
+        lock (_syncRoot)
+        {
+            foreach (var candidate in _snapshot.WhitelistEntries.Values)
+            {
+                if (candidate.Matches(filePath, sha256, processName))
+                {
+                    entry = candidate;
+                    return true;
+                }
+            }
+        }
+
+        entry = null;
+        return false;
     }
 
     public IReadOnlyCollection<SuspiciousProcessHit> GetSuspiciousHits()
@@ -252,10 +327,18 @@ public sealed class ProcessStateStore
                     .Cast<SuspiciousProcessHit>()
                     .ToImmutableDictionary(static hit => hit.Id, StringComparer.OrdinalIgnoreCase);
 
+            var whitelistEntries = model.WhitelistEntries is null
+                ? ImmutableDictionary.Create<string, AntiSystemWhitelistEntry>(StringComparer.OrdinalIgnoreCase)
+                : model.WhitelistEntries
+                    .Select(ToWhitelistEntry)
+                    .Where(static entry => entry is not null)
+                    .Cast<AntiSystemWhitelistEntry>()
+                    .ToImmutableDictionary(static entry => entry.Id, StringComparer.OrdinalIgnoreCase);
+
             var questionnaire = ToQuestionnaireSnapshot(model.Questionnaire);
 
             var updatedAt = model.UpdatedAtUtc == default ? DateTimeOffset.UtcNow : model.UpdatedAtUtc;
-            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits, questionnaire);
+            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits, questionnaire, whitelistEntries);
         }
         catch
         {
@@ -292,6 +375,29 @@ public sealed class ProcessStateStore
 
         var updatedAt = model.UpdatedAtUtc == default ? DateTimeOffset.UtcNow : model.UpdatedAtUtc;
         return new ProcessPreference(model.ProcessId, model.Action, model.Source, updatedAt, model.Notes);
+    }
+
+    private static AntiSystemWhitelistEntry? ToWhitelistEntry(AntiSystemWhitelistEntryModel? model)
+    {
+        if (model is null || string.IsNullOrWhiteSpace(model.Value))
+        {
+            return null;
+        }
+
+        try
+        {
+            return new AntiSystemWhitelistEntry(
+                model.Id ?? string.Empty,
+                model.Kind,
+                model.Value,
+                model.Notes,
+                model.AddedBy,
+                model.AddedAtUtc);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static SuspiciousProcessHit? ToSuspiciousProcessHit(SuspiciousProcessHitModel? model)
@@ -372,6 +478,8 @@ public sealed class ProcessStateStore
 
         public List<SuspiciousProcessHitModel>? SuspiciousHits { get; set; }
 
+        public List<AntiSystemWhitelistEntryModel>? WhitelistEntries { get; set; }
+
         public ProcessQuestionnaireModel? Questionnaire { get; set; }
 
         public static ProcessStateModel FromSnapshot(ProcessStateSnapshot snapshot)
@@ -388,6 +496,17 @@ public sealed class ProcessStateStore
                         Source = pref.Source,
                         UpdatedAtUtc = pref.UpdatedAtUtc,
                         Notes = pref.Notes
+                    })
+                    .ToList(),
+                WhitelistEntries = snapshot.WhitelistEntries.Values
+                    .Select(static entry => new AntiSystemWhitelistEntryModel
+                    {
+                        Id = entry.Id,
+                        Kind = entry.Kind,
+                        Value = entry.Value,
+                        Notes = entry.Notes,
+                        AddedBy = entry.AddedBy,
+                        AddedAtUtc = entry.AddedAtUtc
                     })
                     .ToList(),
                 SuspiciousHits = snapshot.SuspiciousHits.Values
@@ -420,6 +539,21 @@ public sealed class ProcessStateStore
         public DateTimeOffset UpdatedAtUtc { get; set; }
 
         public string? Notes { get; set; }
+    }
+
+    private sealed class AntiSystemWhitelistEntryModel
+    {
+        public string? Id { get; set; }
+
+        public AntiSystemWhitelistEntryKind Kind { get; set; }
+
+        public string? Value { get; set; }
+
+        public string? Notes { get; set; }
+
+        public string? AddedBy { get; set; }
+
+        public DateTimeOffset AddedAtUtc { get; set; }
     }
 
     private sealed class SuspiciousProcessHitModel
@@ -471,7 +605,8 @@ public sealed record ProcessStateSnapshot(
     DateTimeOffset UpdatedAtUtc,
     IImmutableDictionary<string, ProcessPreference> Preferences,
     IImmutableDictionary<string, SuspiciousProcessHit> SuspiciousHits,
-    ProcessQuestionnaireSnapshot Questionnaire)
+    ProcessQuestionnaireSnapshot Questionnaire,
+    IImmutableDictionary<string, AntiSystemWhitelistEntry> WhitelistEntries)
 {
     public static ProcessStateSnapshot CreateEmpty(int schemaVersion)
     {
@@ -480,7 +615,8 @@ public sealed record ProcessStateSnapshot(
             DateTimeOffset.MinValue,
             ImmutableDictionary.Create<string, ProcessPreference>(StringComparer.OrdinalIgnoreCase),
             ImmutableDictionary.Create<string, SuspiciousProcessHit>(StringComparer.OrdinalIgnoreCase),
-            ProcessQuestionnaireSnapshot.Empty);
+            ProcessQuestionnaireSnapshot.Empty,
+            ImmutableDictionary.Create<string, AntiSystemWhitelistEntry>(StringComparer.OrdinalIgnoreCase));
     }
 }
 
