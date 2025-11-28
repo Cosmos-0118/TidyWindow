@@ -8,8 +8,14 @@
     xmlns:ux="clr-namespace:TidyWindow.App.Controls"
     xmlns:converters="clr-namespace:TidyWindow.App.Converters"
       mc:Ignorable="d"
-    Title="{x:Static strings:RegistryOptimizerStrings.PageTitle}"
-      Background="Transparent">
+        Title="{x:Static strings:RegistryOptimizerStrings.PageTitle}"
+            Background="Transparent"
+            UseLayoutRounding="True"
+            SnapsToDevicePixels="True"
+            TextOptions.TextFormattingMode="Display"
+            TextOptions.TextRenderingMode="ClearType"
+            TextOptions.TextHintingMode="Fixed"
+            RenderOptions.BitmapScalingMode="HighQuality">
     <Page.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -17,6 +23,39 @@
             </ResourceDictionary.MergedDictionaries>
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
             <converters:AlternationIndexToBrushConverter x:Key="AlternationIndexToBrushConverter"/>
+
+            <SolidColorBrush x:Key="RegistryHeroTitleBrush" Color="#FDFEFE"/>
+            <SolidColorBrush x:Key="RegistryHeroBodyBrush" Color="#C9D7F8"/>
+
+            <Style x:Key="RegistryHeroTitleTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="20"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="{StaticResource RegistryHeroTitleBrush}"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="RegistryHeroBodyTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="13"/>
+                <Setter Property="Foreground" Value="{StaticResource RegistryHeroBodyBrush}"/>
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="RegistryMetricLabelTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="11"/>
+                <Setter Property="Foreground" Value="#93C5FD"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="RegistryMetricValueTextStyle" TargetType="TextBlock">
+                <Setter Property="FontSize" Value="18"/>
+                <Setter Property="FontWeight" Value="SemiBold"/>
+                <Setter Property="Foreground" Value="#F8FAFC"/>
+                <Setter Property="TextAlignment" Value="Center"/>
+            </Style>
 
             <Style x:Key="RegistryRiskSummaryChipStyle"
                    TargetType="Border"
@@ -51,7 +90,8 @@
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch"
-                  CanContentScroll="False"
+                  CanContentScroll="True"
+                  IsDeferredScrollingEnabled="True"
                   PanningMode="VerticalOnly"
                   SizeChanged="ContentScrollViewer_SizeChanged">
         <Grid x:Name="PageContentGrid"
@@ -106,23 +146,19 @@
                                 <StackPanel Grid.Column="1"
                                             Margin="16,0,0,0">
                                     <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.LeadCardTitle}"
-                                               Foreground="#E2E8F0"
-                                               FontWeight="SemiBold"
-                                               FontSize="18"/>
+                                               Style="{StaticResource RegistryHeroTitleTextStyle}"/>
                                     <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.LeadCardDescription}"
-                                               Foreground="#94A3B8"
-                                               FontSize="12"
-                                               TextWrapping="Wrap"
-                                               Margin="0,6,0,0"/>
+                                               Margin="0,6,0,0"
+                                               Style="{StaticResource RegistryHeroBodyTextStyle}"/>
                                 </StackPanel>
                             </Grid>
 
                             <TextBlock Text="{Binding LastOperationSummary}"
-                                       Margin="0,18,0,0"
-                                       Foreground="#38BDF8"
-                                       TextWrapping="Wrap">
+                                    Margin="0,18,0,0"
+                                    Foreground="#38BDF8">
                                 <TextBlock.Style>
-                                    <Style TargetType="TextBlock">
+                                 <Style TargetType="TextBlock"
+                                     BasedOn="{StaticResource RegistryHeroBodyTextStyle}">
                                         <Setter Property="Visibility" Value="Visible"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding LastOperationSummary}" Value="">
@@ -143,43 +179,33 @@
                                 <Border Style="{StaticResource RegistryMetaPillStyle}">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksHeader}"
-                                                   Style="{StaticResource RegistryColumnHeaderTextStyle}"
-                                                   TextAlignment="Center"
-                                                   HorizontalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Tweaks.Count, StringFormat='{}{0} items'}"
-                                                   Style="{StaticResource RegistryValueTextStyle}"
-                                                   TextAlignment="Center"
-                                                   HorizontalAlignment="Center"/>
+                                                   Style="{StaticResource RegistryMetricLabelTextStyle}"/>
+                                        <TextBlock Text="{Binding Tweaks.Count, StringFormat={}{0}}"
+                                                   Style="{StaticResource RegistryMetricValueTextStyle}"/>
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{StaticResource RegistryMetaPillStyle}">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.PresetsHeader}"
-                                                   Style="{StaticResource RegistryColumnHeaderTextStyle}"
-                                                   TextAlignment="Center"
-                                                   HorizontalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Presets.Count, StringFormat='{}{0} presets'}"
-                                                   Style="{StaticResource RegistryValueTextStyle}"
-                                                   TextAlignment="Center"
-                                                   HorizontalAlignment="Center"/>
+                                                   Style="{StaticResource RegistryMetricLabelTextStyle}"/>
+                                        <TextBlock Text="{Binding Presets.Count, StringFormat={}{0}}"
+                                                   Style="{StaticResource RegistryMetricValueTextStyle}"/>
                                     </StackPanel>
                                 </Border>
                                 <Border Style="{StaticResource RegistryMetaPillStyle}">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock Text="Pending changes"
-                                                   Style="{StaticResource RegistryColumnHeaderTextStyle}"
-                                                   TextAlignment="Center"
-                                                   HorizontalAlignment="Center"/>
-                                        <TextBlock FontSize="13"
-                                                   Foreground="#E2E8F0"
-                                                   TextAlignment="Center"
-                                                   HorizontalAlignment="Center">
+                                                   Style="{StaticResource RegistryMetricLabelTextStyle}"/>
+                                        <TextBlock>
                                             <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
+                                                <Style TargetType="TextBlock"
+                                                       BasedOn="{StaticResource RegistryMetricValueTextStyle}">
                                                     <Setter Property="Text" Value="Synced"/>
+                                                    <Setter Property="Foreground" Value="#34D399"/>
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasPendingChanges}" Value="True">
-                                                            <Setter Property="Text" Value="Changes pending"/>
+                                                            <Setter Property="Text" Value="Review required"/>
+                                                            <Setter Property="Foreground" Value="#FBBF24"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -189,7 +215,11 @@
                                 </Border>
                             </ux:AdaptiveTilePanel>
 
-                            <ItemsControl Margin="0,20,0,0">
+                            <TextBlock Text="Risk mix overview"
+                                       Margin="0,20,0,6"
+                                       Style="{StaticResource RegistryHeroBodyTextStyle}"/>
+
+                            <ItemsControl Margin="0,0,0,0">
                                 <ItemsControl.Resources>
                                     <CollectionViewSource x:Key="RegistryRiskSummary"
                                                           Source="{Binding Tweaks}">
@@ -232,15 +262,15 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
 
-                            <TextBlock Text="Preset customised"
+                            <TextBlock Text="Preset edits detected"
                                        Foreground="#FBBF24"
-                                       FontSize="12"
                                        Margin="0,16,0,0"
+                                       Style="{StaticResource RegistryHeroBodyTextStyle}"
                                        Visibility="{Binding IsPresetCustomized, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
                             <TextBlock Margin="0,6,0,0"
                                        Foreground="#94A3B8"
-                                       FontSize="12"
+                                       Style="{StaticResource RegistryHeroBodyTextStyle}"
                                        Text="{Binding LatestRestorePointLocalTime, StringFormat='Last restore point {0:g}'}"
                                        Visibility="{Binding HasRestorePoint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                         </StackPanel>
@@ -276,14 +306,26 @@
                                       AlternationCount="6"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                      ScrollViewer.CanContentScroll="True"
+                                      ScrollViewer.IsDeferredScrollingEnabled="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
+                                      VirtualizingPanel.CacheLength="2"
+                                      VirtualizingPanel.CacheLengthUnit="Item"
+                                      VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                                       VirtualizingStackPanel.ScrollUnit="Pixel">
                                 <ListView.ItemContainerStyle>
                                     <Style TargetType="ListViewItem">
                                         <Setter Property="Padding" Value="0"/>
                                         <Setter Property="Margin" Value="0,12"/>
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="SnapsToDevicePixels" Value="True"/>
+                                        <Setter Property="UseLayoutRounding" Value="True"/>
+                                        <Setter Property="CacheMode">
+                                            <Setter.Value>
+                                                <BitmapCache EnableClearType="True"/>
+                                            </Setter.Value>
+                                        </Setter>
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListViewItem">
@@ -677,11 +719,23 @@
                                      BorderThickness="0"
                                      Foreground="#F8FAFC"
                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                     ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.CanContentScroll="True"
+                                     VirtualizingStackPanel.IsVirtualizing="True"
+                                     VirtualizingStackPanel.VirtualizationMode="Recycling"
+                                     VirtualizingPanel.CacheLength="1"
+                                     VirtualizingPanel.CacheLengthUnit="Item">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
                                         <Setter Property="Margin" Value="0,4"/>
                                         <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                        <Setter Property="SnapsToDevicePixels" Value="True"/>
+                                        <Setter Property="UseLayoutRounding" Value="True"/>
+                                        <Setter Property="CacheMode">
+                                            <Setter.Value>
+                                                <BitmapCache EnableClearType="True"/>
+                                            </Setter.Value>
+                                        </Setter>
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListBoxItem">
