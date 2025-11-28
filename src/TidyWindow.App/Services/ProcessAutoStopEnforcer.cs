@@ -110,7 +110,17 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         }
 
         var interval = TimeSpan.FromMinutes(Math.Clamp(_settings.AutoStopIntervalMinutes, ProcessAutomationSettings.MinimumIntervalMinutes, ProcessAutomationSettings.MaximumIntervalMinutes));
-        _timer = new System.Threading.Timer(OnTimerTick, null, interval, interval);
+
+        var dueTime = interval;
+        if (_settings.LastRunUtc is { } lastRunUtc)
+        {
+            var elapsed = DateTimeOffset.UtcNow - lastRunUtc;
+            dueTime = elapsed >= interval
+                ? TimeSpan.Zero
+                : interval - elapsed;
+        }
+
+        _timer = new System.Threading.Timer(OnTimerTick, null, dueTime, interval);
     }
 
     private void OnTimerTick(object? state)

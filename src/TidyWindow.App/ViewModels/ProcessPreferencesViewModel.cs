@@ -56,6 +56,8 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         _autoStopEnforcer = autoStopEnforcer ?? throw new ArgumentNullException(nameof(autoStopEnforcer));
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
 
+        _autoStopEnforcer.SettingsChanged += OnAutoStopSettingsChanged;
+
         ProcessEntriesView = CollectionViewSource.GetDefaultView(_processEntries);
         ProcessEntriesView.Filter = FilterProcessEntry;
 
@@ -566,6 +568,32 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     private ProcessAutomationSettings BuildAutomationSettingsSnapshot()
     {
         return new ProcessAutomationSettings(IsAutoStopAutomationEnabled, AutoStopIntervalMinutes, AutoStopLastRunUtc);
+    }
+
+    private void OnAutoStopSettingsChanged(object? sender, ProcessAutomationSettings settings)
+    {
+        if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            _ = dispatcher.BeginInvoke(new Action(() => ApplyAutomationSettingsUpdate(settings)));
+            return;
+        }
+
+        ApplyAutomationSettingsUpdate(settings);
+    }
+
+    private void ApplyAutomationSettingsUpdate(ProcessAutomationSettings settings)
+    {
+        AutoStopLastRunUtc = settings.LastRunUtc;
+
+        if (!HasAutomationChanges)
+        {
+            _suspendAutomationStateUpdates = true;
+            IsAutoStopAutomationEnabled = settings.AutoStopEnabled;
+            AutoStopIntervalMinutes = settings.AutoStopIntervalMinutes;
+            _suspendAutomationStateUpdates = false;
+        }
+
+        UpdateAutomationStatus();
     }
 
     private void LoadAutomationSettings(ProcessAutomationSettings settings)
