@@ -20,24 +20,7 @@ public sealed class ProcessQuestionnaireEngineTests
             var store = new ProcessStateStore(statePath);
             var engine = new ProcessQuestionnaireEngine(parser, store);
 
-            var answers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["usage.gaming"] = "no",
-                ["usage.vr"] = "no",
-                ["usage.printer"] = "no",
-                ["usage.phone"] = "no",
-                ["usage.location"] = "no",
-                ["device.touch"] = "no",
-                ["usage.developer"] = "no",
-                ["usage.telemetrycore"] = "no",
-                ["usage.telemetryadvanced"] = "no",
-                ["usage.performance"] = "no",
-                ["usage.misc"] = "no",
-                ["usage.store"] = "no",
-                ["usage.scheduledtasks"] = "no"
-            };
-
-            var result = engine.EvaluateAndApply(answers);
+            var result = engine.EvaluateAndApply(CreateAllNoAnswers());
 
             Assert.Contains("spooler", result.RecommendedProcessIds);
             Assert.Contains("sysmain", result.RecommendedProcessIds);
@@ -51,6 +34,38 @@ public sealed class ProcessQuestionnaireEngineTests
             var questionnaire = store.GetQuestionnaireSnapshot();
             Assert.Equal("no", questionnaire.Answers["usage.printer"]);
             Assert.Contains("bits", questionnaire.AutoStopProcessIds);
+        }
+        finally
+        {
+            File.Delete(catalogPath);
+            File.Delete(statePath);
+        }
+    }
+
+    [Fact]
+    public void EvaluateAndApply_ParsesJsonCatalogEntries()
+    {
+        var catalogPath = CreateTempJsonCatalog();
+        var statePath = CreateTempState();
+
+        try
+        {
+            var parser = new ProcessCatalogParser(catalogPath);
+            var store = new ProcessStateStore(statePath);
+            var engine = new ProcessQuestionnaireEngine(parser, store);
+
+            var result = engine.EvaluateAndApply(CreateAllNoAnswers());
+
+            var edgeTaskId = @"\microsoft\windows\edgeupdate\microsoftedgeupdatetaskmachinecore";
+            var rdsPatternId = @"\microsoft\windows\rds\*";
+
+            Assert.Contains("dosvc", result.RecommendedProcessIds);
+            Assert.Contains(edgeTaskId, result.RecommendedProcessIds);
+            Assert.Contains(rdsPatternId, result.RecommendedProcessIds);
+
+            var preferences = store.GetPreferences();
+            Assert.Contains(preferences, pref => pref.ProcessIdentifier == "dosvc");
+            Assert.Contains(preferences, pref => pref.ProcessIdentifier == edgeTaskId);
         }
         finally
         {
@@ -102,6 +117,69 @@ iphlpsvc
         var path = Path.Combine(Path.GetTempPath(), $"TidyWindow_Questionnaire_{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, body);
         return path;
+    }
+
+    private static string CreateTempJsonCatalog()
+    {
+        var body = """
+{
+    "entries": [
+        {
+            "identifier": "dosvc",
+            "displayName": "DoSvc",
+            "categoryKey": "L",
+            "categoryName": "Doc Section B",
+            "categoryDescription": "delivery optimization",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop"
+        },
+        {
+            "identifier": "\\microsoft\\windows\\edgeupdate\\microsoftedgeupdatetaskmachinecore",
+            "displayName": "\\Microsoft\\Windows\\EdgeUpdate\\MicrosoftEdgeUpdateTaskMachineCore",
+            "categoryKey": "M",
+            "categoryName": "Doc Section D",
+            "categoryDescription": "Edge updater",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop",
+            "isPattern": false
+        },
+        {
+            "identifier": "\\microsoft\\windows\\rds\\*",
+            "displayName": "\\Microsoft\\Windows\\RDS\\*",
+            "categoryKey": "M",
+            "categoryName": "Doc Section D",
+            "categoryDescription": "Remote Desktop tasks",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop",
+            "isPattern": true
+        }
+    ]
+}
+""";
+
+        var path = Path.Combine(Path.GetTempPath(), $"TidyWindow_CatalogJson_{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, body);
+        return path;
+    }
+
+    private static Dictionary<string, string> CreateAllNoAnswers()
+    {
+        return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["usage.gaming"] = "no",
+            ["usage.vr"] = "no",
+            ["usage.printer"] = "no",
+            ["usage.phone"] = "no",
+            ["usage.location"] = "no",
+            ["device.touch"] = "no",
+            ["usage.developer"] = "no",
+            ["usage.telemetrycore"] = "no",
+            ["usage.telemetryadvanced"] = "no",
+            ["usage.performance"] = "no",
+            ["usage.misc"] = "no",
+            ["usage.store"] = "no",
+            ["usage.scheduledtasks"] = "no"
+        };
     }
 
     private static string CreateTempState()

@@ -228,8 +228,8 @@ public sealed class ProcessQuestionnaireEngine
             new("usage.telemetryadvanced", "BITS / IP Helper", "Do you rely on Background Intelligent Transfer Service (BITS) or IP Helper/IPv6 networking features?", yesNoOptions),
             new("usage.performance", "Background caching (SysMain)", "Do you want Windows caching/prefetching helpers like SysMain to stay enabled for faster launches?", yesNoOptions),
             new("usage.misc", "Legacy Xbox / Phone helpers", "Do you need legacy GameInput/Xbox helper processes or the Windows Phone Service?", yesNoOptions),
-            new("usage.store", "Store / OneDrive / Bluetooth / Remote Desktop", "Do you actively use Windows Store apps, Bluetooth accessories, OneDrive sync, or Remote Desktop?", yesNoOptions),
-            new("usage.scheduledtasks", "Telemetry scheduled tasks", "Do you want Windows telemetry & diagnostics scheduled tasks (CEIP, DiskDiagnostic, etc.) to stay enabled?", yesNoOptions),
+            new("usage.store", "Store / OneDrive / shared experiences", "Do you actively use Windows Store apps, OneDrive sync, Delivery Optimization peer sharing, Windows Hello Face, shared experiences connectors, Work Folders, Wallet, or Remote Desktop/Bluetooth accessories?", yesNoOptions),
+            new("usage.scheduledtasks", "Telemetry & Edge scheduled tasks", "Do you want Windows telemetry, Edge update, Retail Demo, Flighting, Remote Assistance, or RDS scheduled tasks to stay enabled?", yesNoOptions),
         };
 
         return new ProcessQuestionnaireDefinition(questions);

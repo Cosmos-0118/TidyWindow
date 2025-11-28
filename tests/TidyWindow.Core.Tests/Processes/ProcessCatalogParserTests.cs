@@ -57,6 +57,70 @@ public sealed class ProcessCatalogParserTests
         }
     }
 
+
+    [Fact]
+    public void LoadSnapshot_FromJsonHandlesCommentsAndBackslashIdentifiers()
+    {
+        var json = """
+{
+    "categories": [
+        {
+            "key": "M",
+            "name": "Doc Section D — Scheduled tasks",
+            "description": "telemetry / maintenance"
+        }
+    ],
+    "entries": [
+        {
+            "identifier": "\\microsoft\\windows\\edgeupdate\\microsoftedgeupdatetaskmachinecore",
+            "displayName": "\\Microsoft\\Windows\\EdgeUpdate\\MicrosoftEdgeUpdateTaskMachineCore",
+            "categoryKey": "M",
+            "categoryName": "Doc Section D — Scheduled tasks",
+            "categoryDescription": "telemetry / maintenance",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop",
+            "isPattern": false,
+            "order": 1
+        },
+        // Parser should ignore this comment via JsonCommentHandling.Skip
+        {
+            "identifier": "\\microsoft\\windows\\rds\\*",
+            "displayName": "\\Microsoft\\Windows\\RDS\\*",
+            "categoryKey": "M",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop",
+            "isPattern": true,
+            "order": 2
+        }
+    ]
+}
+""";
+
+        var path = Path.Combine(Path.GetTempPath(), $"TidyWindow_Catalog_{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, json);
+
+        try
+        {
+            var parser = new ProcessCatalogParser(path);
+            var snapshot = parser.LoadSnapshot();
+
+            Assert.Equal(2, snapshot.Entries.Count);
+
+            var edgeTask = snapshot.Entries.Single(entry => entry.DisplayName.Contains("EdgeUpdate"));
+            Assert.Equal("\\microsoft\\windows\\edgeupdate\\microsoftedgeupdatetaskmachinecore", edgeTask.Identifier);
+            Assert.Equal(ProcessActionPreference.AutoStop, edgeTask.RecommendedAction);
+            Assert.False(edgeTask.IsPattern);
+
+            var rdsTask = snapshot.Entries.Single(entry => entry.Identifier == "\\microsoft\\windows\\rds\\*");
+            Assert.True(rdsTask.IsPattern);
+            Assert.Equal("M", rdsTask.CategoryKey);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static string CreateTempCatalog(bool includeWorkflowTail = false)
     {
         var body = """
