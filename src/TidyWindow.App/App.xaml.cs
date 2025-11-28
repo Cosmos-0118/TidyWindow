@@ -102,6 +102,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<IThreatIntelProvider, WindowsDefenderThreatIntelProvider>();
                 services.AddSingleton<IThreatIntelProvider, MalwareHashBlocklist>();
                 services.AddSingleton<AntiSystemDetectionService>();
+                services.AddSingleton<AntiSystemScanService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -115,6 +116,7 @@ public partial class App : WpfApplication
                 services.AddTransient<RegistryOptimizerViewModel>();
                 services.AddTransient<PathPilotViewModel>();
                 services.AddTransient<KnownProcessesViewModel>();
+                services.AddTransient<AntiSystemViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -127,6 +129,7 @@ public partial class App : WpfApplication
                 services.AddTransient<RegistryOptimizerPage>();
                 services.AddTransient<PathPilotPage>();
                 services.AddTransient<KnownProcessesPage>();
+                services.AddTransient<AntiSystemPage>();
 
                 services.AddSingleton<MainWindow>();
             })

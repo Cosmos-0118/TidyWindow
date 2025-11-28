@@ -1,0 +1,227 @@
+<Page x:Class="TidyWindow.App.Views.AntiSystemPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:controls="clr-namespace:TidyWindow.App.Views"
+      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+      mc:Ignorable="d"
+      d:DesignWidth="1280"
+      d:DesignHeight="720"
+      Background="Transparent">
+    <Page.Resources>
+        <converters:SuspicionLevelToBrushConverter x:Key="SuspicionBrush" />
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+
+        <Style x:Key="HitCardStyle"
+               TargetType="Border">
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Background" Value="#0F172A" />
+            <Setter Property="BorderBrush" Value="#1E293B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+        </Style>
+
+        <Style x:Key="RuleBadgeStyle" TargetType="Border">
+            <Setter Property="Background" Value="#1D4ED8" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="6,2" />
+            <Setter Property="Margin" Value="0,4,8,0" />
+        </Style>
+    </Page.Resources>
+
+    <ScrollViewer Margin="32"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+            <controls:PageTitleBar Title="Anti-System Watch"
+                                   Subtitle="Surface and quarantine suspicious activity before it spreads."
+                                   IconGlyph="🛡️"
+                                   Margin="0,0,0,24" />
+
+            <Border Background="#0B1120"
+                    Padding="24"
+                    CornerRadius="16"
+                    BorderBrush="#1D2A44"
+                    BorderThickness="1"
+                    Margin="0,0,0,24">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Status"
+                                   Foreground="#94A3B8"
+                                   FontSize="12"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding Summary}"
+                                   Foreground="#F8FAFC"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Margin="0,4,0,0" />
+                        <TextBlock Text="{Binding LastScanSummary}"
+                                   Foreground="#94A3B8"
+                                   Margin="0,6,0,0" />
+                    </StackPanel>
+                        <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center">
+                        <StackPanel.Resources>
+                            <Style TargetType="Button">
+                            <Setter Property="Margin" Value="0,0,12,0" />
+                            </Style>
+                        </StackPanel.Resources>
+                        <Button Content="Scan now"
+                            Width="120"
+                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
+                            Command="{Binding RefreshCommand}" />
+                        <Button Content="Refresh"
+                            Command="{Binding RefreshCommand}" />
+                        </StackPanel>
+                </Grid>
+            </Border>
+
+            <ItemsControl ItemsSource="{Binding SeverityGroups}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Background="#0B1120"
+                                Padding="16"
+                                CornerRadius="16"
+                                BorderBrush="#1D2A44"
+                                BorderThickness="1"
+                                Margin="0,0,0,16">
+                            <Expander IsExpanded="{Binding IsExpanded}">
+                                <Expander.Header>
+                                    <DockPanel>
+                                        <StackPanel DockPanel.Dock="Left">
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="16"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F8FAFC" />
+                                            <TextBlock Text="{Binding Description}"
+                                                       Foreground="#94A3B8" />
+                                        </StackPanel>
+                                        <Border Background="#1D4ED8"
+                                                CornerRadius="12"
+                                                Padding="10,4"
+                                                HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding Hits.Count, StringFormat={}{0} alerts}"
+                                                       Foreground="White"
+                                                       FontWeight="SemiBold" />
+                                        </Border>
+                                    </DockPanel>
+                                </Expander.Header>
+
+                                <StackPanel Margin="0,16,0,0">
+                                    <ItemsControl ItemsSource="{Binding Hits}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource HitCardStyle}">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="260" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding ProcessName}"
+                                                                           FontSize="18"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#F8FAFC" />
+                                                                <Border Background="{Binding Level, Converter={StaticResource SuspicionBrush}}"
+                                                                        CornerRadius="10"
+                                                                        Padding="8,2"
+                                                                        Margin="12,0,0,0">
+                                                                    <TextBlock Text="{Binding SeverityLabel}"
+                                                                               Foreground="#0F172A"
+                                                                               FontWeight="SemiBold"
+                                                                               FontSize="12" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding FilePath}"
+                                                                       Foreground="#CBD5F5"
+                                                                       Margin="0,4,0,0" />
+                                                            <TextBlock Text="{Binding MatchedRulesLabel}"
+                                                                       Foreground="#94A3B8"
+                                                                       Margin="0,4,0,0" />
+                                                            <TextBlock Text="Observed {Binding ObservedAt}"
+                                                                       Foreground="#64748B"
+                                                                       Margin="0,4,0,0" />
+                                                            <ItemsControl ItemsSource="{Binding MatchedRules}"
+                                                                          Visibility="{Binding HasRules, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                          Margin="0,6,0,0">
+                                                                <ItemsControl.ItemsPanel>
+                                                                    <ItemsPanelTemplate>
+                                                                        <WrapPanel />
+                                                                    </ItemsPanelTemplate>
+                                                                </ItemsControl.ItemsPanel>
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate>
+                                                                        <Border Style="{StaticResource RuleBadgeStyle}">
+                                                                            <TextBlock Text="{Binding}"
+                                                                                       Foreground="White"
+                                                                                       FontSize="11"
+                                                                                       FontWeight="SemiBold" />
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <TextBlock Text="{Binding LastActionMessage}"
+                                                                       Foreground="#FACC15"
+                                                                       Margin="0,6,0,0"
+                                                                       TextWrapping="Wrap" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1"
+                                                                Orientation="Vertical"
+                                                                HorizontalAlignment="Right"
+                                                                VerticalAlignment="Center">
+                                                            <StackPanel.Resources>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Margin" Value="0,0,0,8" />
+                                                            </Style>
+                                                            </StackPanel.Resources>
+                                                            <Button Content="Whitelist"
+                                                                Command="{Binding WhitelistCommand}" />
+                                                            <Button Content="Scan file"
+                                                                Command="{Binding ScanFileCommand}" />
+                                                            <Button Content="Open location"
+                                                                Command="{Binding OpenLocationCommand}" />
+                                                            <Button Content="Ignore"
+                                                                Command="{Binding IgnoreCommand}" />
+                                                            <Button Content="Quarantine"
+                                                                Command="{Binding QuarantineCommand}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="No alerts in this bucket."
+                                               Foreground="#475569"
+                                               FontStyle="Italic">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Hits.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Expander>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -171,6 +171,24 @@ public sealed class AntiSystemDetectionService
             DateTimeOffset.UtcNow);
     }
 
+    public ValueTask<ThreatIntelResult> ScanFileAsync(string filePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return ValueTask.FromResult(ThreatIntelResult.Unknown(null));
+        }
+
+        var providers = SelectProviders(ThreatIntelMode.Full);
+        if (providers.Count == 0)
+        {
+            return ValueTask.FromResult(ThreatIntelResult.Unknown(null));
+        }
+
+        var normalizedPath = NormalizeFilePath(filePath);
+        var sha256 = FileHashing.TryComputeSha256(normalizedPath);
+        return QueryThreatIntelAsync(providers, normalizedPath, sha256, cancellationToken);
+    }
+
     private void EvaluateStartupLayer(AntiSystemDetectionRequest request, IReadOnlyCollection<AntiSystemWhitelistEntry> whitelist, List<SuspiciousProcessHit> hits, ref int whitelistCount)
     {
         foreach (var entry in request.StartupEntries)

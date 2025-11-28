@@ -62,11 +62,11 @@
 -   Wired threat-intel providers (Windows Defender runner + local malware hash blocklist backed by `data/security/malware-blocklist.json`) with tunable hash budget + telemetry summaries.
 -   Introduced dedicated models (process/startup snapshots, detection requests/results) and unit tests covering critical path checks, whitelist behavior, temp heuristics, and blocklist hits.
 
-### Phase 5 – Anti-System Tab UI (3 days)
+### Phase 5 – Anti-System Tab UI (✅ Done)
 
--   Render suspicious hits as cards grouped by severity; include actions (`Whitelist`, `Scan`, `Ignore`, `Quarantine`).
--   Hook actions to detection service (e.g., re-scan, add to whitelist, initiate stop).
--   Provide “Open file location” jump via shell command.
+-   Added the Anti-System navigation entry + WPF page with severity buckets (Red/Orange/Yellow), rule badges, and inline status messaging sourced from persisted hits or live scans.
+-   Wired actionable commands per hit: whitelist (directory + process), Defender rescan, open file location, dismiss, and quarantine (kills matching processes) with status toasts.
+-   Connected the page to the new `AntiSystemScanService`, enabling one-click scans that collect running processes/startup entries, feed the detection service, and update telemetry summaries.
 
 ### Phase 6 – Integration, Telemetry, QA (2-3 days)
 
