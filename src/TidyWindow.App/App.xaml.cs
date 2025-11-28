@@ -99,6 +99,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<ProcessStateStore>();
                 services.AddSingleton<ProcessQuestionnaireEngine>();
                 services.AddSingleton<ProcessControlService>();
+                services.AddSingleton<ProcessAutoStopEnforcer>();
                 services.AddSingleton<IThreatIntelProvider, WindowsDefenderThreatIntelProvider>();
                 services.AddSingleton<IThreatIntelProvider, MalwareHashBlocklist>();
                 services.AddSingleton<AntiSystemDetectionService>();

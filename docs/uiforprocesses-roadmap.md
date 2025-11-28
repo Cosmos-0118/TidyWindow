@@ -3,8 +3,8 @@
 ## 1. Scope and Inputs
 
 -   **Specs**: `uiforprocesses.txt` defines the three-tab layout (Known Processes, Settings, Anti-System) and the first-run questionnaire.
--   **Service catalog**: `listofknown.txt` supplies grouped processes/services plus safe/unsafe guidance for tab 1 cards and auto-stop defaults.
--   **Suspicious activity**: `anitsystem.txt` outlines the four-layer detection model, whitelisting, and user actions shown in tab 3.
+-   **Service catalog**: `data/catalog/processes.catalog.json` (legacy: `data/catalog/listofknown.txt`) supplies grouped processes/services plus safe/unsafe guidance for tab 1 cards and auto-stop defaults.
+-   **Suspicious activity**: `data/security/anitsystem.txt` outlines the four-layer detection model, whitelisting, and user actions shown in tab 3.
 
 ## 2. Key Requirements Snapshot
 
@@ -14,7 +14,7 @@
     -   Persist responses for reuse and allow reset from settings.
 -   **Tab 1 – Known Processes**
     -   Card layout mirroring DeepScan: show name, category, status (Keep/Auto-stop), short rationale, actions (`Restart`, `Stop`, `Learn more`).
-    -   Initial state driven by questionnaire + `listofknown.txt` safety guidance.
+    -   Initial state driven by questionnaire + catalog safety guidance from `processes.catalog.json`.
     -   Inline badges for caution items (e.g., BITS, WaaSMedicSvc).
 -   **Tab 2 – Settings & Auto-stop**
     -   Toggle per process to switch between Keep/Auto-stop, overriding questionnaire defaults.
@@ -33,7 +33,7 @@
 ### Phase 0 – Foundations (✅ Done)
 
 -   Added the shared data contracts (`ProcessCatalogEntry`, `ProcessPreference`, `SuspiciousProcessHit`) under `src/TidyWindow.Core/Processes` with enums covering risk, preference sources, and suspicion levels.
--   Built a resilient `ProcessCatalogParser` that ingests `listofknown.txt`, preserves caution guidance, and surfaces structured `ProcessCatalogSnapshot` data for the UI.
+-   Built a resilient `ProcessCatalogParser` that ingests `processes.catalog.json` (with a legacy text fallback), preserves caution guidance, and surfaces structured `ProcessCatalogSnapshot` data for the UI.
 -   Introduced a JSON-backed `ProcessStateStore` (with schema versioning + migration hooks) ready to persist questionnaire answers, auto-stop overrides, and anti-system decisions (preferences + detection history already flow through it).
 
 ### Phase 1 – Questionnaire Engine (✅ Done)

@@ -1,3 +1,5 @@
+LEGACY REFERENCE — primary data now stored in data/catalog/processes.catalog.json
+
 ✅ FULL EXPANDED — Safe to disable (home PCs, no feature use)
 
 Grouped and simplified — copy-paste friendly.
@@ -61,6 +63,40 @@ XblGameSave
 GameInput
 PhoneSvc (only if not using cellular features)
 
+K. Doc Section A — Safe for everyone (2025 refresh)
+dmwappushservice              # Windows Push Notifications bridge (Very Low)
+Wercplsupport                 # Windows Error Reporting control panel (Very Low)
+PcaSvc                        # Program Compatibility Assistant (Very Low)
+WMPNetworkSvc                 # Windows Media Player network sharing (Very Low)
+DiagnosticExecutionService    # Diagnostic execution helper (Very Low)
+DiagnosticsHub.StandardCollector.Service    # Diagnostics Hub collector (Very Low)
+MessagingService_*            # Messaging platform helper instances (Very Low)
+
+L. Doc Section B — Safe if you don’t use the feature (2025 refresh)
+RemoteAccess                  # Routing and Remote Access (remote support)
+TermService                   # Remote Desktop Services core
+UmRdpService                  # Remote Desktop user-mode port redirector
+OneSyncSvc                    # Account/People sync host (mail/calendar)
+\Microsoft\Office\OneDrive Standalone Update Task   # OneDrive scheduled updater task
+wisvc                         # Windows Insider Service (disable if not enrolled)
+bthserv / BTAGService / BluetoothUserService_*    # Bluetooth stack (disable only if you have zero BT devices)
+icssvc / SharedAccess         # Mobile hotspot / Internet Connection Sharing
+WSService / AppXSvc / StateRepository    # Microsoft Store / UWP platform infra
+WSearch                       # Windows Search indexing (safe if you do not rely on indexing)
+
+M. Doc Section D — Scheduled tasks (telemetry / maintenance)
+\Microsoft\Windows\Application Experience\*                      # Telemetry and application tracking tasks (Very Low)
+\Microsoft\Windows\Autochk\Proxy                                 # Disk check diagnostics trigger (Very Low)
+\Microsoft\Windows\Customer Experience Improvement Program\*     # CEIP telemetry batch tasks (Very Low)
+\Microsoft\Windows\Customer Experience Improvement Program\UsbCeip # Explicit USB CEIP task (Very Low)
+\Microsoft\Windows\DiskDiagnostic\Microsoft-Windows-DiskDiagnosticDataCollector    # Disk diagnostic collector (Very Low)
+\Microsoft\Windows\DiskFootprint\Diagnostics                     # Disk footprint analyzer (Very Low)
+\Microsoft\Windows\Feedback\*                                    # Feedback hub telemetry (Very Low)
+\Microsoft\Windows\Windows Error Reporting\*                     # Error reporting scheduled tasks (Very Low)
+\Microsoft\Windows\Maintenance\WinSAT                           # System performance scoring (Very Low)
+\Microsoft\Windows\Maps\*                                       # Maps and location scheduled jobs (Very Low)
+\Microsoft\Windows\Mobile Broadband Accounts\*                  # Mobile broadband account maintenance (Very Low)
+
 ⚠️ Items to treat with CAUTION (don’t disable unless you know you don’t need them)
 
 These are sometimes safe but can break networking/updates/Windows features:
@@ -68,6 +104,16 @@ These are sometimes safe but can break networking/updates/Windows features:
 iphlpsvc (IP Helper) — safe if you don’t use IPv6 / Teredo / portproxy features; otherwise keep.
 
 BITS (Background Intelligent Transfer Service) — used by some installers/Windows Update/certain apps; prefer Manual if testing.
+
+InstallService — Media/streaming app install helper; disable only if you never use groove/movies & tv.
+
+SensorDataService / SensorService / SensrSvc — Sensor platform stack (accelerometer/rotation features) for tablets.
+
+NcbService / NfcService — Near-field communication helpers; disable only if the PC has zero NFC/mobile features.
+
+AppVClient / AADBrokerPlugin / EnterpriseAppManagementService / ConsentUxUserSvc_* — Enterprise/Workplace bridge services (may break workplace join or virtualized apps).
+
+CloudFilesService / SyncHost / ClipSVC — Cloud clipboard, OneDrive placeholders, and Store licensing (expect clipboard/store regressions).
 
 wuauserv (Windows Update) — DO NOT disable.
 

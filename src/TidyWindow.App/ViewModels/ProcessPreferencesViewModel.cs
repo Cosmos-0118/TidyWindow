@@ -34,22 +34,26 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     private readonly ProcessCatalogParser _catalogParser;
     private readonly ProcessStateStore _processStateStore;
     private readonly ProcessQuestionnaireEngine _questionnaireEngine;
+    private readonly ProcessAutoStopEnforcer _autoStopEnforcer;
     private readonly IUserConfirmationService _confirmationService;
     private readonly ObservableCollection<ProcessPreferenceRowViewModel> _processEntries = new();
     private readonly ObservableCollection<ProcessPreferenceSegmentViewModel> _segments = new();
     private bool _hasPromptedFirstRunQuestionnaire;
+    private bool _suspendAutomationStateUpdates;
 
     public ProcessPreferencesViewModel(
         MainViewModel mainViewModel,
         ProcessCatalogParser catalogParser,
         ProcessStateStore processStateStore,
         ProcessQuestionnaireEngine questionnaireEngine,
+        ProcessAutoStopEnforcer autoStopEnforcer,
         IUserConfirmationService confirmationService)
     {
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _catalogParser = catalogParser ?? throw new ArgumentNullException(nameof(catalogParser));
         _processStateStore = processStateStore ?? throw new ArgumentNullException(nameof(processStateStore));
         _questionnaireEngine = questionnaireEngine ?? throw new ArgumentNullException(nameof(questionnaireEngine));
+        _autoStopEnforcer = autoStopEnforcer ?? throw new ArgumentNullException(nameof(autoStopEnforcer));
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
 
         ProcessEntriesView = CollectionViewSource.GetDefaultView(_processEntries);
@@ -60,6 +64,11 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
 
         Segments = new ReadOnlyObservableCollection<ProcessPreferenceSegmentViewModel>(_segments);
 
+        var existingSnapshot = _processStateStore.GetQuestionnaireSnapshot();
+        _hasPromptedFirstRunQuestionnaire = existingSnapshot.CompletedAtUtc is not null;
+
+        LoadAutomationSettings(_autoStopEnforcer.CurrentSettings);
+
         _ = RefreshProcessPreferencesAsync();
     }
 
@@ -68,6 +77,8 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     public ICollectionView AutoStopEntriesView { get; }
 
     public ReadOnlyObservableCollection<ProcessPreferenceSegmentViewModel> Segments { get; }
+
+    public IReadOnlyList<int> AutoStopIntervalOptions { get; } = new[] { 5, 10, 15, 30, 60, 120 };
 
     [ObservableProperty]
     private bool _isProcessSettingsBusy;
@@ -99,6 +110,24 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     [ObservableProperty]
     private string _segmentSummary = "Loading catalog segments...";
 
+    [ObservableProperty]
+    private bool _isAutomationBusy;
+
+    [ObservableProperty]
+    private bool _isAutoStopAutomationEnabled;
+
+    [ObservableProperty]
+    private int _autoStopIntervalMinutes = ProcessAutomationSettings.MinimumIntervalMinutes;
+
+    [ObservableProperty]
+    private DateTimeOffset? _autoStopLastRunUtc;
+
+    [ObservableProperty]
+    private string _autoStopStatusMessage = "Automation is disabled.";
+
+    [ObservableProperty]
+    private bool _hasAutomationChanges;
+
     partial void OnProcessFilterTextChanged(string value)
     {
         ProcessEntriesView.Refresh();
@@ -115,6 +144,42 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         {
             IsAutoStopPanelVisible = false;
         }
+    }
+
+    partial void OnIsAutoStopAutomationEnabledChanged(bool value)
+    {
+        if (_suspendAutomationStateUpdates)
+        {
+            return;
+        }
+
+        HasAutomationChanges = true;
+        UpdateAutomationStatus();
+    }
+
+    partial void OnAutoStopIntervalMinutesChanged(int value)
+    {
+        if (_suspendAutomationStateUpdates)
+        {
+            return;
+        }
+
+        var clamped = Math.Clamp(value, ProcessAutomationSettings.MinimumIntervalMinutes, ProcessAutomationSettings.MaximumIntervalMinutes);
+        if (clamped != value)
+        {
+            _suspendAutomationStateUpdates = true;
+            AutoStopIntervalMinutes = clamped;
+            _suspendAutomationStateUpdates = false;
+            return;
+        }
+
+        HasAutomationChanges = true;
+        UpdateAutomationStatus();
+    }
+
+    partial void OnAutoStopLastRunUtcChanged(DateTimeOffset? value)
+    {
+        UpdateAutomationStatus();
     }
 
     [RelayCommand]
@@ -161,6 +226,92 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     private void ToggleAutoStopPanel()
     {
         IsAutoStopPanelVisible = !IsAutoStopPanelVisible;
+    }
+
+    [RelayCommand]
+    private async Task ApplyAutoStopAutomationAsync()
+    {
+        if (IsAutomationBusy)
+        {
+            return;
+        }
+
+        var snapshot = BuildAutomationSettingsSnapshot();
+
+        try
+        {
+            IsAutomationBusy = true;
+            _mainViewModel.SetStatusMessage("Applying auto-stop automation...");
+
+            var result = await _autoStopEnforcer.ApplySettingsAsync(snapshot, enforceImmediately: true);
+            HasAutomationChanges = false;
+
+            if (result is ProcessAutoStopResult runResult && !runResult.WasSkipped)
+            {
+                AutoStopLastRunUtc = runResult.ExecutedAtUtc;
+                _mainViewModel.LogActivityInformation("Process settings", $"Auto-stop enforced for {runResult.TargetCount} service(s).");
+            }
+            else
+            {
+                var status = snapshot.AutoStopEnabled
+                    ? $"Auto-stop automation enabled (every {FormatInterval(snapshot.AutoStopIntervalMinutes)})."
+                    : "Auto-stop automation disabled.";
+                _mainViewModel.LogActivityInformation("Process settings", status);
+            }
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Process settings", "Failed to apply automation settings.", new[] { ex.Message });
+        }
+        finally
+        {
+            IsAutomationBusy = false;
+            _mainViewModel.SetStatusMessage("Ready");
+        }
+    }
+
+    [RelayCommand]
+    private async Task RunAutoStopNowAsync()
+    {
+        if (IsAutomationBusy)
+        {
+            return;
+        }
+
+        if (!IsAutoStopAutomationEnabled)
+        {
+            _mainViewModel.LogActivityInformation("Process settings", "Enable auto-stop automation before running it manually.");
+            return;
+        }
+
+        try
+        {
+            IsAutomationBusy = true;
+            _mainViewModel.SetStatusMessage("Enforcing auto-stop preferences...");
+
+            var result = await _autoStopEnforcer.RunOnceAsync();
+            if (!result.WasSkipped)
+            {
+                AutoStopLastRunUtc = result.ExecutedAtUtc;
+            }
+
+            var message = result.WasSkipped
+                ? "Auto-stop automation was skipped."
+                : (result.TargetCount == 0
+                    ? "No auto-stop targets required enforcement."
+                    : $"Auto-stop enforced for {result.TargetCount} service(s).");
+
+            _mainViewModel.LogActivityInformation("Process settings", message);
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Process settings", "Failed to enforce auto-stop preferences.", new[] { ex.Message });
+        }
+        finally
+        {
+            IsAutomationBusy = false;
+            _mainViewModel.SetStatusMessage("Ready");
+        }
     }
 
     [RelayCommand]
@@ -405,6 +556,77 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
             IsProcessSettingsBusy = false;
             _mainViewModel.SetStatusMessage("Ready");
         }
+    }
+
+    public void RefreshAutomationSettingsState()
+    {
+        LoadAutomationSettings(_autoStopEnforcer.CurrentSettings);
+    }
+
+    private ProcessAutomationSettings BuildAutomationSettingsSnapshot()
+    {
+        return new ProcessAutomationSettings(IsAutoStopAutomationEnabled, AutoStopIntervalMinutes, AutoStopLastRunUtc);
+    }
+
+    private void LoadAutomationSettings(ProcessAutomationSettings settings)
+    {
+        _suspendAutomationStateUpdates = true;
+        IsAutoStopAutomationEnabled = settings.AutoStopEnabled;
+        AutoStopIntervalMinutes = settings.AutoStopIntervalMinutes;
+        AutoStopLastRunUtc = settings.LastRunUtc;
+        HasAutomationChanges = false;
+        _suspendAutomationStateUpdates = false;
+        UpdateAutomationStatus();
+    }
+
+    private void UpdateAutomationStatus()
+    {
+        if (!IsAutoStopAutomationEnabled)
+        {
+            AutoStopStatusMessage = "Automation is disabled.";
+            return;
+        }
+
+        var intervalLabel = FormatInterval(AutoStopIntervalMinutes);
+        var lastRunLabel = AutoStopLastRunUtc is null
+            ? "Never enforced yet."
+            : $"Last enforced {FormatRelative(AutoStopLastRunUtc.Value)}.";
+
+        AutoStopStatusMessage = $"Runs every {intervalLabel}. {lastRunLabel}";
+    }
+
+    private static string FormatInterval(int minutes)
+    {
+        if (minutes % 60 == 0 && minutes >= 60)
+        {
+            var hours = minutes / 60;
+            return hours == 1 ? "1 hour" : $"{hours} hours";
+        }
+
+        return $"{minutes} minutes";
+    }
+
+    private static string FormatRelative(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta < TimeSpan.FromMinutes(1))
+        {
+            return "just now";
+        }
+
+        if (delta < TimeSpan.FromHours(1))
+        {
+            var minutes = Math.Max(1, (int)Math.Round(delta.TotalMinutes));
+            return minutes == 1 ? "1 minute ago" : $"{minutes} minutes ago";
+        }
+
+        if (delta < TimeSpan.FromDays(1))
+        {
+            var hours = Math.Max(1, (int)Math.Round(delta.TotalHours));
+            return hours == 1 ? "1 hour ago" : $"{hours} hours ago";
+        }
+
+        return timestamp.ToLocalTime().ToString("g");
     }
 
     private bool FilterProcessEntry(object item)

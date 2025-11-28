@@ -15,7 +15,7 @@ public sealed class ProcessStateStore
 {
     private const string StateOverrideEnvironmentVariable = "TIDYWINDOW_PROCESS_STATE_PATH";
     private const string DefaultFileName = "uiforprocesses-state.json";
-    internal const int LatestSchemaVersion = 4;
+    internal const int LatestSchemaVersion = 5;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -343,6 +343,33 @@ public sealed class ProcessStateStore
         }
     }
 
+    public ProcessAutomationSettings GetAutomationSettings()
+    {
+        lock (_syncRoot)
+        {
+            return _snapshot.Automation;
+        }
+    }
+
+    public void SaveAutomationSettings(ProcessAutomationSettings settings)
+    {
+        if (settings is null)
+        {
+            throw new ArgumentNullException(nameof(settings));
+        }
+
+        lock (_syncRoot)
+        {
+            _snapshot = _snapshot with
+            {
+                Automation = settings.Normalize(),
+                UpdatedAtUtc = DateTimeOffset.UtcNow
+            };
+
+            SaveSnapshotLocked();
+        }
+    }
+
     private ProcessStateSnapshot LoadFromDisk()
     {
         try
@@ -403,9 +430,10 @@ public sealed class ProcessStateStore
                     .ToImmutableDictionary(static entry => entry.Id, StringComparer.OrdinalIgnoreCase);
 
             var questionnaire = ToQuestionnaireSnapshot(model.Questionnaire);
+            var automationSettings = ToAutomationSettings(model.Automation);
 
             var updatedAt = model.UpdatedAtUtc == default ? DateTimeOffset.UtcNow : model.UpdatedAtUtc;
-            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits, questionnaire, whitelistEntries, quarantineEntries);
+            return new ProcessStateSnapshot(schemaVersion, updatedAt, preferences, hits, questionnaire, automationSettings, whitelistEntries, quarantineEntries);
         }
         catch
         {
@@ -536,6 +564,19 @@ public sealed class ProcessStateStore
         return new ProcessQuestionnaireSnapshot(model.CompletedAtUtc, answers, processes);
     }
 
+    private static ProcessAutomationSettings ToAutomationSettings(ProcessAutomationSettingsModel? model)
+    {
+        if (model is null)
+        {
+            return ProcessAutomationSettings.Default;
+        }
+
+        return new ProcessAutomationSettings(
+            model.AutoStopEnabled,
+            model.AutoStopIntervalMinutes,
+            model.LastRunUtc).Normalize();
+    }
+
     private static ProcessStateModel UpgradeModel(ProcessStateModel model)
     {
         model.SchemaVersion = LatestSchemaVersion;
@@ -573,6 +614,8 @@ public sealed class ProcessStateStore
         public List<AntiSystemQuarantineEntryModel>? QuarantineEntries { get; set; }
 
         public ProcessQuestionnaireModel? Questionnaire { get; set; }
+
+        public ProcessAutomationSettingsModel? Automation { get; set; }
 
         public static ProcessStateModel FromSnapshot(ProcessStateSnapshot snapshot)
         {
@@ -626,7 +669,8 @@ public sealed class ProcessStateStore
                         Notes = hit.Notes
                     })
                     .ToList(),
-                Questionnaire = ProcessQuestionnaireModel.FromSnapshot(snapshot.Questionnaire)
+                Questionnaire = ProcessQuestionnaireModel.FromSnapshot(snapshot.Questionnaire),
+                Automation = ProcessAutomationSettingsModel.FromSettings(snapshot.Automation)
             };
         }
     }
@@ -713,6 +757,26 @@ public sealed class ProcessStateStore
             };
         }
     }
+
+    private sealed class ProcessAutomationSettingsModel
+    {
+        public bool AutoStopEnabled { get; set; }
+
+        public int AutoStopIntervalMinutes { get; set; }
+
+        public DateTimeOffset? LastRunUtc { get; set; }
+
+        public static ProcessAutomationSettingsModel FromSettings(ProcessAutomationSettings settings)
+        {
+            var normalized = settings.Normalize();
+            return new ProcessAutomationSettingsModel
+            {
+                AutoStopEnabled = normalized.AutoStopEnabled,
+                AutoStopIntervalMinutes = normalized.AutoStopIntervalMinutes,
+                LastRunUtc = normalized.LastRunUtc
+            };
+        }
+    }
 }
 
 /// <summary>
@@ -724,6 +788,7 @@ public sealed record ProcessStateSnapshot(
     IImmutableDictionary<string, ProcessPreference> Preferences,
     IImmutableDictionary<string, SuspiciousProcessHit> SuspiciousHits,
     ProcessQuestionnaireSnapshot Questionnaire,
+    ProcessAutomationSettings Automation,
     IImmutableDictionary<string, AntiSystemWhitelistEntry> WhitelistEntries,
     IImmutableDictionary<string, AntiSystemQuarantineEntry> QuarantineEntries)
 {
@@ -735,6 +800,7 @@ public sealed record ProcessStateSnapshot(
             ImmutableDictionary.Create<string, ProcessPreference>(StringComparer.OrdinalIgnoreCase),
             ImmutableDictionary.Create<string, SuspiciousProcessHit>(StringComparer.OrdinalIgnoreCase),
             ProcessQuestionnaireSnapshot.Empty,
+            ProcessAutomationSettings.Default,
             ImmutableDictionary.Create<string, AntiSystemWhitelistEntry>(StringComparer.OrdinalIgnoreCase),
             ImmutableDictionary.Create<string, AntiSystemQuarantineEntry>(StringComparer.OrdinalIgnoreCase));
     }

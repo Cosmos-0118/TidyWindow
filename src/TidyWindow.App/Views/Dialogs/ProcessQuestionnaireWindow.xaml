@@ -109,35 +109,70 @@
         </Style>
 
         <Style x:Key="QuestionnaireOptionToggleStyle" TargetType="RadioButton">
-            <Setter Property="Margin" Value="0,0,12,12" />
-            <Setter Property="Padding" Value="18,14" />
-            <Setter Property="Background" Value="#111C36" />
-            <Setter Property="BorderBrush" Value="#1F2A44" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Foreground" Value="#F8FAFC" />
             <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="#F8FAFC" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="14"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter />
-                        </Border>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,28,18"
+                                    VerticalAlignment="Center">
+                            <Grid Width="36"
+                                  Height="36">
+                                <Ellipse x:Name="OuterCircle"
+                                         Stroke="#334155"
+                                         StrokeThickness="2"
+                                         Fill="#0B1222" />
+                                <Ellipse x:Name="InnerCircle"
+                                         Width="16"
+                                         Height="16"
+                                         Fill="#7C3AED"
+                                         Visibility="Collapsed" />
+                            </Grid>
+                            <StackPanel Margin="12,0,0,0">
+                                <TextBlock Text="{Binding Label}"
+                                           FontWeight="SemiBold"
+                                           FontSize="15" />
+                                <TextBlock Text="{Binding Description}"
+                                           Margin="0,2,0,0"
+                                           Foreground="{StaticResource QuestionnaireMutedBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"
+                                           Visibility="{Binding Description, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            </StackPanel>
+                        </StackPanel>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#7C3AED" />
-                            </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1D4ED8" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#2563EB" />
+                                <Setter TargetName="InnerCircle" Property="Visibility" Value="Visible" />
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="#7C3AED" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="#94A3B8" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.4" />
+                                <Setter TargetName="OuterCircle" Property="Opacity" Value="0.4" />
+                                <Setter TargetName="InnerCircle" Property="Opacity" Value="0.4" />
                             </Trigger>
+                            <DataTrigger Binding="{Binding Id}" Value="yes">
+                                <Setter TargetName="InnerCircle" Property="Fill" Value="#22C55E" />
+                            </DataTrigger>
+                            <DataTrigger Binding="{Binding Id}" Value="no">
+                                <Setter TargetName="InnerCircle" Property="Fill" Value="#EF4444" />
+                            </DataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Id}" Value="yes" />
+                                    <Condition Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="#22C55E" />
+                            </MultiDataTrigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Id}" Value="no" />
+                                    <Condition Binding="{Binding IsChecked, RelativeSource={RelativeSource TemplatedParent}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="OuterCircle" Property="Stroke" Value="#F87171" />
+                            </MultiDataTrigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -245,21 +280,7 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <RadioButton Style="{StaticResource QuestionnaireOptionToggleStyle}"
-                                                                 IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
-                                                        <RadioButton.ContentTemplate>
-                                                            <DataTemplate>
-                                                                <StackPanel>
-                                                                    <TextBlock Text="{Binding Label}"
-                                                                               FontWeight="SemiBold" />
-                                                                    <TextBlock Text="{Binding Description}"
-                                                                               Margin="0,4,0,0"
-                                                                               Foreground="{StaticResource QuestionnaireMutedBrush}"
-                                                                               TextWrapping="Wrap"
-                                                                               Visibility="{Binding Description, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                                </StackPanel>
-                                                            </DataTemplate>
-                                                        </RadioButton.ContentTemplate>
-                                                    </RadioButton>
+                                                                 IsChecked="{Binding IsSelected, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>

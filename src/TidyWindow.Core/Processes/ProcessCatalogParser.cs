@@ -3,19 +3,29 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 
 namespace TidyWindow.Core.Processes;
 
 /// <summary>
-/// Parses <c>listofknown.txt</c> into structured catalog entries.
+/// Parses the Known Processes catalog (JSON or legacy text) into structured entries.
 /// </summary>
 public sealed class ProcessCatalogParser
 {
     private const string CatalogOverrideEnvironmentVariable = "TIDYWINDOW_PROCESS_CATALOG_PATH";
-    private const string DefaultFileName = "listofknown.txt";
+    private const string LegacyFileName = "listofknown.txt";
+    private const string JsonFileName = "processes.catalog.json";
 
+    private static readonly string[] CandidateFileNames = { JsonFileName, LegacyFileName };
     private static readonly Regex CategoryRegex = new("^(?<key>[A-Z0-9]+)\\.\\s+(?<label>.+)$", RegexOptions.CultureInvariant | RegexOptions.Compiled);
+    private static readonly char[] WhitespaceTerminatorCandidates = { ' ', '\t' };
+    private static readonly char[] IdentifierTerminators = { ' ', '\t', '—', '-', '(' };
+    private static readonly JsonSerializerOptions SerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true,
+        ReadCommentHandling = JsonCommentHandling.Skip
+    };
 
     private readonly string _catalogPath;
 
@@ -26,7 +36,17 @@ public sealed class ProcessCatalogParser
 
     public ProcessCatalogSnapshot LoadSnapshot()
     {
-        var lines = File.ReadAllLines(_catalogPath);
+        if (_catalogPath.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            return LoadSnapshotFromJson(_catalogPath);
+        }
+
+        return LoadSnapshotFromLegacyFile(_catalogPath);
+    }
+
+    private static ProcessCatalogSnapshot LoadSnapshotFromLegacyFile(string path)
+    {
+        var lines = File.ReadAllLines(path);
         var entries = new List<ProcessCatalogEntry>();
         var categories = new Dictionary<string, ProcessCatalogCategory>(StringComparer.OrdinalIgnoreCase);
         var seenIdentifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -141,7 +161,117 @@ public sealed class ProcessCatalogParser
             .ThenBy(static entry => entry.EntryOrder)
             .ToImmutableArray();
 
-        return new ProcessCatalogSnapshot(_catalogPath, DateTimeOffset.UtcNow, orderedCategories, orderedEntries);
+        return new ProcessCatalogSnapshot(path, DateTimeOffset.UtcNow, orderedCategories, orderedEntries);
+    }
+
+    private static ProcessCatalogSnapshot LoadSnapshotFromJson(string path)
+    {
+        ProcessCatalogJsonDocument? document;
+        try
+        {
+            var json = File.ReadAllText(path);
+            document = JsonSerializer.Deserialize<ProcessCatalogJsonDocument>(json, SerializerOptions);
+        }
+        catch (Exception exception) when (exception is IOException or JsonException)
+        {
+            throw new InvalidDataException($"Failed to parse '{path}'.", exception);
+        }
+
+        if (document is null)
+        {
+            throw new InvalidDataException($"'{path}' does not contain a valid catalog payload.");
+        }
+
+        var categories = new Dictionary<string, ProcessCatalogCategory>(StringComparer.OrdinalIgnoreCase);
+        var entries = new List<ProcessCatalogEntry>();
+        var seenIdentifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var categoryOrderCursor = 0;
+
+        if (document.Categories is not null)
+        {
+            foreach (var model in document.Categories)
+            {
+                if (model is null || string.IsNullOrWhiteSpace(model.Key))
+                {
+                    continue;
+                }
+
+                var key = model.Key.Trim();
+                var name = string.IsNullOrWhiteSpace(model.Name) ? key : model.Name.Trim();
+                var description = string.IsNullOrWhiteSpace(model.Description) ? null : model.Description.Trim();
+                var order = ResolveOrder(model.Order, ref categoryOrderCursor);
+                var category = new ProcessCatalogCategory(key, name, description, model.IsCaution ?? false, order);
+                categories.TryAdd(key, category);
+            }
+        }
+
+        if (!categories.ContainsKey("general"))
+        {
+            var fallback = new ProcessCatalogCategory("general", "General", null, false, ResolveOrder(null, ref categoryOrderCursor));
+            categories["general"] = fallback;
+        }
+
+        var entryOrderCursor = 0;
+        if (document.Entries is not null)
+        {
+            foreach (var model in document.Entries)
+            {
+                if (model is null || string.IsNullOrWhiteSpace(model.Identifier))
+                {
+                    continue;
+                }
+
+                var normalized = ProcessCatalogEntry.NormalizeIdentifier(model.Identifier);
+                if (string.IsNullOrWhiteSpace(normalized) || !seenIdentifiers.Add(normalized))
+                {
+                    continue;
+                }
+
+                var categoryKey = string.IsNullOrWhiteSpace(model.CategoryKey) ? "general" : model.CategoryKey.Trim();
+                if (!categories.TryGetValue(categoryKey, out var category))
+                {
+                    var derivedName = string.IsNullOrWhiteSpace(model.CategoryName) ? categoryKey : model.CategoryName.Trim();
+                    var derivedDescription = string.IsNullOrWhiteSpace(model.CategoryDescription) ? null : model.CategoryDescription.Trim();
+                    var derivedOrder = ResolveOrder(null, ref categoryOrderCursor);
+                    var isCaution = string.Equals(categoryKey, "caution", StringComparison.OrdinalIgnoreCase);
+                    category = new ProcessCatalogCategory(categoryKey, derivedName, derivedDescription, isCaution, derivedOrder);
+                    categories[categoryKey] = category;
+                }
+
+                var risk = ResolveRisk(model.Risk, category.IsCaution);
+                var action = ResolveAction(model.RecommendedAction, category.IsCaution);
+                var rationale = string.IsNullOrWhiteSpace(model.Rationale) ? null : model.Rationale.Trim();
+                var isPattern = model.IsPattern ?? IsPattern(model.DisplayName ?? model.Identifier);
+                var displayName = string.IsNullOrWhiteSpace(model.DisplayName) ? model.Identifier.Trim() : model.DisplayName.Trim();
+                var entryOrder = ResolveOrder(model.Order, ref entryOrderCursor);
+
+                var entry = new ProcessCatalogEntry(
+                    normalized,
+                    displayName,
+                    category.Key,
+                    category.Name,
+                    category.Description,
+                    risk,
+                    action,
+                    rationale,
+                    isPattern,
+                    category.Order,
+                    entryOrder);
+
+                entries.Add(entry);
+            }
+        }
+
+        var orderedCategories = categories.Values
+            .OrderBy(static category => category.Order)
+            .ToImmutableArray();
+
+        var orderedEntries = entries
+            .OrderBy(static entry => entry.CategoryOrder)
+            .ThenBy(static entry => entry.EntryOrder)
+            .ToImmutableArray();
+
+        return new ProcessCatalogSnapshot(path, DateTimeOffset.UtcNow, orderedCategories, orderedEntries);
     }
 
     private static IReadOnlyList<string> ExtractProcessTokens(string line)
@@ -152,7 +282,9 @@ public sealed class ProcessCatalogParser
             return Array.Empty<string>();
         }
 
-        if (sanitized.IndexOfAny(new[] { ' ', '\t' }) >= 0 && !sanitized.Contains('/'))
+        if (sanitized.IndexOfAny(WhitespaceTerminatorCandidates) >= 0 &&
+            !sanitized.Contains('/') &&
+            !sanitized.Contains('\\'))
         {
             return Array.Empty<string>();
         }
@@ -245,10 +377,19 @@ public sealed class ProcessCatalogParser
         }
 
         var trimmed = value.Trim();
-        var terminatorIndex = trimmed.IndexOfAny(new[] { ' ', '\t', '—', '-', '(' });
-        if (terminatorIndex >= 0)
+        if (trimmed.StartsWith('"') && trimmed.EndsWith('"') && trimmed.Length > 1)
         {
-            trimmed = trimmed[..terminatorIndex];
+            trimmed = trimmed[1..^1];
+        }
+
+        var allowWhitespace = trimmed.Contains('\\');
+        if (!allowWhitespace)
+        {
+            var terminatorIndex = trimmed.IndexOfAny(IdentifierTerminators);
+            if (terminatorIndex >= 0)
+            {
+                trimmed = trimmed[..terminatorIndex];
+            }
         }
 
         return string.IsNullOrWhiteSpace(trimmed) ? null : trimmed.Trim(',', ';', '.');
@@ -292,6 +433,81 @@ public sealed class ProcessCatalogParser
         return string.IsNullOrWhiteSpace(trimmed) ? "General" : trimmed;
     }
 
+    private sealed record ProcessCatalogJsonDocument
+    {
+        public List<ProcessCatalogJsonCategory>? Categories { get; init; }
+
+        public List<ProcessCatalogJsonEntry>? Entries { get; init; }
+    }
+
+    private sealed record ProcessCatalogJsonCategory
+    {
+        public string? Key { get; init; }
+
+        public string? Name { get; init; }
+
+        public string? Description { get; init; }
+
+        public bool? IsCaution { get; init; }
+
+        public int? Order { get; init; }
+    }
+
+    private sealed record ProcessCatalogJsonEntry
+    {
+        public string? Identifier { get; init; }
+
+        public string? DisplayName { get; init; }
+
+        public string? CategoryKey { get; init; }
+
+        public string? CategoryName { get; init; }
+
+        public string? CategoryDescription { get; init; }
+
+        public string? Risk { get; init; }
+
+        public string? RecommendedAction { get; init; }
+
+        public string? Rationale { get; init; }
+
+        public bool? IsPattern { get; init; }
+
+        public int? Order { get; init; }
+    }
+
+    private static ProcessRiskLevel ResolveRisk(string? value, bool isCaution)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && Enum.TryParse<ProcessRiskLevel>(value, true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return isCaution ? ProcessRiskLevel.Caution : ProcessRiskLevel.Safe;
+    }
+
+    private static ProcessActionPreference ResolveAction(string? value, bool isCaution)
+    {
+        if (!string.IsNullOrWhiteSpace(value) && Enum.TryParse<ProcessActionPreference>(value, true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return isCaution ? ProcessActionPreference.Keep : ProcessActionPreference.AutoStop;
+    }
+
+    private static int ResolveOrder(int? declaredOrder, ref int cursor)
+    {
+        if (declaredOrder.HasValue && declaredOrder.Value > 0)
+        {
+            cursor = Math.Max(cursor, declaredOrder.Value);
+            return declaredOrder.Value;
+        }
+
+        cursor++;
+        return cursor;
+    }
+
     private static string ResolveCatalogPath()
     {
         var overridePath = Environment.GetEnvironmentVariable(CatalogOverrideEnvironmentVariable);
@@ -301,17 +517,12 @@ public sealed class ProcessCatalogParser
         }
 
         var baseDirectory = AppContext.BaseDirectory;
-        var candidatePaths = new List<string>
-        {
-            Path.Combine(baseDirectory, "catalog", DefaultFileName),
-            Path.Combine(baseDirectory, DefaultFileName)
-        };
+        var candidatePaths = new List<string>();
 
         var directory = new DirectoryInfo(baseDirectory);
         while (directory is not null)
         {
-            candidatePaths.Add(Path.Combine(directory.FullName, DefaultFileName));
-            candidatePaths.Add(Path.Combine(directory.FullName, "data", "catalog", DefaultFileName));
+            AppendCandidatePaths(candidatePaths, directory.FullName);
             directory = directory.Parent;
         }
 
@@ -323,6 +534,16 @@ public sealed class ProcessCatalogParser
             }
         }
 
-        throw new FileNotFoundException($"Unable to locate '{DefaultFileName}'. Set {CatalogOverrideEnvironmentVariable} to override the path.");
+        throw new FileNotFoundException($"Unable to locate '{JsonFileName}' or '{LegacyFileName}'. Set {CatalogOverrideEnvironmentVariable} to override the path.");
+    }
+
+    private static void AppendCandidatePaths(List<string> target, string root)
+    {
+        foreach (var fileName in CandidateFileNames)
+        {
+            target.Add(Path.Combine(root, fileName));
+            target.Add(Path.Combine(root, "catalog", fileName));
+            target.Add(Path.Combine(root, "data", "catalog", fileName));
+        }
     }
 }

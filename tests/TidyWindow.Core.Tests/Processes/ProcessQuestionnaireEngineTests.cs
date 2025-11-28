@@ -28,8 +28,13 @@ public sealed class ProcessQuestionnaireEngineTests
                 ["usage.phone"] = "no",
                 ["usage.location"] = "no",
                 ["device.touch"] = "no",
-                ["usage.telemetry"] = "aggressive",
-                ["usage.performance"] = "aggressive"
+                ["usage.developer"] = "no",
+                ["usage.telemetrycore"] = "no",
+                ["usage.telemetryadvanced"] = "no",
+                ["usage.performance"] = "no",
+                ["usage.misc"] = "no",
+                ["usage.store"] = "no",
+                ["usage.scheduledtasks"] = "no"
             };
 
             var result = engine.EvaluateAndApply(answers);

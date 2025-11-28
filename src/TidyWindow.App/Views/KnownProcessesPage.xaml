@@ -692,6 +692,67 @@
                         </StackPanel>
                     </Border>
 
+                    <Border Background="#0B1120"
+                            Padding="24"
+                            CornerRadius="16"
+                            BorderBrush="#1D2A44"
+                            BorderThickness="1"
+                            Margin="0,0,0,24">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="Background auto-stop enforcement"
+                                           Style="{StaticResource SettingsSectionHeaderTextStyle}" />
+                                <ToggleButton Margin="12,0,0,0"
+                                              VerticalAlignment="Center"
+                                              Style="{StaticResource SettingsToggleSwitchStyle}"
+                                              IsChecked="{Binding IsAutoStopAutomationEnabled, Mode=TwoWay}" />
+                            </StackPanel>
+                            <TextBlock Text="TidyWindow can periodically re-stop services you have marked for auto-stop to keep telemetry and helpers quiet."
+                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                       Margin="0,6,0,16" />
+                            <StackPanel Orientation="Horizontal"
+                                        VerticalAlignment="Center"
+                                        Margin="0,0,0,12">
+                                <TextBlock Text="Interval"
+                                           Width="80"
+                                           Foreground="#94A3B8" />
+                                <ComboBox Width="180"
+                                          ItemsSource="{Binding AutoStopIntervalOptions}"
+                                          SelectedItem="{Binding AutoStopIntervalMinutes, Mode=TwoWay}"
+                                          HorizontalAlignment="Left">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding StringFormat={}{0} min}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
+                                </ComboBox>
+                            </StackPanel>
+                            <TextBlock Text="{Binding AutoStopStatusMessage}"
+                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                       Margin="0,0,0,12" />
+                            <Border Background="#2F1F4D"
+                                    CornerRadius="8"
+                                    Padding="10,4"
+                                    Margin="0,0,0,16"
+                                    Visibility="{Binding HasAutomationChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="Pending changes will apply when you press the button."
+                                           Foreground="#C084FC"
+                                           FontWeight="SemiBold" />
+                            </Border>
+                            <WrapPanel>
+                                <Button Content="Apply &amp; enforce now"
+                                        Margin="0,0,12,12"
+                                        Style="{StaticResource ProcessPrimaryButtonStyle}"
+                                        Command="{Binding ApplyAutoStopAutomationCommand}" />
+                                <Button Content="Run now"
+                                        Margin="0,0,0,12"
+                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
+                                        Command="{Binding RunAutoStopNowCommand}"
+                                        IsEnabled="{Binding IsAutoStopAutomationEnabled}" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+
                     <Border Background="#111827"
                             BorderBrush="#1D2A44"
                             BorderThickness="1"
