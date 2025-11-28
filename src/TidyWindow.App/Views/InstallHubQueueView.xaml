@@ -10,8 +10,9 @@
              UseLayoutRounding="True"
              SnapsToDevicePixels="True"
              TextOptions.TextFormattingMode="Display"
-             TextOptions.TextRenderingMode="Auto"
-             TextOptions.TextHintingMode="Fixed">
+             TextOptions.TextRenderingMode="ClearType"
+             TextOptions.TextHintingMode="Fixed"
+             RenderOptions.BitmapScalingMode="HighQuality">
     <UserControl.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -31,7 +32,12 @@
                     VerticalScrollBarVisibility="Auto"
                     HorizontalScrollBarVisibility="Disabled"
                     HorizontalContentAlignment="Center"
-                    PanningMode="VerticalOnly">
+                    PanningMode="VerticalOnly"
+                    ScrollViewer.CanContentScroll="True"
+                    IsDeferredScrollingEnabled="True">
+            <ScrollViewer.CacheMode>
+                <BitmapCache EnableClearType="True"/>
+            </ScrollViewer.CacheMode>
             <Grid MaxWidth="1180"
                 HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
@@ -219,10 +225,16 @@
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                               ScrollViewer.CanContentScroll="True"
+                                              ScrollViewer.IsDeferredScrollingEnabled="True"
                                               VirtualizingPanel.IsVirtualizing="True"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
+                                              VirtualizingPanel.CacheLength="4"
+                                              VirtualizingPanel.CacheLengthUnit="Item"
                                               VirtualizingStackPanel.ScrollUnit="Pixel"
                                               infra:ScrollHost.BubbleParentScroll="True">
+                                        <ListView.CacheMode>
+                                            <BitmapCache EnableClearType="True"/>
+                                        </ListView.CacheMode>
                                         <ListView.Style>
                                             <Style TargetType="ListView">
                                                 <Setter Property="Visibility" Value="Visible"/>
@@ -381,23 +393,34 @@
               Background="#AA020617"
               Visibility="{Binding IsQueueOperationDetailsVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
               IsHitTestVisible="{Binding IsQueueOperationDetailsVisible}">
-            <Border MaxWidth="720"
-                    Margin="32"
-                    Padding="24"
-                    Background="#0F172A"
-                    BorderBrush="#1E293B"
-                    BorderThickness="1"
-                    CornerRadius="18"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
+            <Grid.CacheMode>
+                <BitmapCache EnableClearType="True"/>
+            </Grid.CacheMode>
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          ScrollViewer.CanContentScroll="True"
+                          PanningMode="VerticalOnly"
+                          HorizontalAlignment="Center"
+                          VerticalAlignment="Center"
+                          MaxHeight="760"
+                          Margin="32">
+                <ScrollViewer.CacheMode>
+                    <BitmapCache EnableClearType="True"/>
+                </ScrollViewer.CacheMode>
+                <Border MaxWidth="720"
+                        Padding="24"
+                        Background="#0F172A"
+                        BorderBrush="#1E293B"
+                        BorderThickness="1"
+                        CornerRadius="18">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
 
-                    <DockPanel Margin="0,0,0,16"
-                               LastChildFill="False">
+                        <DockPanel Margin="0,0,0,16"
+                                   LastChildFill="False">
                         <StackPanel DockPanel.Dock="Left">
                             <TextBlock Text="{Binding SelectedOperation.PackageName, TargetNullValue=Operation details}"
                                        FontSize="18"
@@ -409,53 +432,59 @@
                                        Foreground="{StaticResource InstallTextMutedBrush}"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
-                        <Button Content="Close"
-                                Command="{Binding CloseQueueOperationDetailsCommand}"
-                                Style="{StaticResource InstallSecondaryButtonStyle}"
-                                DockPanel.Dock="Right"
-                                Padding="10,4"
-                                MinWidth="72"
-                                HorizontalAlignment="Right"/>
-                    </DockPanel>
+                            <Button Content="Close"
+                                    Command="{Binding CloseQueueOperationDetailsCommand}"
+                                    Style="{StaticResource InstallSecondaryButtonStyle}"
+                                    DockPanel.Dock="Right"
+                                    Padding="10,4"
+                                    MinWidth="72"
+                                    HorizontalAlignment="Right"/>
+                        </DockPanel>
 
-                    <Grid Grid.Row="1">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                      HorizontalScrollBarVisibility="Disabled"
-                                      MaxHeight="440">
-                            <ContentControl Content="{Binding SelectedOperation}"
-                                            ContentTemplate="{StaticResource InstallOperationDetailsTemplate}">
-                                <ContentControl.Style>
-                                    <Style TargetType="ContentControl">
-                                        <Setter Property="Visibility" Value="Visible"/>
+                        <Grid Grid.Row="1">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          ScrollViewer.CanContentScroll="True"
+                                          PanningMode="VerticalOnly"
+                                          MaxHeight="520">
+                                <ScrollViewer.CacheMode>
+                                    <BitmapCache EnableClearType="True"/>
+                                </ScrollViewer.CacheMode>
+                                <ContentControl Content="{Binding SelectedOperation}"
+                                                ContentTemplate="{StaticResource InstallOperationDetailsTemplate}">
+                                    <ContentControl.Style>
+                                        <Style TargetType="ContentControl">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedOperation}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ContentControl.Style>
+                                </ContentControl>
+                            </ScrollViewer>
+
+                            <TextBlock Text="Select an install to review its details"
+                                       Foreground="{StaticResource InstallTextMutedBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="13">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
                                         <Style.Triggers>
                                             <DataTrigger Binding="{Binding SelectedOperation}" Value="{x:Null}">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Setter Property="Visibility" Value="Visible"/>
                                             </DataTrigger>
                                         </Style.Triggers>
                                     </Style>
-                                </ContentControl.Style>
-                            </ContentControl>
-                        </ScrollViewer>
-
-                        <TextBlock Text="Select an install to review its details"
-                                   Foreground="{StaticResource InstallTextMutedBrush}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   FontSize="13">
-                            <TextBlock.Style>
-                                <Style TargetType="TextBlock">
-                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding SelectedOperation}" Value="{x:Null}">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </TextBlock.Style>
-                        </TextBlock>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
                     </Grid>
-                </Grid>
-            </Border>
+                </Border>
+            </ScrollViewer>
         </Grid>
     </Grid>
 </UserControl>

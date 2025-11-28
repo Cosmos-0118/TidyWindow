@@ -15,19 +15,17 @@
     UseLayoutRounding="True"
     SnapsToDevicePixels="True"
     TextOptions.TextFormattingMode="Display"
-    TextOptions.TextRenderingMode="Auto"
-    TextOptions.TextHintingMode="Fixed">
+    TextOptions.TextRenderingMode="ClearType"
+    TextOptions.TextHintingMode="Fixed"
+    RenderOptions.BitmapScalingMode="HighQuality">
     <Page.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="InstallHubResources.xaml"/>
             </ResourceDictionary.MergedDictionaries>
 
-            <CubicEase x:Key="InstallHubEaseIn" EasingMode="EaseInOut"/>
-            <CubicEase x:Key="InstallHubEaseOut" EasingMode="EaseOut"/>
-
-            <CubicEase x:Key="InstallPivotEaseIn" EasingMode="EaseOut"/>
-            <CubicEase x:Key="InstallPivotEaseOut" EasingMode="EaseInOut"/>
+            <SineEase x:Key="InstallHubPivotEaseIn" EasingMode="EaseOut"/>
+            <SineEase x:Key="InstallHubPivotEaseOut" EasingMode="EaseIn"/>
 
             <Style x:Key="InstallHubPivotContentBaseStyle"
                    TargetType="FrameworkElement">
@@ -35,6 +33,12 @@
                 <Setter Property="Visibility" Value="Collapsed"/>
                 <Setter Property="IsHitTestVisible" Value="False"/>
                 <Setter Property="Panel.ZIndex" Value="0"/>
+                <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                <Setter Property="RenderTransform">
+                    <Setter.Value>
+                        <TranslateTransform Y="12"/>
+                    </Setter.Value>
+                </Setter>
             </Style>
 
             <Style x:Key="InstallHubBundlesViewStyle"
@@ -49,19 +53,23 @@
                                      ConverterParameter="{x:Static viewModels:CurrentInstallHubPivot.Bundles}"/>
                         </DataTrigger.Binding>
                         <Setter Property="Panel.ZIndex" Value="1"/>
+                        <Setter Property="IsHitTestVisible" Value="True"/>
                         <DataTrigger.EnterActions>
                             <BeginStoryboard>
                                 <Storyboard>
                                     <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
                                         <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
                                     </ObjectAnimationUsingKeyFrames>
-                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
-                                    </BooleanAnimationUsingKeyFrames>
                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     From="0"
                                                      To="1"
-                                                     Duration="0:0:0.35"
-                                                     EasingFunction="{StaticResource InstallPivotEaseIn}"/>
+                                                     Duration="0:0:0.18"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseIn}"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                     From="12"
+                                                     To="0"
+                                                     Duration="0:0:0.18"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseIn}"/>
                                 </Storyboard>
                             </BeginStoryboard>
                         </DataTrigger.EnterActions>
@@ -70,13 +78,14 @@
                                 <Storyboard>
                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                      To="0"
-                                                     Duration="0:0:0.35"
-                                                     EasingFunction="{StaticResource InstallPivotEaseOut}"/>
-                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
-                                    </BooleanAnimationUsingKeyFrames>
+                                                     Duration="0:0:0.16"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseOut}"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                     To="12"
+                                                     Duration="0:0:0.16"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseOut}"/>
                                     <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
-                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.35" Value="{x:Static Visibility.Collapsed}"/>
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.16" Value="{x:Static Visibility.Collapsed}"/>
                                     </ObjectAnimationUsingKeyFrames>
                                 </Storyboard>
                             </BeginStoryboard>
@@ -97,19 +106,23 @@
                                      ConverterParameter="{x:Static viewModels:CurrentInstallHubPivot.Catalog}"/>
                         </DataTrigger.Binding>
                         <Setter Property="Panel.ZIndex" Value="1"/>
+                        <Setter Property="IsHitTestVisible" Value="True"/>
                         <DataTrigger.EnterActions>
                             <BeginStoryboard>
                                 <Storyboard>
                                     <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
                                         <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
                                     </ObjectAnimationUsingKeyFrames>
-                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
-                                    </BooleanAnimationUsingKeyFrames>
                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     From="0"
                                                      To="1"
-                                                     Duration="0:0:0.35"
-                                                     EasingFunction="{StaticResource InstallPivotEaseIn}"/>
+                                                     Duration="0:0:0.18"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseIn}"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                     From="12"
+                                                     To="0"
+                                                     Duration="0:0:0.18"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseIn}"/>
                                 </Storyboard>
                             </BeginStoryboard>
                         </DataTrigger.EnterActions>
@@ -118,13 +131,14 @@
                                 <Storyboard>
                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                      To="0"
-                                                     Duration="0:0:0.35"
-                                                     EasingFunction="{StaticResource InstallPivotEaseOut}"/>
-                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
-                                    </BooleanAnimationUsingKeyFrames>
+                                                     Duration="0:0:0.16"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseOut}"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                     To="12"
+                                                     Duration="0:0:0.16"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseOut}"/>
                                     <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
-                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.35" Value="{x:Static Visibility.Collapsed}"/>
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.16" Value="{x:Static Visibility.Collapsed}"/>
                                     </ObjectAnimationUsingKeyFrames>
                                 </Storyboard>
                             </BeginStoryboard>
@@ -145,19 +159,23 @@
                                      ConverterParameter="{x:Static viewModels:CurrentInstallHubPivot.Queue}"/>
                         </DataTrigger.Binding>
                         <Setter Property="Panel.ZIndex" Value="1"/>
+                        <Setter Property="IsHitTestVisible" Value="True"/>
                         <DataTrigger.EnterActions>
                             <BeginStoryboard>
                                 <Storyboard>
                                     <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
                                         <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
                                     </ObjectAnimationUsingKeyFrames>
-                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="True"/>
-                                    </BooleanAnimationUsingKeyFrames>
                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                     From="0"
                                                      To="1"
-                                                     Duration="0:0:0.35"
-                                                     EasingFunction="{StaticResource InstallPivotEaseIn}"/>
+                                                     Duration="0:0:0.18"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseIn}"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                     From="12"
+                                                     To="0"
+                                                     Duration="0:0:0.18"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseIn}"/>
                                 </Storyboard>
                             </BeginStoryboard>
                         </DataTrigger.EnterActions>
@@ -166,13 +184,14 @@
                                 <Storyboard>
                                     <DoubleAnimation Storyboard.TargetProperty="Opacity"
                                                      To="0"
-                                                     Duration="0:0:0.35"
-                                                     EasingFunction="{StaticResource InstallPivotEaseOut}"/>
-                                    <BooleanAnimationUsingKeyFrames Storyboard.TargetProperty="IsHitTestVisible">
-                                        <DiscreteBooleanKeyFrame KeyTime="0" Value="False"/>
-                                    </BooleanAnimationUsingKeyFrames>
+                                                     Duration="0:0:0.16"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseOut}"/>
+                                    <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                     To="12"
+                                                     Duration="0:0:0.16"
+                                                     EasingFunction="{StaticResource InstallHubPivotEaseOut}"/>
                                     <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
-                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.35" Value="{x:Static Visibility.Collapsed}"/>
+                                        <DiscreteObjectKeyFrame KeyTime="0:0:0.16" Value="{x:Static Visibility.Collapsed}"/>
                                     </ObjectAnimationUsingKeyFrames>
                                 </Storyboard>
                             </BeginStoryboard>
