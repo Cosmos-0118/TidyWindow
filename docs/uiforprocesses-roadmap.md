@@ -30,11 +30,11 @@
 
 ## 3. Implementation Phases
 
-### Phase 0 – Foundations (1-2 days)
+### Phase 0 – Foundations (✅ Done)
 
--   Define shared data contracts: `ProcessCatalogEntry`, `ProcessPreference`, `SuspiciousProcessHit`.
--   Build parser to ingest `listofknown.txt` into structured catalog (category, risk, notes).
--   Set up persistence service (e.g., JSON store or SQLite) with migration hooks.
+-   Added the shared data contracts (`ProcessCatalogEntry`, `ProcessPreference`, `SuspiciousProcessHit`) under `src/TidyWindow.Core/Processes` with enums covering risk, preference sources, and suspicion levels.
+-   Built a resilient `ProcessCatalogParser` that ingests `listofknown.txt`, preserves caution guidance, and surfaces structured `ProcessCatalogSnapshot` data for the UI.
+-   Introduced a JSON-backed `ProcessStateStore` (with schema versioning + migration hooks) ready to persist questionnaire answers, auto-stop overrides, and anti-system decisions (preferences + detection history already flow through it).
 
 ### Phase 1 – Questionnaire Engine (2-3 days)
 
