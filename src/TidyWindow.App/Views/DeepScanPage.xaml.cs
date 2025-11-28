@@ -17,21 +17,6 @@ public partial class DeepScanPage : Page
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;
-        Loaded += Page_OnLoaded;
-    }
-
-    private async void Page_OnLoaded(object sender, RoutedEventArgs e)
-    {
-        Loaded -= Page_OnLoaded;
-
-        if (_viewModel.RefreshCommand is IAsyncRelayCommand asyncCommand)
-        {
-            await asyncCommand.ExecuteAsync(null);
-        }
-        else
-        {
-            _viewModel.RefreshCommand.Execute(null);
-        }
     }
 
     private void BrowseButton_OnClick(object sender, RoutedEventArgs e)

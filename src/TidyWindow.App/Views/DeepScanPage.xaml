@@ -6,9 +6,20 @@
         xmlns:converters="clr-namespace:TidyWindow.App.Converters"
         xmlns:controls="clr-namespace:TidyWindow.App.Views"
         xmlns:ux="clr-namespace:TidyWindow.App.Controls"
-      mc:Ignorable="d"
-      Title="Deep scan"
-      Background="Transparent">
+            mc:Ignorable="d"
+            Title="Deep scan"
+            Background="Transparent"
+            FontFamily="Segoe UI Variable Text"
+            TextOptions.TextFormattingMode="Display"
+            TextOptions.TextRenderingMode="ClearType"
+            TextOptions.TextHintingMode="Fixed"
+            RenderOptions.ClearTypeHint="Enabled"
+            UseLayoutRounding="True"
+            SnapsToDevicePixels="True">
+        <Page.InputBindings>
+                <KeyBinding Key="Enter"
+                                        Command="{Binding RefreshCommand}"/>
+        </Page.InputBindings>
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
@@ -276,8 +287,12 @@
         <CubicEase x:Key="DeepScanOverlayEaseOut"
                    EasingMode="EaseOut"/>
     </Page.Resources>
-    <Grid Background="{StaticResource DeepScanSurfaceBrush}">
-        <Grid x:Name="MainContentHost">
+        <Grid Background="{StaticResource DeepScanSurfaceBrush}"
+                    UseLayoutRounding="True"
+                    SnapsToDevicePixels="True">
+                <Grid x:Name="MainContentHost"
+                            UseLayoutRounding="True"
+                            SnapsToDevicePixels="True">
             <Grid.Style>
                 <Style TargetType="Grid">
                     <Setter Property="Opacity"
@@ -313,13 +328,17 @@
                     </Style.Triggers>
                 </Style>
             </Grid.Style>
-            <ScrollViewer x:Name="RootScrollViewer"
+                        <ScrollViewer x:Name="RootScrollViewer"
                           Margin="32"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
                           CanContentScroll="True"
-                          PanningMode="VerticalOnly">
-        <Grid MinWidth="720">
+                                                    PanningMode="VerticalOnly"
+                                                    UseLayoutRounding="True"
+                                                    SnapsToDevicePixels="True">
+                <Grid MinWidth="720"
+                            UseLayoutRounding="True"
+                            SnapsToDevicePixels="True">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -327,7 +346,7 @@
             </Grid.RowDefinitions>
 
             <controls:PageTitleBar Title="Deep scan analyzer"
-                                    Subtitle="Highlight the heaviest files so you can reclaim space quickly"
+                                    Subtitle="Zero in on the heaviest files and reclaim space fast."
                                     IconGlyph="🔍"
                                     Margin="0,0,0,24"/>
 
@@ -430,7 +449,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Target location"
                                                Style="{StaticResource FilterLabelStyle}"/>
-                                    <TextBlock Text="Choose where the deep scan should inspect."
+                                    <TextBlock Text="Choose where the deep scan should dig in."
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <Grid Margin="0,14,0,0">
                                         <Grid.ColumnDefinitions>
@@ -480,7 +499,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Result limits"
                                                Style="{StaticResource FilterLabelStyle}"/>
-                                    <TextBlock Text="Control how many findings appear per scan."
+                                    <TextBlock Text="Decide how many findings each scan returns."
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <Grid Margin="0,16,0,0">
                                         <Grid.ColumnDefinitions>
@@ -512,7 +531,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Scan options"
                                                Style="{StaticResource FilterLabelStyle}"/>
-                                    <TextBlock Text="Fine-tune what the analyzer should include."
+                                    <TextBlock Text="Fine-tune exactly what the analyzer inspects."
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <StackPanel Margin="0,16,0,0">
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
@@ -534,7 +553,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Name matching"
                                                Style="{StaticResource FilterLabelStyle}"/>
-                                    <TextBlock Text="Narrow results by name while keeping things flexible."
+                                    <TextBlock Text="Narrow results by name without losing flexibility."
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <TextBox Margin="0,16,0,0"
                                              Style="{StaticResource App.TextBoxStyle}"
@@ -607,6 +626,8 @@
                                                  VirtualizingPanel.CacheLength="1"
                                                  VirtualizingPanel.CacheLengthUnit="Item"
                                                  VirtualizingStackPanel.ScrollUnit="Pixel"
+                                                 UseLayoutRounding="True"
+                                                 SnapsToDevicePixels="True"
                                                  ParentScrollViewerName="RootScrollViewer">
                             <ListView.Resources>
                                 <Style x:Key="DeepScanChipStyle"

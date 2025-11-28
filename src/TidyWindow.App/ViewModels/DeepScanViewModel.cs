@@ -22,8 +22,8 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private bool _isBusy;
     private bool _isDeleting;
     private string _targetPath = string.Empty;
-    private int _minimumSizeMb = 200;
-    private int _maxItems = 500;
+    private int _minimumSizeMb = 0;
+    private int _maxItems = 1000;
     private bool _includeHidden;
     private DateTimeOffset? _lastScanned;
     private string _summary = "Run a scan to surface large files and folders.";
@@ -42,9 +42,11 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         _deepScanService = deepScanService ?? throw new ArgumentNullException(nameof(deepScanService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
 
-        var defaultPath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
-        PresetLocations = BuildPresetLocations(defaultPath);
-        TargetPath = defaultPath;
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
+        PresetLocations = BuildPresetLocations(userProfile);
+
+        var defaultScanRoot = Directory.Exists("C:\\") ? "C:\\" : userProfile;
+        TargetPath = defaultScanRoot ?? string.Empty;
 
         VisibleFindings = new ObservableCollection<DeepScanItemViewModel>();
     }
