@@ -1838,6 +1838,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
             Array.Empty<string>());
     }
 
+    private sealed record SkipReasonStat(string Reason, int Count, long TotalBytes);
+    private const string UnspecifiedSkipReasonLabel = "Unspecified skip reason";
+
     private string? TryGenerateCleanupReport(CleanupDeletionResult result, out string? error)
     {
         error = null;
@@ -1899,6 +1902,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         var failedMegabytes = Math.Max(result.TotalBytesFailed / 1_048_576d, 0d);
         var deleteOnRebootAllowed = options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied;
         var rebootEntries = result.Entries.Where(static entry => IsDeleteOnRebootEntry(entry)).ToList();
+        var skipReasonStats = BuildSkipReasonStats(result);
 
         var details = new List<string>
         {
@@ -1912,6 +1916,27 @@ public sealed partial class CleanupViewModel : ViewModelBase
             $"Skip locked items: {options.SkipLockedItems}",
             $"Delete-on-reboot allowed: {deleteOnRebootAllowed}"
         };
+
+        if (skipReasonStats.Count > 0)
+        {
+            details.Add("Skip reasons:");
+            foreach (var stat in skipReasonStats.Take(5))
+            {
+                var sizeText = stat.TotalBytes > 0
+                    ? $" ({FormatSize(stat.TotalBytes / 1_048_576d)})"
+                    : string.Empty;
+                details.Add($"  ↳ {stat.Reason}: {stat.Count:N0} item(s){sizeText}");
+            }
+
+            if (skipReasonStats.Count > 5)
+            {
+                details.Add($"  (+{skipReasonStats.Count - 5:N0} additional reason(s))");
+            }
+        }
+        else if (result.SkippedCount > 0)
+        {
+            details.Add("Skip reasons: Not reported by deletion engine.");
+        }
 
         if (!string.IsNullOrWhiteSpace(reportPath))
         {
@@ -2062,6 +2087,51 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         return lookup;
+    }
+
+    private static IReadOnlyList<SkipReasonStat> BuildSkipReasonStats(CleanupDeletionResult result)
+    {
+        if (result?.Entries is null || result.Entries.Count == 0)
+        {
+            return Array.Empty<SkipReasonStat>();
+        }
+
+        var aggregate = new Dictionary<string, (int Count, long Bytes)>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var entry in result.Entries)
+        {
+            if (entry is null || entry.Disposition != CleanupDeletionDisposition.Skipped)
+            {
+                continue;
+            }
+
+            var reason = string.IsNullOrWhiteSpace(entry.Reason)
+                ? UnspecifiedSkipReasonLabel
+                : entry.Reason.Trim();
+
+            var size = Math.Max(entry.SizeBytes, 0);
+
+            if (aggregate.TryGetValue(reason, out var current))
+            {
+                aggregate[reason] = (current.Count + 1, current.Bytes + size);
+            }
+            else
+            {
+                aggregate[reason] = (1, size);
+            }
+        }
+
+        if (aggregate.Count == 0)
+        {
+            return Array.Empty<SkipReasonStat>();
+        }
+
+        return aggregate
+            .Select(static pair => new SkipReasonStat(pair.Key, pair.Value.Count, pair.Value.Bytes))
+            .OrderByDescending(static stat => stat.Count)
+            .ThenByDescending(static stat => stat.TotalBytes)
+            .ThenBy(static stat => stat.Reason, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string BuildCategoryListText(IEnumerable<string>? categories)
