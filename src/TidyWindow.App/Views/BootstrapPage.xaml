@@ -381,7 +381,8 @@
                                                     <Button Content="{Binding ActionLabel}"
                                                             Command="{Binding DataContext.InstallCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                             CommandParameter="{Binding}"
-                                                            MinWidth="132">
+                                                            MinWidth="132"
+                                                            Visibility="{Binding ShowInstallAction, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                         <Button.Style>
                                                             <Style TargetType="Button"
                                                                    BasedOn="{StaticResource BootstrapAccentButtonStyle}">
@@ -431,6 +432,25 @@
                                                             </Style>
                                                         </Button.Style>
                                                     </Button>
+                                                    <TextBlock Text="{Binding ActionDescription}"
+                                                               TextWrapping="Wrap"
+                                                               Foreground="#EAB308"
+                                                               Width="180"
+                                                               Margin="0,0,0,8">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility"
+                                                                        Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ShowActionDescription}"
+                                                                                 Value="True">
+                                                                        <Setter Property="Visibility"
+                                                                                Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <TextBlock Text="{Binding LastOperationMessage}"
                                                                TextWrapping="Wrap"
                                                                Foreground="#94A3B8"

@@ -34,15 +34,19 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<Guid, InstallOperationItemViewModel> _operationLookup = new();
     private readonly Dictionary<Guid, InstallQueueOperationSnapshot> _snapshotCache = new();
     private readonly Dictionary<string, int> _activePackageCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, InstallPackageDefinition> _packageDefinitionCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, ImmutableArray<InstallPackageDefinition>> _bundlePackageCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly SemaphoreSlim _loadSemaphore = new(1, 1);
     private readonly UiDebounceDispatcher _searchFilterDebounce;
     private bool _isDisposed;
     private Task? _initializationTask;
     private bool _catalogInitialized;
     private bool _suppressFilters;
-    private static readonly TimeSpan OverlayMinimumDuration = TimeSpan.FromMilliseconds(1200);
+    private static readonly TimeSpan OverlayMinimumDuration = TimeSpan.FromMilliseconds(2000);
     private static readonly TimeSpan SearchDebounceInterval = TimeSpan.FromMilliseconds(110);
     private DateTimeOffset? _overlayActivatedAt;
+    private IReadOnlyList<InstallPackageDefinition> _cachedPackages = Array.Empty<InstallPackageDefinition>();
+    private IReadOnlyList<InstallBundleDefinition> _cachedBundles = Array.Empty<InstallBundleDefinition>();
 
     public InstallHubViewModel(InstallCatalogService catalogService, InstallQueue installQueue, BundlePresetService presetService, MainViewModel mainViewModel, ActivityLogService activityLogService)
     {
@@ -186,6 +190,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
                 }
                 else
                 {
+                    CacheCatalog(packages, bundles);
                     if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
                     {
                         await dispatcher.InvokeAsync(() => ApplyCatalog(packages, bundles));
@@ -331,7 +336,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        var packages = _catalogService.GetPackagesForBundle(bundle.Id);
+        var packages = GetCachedBundlePackages(bundle.Id);
 
         if (packages.Length == 0)
         {
@@ -629,6 +634,67 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             _mainViewModel.SetStatusMessage($"Imported '{presetName}' with {resolution.Packages.Length} package(s).");
             _activityLog.LogSuccess("Install hub", $"Imported '{presetName}' with {resolution.Packages.Length} package(s).");
         }
+    }
+
+    private void CacheCatalog(IReadOnlyList<InstallPackageDefinition> packages, IReadOnlyList<InstallBundleDefinition> bundles)
+    {
+        _cachedPackages = packages ?? Array.Empty<InstallPackageDefinition>();
+        _cachedBundles = bundles ?? Array.Empty<InstallBundleDefinition>();
+
+        _packageDefinitionCache.Clear();
+        foreach (var package in _cachedPackages)
+        {
+            if (!string.IsNullOrWhiteSpace(package.Id))
+            {
+                _packageDefinitionCache[package.Id] = package;
+            }
+        }
+
+        _bundlePackageCache.Clear();
+        foreach (var bundle in _cachedBundles)
+        {
+            if (string.IsNullOrWhiteSpace(bundle.Id))
+            {
+                continue;
+            }
+
+            var builder = ImmutableArray.CreateBuilder<InstallPackageDefinition>();
+            foreach (var packageId in bundle.PackageIds)
+            {
+                if (string.IsNullOrWhiteSpace(packageId))
+                {
+                    continue;
+                }
+
+                if (_packageDefinitionCache.TryGetValue(packageId, out var definition))
+                {
+                    builder.Add(definition);
+                }
+            }
+
+            _bundlePackageCache[bundle.Id] = builder.ToImmutable();
+        }
+    }
+
+    private ImmutableArray<InstallPackageDefinition> GetCachedBundlePackages(string bundleId)
+    {
+        if (string.IsNullOrWhiteSpace(bundleId))
+        {
+            return ImmutableArray<InstallPackageDefinition>.Empty;
+        }
+
+        if (_bundlePackageCache.TryGetValue(bundleId, out var cached))
+        {
+            return cached;
+        }
+
+        var resolved = _catalogService.GetPackagesForBundle(bundleId);
+        if (!resolved.IsDefaultOrEmpty && resolved.Length > 0)
+        {
+            _bundlePackageCache[bundleId] = resolved;
+        }
+
+        return resolved;
     }
 
     private void ApplyBundleFilter()

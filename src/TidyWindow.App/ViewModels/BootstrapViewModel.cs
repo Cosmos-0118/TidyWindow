@@ -87,6 +87,16 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         }
 
         var managerName = manager.Name;
+        if (!manager.AllowsInstallOrRepair)
+        {
+            var unsupportedMessage = $"{managerName} is managed by Windows and cannot be installed or repaired from TidyWindow.";
+            manager.LastOperationMessage = unsupportedMessage;
+            manager.LastOperationSucceeded = null;
+            _mainViewModel.SetStatusMessage(unsupportedMessage);
+            _activityLog.LogInformation("Bootstrap", unsupportedMessage, BuildManagerContextDetails(manager));
+            return;
+        }
+
         var refreshAfterInstall = false;
         Guid workToken = Guid.Empty;
 

@@ -57,9 +57,23 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
 
     public string UninstallLabel => IsBusy ? "Working..." : "Uninstall";
 
-    public bool ShowUninstall => IsInstalled;
+    public bool AllowsInstallOrRepair => !IsManagedByWindows;
 
-    public bool CanUninstall => IsInstalled && !IsBusy;
+    public bool AllowsUninstall => !IsManagedByWindows;
+
+    public bool ShowInstallAction => AllowsInstallOrRepair;
+
+    public bool ShowUninstall => IsInstalled && AllowsUninstall;
+
+    public bool CanUninstall => ShowUninstall && !IsBusy;
+
+    public string ActionDescription => IsManagedByWindows
+        ? "Windows manages winget. Use Windows Settings or the Store to modify it."
+        : string.Empty;
+
+    public bool ShowActionDescription => !string.IsNullOrWhiteSpace(ActionDescription);
+
+    private bool IsManagedByWindows => string.Equals(Identifier, "winget", StringComparison.OrdinalIgnoreCase);
 
     public void UpdateFromInfo(PackageManagerInfo info)
     {
