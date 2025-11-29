@@ -205,6 +205,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly IBrowserCleanupService _browserCleanupService;
     private readonly CleanupAutomationScheduler _cleanupAutomationScheduler;
     private readonly IAutomationWorkTracker _workTracker;
+    private readonly IRelativeTimeTicker _relativeTimeTicker;
 
     private const int PreviewCountMinimumValue = 10;
     private const int PreviewCountMaximumValue = 100_000;
@@ -237,7 +238,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         IResourceLockService resourceLockService,
         IBrowserCleanupService browserCleanupService,
         CleanupAutomationScheduler cleanupAutomationScheduler,
-        IAutomationWorkTracker workTracker)
+        IAutomationWorkTracker workTracker,
+        IRelativeTimeTicker relativeTimeTicker)
     {
         _cleanupService = cleanupService;
         _mainViewModel = mainViewModel;
@@ -246,6 +248,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         _browserCleanupService = browserCleanupService;
         _cleanupAutomationScheduler = cleanupAutomationScheduler ?? throw new ArgumentNullException(nameof(cleanupAutomationScheduler));
         _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
+        _relativeTimeTicker = relativeTimeTicker ?? throw new ArgumentNullException(nameof(relativeTimeTicker));
 
         _previewFilter = new CleanupPreviewFilter
         {
@@ -328,6 +331,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         };
 
         _cleanupAutomationScheduler.SettingsChanged += OnCleanupAutomationSettingsChanged;
+        _relativeTimeTicker.Tick += OnRelativeTimeTick;
         ApplyAutomationSettingsSnapshot(_cleanupAutomationScheduler.CurrentSettings);
     }
 
@@ -2068,6 +2072,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
         var sweepText = $"Sweeps top {topItems} items";
 
         AutomationStatusMessage = $"{intervalLabel} • {sweepText} • Targets {string.Join(" + ", includeParts)} • {lastRunText}";
+    }
+
+    private void OnRelativeTimeTick(object? sender, EventArgs e)
+    {
+        UpdateAutomationStatus();
     }
 
     private void MarkAutomationStateDirty()

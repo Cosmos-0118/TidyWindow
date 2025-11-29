@@ -35,6 +35,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     private readonly ProcessStateStore _processStateStore;
     private readonly ProcessQuestionnaireEngine _questionnaireEngine;
     private readonly ProcessAutoStopEnforcer _autoStopEnforcer;
+    private readonly IRelativeTimeTicker _relativeTimeTicker;
     private readonly IUserConfirmationService _confirmationService;
     private readonly ObservableCollection<ProcessPreferenceRowViewModel> _processEntries = new();
     private readonly ObservableCollection<ProcessPreferenceSegmentViewModel> _segments = new();
@@ -47,7 +48,8 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         ProcessStateStore processStateStore,
         ProcessQuestionnaireEngine questionnaireEngine,
         ProcessAutoStopEnforcer autoStopEnforcer,
-        IUserConfirmationService confirmationService)
+        IUserConfirmationService confirmationService,
+        IRelativeTimeTicker relativeTimeTicker)
     {
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _catalogParser = catalogParser ?? throw new ArgumentNullException(nameof(catalogParser));
@@ -55,8 +57,10 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         _questionnaireEngine = questionnaireEngine ?? throw new ArgumentNullException(nameof(questionnaireEngine));
         _autoStopEnforcer = autoStopEnforcer ?? throw new ArgumentNullException(nameof(autoStopEnforcer));
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
+        _relativeTimeTicker = relativeTimeTicker ?? throw new ArgumentNullException(nameof(relativeTimeTicker));
 
         _autoStopEnforcer.SettingsChanged += OnAutoStopSettingsChanged;
+        _relativeTimeTicker.Tick += OnRelativeTimeTick;
 
         ProcessEntriesView = CollectionViewSource.GetDefaultView(_processEntries);
         ProcessEntriesView.Filter = FilterProcessEntry;
@@ -660,6 +664,11 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         }
 
         return timestamp.ToLocalTime().ToString("g");
+    }
+
+    private void OnRelativeTimeTick(object? sender, EventArgs e)
+    {
+        UpdateAutomationStatus();
     }
 
     private bool FilterProcessEntry(object item)

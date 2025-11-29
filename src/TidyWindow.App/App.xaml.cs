@@ -83,6 +83,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<EssentialsAutomationScheduler>();
                 services.AddSingleton<MaintenanceAutomationSettingsStore>();
                 services.AddSingleton<MaintenanceAutoUpdateScheduler>();
+                services.AddSingleton<IRelativeTimeTicker, RelativeTimeTicker>();
 
                 services.AddSingleton<PowerShellInvoker>();
                 services.AddSingleton<PackageManagerDetector>();

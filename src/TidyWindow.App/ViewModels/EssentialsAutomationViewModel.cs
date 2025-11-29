@@ -16,6 +16,7 @@ public sealed partial class EssentialsAutomationViewModel : ViewModelBase, IDisp
 {
     private readonly EssentialsAutomationScheduler _scheduler;
     private readonly ActivityLogService _activityLog;
+    private readonly IRelativeTimeTicker _relativeTimeTicker;
     private readonly ObservableCollection<EssentialsAutomationTaskToggleViewModel> _taskOptions = new();
     private readonly ReadOnlyObservableCollection<EssentialsAutomationTaskToggleViewModel> _taskOptionsView;
     private readonly IReadOnlyList<EssentialsAutomationIntervalOption> _intervalOptions = new[]
@@ -30,10 +31,15 @@ public sealed partial class EssentialsAutomationViewModel : ViewModelBase, IDisp
     private bool _suspendUpdates;
     private bool _disposed;
 
-    public EssentialsAutomationViewModel(EssentialsAutomationScheduler scheduler, EssentialsTaskCatalog catalog, ActivityLogService activityLog)
+    public EssentialsAutomationViewModel(
+        EssentialsAutomationScheduler scheduler,
+        EssentialsTaskCatalog catalog,
+        ActivityLogService activityLog,
+        IRelativeTimeTicker relativeTimeTicker)
     {
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
+        _relativeTimeTicker = relativeTimeTicker ?? throw new ArgumentNullException(nameof(relativeTimeTicker));
 
         if (catalog is null)
         {
@@ -50,6 +56,7 @@ public sealed partial class EssentialsAutomationViewModel : ViewModelBase, IDisp
         _taskOptionsView = new ReadOnlyObservableCollection<EssentialsAutomationTaskToggleViewModel>(_taskOptions);
         LoadFromSettings(_scheduler.CurrentSettings);
         _scheduler.SettingsChanged += OnSchedulerSettingsChanged;
+        _relativeTimeTicker.Tick += OnRelativeTimeTick;
     }
 
     public ReadOnlyObservableCollection<EssentialsAutomationTaskToggleViewModel> TaskOptions => _taskOptionsView;
@@ -274,6 +281,16 @@ public sealed partial class EssentialsAutomationViewModel : ViewModelBase, IDisp
         StatusMessage = $"Runs every {intervalLabel}. {lastRunLabel}";
     }
 
+    private void OnRelativeTimeTick(object? sender, EventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        UpdateStatusMessage();
+    }
+
     private void OnSchedulerSettingsChanged(object? sender, EssentialsAutomationSettings settings)
     {
         if (_disposed)
@@ -352,6 +369,7 @@ public sealed partial class EssentialsAutomationViewModel : ViewModelBase, IDisp
 
         _disposed = true;
         _scheduler.SettingsChanged -= OnSchedulerSettingsChanged;
+        _relativeTimeTicker.Tick -= OnRelativeTimeTick;
         foreach (var option in _taskOptions)
         {
             option.PropertyChanged -= OnTaskOptionChanged;

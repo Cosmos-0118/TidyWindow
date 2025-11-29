@@ -18,6 +18,7 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
     private readonly PackageInventoryService _inventoryService;
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
+    private readonly IRelativeTimeTicker _relativeTimeTicker;
     private readonly ObservableCollection<MaintenanceAutomationPackageOptionViewModel> _options = new();
     private ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel>? _optionsView;
     private readonly ObservableCollection<MaintenanceAutomationIntervalOption> _intervalOptions;
@@ -39,12 +40,14 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
         MaintenanceAutoUpdateScheduler scheduler,
         PackageInventoryService inventoryService,
         ActivityLogService activityLog,
-        MainViewModel mainViewModel)
+        MainViewModel mainViewModel,
+        IRelativeTimeTicker relativeTimeTicker)
     {
         _scheduler = scheduler ?? throw new ArgumentNullException(nameof(scheduler));
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _relativeTimeTicker = relativeTimeTicker ?? throw new ArgumentNullException(nameof(relativeTimeTicker));
 
         _options.CollectionChanged += (_, _) => UpdateOptionState();
         _optionsView = new ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel>(_options);
@@ -54,6 +57,7 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
 
         LoadFromSettings(_scheduler.CurrentSettings);
         _scheduler.SettingsChanged += OnSchedulerSettingsChanged;
+        _relativeTimeTicker.Tick += OnRelativeTimeTick;
     }
 
     public ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel> PackageOptions => _optionsView ??= new ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel>(_options);
@@ -537,6 +541,17 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
         UpdateSelectionState();
     }
 
+    private void OnRelativeTimeTick(object? sender, EventArgs e)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        OnPropertyChanged(nameof(LastRunSummary));
+        UpdateStatusMessage();
+    }
+
     private static string FormatInterval(int minutes)
     {
         if (minutes >= 1440 && minutes % 1440 == 0)
@@ -604,6 +619,7 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
 
         _disposed = true;
         _scheduler.SettingsChanged -= OnSchedulerSettingsChanged;
+        _relativeTimeTicker.Tick -= OnRelativeTimeTick;
         foreach (var option in _options)
         {
             option.PropertyChanged -= OnOptionPropertyChanged;
