@@ -91,7 +91,7 @@
                   HorizontalScrollBarVisibility="Disabled"
                   HorizontalContentAlignment="Stretch"
                   CanContentScroll="True"
-                  IsDeferredScrollingEnabled="True"
+                  IsDeferredScrollingEnabled="False"
                   PanningMode="VerticalOnly"
                   SizeChanged="ContentScrollViewer_SizeChanged">
         <Grid x:Name="PageContentGrid"

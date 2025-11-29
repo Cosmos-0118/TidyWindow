@@ -3,7 +3,7 @@ param(
     [ValidateSet('Enable', 'Disable')]
     [string] $Mode,
     [switch] $Enable,
-    [switch] $Disable = $true,
+    [switch] $Disable,
     [string] $ResultPath
 )
 
@@ -17,7 +17,8 @@ try {
     $resolvedMode = if (-not [string]::IsNullOrWhiteSpace($Mode)) { $Mode } elseif ($Enable.IsPresent -and -not $Disable.IsPresent) { 'Enable' } else { 'Disable' }
 
     $isEnabled = $resolvedMode -eq 'Enable'
-    $value = if ($isEnabled) { 0 } else { 1 }
+    # AllowCortana=1 enables Cortana, 0 disables it (inverse of previous logic).
+    $value = if ($isEnabled) { 1 } else { 0 }
     $stateText = if ($isEnabled) { 'enabled' } else { 'disabled' }
 
     Write-RegistryOutput ("Cortana background components will be {0}." -f $stateText)

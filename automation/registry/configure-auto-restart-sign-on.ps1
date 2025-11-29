@@ -2,7 +2,7 @@
 param(
     [Nullable[bool]] $NoAutoReboot,
     [switch] $Enable,
-    [switch] $Disable = $true,
+    [switch] $Disable,
     [string] $ResultPath
 )
 

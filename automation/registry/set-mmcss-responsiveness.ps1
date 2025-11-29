@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [switch] $Enable,
-    [switch] $Disable = $true,
+    [switch] $Disable,
     [ValidateRange(0,100)]
     [int] $ResponsivenessPercent = 10,
     [string] $ResultPath

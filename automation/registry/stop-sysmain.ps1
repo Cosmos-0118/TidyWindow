@@ -3,7 +3,7 @@ param(
     [ValidateSet('Automatic', 'Manual', 'Disabled')]
     [string] $Mode,
     [switch] $Enable,
-    [switch] $Disable = $true,
+    [switch] $Disable,
     [string] $ResultPath
 )
 

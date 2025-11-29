@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [switch] $Enable,
-    [switch] $Disable = $true,
+    [switch] $Disable,
     [string] $ResultPath
 )
 

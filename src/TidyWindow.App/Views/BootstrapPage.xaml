@@ -5,6 +5,7 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:converters="clr-namespace:TidyWindow.App.Converters"
     xmlns:controls="clr-namespace:TidyWindow.App.Views"
+    xmlns:loaders="clr-namespace:TidyWindow.App.Controls.Loaders"
     mc:Ignorable="d"
     Title="Bootstrap"
     Background="Transparent">
@@ -126,26 +127,27 @@
 
     </Page.Resources>
 
-    <ScrollViewer x:Name="RootScrollViewer"
-                  Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False"
-                  PanningMode="VerticalOnly">
-        <Grid x:Name="PageGrid"
-              MinWidth="720">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+    <Grid>
+        <ScrollViewer x:Name="RootScrollViewer"
+                      Margin="32"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      CanContentScroll="False"
+                      PanningMode="VerticalOnly">
+            <Grid x:Name="PageGrid"
+                  MinWidth="720">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
 
             <controls:PageTitleBar Title="Bootstrap workspace"
                                     Subtitle="{Binding Headline}"
                                     IconGlyph="🧰"
                                     Margin="0,0,0,20"/>
 
-            <Grid x:Name="LayoutGrid"
-                  Grid.Row="1">
+                <Grid x:Name="LayoutGrid"
+                      Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="3*"
                                       MinWidth="360"/>
@@ -221,31 +223,12 @@
                                 </StackPanel>
                             </Grid>
 
-                    <Grid Grid.Row="2"
-                        Margin="0,20,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ProgressBar Grid.Column="0"
-                                             Width="140"
-                                             Height="6"
-                                             Margin="0,0,16,0"
-                                             IsIndeterminate="True"
-                                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                             Foreground="#38BDF8"
-                                             Background="#0F172A"/>
-                                <TextBlock Grid.Column="1"
-                                           VerticalAlignment="Center"
+                            <Grid Grid.Row="2"
+                                  Margin="0,20,0,0">
+                                <TextBlock VerticalAlignment="Center"
                                            Foreground="#CBD5F5"
                                            TextWrapping="Wrap"
                                            Text="{Binding Managers.Count, Mode=OneWay, StringFormat=Detected {0} package manager candidates.}"/>
-                                <TextBlock Grid.Column="2"
-                                           VerticalAlignment="Center"
-                                           Foreground="{StaticResource BootstrapMutedForeground}"
-                                           Text="Working..."
-                                           Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </Grid>
                         </Grid>
                     </Border>
@@ -602,5 +585,19 @@
                 </StackPanel>
             </Grid>
         </Grid>
-    </ScrollViewer>
+        </ScrollViewer>
+
+        <loaders:BootstrapInstallLoader Panel.ZIndex="6"
+                                        IsActive="{Binding IsInstalling}"
+                                        HorizontalAlignment="Stretch"
+                                        VerticalAlignment="Stretch"/>
+        <loaders:BootstrapUninstallLoader Panel.ZIndex="7"
+                                          IsActive="{Binding IsUninstalling}"
+                                          HorizontalAlignment="Stretch"
+                                          VerticalAlignment="Stretch"/>
+        <loaders:BootstrapUpdateLoader Panel.ZIndex="8"
+                                       IsActive="{Binding IsUpdating}"
+                                       HorizontalAlignment="Stretch"
+                                       VerticalAlignment="Stretch"/>
+    </Grid>
 </Page>

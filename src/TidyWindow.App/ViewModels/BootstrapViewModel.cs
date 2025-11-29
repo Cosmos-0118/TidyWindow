@@ -30,6 +30,15 @@ public sealed partial class BootstrapViewModel : ViewModelBase
     private bool _isBusy;
 
     [ObservableProperty]
+    private bool _isInstalling;
+
+    [ObservableProperty]
+    private bool _isUninstalling;
+
+    [ObservableProperty]
+    private bool _isUpdating;
+
+    [ObservableProperty]
     private string _headline = "Check your package manager tools";
 
     public ObservableCollection<PackageManagerEntryViewModel> Managers { get; } = new();
@@ -57,6 +66,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            IsUpdating = true;
             _activityLog.LogInformation("Bootstrap", $"Detecting package managers (include Scoop: {includeScoop}; include Chocolatey: {includeChocolatey}).");
 
             var results = await _detector.DetectAsync(includeScoop, includeChocolatey);
@@ -74,6 +84,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         }
         finally
         {
+            IsUpdating = false;
             IsBusy = false;
         }
     }
@@ -103,6 +114,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            IsInstalling = true;
             manager.IsBusy = true;
             manager.LastOperationMessage = "Preparing install...";
             manager.LastOperationSucceeded = null;
@@ -162,6 +174,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
             }
 
             manager.IsBusy = false;
+            IsInstalling = false;
             IsBusy = false;
         }
 
@@ -193,6 +206,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            IsUninstalling = true;
             manager.IsBusy = true;
             manager.LastOperationMessage = "Preparing uninstall...";
             manager.LastOperationSucceeded = null;
@@ -253,6 +267,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
             }
 
             manager.IsBusy = false;
+            IsUninstalling = false;
             IsBusy = false;
         }
 

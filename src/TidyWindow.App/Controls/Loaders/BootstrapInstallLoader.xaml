@@ -1,0 +1,249 @@
+<UserControl x:Class="TidyWindow.App.Controls.Loaders.BootstrapInstallLoader"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignWidth="640"
+             d:DesignHeight="420">
+    <UserControl.Resources>
+        <LinearGradientBrush x:Key="LoaderBackdropBrush"
+                             StartPoint="0,0"
+                             EndPoint="1,1">
+            <GradientStop Color="#C005111B"
+                          Offset="0"/>
+            <GradientStop Color="#C0071C2C"
+                          Offset="0.55"/>
+            <GradientStop Color="#C009243C"
+                          Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="LoaderSurfaceBrush"
+                          Color="#0B1322"/>
+        <SolidColorBrush x:Key="LoaderBorderBrush"
+                          Color="#1F2D44"/>
+        <SolidColorBrush x:Key="LoaderPrimaryBrush"
+                          Color="#22C55E"/>
+        <SolidColorBrush x:Key="LoaderAccentBrush"
+                          Color="#86EFAC"/>
+        <SolidColorBrush x:Key="LoaderMutedBrush"
+                          Color="#9CAFCB"/>
+
+        <Storyboard x:Key="LoaderSpinnerStoryboard">
+            <DoubleAnimation Storyboard.TargetName="SpinnerRotateTransform"
+                             Storyboard.TargetProperty="Angle"
+                             From="0"
+                             To="360"
+                             Duration="0:0:1.8"
+                             RepeatBehavior="Forever"/>
+            <DoubleAnimation Storyboard.TargetName="ProgressSweepTranslate"
+                             Storyboard.TargetProperty="X"
+                             From="-180"
+                             To="180"
+                             Duration="0:0:1.6"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever"/>
+            <DoubleAnimation Storyboard.TargetName="InstallOrbitDotOuterRotate"
+                             Storyboard.TargetProperty="Angle"
+                             From="0"
+                             To="360"
+                             Duration="0:0:3"
+                             RepeatBehavior="Forever"/>
+            <DoubleAnimation Storyboard.TargetName="InstallOrbitDotInnerRotate"
+                             Storyboard.TargetProperty="Angle"
+                             From="360"
+                             To="0"
+                             Duration="0:0:2.4"
+                             RepeatBehavior="Forever"/>
+        </Storyboard>
+    </UserControl.Resources>
+
+    <Grid x:Name="OverlayRoot"
+          Background="{StaticResource LoaderBackdropBrush}"
+          Opacity="0"
+          Visibility="Collapsed"
+          IsHitTestVisible="{Binding IsActive, RelativeSource={RelativeSource AncestorType=UserControl}}">
+        <Border HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="{StaticResource LoaderSurfaceBrush}"
+                CornerRadius="28"
+                Padding="40"
+                BorderBrush="{StaticResource LoaderBorderBrush}"
+                BorderThickness="1.4">
+            <Border.Effect>
+                <DropShadowEffect Color="#040A15"
+                                  Direction="270"
+                                  ShadowDepth="6"
+                                  BlurRadius="28"
+                                  Opacity="0.55"/>
+            </Border.Effect>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="32"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0"
+                            VerticalAlignment="Center">
+                    <Grid Width="110"
+                          Height="110">
+                        <Ellipse Width="110"
+                                 Height="110"
+                                 Stroke="#1D2A40"
+                                 StrokeThickness="2.2"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"/>
+                        <Ellipse Width="84"
+                                 Height="84"
+                                 Stroke="#253853"
+                                 StrokeThickness="2"
+                                 StrokeDashArray="3 5"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"/>
+                        <Ellipse Width="84"
+                                 Height="84"
+                                 Stroke="{StaticResource LoaderPrimaryBrush}"
+                                 StrokeThickness="6"
+                                 StrokeDashArray="1 2"
+                                 StrokeStartLineCap="Round"
+                                 StrokeEndLineCap="Round"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <RotateTransform x:Name="SpinnerRotateTransform"/>
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                        <Path Data="M2,6 C12,2 24,2 34,6"
+                              Stroke="#15803D"
+                              StrokeThickness="2"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Width="52"
+                              Height="16"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Top"
+                              Margin="0,8,0,0"/>
+                        <Ellipse Width="94"
+                                 Height="94"
+                                 Stroke="#143023"
+                                 StrokeDashArray="4 6"
+                                 StrokeThickness="1.2"
+                                 Opacity="0.65"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"/>
+                        <Grid Width="94"
+                              Height="94"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <RotateTransform x:Name="InstallOrbitDotOuterRotate"/>
+                            </Grid.RenderTransform>
+                            <Ellipse Width="18"
+                                     Height="18"
+                                     Fill="#054321"
+                                     Stroke="#0F2016"
+                                     StrokeThickness="1"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Top"
+                                     Margin="0,-10,0,0"/>
+                            <Ellipse Width="12"
+                                     Height="12"
+                                     Fill="#FDE047"
+                                     Stroke="#463F0B"
+                                     StrokeThickness="1"
+                                     HorizontalAlignment="Right"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,-8,0"/>
+                        </Grid>
+                        <Grid Width="70"
+                              Height="70"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <RotateTransform x:Name="InstallOrbitDotInnerRotate"/>
+                            </Grid.RenderTransform>
+                            <Ellipse Width="10"
+                                     Height="10"
+                                     Fill="#22C55E"
+                                     Stroke="#0E3B20"
+                                     StrokeThickness="1"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Bottom"
+                                     Margin="0,0,0,-8"/>
+                        </Grid>
+                    </Grid>
+                </StackPanel>
+
+                    <Grid Grid.Column="1"
+                        Width="32"/>
+
+                <StackPanel Grid.Column="2"
+                            VerticalAlignment="Center">
+                    <TextBlock Text="Running install or repair"
+                               FontSize="22"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"/>
+                    <TextBlock Text="Applying curated bootstrap automation to bring package managers online"
+                               Margin="0,6,0,0"
+                               FontSize="13"
+                               Foreground="{StaticResource LoaderMutedBrush}"
+                               TextWrapping="Wrap"/>
+
+                    <StackPanel Margin="0,18,0,0">
+                        <DockPanel Margin="0,0,0,8">
+                            <Ellipse Width="8"
+                                     Height="8"
+                                     Fill="{StaticResource LoaderPrimaryBrush}"
+                                     Margin="0,4,10,0"/>
+                            <TextBlock Text="Validating runtime prerequisites and environment variables"
+                                       Foreground="#E2F8EC"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"/>
+                        </DockPanel>
+                        <DockPanel Margin="0,0,0,8">
+                            <Ellipse Width="8"
+                                     Height="8"
+                                     Fill="#34D399"
+                                     Margin="0,4,10,0"/>
+                            <TextBlock Text="Executing installer or repair scripts with elevated permissions"
+                                       Foreground="#E2F8EC"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"/>
+                        </DockPanel>
+                        <DockPanel>
+                            <Ellipse Width="8"
+                                     Height="8"
+                                     Fill="#FACC15"
+                                     Margin="0,4,10,0"/>
+                            <TextBlock Text="Refreshing telemetry and health markers before resuming detection"
+                                       Foreground="#E2F8EC"
+                                       FontSize="12"
+                                       TextWrapping="Wrap"/>
+                        </DockPanel>
+                    </StackPanel>
+
+                    <Border Margin="0,22,0,0"
+                            Height="6"
+                            CornerRadius="3"
+                            Background="#132032">
+                        <Grid ClipToBounds="True">
+                            <Rectangle Width="240"
+                                       Height="6"
+                                       Fill="{StaticResource LoaderAccentBrush}">
+                                <Rectangle.RenderTransform>
+                                    <TranslateTransform x:Name="ProgressSweepTranslate"
+                                                        X="-180"/>
+                                </Rectangle.RenderTransform>
+                            </Rectangle>
+                        </Grid>
+                    </Border>
+
+                    <TextBlock Text="Keep this page open while we finish repairing your tooling."
+                               Margin="0,14,0,0"
+                               FontSize="12"
+                               Foreground="#94A3B8"
+                               TextWrapping="Wrap"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

@@ -1,7 +1,7 @@
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [switch] $Enable,
-    [switch] $Disable = $true,
+    [switch] $Disable,
     [string] $ResultPath
 )
 
@@ -16,7 +16,8 @@ try {
     $path = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Multimedia\SystemProfile'
 
     if ($apply) {
-        $change = Set-RegistryValue -Path $path -Name 'NetworkThrottlingIndex' -Value 0xffffffff -Type 'DWord'
+        $maxThrottle = [uint32]::MaxValue
+        $change = Set-RegistryValue -Path $path -Name 'NetworkThrottlingIndex' -Value $maxThrottle -Type 'DWord'
         Register-RegistryChange -Change $change -Description 'Disabled multimedia network throttling.'
         Write-RegistryOutput 'Network throttling disabled (0xFFFFFFFF).'
     }
