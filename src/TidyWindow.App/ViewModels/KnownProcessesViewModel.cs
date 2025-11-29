@@ -64,24 +64,25 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
             return;
         }
 
-        Refresh();
+        _ = RefreshAsync();
         AntiSystem.EnsureInitialized();
         _isInitialized = true;
     }
 
     [RelayCommand]
-    private void Refresh()
+    private async Task RefreshAsync()
     {
         if (IsBusy)
         {
             return;
         }
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             IsBusy = true;
-            _mainViewModel.SetStatusMessage("Loading known processes...");
-            var snapshot = _catalogParser.LoadSnapshot();
+            _mainViewModel.SetStatusMessage("Refreshing known processes...");
+            var snapshot = await Task.Run(() => _catalogParser.LoadSnapshot());
             var preferenceLookup = BuildPreferenceLookup(_stateStore.GetPreferences());
 
             Categories.Clear();
@@ -107,6 +108,9 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
 
             HasProcesses = Categories.Count > 0;
             UpdateSummary();
+
+            await Preferences.RefreshProcessPreferencesAsync();
+            await AntiSystem.RefreshAsync();
         }
         catch (Exception ex)
         {
@@ -115,6 +119,13 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         }
         finally
         {
+            var minimumDelay = TimeSpan.FromSeconds(2);
+            var elapsed = stopwatch.Elapsed;
+            if (elapsed < minimumDelay)
+            {
+                await Task.Delay(minimumDelay - elapsed);
+            }
+
             IsBusy = false;
             _mainViewModel.SetStatusMessage("Ready");
         }

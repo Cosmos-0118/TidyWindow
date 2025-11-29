@@ -390,10 +390,51 @@
                                BadgeText="{Binding Categories.Count, StringFormat={}{0} groups}"
                                Margin="0,0,0,16">
             <controls:PageTitleBar.TrailingContent>
-                <Button Content="Refresh"
-                        Padding="16,8"
+                <Button Padding="16,8"
                         Style="{StaticResource ProcessSecondaryButtonStyle}"
-                        Command="{Binding RefreshCommand}" />
+                        Command="{Binding RefreshCommand}">
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
+                        <Grid Width="18"
+                              Height="18"
+                              Margin="0,0,8,0"
+                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              RenderTransformOrigin="0.5,0.5">
+                            <Grid.RenderTransform>
+                                <RotateTransform />
+                            </Grid.RenderTransform>
+                            <Ellipse Width="16"
+                                     Height="16"
+                                     Stroke="#5EEAD4"
+                                     StrokeThickness="2"
+                                     StrokeDashArray="12 6"
+                                     StrokeStartLineCap="Round"
+                                     StrokeEndLineCap="Round"
+                                     Opacity="0.9" />
+                            <Grid.Triggers>
+                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                    <BeginStoryboard>
+                                        <Storyboard RepeatBehavior="Forever">
+                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                             From="0"
+                                                             To="360"
+                                                             Duration="0:0:1.1" />
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </EventTrigger>
+                            </Grid.Triggers>
+                        </Grid>
+                        <Grid>
+                            <TextBlock Text="Refresh"
+                                       Foreground="#F8FAFC"
+                                       Visibility="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                            <TextBlock Text="Refreshing..."
+                                       Foreground="#F8FAFC"
+                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                        </Grid>
+                    </StackPanel>
+                </Button>
             </controls:PageTitleBar.TrailingContent>
             <controls:PageTitleBar.BodyContent>
                 <Border Background="#0D1930"

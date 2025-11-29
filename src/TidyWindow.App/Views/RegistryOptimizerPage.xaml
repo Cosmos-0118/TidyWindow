@@ -82,6 +82,10 @@
                     </DataTrigger>
                 </Style.Triggers>
             </Style>
+
+            <SolidColorBrush x:Key="RegistryLoaderBackdropBrush" Color="#102136"/>
+            <SolidColorBrush x:Key="RegistryLoaderAccentBrush" Color="#38BDF8"/>
+            <SolidColorBrush x:Key="RegistryLoaderSoftBrush" Color="#5EEAD4"/>
         </ResourceDictionary>
     </Page.Resources>
 
@@ -650,10 +654,69 @@
                                        Foreground="#64748B"
                                        Margin="0,4,0,12"
                                        TextWrapping="Wrap"/>
-                            <Button Content="{x:Static strings:RegistryOptimizerStrings.ApplyButton}"
-                                    Command="{Binding ApplyCommand}"
-                                    Style="{StaticResource RegistryAccentButtonStyle}"
-                                    HorizontalAlignment="Stretch"/>
+                            <Grid>
+                                <Button Content="{x:Static strings:RegistryOptimizerStrings.ApplyButton}"
+                                        Command="{Binding ApplyCommand}"
+                                        Style="{StaticResource RegistryAccentButtonStyle}"
+                                        HorizontalAlignment="Stretch"/>
+                                <Border CornerRadius="12"
+                                        Background="{StaticResource RegistryLoaderBackdropBrush}"
+                                        Opacity="0.95"
+                                        Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        IsHitTestVisible="False"
+                                        Margin="0">
+                                    <StackPanel HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Margin="12,10">
+                                        <Grid Width="22"
+                                              Height="22"
+                                              RenderTransformOrigin="0.5,0.5"
+                                              HorizontalAlignment="Center"
+                                              Margin="0,0,0,8">
+                                            <Grid.RenderTransform>
+                                                <RotateTransform x:Name="RegistryApplySpinnerRotate"/>
+                                            </Grid.RenderTransform>
+                                            <Grid.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetName="RegistryApplySpinnerRotate"
+                                                                             Storyboard.TargetProperty="Angle"
+                                                                             From="0"
+                                                                             To="360"
+                                                                             Duration="0:0:1.2"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Grid.Triggers>
+                                            <Ellipse Width="22"
+                                                     Height="22"
+                                                     Stroke="{StaticResource RegistryLoaderAccentBrush}"
+                                                     StrokeThickness="2.2"
+                                                     StrokeDashArray="16 10"
+                                                     StrokeStartLineCap="Round"
+                                                     StrokeEndLineCap="Round"
+                                                     Opacity="0.85"/>
+                                            <Ellipse Width="10"
+                                                     Height="10"
+                                                     Fill="{StaticResource RegistryLoaderSoftBrush}"
+                                                     Opacity="0.9"
+                                                     HorizontalAlignment="Center"
+                                                     VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <TextBlock Text="Applying staged tweaks"
+                                                   Foreground="#F8FAFC"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Text="Keep this page open"
+                                                   Foreground="#94A3B8"
+                                                   FontSize="11"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,2,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
                             <Button Content="{x:Static strings:RegistryOptimizerStrings.RevertButton}"
                                     Command="{Binding RevertChangesCommand}"
                                     Style="{StaticResource RegistrySecondaryButtonStyle}"

@@ -92,7 +92,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task RefreshAsync()
+    public async Task RefreshAsync()
     {
         if (IsBusy)
         {

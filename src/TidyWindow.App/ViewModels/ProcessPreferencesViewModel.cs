@@ -185,7 +185,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task RefreshProcessPreferencesAsync()
+    public async Task RefreshProcessPreferencesAsync()
     {
         if (IsProcessSettingsBusy)
         {
