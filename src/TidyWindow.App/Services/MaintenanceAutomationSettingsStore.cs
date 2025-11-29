@@ -18,9 +18,12 @@ public sealed class MaintenanceAutomationSettingsStore
     private readonly JsonSerializerOptions _serializerOptions;
     private readonly object _syncRoot = new();
 
-    public MaintenanceAutomationSettingsStore()
+    public MaintenanceAutomationSettingsStore(string? rootPath = null)
     {
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow");
+        var root = string.IsNullOrWhiteSpace(rootPath)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TidyWindow")
+            : rootPath;
+
         Directory.CreateDirectory(root);
         _filePath = Path.Combine(root, "maintenance-automation.json");
         _serializerOptions = new JsonSerializerOptions

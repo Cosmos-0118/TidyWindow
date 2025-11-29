@@ -260,11 +260,6 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
             IsBusy = true;
             _mainViewModel.SetStatusMessage("Running maintenance automation...");
             var result = await _scheduler.RunOnceAsync().ConfigureAwait(false);
-            if (result.WasSkipped)
-            {
-                var reason = string.IsNullOrWhiteSpace(result.SkipReason) ? "Automation run skipped." : result.SkipReason;
-                _activityLog.LogInformation("Maintenance automation", reason);
-            }
         }
         catch (Exception ex)
         {
@@ -498,6 +493,8 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
 
     private void ApplySchedulerSettingsUpdate(MaintenanceAutomationSettings settings)
     {
+        LastRunUtc = settings.LastRunUtc;
+
         if (HasPendingChanges)
         {
             return;
