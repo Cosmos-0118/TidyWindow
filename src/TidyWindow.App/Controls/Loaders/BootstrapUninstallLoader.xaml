@@ -10,49 +10,55 @@
         <LinearGradientBrush x:Key="LoaderBackdropBrush"
                              StartPoint="0,0"
                              EndPoint="1,1">
-            <GradientStop Color="#C00F0404"
+            <GradientStop Color="#B0130505"
                           Offset="0"/>
-            <GradientStop Color="#C0150707"
-                          Offset="0.5"/>
-            <GradientStop Color="#C01D0B0B"
+            <GradientStop Color="#B0280C0C"
                           Offset="1"/>
         </LinearGradientBrush>
         <SolidColorBrush x:Key="LoaderSurfaceBrush"
-                          Color="#12090C"/>
+                          Color="#170709"/>
         <SolidColorBrush x:Key="LoaderBorderBrush"
-                          Color="#2A1A1F"/>
-        <SolidColorBrush x:Key="LoaderPrimaryBrush"
-                          Color="#F97316"/>
+                          Color="#3A1A1F"/>
         <SolidColorBrush x:Key="LoaderAccentBrush"
+                          Color="#F97316"/>
+        <SolidColorBrush x:Key="LoaderAccentSoftBrush"
                           Color="#FDBA74"/>
         <SolidColorBrush x:Key="LoaderMutedBrush"
-                          Color="#F4C7B6"/>
+                          Color="#FAD5C5"/>
 
         <Storyboard x:Key="LoaderSpinnerStoryboard">
             <DoubleAnimation Storyboard.TargetName="SpinnerRotateTransform"
                              Storyboard.TargetProperty="Angle"
                              From="0"
                              To="360"
-                             Duration="0:0:1.7"
+                             Duration="0:0:2"
+                             RepeatBehavior="Forever"/>
+            <DoubleAnimation Storyboard.TargetName="OrbitRotateTransform"
+                             Storyboard.TargetProperty="Angle"
+                             From="0"
+                             To="360"
+                             Duration="0:0:3.2"
+                             RepeatBehavior="Forever"/>
+            <DoubleAnimation Storyboard.TargetName="PulseScaleTransform"
+                             Storyboard.TargetProperty="ScaleX"
+                             From="1"
+                             To="1.2"
+                             Duration="0:0:1.1"
+                             AutoReverse="True"
+                             RepeatBehavior="Forever"/>
+            <DoubleAnimation Storyboard.TargetName="PulseScaleTransform"
+                             Storyboard.TargetProperty="ScaleY"
+                             From="1"
+                             To="1.2"
+                             Duration="0:0:1.1"
+                             AutoReverse="True"
                              RepeatBehavior="Forever"/>
             <DoubleAnimation Storyboard.TargetName="ProgressSweepTranslate"
                              Storyboard.TargetProperty="X"
                              From="-170"
                              To="170"
-                             Duration="0:0:1.4"
+                             Duration="0:0:1.6"
                              AutoReverse="True"
-                             RepeatBehavior="Forever"/>
-            <DoubleAnimation Storyboard.TargetName="UninstallOrbitDotOuterRotate"
-                             Storyboard.TargetProperty="Angle"
-                             From="0"
-                             To="360"
-                             Duration="0:0:2.8"
-                             RepeatBehavior="Forever"/>
-            <DoubleAnimation Storyboard.TargetName="UninstallOrbitDotInnerRotate"
-                             Storyboard.TargetProperty="Angle"
-                             From="360"
-                             To="0"
-                             Duration="0:0:3.4"
                              RepeatBehavior="Forever"/>
         </Storyboard>
     </UserControl.Resources>
@@ -68,186 +74,148 @@
                 CornerRadius="28"
                 Padding="40"
                 BorderBrush="{StaticResource LoaderBorderBrush}"
-                BorderThickness="1.4">
+                BorderThickness="1.25">
             <Border.Effect>
                 <DropShadowEffect Color="#050202"
                                   Direction="270"
                                   ShadowDepth="6"
-                                  BlurRadius="26"
+                                  BlurRadius="28"
                                   Opacity="0.55"/>
             </Border.Effect>
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="220"/>
                     <ColumnDefinition Width="32"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0"
-                            VerticalAlignment="Center">
-                    <Grid Width="110"
-                          Height="110">
-                        <Ellipse Width="110"
-                                 Height="110"
-                                 Stroke="#2C181D"
+                <Grid Grid.Column="0"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Grid Width="170"
+                          Height="170">
+                        <Ellipse Fill="#140507"
+                                 Stroke="#2D0F14"
+                                 StrokeThickness="1.5"/>
+                        <Ellipse Width="150"
+                                 Height="150"
+                                 Stroke="#4C1C23"
                                  StrokeThickness="2"
-                                 HorizontalAlignment="Center"
-                                 VerticalAlignment="Center"/>
-                        <Ellipse Width="86"
-                                 Height="86"
-                                 Stroke="#3A1D23"
-                                 StrokeThickness="2"
-                                 StrokeDashArray="2 4"
-                                 StrokeDashCap="Round"
-                                 HorizontalAlignment="Center"
-                                 VerticalAlignment="Center"/>
-                        <Ellipse Width="86"
-                                 Height="86"
-                                 Stroke="{StaticResource LoaderPrimaryBrush}"
-                                 StrokeThickness="6"
-                                 StrokeDashArray="1 2"
+                                 StrokeDashArray="14 12"
+                                 Opacity="0.55"/>
+                        <Ellipse Width="150"
+                                 Height="150"
+                                 Stroke="{StaticResource LoaderAccentBrush}"
+                                 StrokeThickness="4"
+                                 StrokeDashArray="26 18"
                                  StrokeStartLineCap="Round"
                                  StrokeEndLineCap="Round"
-                                 HorizontalAlignment="Center"
-                                 VerticalAlignment="Center"
                                  RenderTransformOrigin="0.5,0.5">
                             <Ellipse.RenderTransform>
                                 <RotateTransform x:Name="SpinnerRotateTransform"/>
                             </Ellipse.RenderTransform>
                         </Ellipse>
-                        <Path Data="M4,14 L20,0 L36,14"
-                              Stroke="#DC2626"
-                              StrokeThickness="3"
-                              StrokeLineJoin="Round"
-                              StrokeStartLineCap="Round"
-                              StrokeEndLineCap="Round"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Top"
-                              Margin="0,10,0,0"/>
-                        <Rectangle Width="18"
-                                   Height="18"
-                                   RadiusX="3"
-                                   RadiusY="3"
-                                   Fill="#3F0A11"
-                                   Stroke="#6B0F19"
-                                   StrokeThickness="1.2"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center">
-                            <Rectangle.Effect>
-                                <BlurEffect Radius="0.5"/>
-                            </Rectangle.Effect>
-                        </Rectangle>
-                        <Path Data="M2,2 L14,14 M14,2 L2,14"
-                              Stroke="#F87171"
-                              StrokeThickness="2.2"
-                              HorizontalAlignment="Center"
-                              VerticalAlignment="Center"
-                              Stretch="Fill"
-                              Width="14"
-                              Height="14"/>
-                        <Ellipse Width="94"
-                                 Height="94"
-                                 Stroke="#3F1219"
-                                 StrokeDashArray="4 7"
-                                 StrokeThickness="1.2"
-                                 Opacity="0.6"
-                                 HorizontalAlignment="Center"
-                                 VerticalAlignment="Center"/>
-                        <Grid Width="94"
-                              Height="94"
+                        <Ellipse Width="110"
+                                 Height="110"
+                                 Fill="#2B0D12"
+                                 Opacity="0.85"/>
+                        <Ellipse Width="90"
+                                 Height="90"
+                                 Fill="#3D1118"
+                                 Stroke="#612028"
+                                 StrokeThickness="1.2"/>
+                        <Ellipse Width="70"
+                                 Height="70"
+                                 Fill="{StaticResource LoaderAccentBrush}"
+                                 Opacity="0.25"
+                                 RenderTransformOrigin="0.5,0.5">
+                            <Ellipse.RenderTransform>
+                                <ScaleTransform x:Name="PulseScaleTransform"
+                                                ScaleX="1"
+                                                ScaleY="1"/>
+                            </Ellipse.RenderTransform>
+                        </Ellipse>
+                        <Grid Width="150"
+                              Height="150"
                               RenderTransformOrigin="0.5,0.5">
                             <Grid.RenderTransform>
-                                <RotateTransform x:Name="UninstallOrbitDotOuterRotate"/>
+                                <RotateTransform x:Name="OrbitRotateTransform"/>
                             </Grid.RenderTransform>
-                            <Ellipse Width="18"
-                                     Height="18"
-                                     Fill="#3C0B12"
-                                     Stroke="#650F19"
-                                     StrokeThickness="1"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Top"
-                                     Margin="0,-10,0,0"/>
-                            <Ellipse Width="12"
-                                     Height="12"
-                                     Fill="#FACC15"
-                                     Stroke="#633F05"
-                                     StrokeThickness="1"
-                                     HorizontalAlignment="Right"
-                                     VerticalAlignment="Center"
-                                     Margin="0,0,-8,0"/>
-                        </Grid>
-                        <Grid Width="70"
-                              Height="70"
-                              RenderTransformOrigin="0.5,0.5">
-                            <Grid.RenderTransform>
-                                <RotateTransform x:Name="UninstallOrbitDotInnerRotate"/>
-                            </Grid.RenderTransform>
-                            <Ellipse Width="10"
-                                     Height="10"
-                                     Fill="#FB7185"
-                                     Stroke="#6B0315"
-                                     StrokeThickness="1"
-                                     HorizontalAlignment="Center"
-                                     VerticalAlignment="Bottom"
-                                     Margin="0,0,0,-8"/>
+                            <Border Width="16"
+                                    Height="16"
+                                    CornerRadius="8"
+                                    Background="{StaticResource LoaderAccentSoftBrush}"
+                                    BorderBrush="#522016"
+                                    BorderThickness="1"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Top"
+                                    Margin="0,-8,0,0"/>
                         </Grid>
                     </Grid>
-                </StackPanel>
+                </Grid>
 
-                    <Grid Grid.Column="1"
-                        Width="32"/>
+                <Rectangle Grid.Column="1"
+                           Width="1"
+                           Margin="16,0"
+                           Fill="#4C1C23"
+                           Opacity="0.4"/>
 
                 <StackPanel Grid.Column="2"
                             VerticalAlignment="Center">
                     <TextBlock Text="Removing package manager"
                                FontSize="22"
                                FontWeight="SemiBold"
-                               Foreground="#FFE9E3"/>
-                    <TextBlock Text="Detaching scheduled tasks, services, and caches before cleanup completes"
+                               Foreground="#FFEAE0"/>
+                    <TextBlock Text="Detaching scheduled tasks, services, and caches before cleanup completes."
                                Margin="0,6,0,0"
                                FontSize="13"
                                Foreground="{StaticResource LoaderMutedBrush}"
                                TextWrapping="Wrap"/>
 
                     <StackPanel Margin="0,18,0,0">
-                        <DockPanel Margin="0,0,0,8">
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,8">
                             <Ellipse Width="8"
                                      Height="8"
-                                     Fill="#F97316"
-                                     Margin="0,4,10,0"/>
-                            <TextBlock Text="Stopping background processes and telemetry channels"
-                                       Foreground="#FFDCD0"
+                                     Fill="{StaticResource LoaderAccentBrush}"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="Stopping services, scheduled tasks, and telemetry hooks"
+                                       Foreground="#FFE2DA"
                                        FontSize="12"
+                                       Margin="10,0,0,0"
                                        TextWrapping="Wrap"/>
-                        </DockPanel>
-                        <DockPanel Margin="0,0,0,8">
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,8">
                             <Ellipse Width="8"
                                      Height="8"
-                                     Fill="#FB7185"
-                                     Margin="0,4,10,0"/>
-                            <TextBlock Text="Removing binaries, scheduled tasks, and registry hooks safely"
-                                       Foreground="#FFDCD0"
+                                     Fill="{StaticResource LoaderAccentSoftBrush}"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="Removing binaries, cache folders, and registry entries"
+                                       Foreground="#FFE2DA"
                                        FontSize="12"
+                                       Margin="10,0,0,0"
                                        TextWrapping="Wrap"/>
-                        </DockPanel>
-                        <DockPanel>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
                             <Ellipse Width="8"
                                      Height="8"
-                                     Fill="#FACC15"
-                                     Margin="0,4,10,0"/>
-                            <TextBlock Text="Re-evaluating bootstrap inventory and refreshing next steps"
-                                       Foreground="#FFDCD0"
+                                     Fill="#FED7AA"
+                                     VerticalAlignment="Center"/>
+                            <TextBlock Text="Rehydrating inventory so bootstrap history stays accurate"
+                                       Foreground="#FFE2DA"
                                        FontSize="12"
+                                       Margin="10,0,0,0"
                                        TextWrapping="Wrap"/>
-                        </DockPanel>
+                        </StackPanel>
                     </StackPanel>
 
                     <Border Margin="0,22,0,0"
                             Height="6"
                             CornerRadius="3"
-                            Background="#2B1418">
+                            Background="#2B1014">
                         <Grid ClipToBounds="True">
-                            <Rectangle Width="240"
+                            <Rectangle Width="220"
                                        Height="6"
                                        Fill="{StaticResource LoaderAccentBrush}">
                                 <Rectangle.RenderTransform>
@@ -261,7 +229,7 @@
                     <TextBlock Text="Hold tight while we scrub the remaining artifacts."
                                Margin="0,14,0,0"
                                FontSize="12"
-                               Foreground="#FCD9D2"
+                               Foreground="#FAD5C5"
                                TextWrapping="Wrap"/>
                 </StackPanel>
             </Grid>
