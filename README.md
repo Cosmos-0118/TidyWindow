@@ -89,4 +89,4 @@ TidyWindow is distributed under the MIT License. See [`LICENSE`](LICENSE) for de
 ## Credits
 
 -   This project was developed with the assistance of GitHub Copilot.
-
+-   Package management helpers integrate with winget (Microsoft), Scoop (ScoopInstaller), and Chocolatey (Chocolatey Software).
