@@ -319,6 +319,49 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="CleanupToggleSwitchStyle"
+               TargetType="ToggleButton">
+            <Setter Property="Width" Value="52"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Background" Value="#1F3356"/>
+            <Setter Property="BorderBrush" Value="#1F3356"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="#2A4570"
+                                    BorderThickness="1"
+                                    CornerRadius="14"/>
+                            <Ellipse x:Name="Thumb"
+                                     Width="22"
+                                     Height="22"
+                                     Fill="{StaticResource CleanupSoftTextBrush}"
+                                     Margin="4,3,26,3"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="{StaticResource CleanupAccentBrush}"/>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource CleanupAccentBrush}"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="26,3,4,3"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#041225"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Opacity" Value="0.5"/>
+                                <Setter TargetName="Thumb" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource CleanupAccentBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Storyboard x:Key="PhaseEnterStoryboard"
                     x:Shared="False">
             <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
@@ -1062,12 +1105,20 @@
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"/>
                     </Border>
-                    <StackPanel Grid.Column="1"
-                                Margin="20,0,0,0">
-                        <TextBlock Text="Phase 1 — Configure scan"
+                        <StackPanel Grid.Column="1"
+                            Margin="20,0,0,0">
+                        <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="Phase 1 — Configure scan"
                                    Foreground="{StaticResource CleanupAccentBrush}"
                                    FontWeight="SemiBold"
                                    FontSize="14"/>
+                            <Button Content="Automation"
+                                Margin="12,0,0,0"
+                                Style="{StaticResource FlatButtonStyle}"
+                                Padding="12,4"
+                                Command="{Binding ToggleAutomationPanelCommand}"/>
+                        </StackPanel>
                         <TextBlock Text="Shape your cleanup preview"
                                    FontSize="26"
                                    FontWeight="Bold"
@@ -1094,6 +1145,164 @@
                     </StackPanel>
                 </Grid>
             </Border>
+
+        <Border Background="{StaticResource CleanupSurfaceBaseBrush}"
+            BorderBrush="{StaticResource CleanupBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="14"
+            Padding="24"
+            Margin="0,0,0,28"
+            Effect="{StaticResource SurfaceShadowEffect}">
+            <Border.Style>
+            <Style TargetType="Border" BasedOn="{StaticResource SetupPhaseContainerStyle}">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsAutomationPanelVisible}" Value="True">
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel>
+                        <TextBlock Text="Cleanup automation"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                        <TextBlock Text="Run lightweight cleanup passes on a cadence without reopening TidyWindow."
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <ToggleButton Margin="16,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Style="{StaticResource CleanupToggleSwitchStyle}"
+                                  IsChecked="{Binding IsCleanupAutomationEnabled, Mode=TwoWay}"/>
+                </StackPanel>
+                <TextBlock Text="{Binding AutomationStatusMessage}"
+                           Foreground="{StaticResource CleanupSoftTextBrush}"
+                           Margin="0,10,0,0"
+                           TextWrapping="Wrap"/>
+                <WrapPanel Margin="0,20,0,0"
+                           ItemWidth="260"
+                           ItemHeight="Auto">
+                    <StackPanel Width="260"
+                                Margin="0,0,16,16">
+                        <TextBlock Text="Run cadence"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                        <ComboBox ItemsSource="{Binding AutomationIntervalOptions}"
+                                  SelectedItem="{Binding SelectedAutomationInterval, Mode=TwoWay}"
+                                  DisplayMemberPath="Label"
+                                  Style="{StaticResource App.ComboBoxStyle}"
+                                  Margin="0,6,0,0"/>
+                        <TextBlock Text="{Binding SelectedAutomationInterval.Description}"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   FontSize="11"
+                                   Margin="0,4,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <StackPanel Width="280"
+                                Margin="0,0,16,16">
+                        <TextBlock Text="Deletion mode"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                        <ComboBox ItemsSource="{Binding AutomationDeletionModeOptions}"
+                                  SelectedItem="{Binding SelectedAutomationDeletionMode, Mode=TwoWay}"
+                                  Style="{StaticResource App.ComboBoxStyle}"
+                                  Margin="0,6,0,0">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}"/>
+                                        <TextBlock Text="{Binding Description}"
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                        <TextBlock Text="{Binding SelectedAutomationDeletionMode.Description}"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   FontSize="11"
+                                   Margin="0,4,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                    <StackPanel Width="240"
+                                Margin="0,0,16,16">
+                        <TextBlock Text="Scope"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                        <CheckBox Content="Include downloads"
+                                  Margin="0,8,0,0"
+                                  Style="{StaticResource App.CheckBoxStyle}"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                  IsChecked="{Binding AutomationIncludeDownloads, Mode=TwoWay}"/>
+                        <CheckBox Content="Include browser history"
+                                  Margin="0,8,0,0"
+                                  Style="{StaticResource App.CheckBoxStyle}"
+                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                  IsChecked="{Binding AutomationIncludeBrowserHistory, Mode=TwoWay}"/>
+                    </StackPanel>
+                </WrapPanel>
+                <Border Background="#2F1F4D"
+                        CornerRadius="8"
+                        Padding="10,4"
+                        Margin="0,0,0,12"
+                        Visibility="{Binding HasAutomationChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <TextBlock Text="Pending changes will apply when you save."
+                               Foreground="#C084FC"
+                               FontWeight="SemiBold"/>
+                </Border>
+                <WrapPanel>
+                    <Button Content="Apply settings"
+                            Margin="0,0,12,12"
+                            Command="{Binding ApplyCleanupAutomationCommand}">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+                                <Setter Property="IsEnabled" Value="{Binding HasAutomationChanges}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsAutomationBusy}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                    <Button Content="Run now"
+                            Command="{Binding RunCleanupAutomationNowCommand}"
+                            Margin="0,0,12,12">
+                        <Button.Style>
+                            <Style TargetType="Button" BasedOn="{StaticResource FlatButtonStyle}">
+                                <Setter Property="IsEnabled" Value="{Binding IsCleanupAutomationEnabled}"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasAutomationChanges}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding IsAutomationBusy}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+                </WrapPanel>
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,8,0,0"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding IsAutomationBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <ProgressBar Width="160"
+                                 Height="4"
+                                 IsIndeterminate="True"/>
+                    <TextBlock Text="Working..."
+                               Margin="12,0,0,0"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <Border Background="{StaticResource CleanupSurfaceBaseBrush}"
             BorderBrush="{StaticResource CleanupBorderBrush}"

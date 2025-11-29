@@ -58,6 +58,16 @@ public sealed record CleanupAgeFilterOption(int Days, string Label, string Descr
     public override string ToString() => Label;
 }
 
+public sealed record CleanupAutomationIntervalOption(int Minutes, string Label, string Description)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record CleanupAutomationDeletionModeOption(CleanupAutomationDeletionMode Mode, string Label, string Description)
+{
+    public override string ToString() => Label;
+}
+
 public enum CleanupPhase
 {
     Setup,
@@ -192,6 +202,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly IPrivilegeService _privilegeService;
     private readonly IResourceLockService _resourceLockService;
     private readonly IBrowserCleanupService _browserCleanupService;
+    private readonly CleanupAutomationScheduler _cleanupAutomationScheduler;
     private readonly IAutomationWorkTracker _workTracker;
 
     private const int PreviewCountMinimumValue = 10;
@@ -216,6 +227,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private const int DeletionUiYieldInterval = 750;
     private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
     private DateTime? _minimumAgeThresholdUtc;
+    private bool _suspendAutomationStateUpdates;
 
     public CleanupViewModel(
         CleanupService cleanupService,
@@ -223,6 +235,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         IPrivilegeService privilegeService,
         IResourceLockService resourceLockService,
         IBrowserCleanupService browserCleanupService,
+        CleanupAutomationScheduler cleanupAutomationScheduler,
         IAutomationWorkTracker workTracker)
     {
         _cleanupService = cleanupService;
@@ -230,6 +243,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         _privilegeService = privilegeService;
         _resourceLockService = resourceLockService;
         _browserCleanupService = browserCleanupService;
+        _cleanupAutomationScheduler = cleanupAutomationScheduler ?? throw new ArgumentNullException(nameof(cleanupAutomationScheduler));
         _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
 
         _previewFilter = new CleanupPreviewFilter
@@ -295,6 +309,25 @@ public sealed partial class CleanupViewModel : ViewModelBase
         _pendingDeletionCategories.CollectionChanged += OnPendingDeletionCategoriesCollectionChanged;
         _celebrationCategories.CollectionChanged += OnCelebrationCategoriesCollectionChanged;
         LockingProcesses.CollectionChanged += OnLockingProcessesCollectionChanged;
+
+        AutomationIntervalOptions = new List<CleanupAutomationIntervalOption>
+        {
+            new(60, "Every 1 hour", "Lightweight hourly sweep"),
+            new(360, "Every 6 hours", "Checks in a few times a day"),
+            new(1_440, "Every day", "Balanced once-daily cleanup"),
+            new(10_080, "Every week", "Weekend cleanup run"),
+            new(43_200, "Every month", "Monthly deep tidy")
+        };
+
+        AutomationDeletionModeOptions = new List<CleanupAutomationDeletionModeOption>
+        {
+            new(CleanupAutomationDeletionMode.SkipLocked, "Skip locked items", "Avoids files currently in use."),
+            new(CleanupAutomationDeletionMode.MoveToRecycleBin, "Move to dustbin", "Send items to Recycle Bin first."),
+            new(CleanupAutomationDeletionMode.ForceDelete, "Force delete", "Take ownership and remove stubborn files.")
+        };
+
+        _cleanupAutomationScheduler.SettingsChanged += OnCleanupAutomationSettingsChanged;
+        ApplyAutomationSettingsSnapshot(_cleanupAutomationScheduler.CurrentSettings);
     }
 
     [ObservableProperty]
@@ -398,6 +431,36 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     [ObservableProperty]
     private string _celebrationDurationDisplay = string.Empty;
+
+    [ObservableProperty]
+    private bool _isAutomationPanelVisible;
+
+    [ObservableProperty]
+    private bool _isCleanupAutomationEnabled;
+
+    [ObservableProperty]
+    private CleanupAutomationIntervalOption? _selectedAutomationInterval;
+
+    [ObservableProperty]
+    private CleanupAutomationDeletionModeOption? _selectedAutomationDeletionMode;
+
+    [ObservableProperty]
+    private bool _automationIncludeDownloads = true;
+
+    [ObservableProperty]
+    private bool _automationIncludeBrowserHistory = false;
+
+    [ObservableProperty]
+    private DateTimeOffset? _automationLastRunUtc;
+
+    [ObservableProperty]
+    private string _automationStatusMessage = "Automation is disabled.";
+
+    [ObservableProperty]
+    private bool _hasAutomationChanges;
+
+    [ObservableProperty]
+    private bool _isAutomationBusy;
 
     [ObservableProperty]
     private string _celebrationShareSummary = string.Empty;
@@ -608,6 +671,10 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public IReadOnlyList<CleanupPreviewSortOption> SortOptions { get; }
 
     public IReadOnlyList<CleanupAgeFilterOption> AgeFilterOptions { get; }
+
+    public IReadOnlyList<CleanupAutomationIntervalOption> AutomationIntervalOptions { get; }
+
+    public IReadOnlyList<CleanupAutomationDeletionModeOption> AutomationDeletionModeOptions { get; }
 
     public CleanupExtensionFilterMode SelectedExtensionFilterMode
     {
@@ -1870,6 +1937,172 @@ public sealed partial class CleanupViewModel : ViewModelBase
             Array.Empty<string>());
     }
 
+    private void OnCleanupAutomationSettingsChanged(object? sender, CleanupAutomationSettings settings)
+    {
+        if (settings is null)
+        {
+            return;
+        }
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is null || dispatcher.CheckAccess())
+        {
+            ApplyAutomationSettingsSnapshot(settings);
+        }
+        else
+        {
+            dispatcher.BeginInvoke(new Action(() => ApplyAutomationSettingsSnapshot(settings)));
+        }
+    }
+
+    private void ApplyAutomationSettingsSnapshot(CleanupAutomationSettings settings)
+    {
+        if (settings is null)
+        {
+            return;
+        }
+
+        _suspendAutomationStateUpdates = true;
+
+        IsCleanupAutomationEnabled = settings.AutomationEnabled;
+
+        SelectedAutomationInterval = AutomationIntervalOptions.FirstOrDefault(option => option.Minutes == settings.IntervalMinutes)
+            ?? AutomationIntervalOptions.FirstOrDefault();
+
+        SelectedAutomationDeletionMode = AutomationDeletionModeOptions.FirstOrDefault(option => option.Mode == settings.DeletionMode)
+            ?? AutomationDeletionModeOptions.FirstOrDefault();
+
+        AutomationIncludeDownloads = settings.IncludeDownloads;
+        AutomationIncludeBrowserHistory = settings.IncludeBrowserHistory;
+        AutomationLastRunUtc = settings.LastRunUtc;
+        HasAutomationChanges = false;
+
+        _suspendAutomationStateUpdates = false;
+        UpdateAutomationStatus();
+    }
+
+    private CleanupAutomationSettings BuildAutomationSettingsSnapshot()
+    {
+        var interval = SelectedAutomationInterval?.Minutes ?? _cleanupAutomationScheduler.CurrentSettings.IntervalMinutes;
+        var mode = SelectedAutomationDeletionMode?.Mode ?? CleanupAutomationDeletionMode.SkipLocked;
+        var lastRun = _cleanupAutomationScheduler.CurrentSettings.LastRunUtc;
+
+        return new CleanupAutomationSettings(
+            IsCleanupAutomationEnabled,
+            interval,
+            mode,
+            AutomationIncludeDownloads,
+            AutomationIncludeBrowserHistory,
+            lastRun);
+    }
+
+    private void UpdateAutomationStatus()
+    {
+        if (!IsCleanupAutomationEnabled)
+        {
+            AutomationStatusMessage = "Automation is disabled.";
+            return;
+        }
+
+        var intervalLabel = SelectedAutomationInterval?.Label
+                            ?? FormatInterval(SelectedAutomationInterval?.Minutes ?? _cleanupAutomationScheduler.CurrentSettings.IntervalMinutes);
+
+        var includeParts = new List<string>();
+        if (AutomationIncludeDownloads)
+        {
+            includeParts.Add("downloads");
+        }
+
+        if (AutomationIncludeBrowserHistory)
+        {
+            includeParts.Add("history");
+        }
+
+        if (includeParts.Count == 0)
+        {
+            includeParts.Add("system caches");
+        }
+
+        var lastRunText = AutomationLastRunUtc is null
+            ? "Hasn't run yet."
+            : $"Last run {FormatRelativeTime(AutomationLastRunUtc.Value)}.";
+
+        AutomationStatusMessage = $"{intervalLabel} • Targets {string.Join(" + ", includeParts)} • {lastRunText}";
+    }
+
+    private void MarkAutomationStateDirty()
+    {
+        if (_suspendAutomationStateUpdates)
+        {
+            return;
+        }
+
+        HasAutomationChanges = true;
+        UpdateAutomationStatus();
+    }
+
+    private static string FormatInterval(int intervalMinutes)
+    {
+        if (intervalMinutes <= 0)
+        {
+            return "Custom interval";
+        }
+
+        var span = TimeSpan.FromMinutes(intervalMinutes);
+        if (span.TotalDays >= 30)
+        {
+            return "Every month";
+        }
+
+        if (span.TotalDays >= 7)
+        {
+            return "Every week";
+        }
+
+        if (span.TotalDays >= 1)
+        {
+            return span.TotalDays == 1 ? "Every day" : $"Every {span.TotalDays:F0} days";
+        }
+
+        if (span.TotalHours >= 1)
+        {
+            return span.TotalHours == 1 ? "Every hour" : $"Every {span.TotalHours:F0} hours";
+        }
+
+        return span.TotalMinutes == 1 ? "Every minute" : $"Every {span.TotalMinutes:F0} minutes";
+    }
+
+    private static string FormatRelativeTime(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta < TimeSpan.Zero)
+        {
+            delta = TimeSpan.Zero;
+        }
+
+        if (delta < TimeSpan.FromMinutes(1))
+        {
+            return "moments ago";
+        }
+
+        if (delta < TimeSpan.FromHours(1))
+        {
+            return $"{Math.Max(1, (int)Math.Round(delta.TotalMinutes))} min ago";
+        }
+
+        if (delta < TimeSpan.FromDays(1))
+        {
+            return $"{Math.Max(1, (int)Math.Round(delta.TotalHours))} hr ago";
+        }
+
+        if (delta < TimeSpan.FromDays(30))
+        {
+            return $"{Math.Max(1, (int)Math.Round(delta.TotalDays))} day(s) ago";
+        }
+
+        return timestamp.ToLocalTime().ToString("g");
+    }
+
     private sealed record SkipReasonStat(string Reason, int Count, long TotalBytes);
     private const string UnspecifiedSkipReasonLabel = "Unspecified skip reason";
 
@@ -2574,6 +2807,73 @@ public sealed partial class CleanupViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void ToggleAutomationPanel()
+    {
+        IsAutomationPanelVisible = !IsAutomationPanelVisible;
+    }
+
+    [RelayCommand]
+    private async Task ApplyCleanupAutomationAsync()
+    {
+        if (IsAutomationBusy)
+        {
+            return;
+        }
+
+        try
+        {
+            IsAutomationBusy = true;
+            _mainViewModel.SetStatusMessage("Saving cleanup automation...");
+            var snapshot = BuildAutomationSettingsSnapshot();
+            await _cleanupAutomationScheduler.ApplySettingsAsync(snapshot, runImmediately: false);
+            HasAutomationChanges = false;
+
+            var status = snapshot.AutomationEnabled
+                ? $"Cleanup automation enabled ({FormatInterval(snapshot.IntervalMinutes)})."
+                : "Cleanup automation disabled.";
+            _mainViewModel.LogActivityInformation("Cleanup automation", status);
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Cleanup automation", "Failed to save automation settings.", new[] { ex.Message });
+        }
+        finally
+        {
+            IsAutomationBusy = false;
+            _mainViewModel.SetStatusMessage("Ready");
+        }
+    }
+
+    [RelayCommand]
+    private async Task RunCleanupAutomationNowAsync()
+    {
+        if (IsAutomationBusy || !IsCleanupAutomationEnabled)
+        {
+            return;
+        }
+
+        try
+        {
+            IsAutomationBusy = true;
+            _mainViewModel.SetStatusMessage("Running cleanup automation...");
+            var result = await _cleanupAutomationScheduler.RunOnceAsync();
+            var message = result.WasSkipped
+                ? result.Message
+                : $"Automation run complete — {result.Message}";
+            _mainViewModel.LogActivityInformation("Cleanup automation", message);
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Cleanup automation", "Failed to run automation.", new[] { ex.Message });
+        }
+        finally
+        {
+            IsAutomationBusy = false;
+            _mainViewModel.SetStatusMessage("Ready");
+        }
+    }
+
+    [RelayCommand]
     private void DismissRefreshToast()
     {
         HideRefreshToast();
@@ -2663,6 +2963,36 @@ public sealed partial class CleanupViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsActiveOperationIndeterminate));
         OnPropertyChanged(nameof(ActiveOperationPercentDisplay));
         OnPropertyChanged(nameof(HasActiveOperationPercent));
+    }
+
+    partial void OnIsCleanupAutomationEnabledChanged(bool value)
+    {
+        MarkAutomationStateDirty();
+    }
+
+    partial void OnSelectedAutomationIntervalChanged(CleanupAutomationIntervalOption? value)
+    {
+        MarkAutomationStateDirty();
+    }
+
+    partial void OnSelectedAutomationDeletionModeChanged(CleanupAutomationDeletionModeOption? value)
+    {
+        MarkAutomationStateDirty();
+    }
+
+    partial void OnAutomationIncludeDownloadsChanged(bool value)
+    {
+        MarkAutomationStateDirty();
+    }
+
+    partial void OnAutomationIncludeBrowserHistoryChanged(bool value)
+    {
+        MarkAutomationStateDirty();
+    }
+
+    partial void OnAutomationLastRunUtcChanged(DateTimeOffset? value)
+    {
+        UpdateAutomationStatus();
     }
 
     partial void OnSelectedTargetChanged(CleanupTargetGroupViewModel? oldValue, CleanupTargetGroupViewModel? newValue)

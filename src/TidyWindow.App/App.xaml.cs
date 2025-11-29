@@ -76,6 +76,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<InstallQueueWorkObserver>();
                 services.AddSingleton<EssentialsQueueWorkObserver>();
                 services.AddSingleton<IBrowserCleanupService, BrowserCleanupService>();
+                services.AddSingleton<CleanupAutomationSettingsStore>();
+                services.AddSingleton<CleanupAutomationScheduler>();
                 services.AddSingleton<EssentialsAutomationSettingsStore>();
                 services.AddSingleton<EssentialsAutomationScheduler>();
                 services.AddSingleton<MaintenanceAutomationSettingsStore>();
@@ -158,6 +160,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<IHighFrictionPromptService>();
         _ = _host.Services.GetRequiredService<InstallQueueWorkObserver>();
         _ = _host.Services.GetRequiredService<EssentialsQueueWorkObserver>();
+        _ = _host.Services.GetRequiredService<CleanupAutomationScheduler>();
         _ = _host.Services.GetRequiredService<EssentialsAutomationScheduler>();
         _ = _host.Services.GetRequiredService<MaintenanceAutoUpdateScheduler>();
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
