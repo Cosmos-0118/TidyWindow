@@ -65,6 +65,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<ActivityLogService>();
                 services.AddSingleton<IPrivilegeService, PrivilegeService>();
                 services.AddSingleton<UserPreferencesService>();
+                services.AddSingleton<IProcessRunner, ProcessRunner>();
                 services.AddSingleton<AppAutoStartService>();
                 services.AddSingleton<AppRestartService>();
                 services.AddSingleton<ITrayService, TrayService>();

@@ -7,6 +7,12 @@ namespace TidyWindow.App.Services;
 public sealed class AppAutoStartService
 {
     private const string TaskFullName = "\\TidyWindow\\TidyWindowElevatedStartup";
+    private readonly IProcessRunner _processRunner;
+
+    public AppAutoStartService(IProcessRunner processRunner)
+    {
+        _processRunner = processRunner ?? throw new ArgumentNullException(nameof(processRunner));
+    }
 
     public bool TrySetEnabled(bool enabled, out string? error)
     {
@@ -40,48 +46,28 @@ public sealed class AppAutoStartService
         }
     }
 
-    private static bool TryCreateTask(string executablePath, out string? error)
+    private bool TryCreateTask(string executablePath, out string? error)
     {
         var actionArgument = $"\"\\\"{executablePath}\\\" --minimized\"";
         var arguments = $"/Create /TN \"{TaskFullName}\" /F /SC ONLOGON /RL HIGHEST /TR {actionArgument}";
         return RunSchtasks(arguments, out error);
     }
 
-    private static bool TryDeleteTask(out string? error)
+    private bool TryDeleteTask(out string? error)
     {
         return RunSchtasks($"/Delete /TN \"{TaskFullName}\" /F", out error, ignoreMissing: true);
     }
 
-    private static bool RunSchtasks(string arguments, out string? error, bool ignoreMissing = false)
+    private bool RunSchtasks(string arguments, out string? error, bool ignoreMissing = false)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "schtasks.exe",
-            Arguments = arguments,
-            CreateNoWindow = true,
-            UseShellExecute = false,
-            RedirectStandardError = true,
-            RedirectStandardOutput = true
-        };
-
-        using var process = Process.Start(startInfo);
-        if (process is null)
-        {
-            error = "Failed to launch schtasks.exe.";
-            return false;
-        }
-
-        var stdOut = process.StandardOutput.ReadToEnd();
-        var stdErr = process.StandardError.ReadToEnd();
-        process.WaitForExit();
-
-        if (process.ExitCode == 0)
+        var result = _processRunner.Run("schtasks.exe", arguments);
+        if (result.ExitCode == 0)
         {
             error = null;
             return true;
         }
 
-        var failure = CombineOutput(stdOut, stdErr);
+        var failure = CombineOutput(result.StandardOutput, result.StandardError);
         if (ignoreMissing && IsMissingTaskMessage(failure))
         {
             error = null;
@@ -89,7 +75,7 @@ public sealed class AppAutoStartService
         }
 
         error = failure.Length == 0
-            ? $"schtasks.exe exited with code {process.ExitCode}."
+            ? $"schtasks.exe exited with code {result.ExitCode}."
             : failure;
         return false;
     }
