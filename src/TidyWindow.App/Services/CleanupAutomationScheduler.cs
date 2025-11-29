@@ -12,7 +12,6 @@ namespace TidyWindow.App.Services;
 /// </summary>
 public sealed class CleanupAutomationScheduler : IDisposable
 {
-    private const int AutomationPreviewLimit = 400;
 
     private readonly CleanupAutomationSettingsStore _store;
     private readonly CleanupService _cleanupService;
@@ -114,16 +113,21 @@ public sealed class CleanupAutomationScheduler : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
 
+        var topItemCount = Math.Clamp(
+            settings.TopItemCount,
+            CleanupAutomationSettings.MinimumTopItemCount,
+            CleanupAutomationSettings.MaximumTopItemCount);
+
         var report = await _cleanupService.PreviewAsync(
             settings.IncludeDownloads,
             settings.IncludeBrowserHistory,
-            AutomationPreviewLimit,
+            topItemCount,
             CleanupItemKind.Both,
             cancellationToken).ConfigureAwait(false);
 
         var flattened = FlattenTargets(report)
             .OrderByDescending(static tuple => tuple.item.SizeBytes)
-            .Take(AutomationPreviewLimit)
+            .Take(topItemCount)
             .ToList();
 
         var requestedBytes = flattened.Sum(static tuple => Math.Max(tuple.item.SizeBytes, 0));

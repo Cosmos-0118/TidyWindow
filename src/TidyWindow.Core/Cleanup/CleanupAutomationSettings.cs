@@ -20,6 +20,9 @@ public sealed record CleanupAutomationSettings
     public const int MinimumIntervalMinutes = 60; // 1 hour
     public const int MaximumIntervalMinutes = 43_200; // 30 days
     private const int DefaultIntervalMinutes = 1_440; // 1 day
+    public const int MinimumTopItemCount = 50;
+    public const int MaximumTopItemCount = 400;
+    private const int DefaultTopItemCount = 200;
 
     public static CleanupAutomationSettings Default { get; } = new(
         automationEnabled: false,
@@ -27,6 +30,7 @@ public sealed record CleanupAutomationSettings
         deletionMode: CleanupAutomationDeletionMode.SkipLocked,
         includeDownloads: true,
         includeBrowserHistory: false,
+        topItemCount: DefaultTopItemCount,
         lastRunUtc: null);
 
     public CleanupAutomationSettings(
@@ -35,6 +39,7 @@ public sealed record CleanupAutomationSettings
         CleanupAutomationDeletionMode deletionMode,
         bool includeDownloads,
         bool includeBrowserHistory,
+        int topItemCount,
         DateTimeOffset? lastRunUtc)
     {
         AutomationEnabled = automationEnabled;
@@ -42,6 +47,7 @@ public sealed record CleanupAutomationSettings
         DeletionMode = deletionMode;
         IncludeDownloads = includeDownloads;
         IncludeBrowserHistory = includeBrowserHistory;
+        TopItemCount = ClampTopItemCount(topItemCount);
         LastRunUtc = lastRunUtc;
     }
 
@@ -55,6 +61,8 @@ public sealed record CleanupAutomationSettings
 
     public bool IncludeBrowserHistory { get; init; }
 
+    public int TopItemCount { get; init; }
+
     public DateTimeOffset? LastRunUtc { get; init; }
 
     public CleanupAutomationSettings WithInterval(int intervalMinutes)
@@ -66,11 +74,15 @@ public sealed record CleanupAutomationSettings
     public CleanupAutomationSettings WithDeletionMode(CleanupAutomationDeletionMode mode)
         => this with { DeletionMode = mode };
 
+    public CleanupAutomationSettings WithTopItemCount(int count)
+        => this with { TopItemCount = ClampTopItemCount(count) };
+
     public CleanupAutomationSettings Normalize()
     {
         return this with
         {
-            IntervalMinutes = ClampInterval(IntervalMinutes)
+            IntervalMinutes = ClampInterval(IntervalMinutes),
+            TopItemCount = ClampTopItemCount(TopItemCount)
         };
     }
 
@@ -82,5 +94,15 @@ public sealed record CleanupAutomationSettings
         }
 
         return Math.Clamp(intervalMinutes, MinimumIntervalMinutes, MaximumIntervalMinutes);
+    }
+
+    private static int ClampTopItemCount(int count)
+    {
+        if (count <= 0)
+        {
+            count = DefaultTopItemCount;
+        }
+
+        return Math.Clamp(count, MinimumTopItemCount, MaximumTopItemCount);
     }
 }

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -454,6 +455,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private DateTimeOffset? _automationLastRunUtc;
 
     [ObservableProperty]
+    private int _automationTopItemCount = CleanupAutomationSettings.Default.TopItemCount;
+
+    [ObservableProperty]
     private string _automationStatusMessage = "Automation is disabled.";
 
     [ObservableProperty]
@@ -491,6 +495,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isLockingProcessPopupOpen;
+
+    public int AutomationTopItemMinimum => CleanupAutomationSettings.MinimumTopItemCount;
+
+    public int AutomationTopItemMaximum => CleanupAutomationSettings.MaximumTopItemCount;
+
+    public string AutomationTopItemCountDisplay => string.Format(
+        CultureInfo.CurrentCulture,
+        "{0:N0} items",
+        AutomationTopItemCount);
 
     partial void OnIsLockInspectionInProgressChanged(bool value)
     {
@@ -1974,6 +1987,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         AutomationIncludeDownloads = settings.IncludeDownloads;
         AutomationIncludeBrowserHistory = settings.IncludeBrowserHistory;
+        AutomationTopItemCount = settings.TopItemCount;
         AutomationLastRunUtc = settings.LastRunUtc;
         HasAutomationChanges = false;
 
@@ -1986,6 +2000,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
         var interval = SelectedAutomationInterval?.Minutes ?? _cleanupAutomationScheduler.CurrentSettings.IntervalMinutes;
         var mode = SelectedAutomationDeletionMode?.Mode ?? CleanupAutomationDeletionMode.SkipLocked;
         var lastRun = _cleanupAutomationScheduler.CurrentSettings.LastRunUtc;
+        var topItems = AutomationTopItemCount > 0
+            ? AutomationTopItemCount
+            : _cleanupAutomationScheduler.CurrentSettings.TopItemCount;
 
         return new CleanupAutomationSettings(
             IsCleanupAutomationEnabled,
@@ -1993,6 +2010,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             mode,
             AutomationIncludeDownloads,
             AutomationIncludeBrowserHistory,
+            topItems,
             lastRun);
     }
 
@@ -2006,6 +2024,10 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         var intervalLabel = SelectedAutomationInterval?.Label
                             ?? FormatInterval(SelectedAutomationInterval?.Minutes ?? _cleanupAutomationScheduler.CurrentSettings.IntervalMinutes);
+
+        var topItems = AutomationTopItemCount > 0
+            ? AutomationTopItemCount
+            : _cleanupAutomationScheduler.CurrentSettings.TopItemCount;
 
         var includeParts = new List<string>();
         if (AutomationIncludeDownloads)
@@ -2027,7 +2049,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
             ? "Hasn't run yet."
             : $"Last run {FormatRelativeTime(AutomationLastRunUtc.Value)}.";
 
-        AutomationStatusMessage = $"{intervalLabel} • Targets {string.Join(" + ", includeParts)} • {lastRunText}";
+        var sweepText = $"Sweeps top {topItems} items";
+
+        AutomationStatusMessage = $"{intervalLabel} • {sweepText} • Targets {string.Join(" + ", includeParts)} • {lastRunText}";
     }
 
     private void MarkAutomationStateDirty()
@@ -2101,6 +2125,91 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         return timestamp.ToLocalTime().ToString("g");
+    }
+
+    private IReadOnlyList<string> BuildAutomationSettingsDetails(CleanupAutomationSettings settings)
+    {
+        var details = new List<string>
+        {
+            $"Cadence: {ResolveAutomationIntervalLabel(settings.IntervalMinutes)}",
+            $"Deletion mode: {ResolveAutomationDeletionModeLabel(settings.DeletionMode)}",
+            $"Scope: {BuildScopeSummary(settings.IncludeDownloads, settings.IncludeBrowserHistory)}"
+        };
+
+        if (settings.LastRunUtc is DateTimeOffset lastRun)
+        {
+            details.Add($"Last run: {FormatRelativeTime(lastRun)}");
+        }
+        else
+        {
+            details.Add("Last run: not yet");
+        }
+
+        return details;
+    }
+
+    private IReadOnlyList<string> BuildAutomationRunDetails(CleanupAutomationRunResult result)
+    {
+        var details = new List<string>
+        {
+            $"Requested items: {result.RequestedItemCount:N0}",
+            $"Requested size: {FormatSize(result.RequestedBytes / 1_048_576d)}",
+            $"Deleted: {result.DeletionResult.DeletedCount:N0} ({FormatSize(result.DeletionResult.TotalBytesDeleted / 1_048_576d)})",
+            $"Skipped: {result.DeletionResult.SkippedCount:N0} ({FormatSize(result.DeletionResult.TotalBytesSkipped / 1_048_576d)})",
+            $"Failed: {result.DeletionResult.FailedCount:N0} ({FormatSize(result.DeletionResult.TotalBytesFailed / 1_048_576d)})"
+        };
+
+        if (result.Warnings.Count > 0)
+        {
+            details.Add("Warnings:");
+            foreach (var warning in result.Warnings.Take(5))
+            {
+                details.Add(" • " + warning);
+            }
+        }
+
+        if (result.DeletionResult.HasErrors)
+        {
+            details.Add("Errors:");
+            foreach (var error in result.DeletionResult.Errors.Take(5))
+            {
+                details.Add(" • " + error);
+            }
+        }
+
+        return details;
+    }
+
+    private string ResolveAutomationIntervalLabel(int minutes)
+    {
+        var label = AutomationIntervalOptions.FirstOrDefault(option => option.Minutes == minutes)?.Label;
+        return string.IsNullOrWhiteSpace(label) ? FormatInterval(minutes) : label!;
+    }
+
+    private string ResolveAutomationDeletionModeLabel(CleanupAutomationDeletionMode mode)
+    {
+        return AutomationDeletionModeOptions.FirstOrDefault(option => option.Mode == mode)?.Label
+            ?? mode.ToString();
+    }
+
+    private static string BuildScopeSummary(bool includeDownloads, bool includeBrowserHistory)
+    {
+        if (includeDownloads && includeBrowserHistory)
+        {
+            return "Downloads + history";
+        }
+
+        if (includeDownloads)
+        {
+            return "Downloads only";
+        }
+
+        if (includeBrowserHistory)
+        {
+            return "History only";
+        }
+
+        return "System caches only";
     }
 
     private sealed record SkipReasonStat(string Reason, int Count, long TotalBytes);
@@ -2813,6 +2922,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private void CloseAutomationPanel()
+    {
+        if (IsAutomationPanelVisible)
+        {
+            IsAutomationPanelVisible = false;
+        }
+    }
+
+    [RelayCommand]
     private async Task ApplyCleanupAutomationAsync()
     {
         if (IsAutomationBusy)
@@ -2831,7 +2949,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
             var status = snapshot.AutomationEnabled
                 ? $"Cleanup automation enabled ({FormatInterval(snapshot.IntervalMinutes)})."
                 : "Cleanup automation disabled.";
-            _mainViewModel.LogActivityInformation("Cleanup automation", status);
+            var level = snapshot.AutomationEnabled ? ActivityLogLevel.Success : ActivityLogLevel.Information;
+            _mainViewModel.LogActivity(level, "Cleanup automation", status, BuildAutomationSettingsDetails(snapshot));
         }
         catch (Exception ex)
         {
@@ -2857,10 +2976,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
             IsAutomationBusy = true;
             _mainViewModel.SetStatusMessage("Running cleanup automation...");
             var result = await _cleanupAutomationScheduler.RunOnceAsync();
+            var logLevel = result.WasSkipped ? ActivityLogLevel.Warning : ActivityLogLevel.Success;
             var message = result.WasSkipped
-                ? result.Message
+                ? $"Automation run skipped — {result.Message}"
                 : $"Automation run complete — {result.Message}";
-            _mainViewModel.LogActivityInformation("Cleanup automation", message);
+            _mainViewModel.LogActivity(logLevel, "Cleanup automation", message, BuildAutomationRunDetails(result));
         }
         catch (Exception ex)
         {
@@ -2987,6 +3107,12 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     partial void OnAutomationIncludeBrowserHistoryChanged(bool value)
     {
+        MarkAutomationStateDirty();
+    }
+
+    partial void OnAutomationTopItemCountChanged(int value)
+    {
+        OnPropertyChanged(nameof(AutomationTopItemCountDisplay));
         MarkAutomationStateDirty();
     }
 

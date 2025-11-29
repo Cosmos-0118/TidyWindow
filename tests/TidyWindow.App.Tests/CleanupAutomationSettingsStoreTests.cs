@@ -28,6 +28,7 @@ public sealed class CleanupAutomationSettingsStoreTests : IDisposable
         Assert.Equal(CleanupAutomationSettings.Default.DeletionMode, settings.DeletionMode);
         Assert.Equal(CleanupAutomationSettings.Default.IncludeDownloads, settings.IncludeDownloads);
         Assert.Equal(CleanupAutomationSettings.Default.IncludeBrowserHistory, settings.IncludeBrowserHistory);
+        Assert.Equal(CleanupAutomationSettings.Default.TopItemCount, settings.TopItemCount);
         Assert.Null(settings.LastRunUtc);
     }
 
@@ -41,6 +42,7 @@ public sealed class CleanupAutomationSettingsStoreTests : IDisposable
             deletionMode: CleanupAutomationDeletionMode.MoveToRecycleBin,
             includeDownloads: false,
             includeBrowserHistory: true,
+            topItemCount: CleanupAutomationSettings.MinimumTopItemCount,
             lastRunUtc: DateTimeOffset.UtcNow);
 
         store.Save(input);
@@ -51,6 +53,7 @@ public sealed class CleanupAutomationSettingsStoreTests : IDisposable
         Assert.Equal(CleanupAutomationDeletionMode.MoveToRecycleBin, persisted.DeletionMode);
         Assert.False(persisted.IncludeDownloads);
         Assert.True(persisted.IncludeBrowserHistory);
+        Assert.Equal(CleanupAutomationSettings.MinimumTopItemCount, persisted.TopItemCount);
         Assert.Equal(input.LastRunUtc!.Value.ToUniversalTime(), persisted.LastRunUtc!.Value.ToUniversalTime());
 
         Assert.True(File.Exists(Path.Combine(directory, "cleanup-automation.json")));

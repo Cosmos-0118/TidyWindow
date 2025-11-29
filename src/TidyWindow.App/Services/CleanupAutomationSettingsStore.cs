@@ -99,6 +99,8 @@ public sealed class CleanupAutomationSettingsStore
 
         public bool IncludeBrowserHistory { get; set; }
 
+        public int TopItemCount { get; set; }
+
         public DateTimeOffset? LastRunUtc { get; set; }
 
         public CleanupAutomationSettings ToSettings()
@@ -109,6 +111,7 @@ public sealed class CleanupAutomationSettingsStore
                 DeletionMode,
                 IncludeDownloads,
                 IncludeBrowserHistory,
+                TopItemCount,
                 LastRunUtc);
         }
 
@@ -121,6 +124,7 @@ public sealed class CleanupAutomationSettingsStore
                 DeletionMode = settings.DeletionMode,
                 IncludeDownloads = settings.IncludeDownloads,
                 IncludeBrowserHistory = settings.IncludeBrowserHistory,
+                TopItemCount = settings.TopItemCount,
                 LastRunUtc = settings.LastRunUtc
             };
         }
