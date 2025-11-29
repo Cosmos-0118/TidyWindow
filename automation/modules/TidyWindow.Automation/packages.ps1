@@ -244,6 +244,7 @@ function Get-TidyWingetInstalledVersion {
 
     try {
         $fallback = & $exe 'list' '--id' $PackageId '-e' '--disable-interactivity' '--accept-source-agreements' 2>$null
+        $columnMap = $null
         foreach ($line in @($fallback)) {
             if ([string]::IsNullOrWhiteSpace($line)) {
                 continue
@@ -256,13 +257,71 @@ function Get-TidyWingetInstalledVersion {
                 continue
             }
 
-            if ($clean -match '^(?i)\s*Name\s+Id\s+Version') { continue }
+            if ($clean -match '^(?i)\s*Name\s+Id\s+Version') {
+                $idStart = $clean.IndexOf('Id')
+                $versionStart = $clean.IndexOf('Version', [Math]::Max($idStart, 0))
+                $availableStart = $clean.IndexOf('Available', [Math]::Max($versionStart, 0))
+                $columnMap = @{
+                    IdStart        = $idStart
+                    VersionStart   = $versionStart
+                    AvailableStart = $availableStart
+                }
+                continue
+            }
             if ($clean -match '^-{3,}') { continue }
             if ($clean -match '^(?i).*no installed package.*') { return $null }
             if ($clean -match '^(?i).*no installed packages found.*') { return $null }
 
             $trimmed = $clean.Trim()
             if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+
+            if ($columnMap) {
+                $nameColumn = $null
+                $idColumn = $null
+                $versionColumn = $null
+
+                if ($columnMap.IdStart -gt 0 -and $columnMap.IdStart -le $clean.Length) {
+                    $nameLength = [Math]::Min($clean.Length, $columnMap.IdStart)
+                    if ($nameLength -gt 0) {
+                        $nameColumn = $clean.Substring(0, $nameLength).Trim()
+                    }
+                }
+
+                if ($columnMap.IdStart -ge 0 -and $columnMap.IdStart -lt $clean.Length) {
+                    $idEnd = if ($columnMap.VersionStart -gt $columnMap.IdStart) { [Math]::Min($clean.Length, $columnMap.VersionStart) } else { $clean.Length }
+                    $idLength = $idEnd - $columnMap.IdStart
+                    if ($idLength -gt 0) {
+                        $idColumn = $clean.Substring($columnMap.IdStart, $idLength).Trim()
+                    }
+                }
+
+                if ($columnMap.VersionStart -ge 0 -and $columnMap.VersionStart -lt $clean.Length) {
+                    $versionEnd = if ($columnMap.AvailableStart -gt $columnMap.VersionStart) { [Math]::Min($clean.Length, $columnMap.AvailableStart) } else { $clean.Length }
+                    $versionLength = $versionEnd - $columnMap.VersionStart
+                    if ($versionLength -gt 0) {
+                        $versionColumn = $clean.Substring($columnMap.VersionStart, $versionLength).Trim()
+                    }
+                }
+
+                if (-not [string]::IsNullOrWhiteSpace($idColumn) -and -not [string]::IsNullOrWhiteSpace($versionColumn)) {
+                    if ([string]::Equals($idColumn, $PackageId, [System.StringComparison]::OrdinalIgnoreCase)) {
+                        $versionCandidate = $versionColumn
+                        if ((-not ($versionCandidate -match '\d')) -or $versionCandidate.TrimStart().StartsWith('<') -or $versionCandidate.TrimStart().StartsWith('>')) {
+                            if (-not [string]::IsNullOrWhiteSpace($nameColumn)) {
+                                $nameMatch = [System.Text.RegularExpressions.Regex]::Match($nameColumn, '([0-9]+(?:[\._\-][0-9A-Za-z]+)+)')
+                                if ($nameMatch.Success) {
+                                    $versionCandidate = $nameMatch.Groups[1].Value
+                                }
+                            }
+                        }
+
+                        if (-not [string]::IsNullOrWhiteSpace($versionCandidate)) {
+                            [void]$candidates.Add($versionCandidate.Trim())
+                            continue
+                        }
+                    }
+                }
+            }
 
             $pattern = '^(?<name>.+?)\s+' + [System.Text.RegularExpressions.Regex]::Escape($PackageId) + '\s+(?<version>[^\s]+)'
             $match = [System.Text.RegularExpressions.Regex]::Match($trimmed, $pattern, [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
