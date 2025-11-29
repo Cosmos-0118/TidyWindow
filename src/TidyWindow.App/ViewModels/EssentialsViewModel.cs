@@ -111,6 +111,16 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _isRunDialogVisible;
 
+    [ObservableProperty]
+    private bool _isAutomationConfigurationMode;
+
+    public string RunDialogPrimaryButtonLabel => IsAutomationConfigurationMode ? "Set" : "Queue run";
+
+    partial void OnIsAutomationConfigurationModeChanged(bool value)
+    {
+        OnPropertyChanged(nameof(RunDialogPrimaryButtonLabel));
+    }
+
     partial void OnSelectedOperationChanged(EssentialsOperationItemViewModel? oldValue, EssentialsOperationItemViewModel? newValue)
     {
         // No-op hook reserved for future selection side-effects.
@@ -154,6 +164,12 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        OpenRunDialog(task, automationMode: false);
+    }
+
+    private void OpenRunDialog(EssentialsTaskItemViewModel task, bool automationMode)
+    {
+        IsAutomationConfigurationMode = automationMode;
         PendingRunTask = task;
         IsRunDialogVisible = true;
     }
@@ -163,13 +179,23 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     {
         IsRunDialogVisible = false;
         PendingRunTask = null;
+        IsAutomationConfigurationMode = false;
     }
 
     [RelayCommand]
-    private void QueuePendingTask()
+    private void ConfirmRunConfiguration()
     {
         if (PendingRunTask is null)
         {
+            return;
+        }
+
+        if (IsAutomationConfigurationMode)
+        {
+            var name = PendingRunTask.Definition.Name;
+            _activityLog.LogInformation("Essentials", $"Updated automation settings for '{name}'.");
+            _mainViewModel.SetStatusMessage($"{name} settings updated.");
+            CloseRunDialog();
             return;
         }
 
@@ -190,7 +216,7 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        PrepareTaskRun(task);
+        OpenRunDialog(task, automationMode: true);
     }
 
     [RelayCommand]

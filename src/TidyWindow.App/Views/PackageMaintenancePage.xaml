@@ -264,6 +264,63 @@
                     Value="True"/>
         </Style>
 
+        <Style x:Key="AutomationSectionHeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        </Style>
+
+        <Style x:Key="AutomationSectionSubtitleTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        </Style>
+
+        <Style x:Key="AutomationToggleSwitchStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="52"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="BorderBrush" Value="#1F2937"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"
+                                    CornerRadius="14"/>
+                            <Ellipse x:Name="Thumb"
+                                     Width="22"
+                                     Height="22"
+                                     Fill="#F8FAFC"
+                                     Margin="4,3,26,3"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#7C3AED"/>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="26,3,4,3"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Background" Value="#1F2937"/>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#1F2937"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#475569"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="MaintenanceCardListItemStyle"
                TargetType="ListViewItem">
             <Setter Property="Padding"
@@ -903,6 +960,11 @@
                                   Command="{Binding SwitchMaintenanceSectionCommand}"
                                   CommandParameter="{x:Static viewModels:MaintenanceViewSection.Queue}"
                                   IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Queue, Mode=OneWay}"/>
+                    <ToggleButton Content="Automation settings"
+                                  Style="{StaticResource MaintenanceNavToggleStyle}"
+                                  Command="{Binding SwitchMaintenanceSectionCommand}"
+                                  CommandParameter="{x:Static viewModels:MaintenanceViewSection.Automation}"
+                                  IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Automation, Mode=OneWay}"/>
                 </StackPanel>
 
                 <Grid Grid.Row="1">
@@ -1698,6 +1760,252 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </StackPanel>
+                    </Grid>
+                    <Grid x:Name="AutomationViewHost">
+                        <Grid.Style>
+                            <Style TargetType="Grid">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ActiveSection}"
+                                                 Value="{x:Static viewModels:MaintenanceViewSection.Automation}">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Grid.Style>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      DataContext="{Binding Automation}">
+                            <StackPanel>
+                                <Border Style="{StaticResource CardBorderStyle}" Padding="24" Margin="0,0,0,20">
+                                    <StackPanel>
+                                        <TextBlock Text="Maintenance automation cockpit"
+                                                   Style="{StaticResource AutomationSectionHeaderTextStyle}"/>
+                                        <TextBlock Text="Choose which packages stay up to date automatically or let TidyWindow handle every detected update."
+                                                   Style="{StaticResource AutomationSectionSubtitleTextStyle}"
+                                                   Margin="0,6,0,0"/>
+                                        <WrapPanel Margin="0,16,0,0">
+                                            <Border Background="#0B1628"
+                                                    BorderBrush="#1E293B"
+                                                    BorderThickness="1"
+                                                    CornerRadius="10"
+                                                    Padding="10,6"
+                                                    Margin="0,0,12,12">
+                                                <TextBlock Text="{Binding InventorySummary}"
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                            <Border Background="#0B1628"
+                                                    BorderBrush="#1E293B"
+                                                    BorderThickness="1"
+                                                    CornerRadius="10"
+                                                    Padding="10,6"
+                                                    Margin="0,0,12,12">
+                                                <TextBlock Text="{Binding SelectionSummary}"
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                            <Border Background="#0B1628"
+                                                    BorderBrush="#1E293B"
+                                                    BorderThickness="1"
+                                                    CornerRadius="10"
+                                                    Padding="10,6"
+                                                    Margin="0,0,12,12">
+                                                <TextBlock Text="{Binding LastRunSummary}"
+                                                           Foreground="#E2E8F0"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                        </WrapPanel>
+                                        <WrapPanel Margin="0,16,0,0">
+                                            <Button Content="Refresh list"
+                                                    Command="{Binding RefreshAutomationPackagesCommand}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"/>
+                                        </WrapPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardBorderStyle}" Padding="24" Margin="0,0,0,20">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="Background updates"
+                                                       Style="{StaticResource AutomationSectionHeaderTextStyle}"/>
+                                            <ToggleButton Margin="12,0,0,0"
+                                                          Style="{StaticResource AutomationToggleSwitchStyle}"
+                                                          IsChecked="{Binding IsAutomationEnabled, Mode=TwoWay}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding StatusMessage}"
+                                                   Style="{StaticResource AutomationSectionSubtitleTextStyle}"
+                                                   Margin="0,6,0,16"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                            <TextBlock Text="Cadence"
+                                                       Width="80"
+                                                       Foreground="#94A3B8"
+                                                       VerticalAlignment="Center"/>
+                                            <ComboBox Width="220"
+                                                      ItemsSource="{Binding IntervalOptions}"
+                                                      SelectedValuePath="Minutes"
+                                                      SelectedValue="{Binding IntervalMinutes, Mode=TwoWay}"
+                                                      Style="{StaticResource App.ComboBoxStyle}">
+                                                <ComboBox.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Label}"/>
+                                                    </DataTemplate>
+                                                </ComboBox.ItemTemplate>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <CheckBox Content="Update all packages when new versions are available"
+                                                  Style="{StaticResource App.CheckBoxStyle}"
+                                                  IsChecked="{Binding UpdateAllPackages, Mode=TwoWay}"
+                                                  Foreground="#F8FAFC"/>
+                                        <Border Background="#312E81"
+                                                CornerRadius="8"
+                                                Padding="10,6"
+                                                Margin="0,12,0,0"
+                                                Visibility="{Binding HasPendingChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="You have unapplied automation changes."
+                                                       Foreground="#C084FC"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
+                                            <Button Content="Apply changes"
+                                                    Command="{Binding ApplyAutomationCommand}"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                            <Button Content="Run now"
+                                                    Command="{Binding RunAutomationNowCommand}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Margin="12,0,0,0"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <Border Style="{StaticResource CardBorderStyle}" Padding="24">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="Auto-update targets"
+                                                       Style="{StaticResource AutomationSectionHeaderTextStyle}"/>
+                                            <Border Background="#1F2937"
+                                                    CornerRadius="8"
+                                                    Padding="10,2"
+                                                    Margin="12,0,0,0">
+                                                <TextBlock Text="{Binding PackageOptions.Count, StringFormat={}{0} packages}"
+                                                           Foreground="#93C5FD"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"/>
+                                            </Border>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding SelectionSummary}"
+                                                   Style="{StaticResource AutomationSectionSubtitleTextStyle}"
+                                                   Margin="0,6,0,12"/>
+
+                                        <Border Background="#0B1628"
+                                                CornerRadius="10"
+                                                Padding="12"
+                                                Margin="0,0,0,12"
+                                                Visibility="{Binding IsRefreshing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <ProgressBar Width="140" Height="6" IsIndeterminate="True"/>
+                                                <TextBlock Text="Refreshing inventory..."
+                                                           Margin="12,0,0,0"
+                                                           Foreground="#CBD5F5"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <ItemsControl ItemsSource="{Binding PackageOptions}" Margin="0,0,0,12">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <ux:AdaptiveTilePanel MinColumnWidth="280"
+                                                                          ColumnSpacing="16"
+                                                                          RowSpacing="16"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate DataType="{x:Type viewModels:MaintenanceAutomationPackageOptionViewModel}">
+                                                    <Border Background="#0B1628"
+                                                            BorderBrush="#1E293B"
+                                                            BorderThickness="1"
+                                                            CornerRadius="14"
+                                                            Padding="16">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel>
+                                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                    <TextBlock Text="{Binding DisplayName}"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="#E2E8F0"
+                                                                               TextWrapping="Wrap"/>
+                                                                    <Border Background="#1F2937"
+                                                                            CornerRadius="8"
+                                                                            Padding="8,2"
+                                                                            Margin="8,0,0,0"
+                                                                            Visibility="{Binding RequiresAdministrator, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                        <TextBlock Text="Admin"
+                                                                                   Foreground="#FACC15"
+                                                                                   FontSize="10"
+                                                                                   FontWeight="SemiBold"/>
+                                                                    </Border>
+                                                                </StackPanel>
+                                                                <TextBlock Text="{Binding Manager}"
+                                                                           Foreground="#94A3B8"
+                                                                           FontSize="12"
+                                                                           Margin="0,4,0,0"/>
+                                                                <TextBlock Text="{Binding VersionSummary}"
+                                                                           Foreground="#CBD5F5"
+                                                                           FontSize="12"
+                                                                           Margin="0,4,0,0"/>
+                                                            </StackPanel>
+                                                            <StackPanel Grid.Column="1"
+                                                                        HorizontalAlignment="Right"
+                                                                        VerticalAlignment="Center">
+                                                                <ToggleButton Style="{StaticResource AutomationToggleSwitchStyle}"
+                                                                              IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                              IsEnabled="{Binding DataContext.UpdateAllPackages, RelativeSource={RelativeSource AncestorType=ScrollViewer}, Converter={StaticResource InverseBooleanConverter}}"/>
+                                                                <TextBlock Margin="0,8,0,0"
+                                                                           FontSize="11"
+                                                                           HorizontalAlignment="Center">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Text" Value="Off"/>
+                                                                            <Setter Property="Foreground" Value="#94A3B8"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                                    <Setter Property="Text" Value="Auto-update"/>
+                                                                                    <Setter Property="Foreground" Value="#34D399"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <TextBlock Text="No packages are available yet. Refresh the list to import inventory.">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock"
+                                                       BasedOn="{StaticResource AutomationSectionSubtitleTextStyle}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding PackageOptions.Count}" Value="0">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
                     </Grid>
                 </Grid>
             </Grid>

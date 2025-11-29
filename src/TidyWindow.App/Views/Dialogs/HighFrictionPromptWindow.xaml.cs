@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using TidyWindow.App.Services;
 
 namespace TidyWindow.App.Views.Dialogs;
@@ -20,20 +21,17 @@ public partial class HighFrictionPromptWindow : Window
 
     private void OnViewLogs(object sender, RoutedEventArgs e)
     {
-        Result = HighFrictionPromptResult.ViewLogs;
-        DialogResult = true;
+        Complete(HighFrictionPromptResult.ViewLogs, true);
     }
 
     private void OnRestart(object sender, RoutedEventArgs e)
     {
-        Result = HighFrictionPromptResult.RestartApp;
-        DialogResult = true;
+        Complete(HighFrictionPromptResult.RestartApp, true);
     }
 
     private void OnDismiss(object sender, RoutedEventArgs e)
     {
-        Result = HighFrictionPromptResult.Dismissed;
-        DialogResult = false;
+        Complete(HighFrictionPromptResult.Dismissed, false);
     }
 
     protected override void OnClosed(EventArgs e)
@@ -52,10 +50,29 @@ public partial class HighFrictionPromptWindow : Window
 
         if (e.Key == System.Windows.Input.Key.Escape)
         {
-            Result = HighFrictionPromptResult.Dismissed;
-            DialogResult = false;
+            Complete(HighFrictionPromptResult.Dismissed, false);
             e.Handled = true;
         }
+    }
+
+    private void Complete(HighFrictionPromptResult result, bool? dialogResult)
+    {
+        Result = result;
+        if (!TrySetDialogResult(dialogResult))
+        {
+            Close();
+        }
+    }
+
+    private bool TrySetDialogResult(bool? dialogResult)
+    {
+        if (!ComponentDispatcher.IsThreadModal)
+        {
+            return false;
+        }
+
+        DialogResult = dialogResult;
+        return true;
     }
 
     private void OnDragWindow(object sender, MouseButtonEventArgs e)

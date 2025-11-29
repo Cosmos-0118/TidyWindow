@@ -1177,10 +1177,10 @@ function Invoke-ManagerUpdate {
     $arguments = switch ($ManagerKey) {
         'winget' {
             if ($hasTarget) {
-                @('install', '--id', $PackageId, '-e', '--version', $TargetVersion, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--force')
+                @('install', '--id', $PackageId, '-e', '--version', $TargetVersion, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--silent', '--force')
             }
             else {
-                @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
+                @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--silent')
             }
         }
         'choco' {

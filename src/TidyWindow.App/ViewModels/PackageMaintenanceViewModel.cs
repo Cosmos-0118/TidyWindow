@@ -74,7 +74,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         IPrivilegeService privilegeService,
         ActivityLogService activityLogService,
         UserPreferencesService userPreferencesService,
-        IAutomationWorkTracker automationWorkTracker)
+        IAutomationWorkTracker automationWorkTracker,
+        MaintenanceAutomationViewModel maintenanceAutomationViewModel)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _maintenanceService = maintenanceService ?? throw new ArgumentNullException(nameof(maintenanceService));
@@ -84,12 +85,15 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _preferences = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
         _workTracker = automationWorkTracker ?? throw new ArgumentNullException(nameof(automationWorkTracker));
+        Automation = maintenanceAutomationViewModel ?? throw new ArgumentNullException(nameof(maintenanceAutomationViewModel));
 
         ManagerFilters.Add(AllManagersFilter);
         Operations.CollectionChanged += OnOperationsCollectionChanged;
         Warnings.CollectionChanged += OnWarningsCollectionChanged;
         _searchFilterDebounce = new UiDebounceDispatcher(SearchDebounceInterval);
     }
+
+    public MaintenanceAutomationViewModel Automation { get; }
 
     public ObservableCollection<PackageMaintenanceItemViewModel> Packages { get; } = new();
 
@@ -313,6 +317,11 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         }
 
         ActiveSection = section;
+
+        if (section == MaintenanceViewSection.Automation)
+        {
+            Automation.EnsureInitialized();
+        }
     }
 
     [RelayCommand]
@@ -1953,6 +1962,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _attachedOperations.Clear();
         _searchFilterDebounce.Flush();
         _searchFilterDebounce.Dispose();
+        Automation.Dispose();
     }
 }
 
@@ -1975,7 +1985,8 @@ public enum MaintenanceOperationStatus
 public enum MaintenanceViewSection
 {
     Packages,
-    Queue
+    Queue,
+    Automation
 }
 
 public sealed partial class PackageMaintenanceOperationViewModel : ObservableObject
