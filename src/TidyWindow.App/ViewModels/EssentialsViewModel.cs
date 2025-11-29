@@ -17,7 +17,8 @@ namespace TidyWindow.App.ViewModels;
 public enum EssentialsPivot
 {
     Tasks,
-    Queue
+    Queue,
+    Settings
 }
 
 public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
@@ -32,12 +33,18 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<string, int> _activeTaskCounts = new(StringComparer.OrdinalIgnoreCase);
     private bool _isDisposed;
 
-    public EssentialsViewModel(EssentialsTaskCatalog catalog, EssentialsTaskQueue queue, ActivityLogService activityLogService, MainViewModel mainViewModel)
+    public EssentialsViewModel(
+        EssentialsTaskCatalog catalog,
+        EssentialsTaskQueue queue,
+        ActivityLogService activityLogService,
+        MainViewModel mainViewModel,
+        EssentialsAutomationViewModel automationViewModel)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        Automation = automationViewModel ?? throw new ArgumentNullException(nameof(automationViewModel));
 
         Tasks = new ObservableCollection<EssentialsTaskItemViewModel>();
         Operations = new ObservableCollection<EssentialsOperationItemViewModel>();
@@ -72,6 +79,8 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<EssentialsTaskItemViewModel> Tasks { get; }
 
     public ObservableCollection<EssentialsOperationItemViewModel> Operations { get; }
+
+    public EssentialsAutomationViewModel Automation { get; }
 
     [ObservableProperty]
     private EssentialsOperationItemViewModel? _selectedOperation;
@@ -169,6 +178,22 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
+    private void ConfigureAutomationTask(EssentialsAutomationTaskToggleViewModel? automationTask)
+    {
+        if (automationTask is null)
+        {
+            return;
+        }
+
+        if (!_taskLookup.TryGetValue(automationTask.Id, out var task))
+        {
+            return;
+        }
+
+        PrepareTaskRun(task);
+    }
+
+    [RelayCommand]
     private void QueueTask(EssentialsTaskItemViewModel? task)
     {
         if (task is null)
@@ -207,6 +232,7 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
         {
             EssentialsPivot.Tasks => "Run high-impact repair and cleanup flows",
             EssentialsPivot.Queue => "Review queue health and inspect transcripts",
+            EssentialsPivot.Settings => "Automate essentials maintenance runs",
             _ => "Essentials operations"
         };
     }
@@ -514,6 +540,7 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
         _isDisposed = true;
         _queue.OperationChanged -= OnQueueOperationChanged;
+        Automation.Dispose();
     }
 }
 

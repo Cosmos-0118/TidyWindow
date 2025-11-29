@@ -308,6 +308,57 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="EssentialsSettingsPivotStyle" TargetType="FrameworkElement" BasedOn="{StaticResource EssentialsPivotContentBaseStyle}">
+            <Style.Triggers>
+                <DataTrigger Value="True">
+                    <DataTrigger.Binding>
+                        <Binding Path="DataContext.CurrentPivot"
+                                 RelativeSource="{RelativeSource AncestorType={x:Type Page}}"
+                                 Converter="{StaticResource EnumEqualsConverter}"
+                                 ConverterParameter="{x:Static viewModels:EssentialsPivot.Settings}"/>
+                    </DataTrigger.Binding>
+                    <Setter Property="Panel.ZIndex" Value="1"/>
+                    <Setter Property="IsHitTestVisible" Value="True"/>
+                    <DataTrigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                    <DiscreteObjectKeyFrame KeyTime="0" Value="{x:Static Visibility.Visible}"/>
+                                </ObjectAnimationUsingKeyFrames>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 From="0"
+                                                 To="1"
+                                                 Duration="0:0:0.22"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                 From="14"
+                                                 To="0"
+                                                 Duration="0:0:0.22"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseIn}"/>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.EnterActions>
+                    <DataTrigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                 To="0"
+                                                 Duration="0:0:0.18"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
+                                <DoubleAnimation Storyboard.TargetProperty="RenderTransform.(TranslateTransform.Y)"
+                                                 To="14"
+                                                 Duration="0:0:0.18"
+                                                 EasingFunction="{StaticResource EssentialsPivotEaseOut}"/>
+                                <ObjectAnimationUsingKeyFrames Storyboard.TargetProperty="Visibility">
+                                    <DiscreteObjectKeyFrame KeyTime="0:0:0.18" Value="{x:Static Visibility.Collapsed}"/>
+                                </ObjectAnimationUsingKeyFrames>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </DataTrigger.ExitActions>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="EssentialsTaskListItemStyle" TargetType="ListBoxItem">
             <Setter Property="Margin" Value="0"/>
             <Setter Property="Padding" Value="0"/>
@@ -323,6 +374,72 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="EssentialsSettingsHeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        </Style>
+
+        <Style x:Key="EssentialsSettingsSubtitleTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+        </Style>
+
+        <Style x:Key="EssentialsSettingsToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="52"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Background" Value="#1F2937"/>
+            <Setter Property="BorderBrush" Value="#1F2937"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="#334155"
+                                    BorderThickness="1"
+                                    CornerRadius="14"/>
+                            <Ellipse x:Name="Thumb"
+                                     Width="22"
+                                     Height="22"
+                                     Fill="#F8FAFC"
+                                     Margin="4,3,26,3"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#7C3AED"/>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="26,3,4,3"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Background" Value="#1F2937"/>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#1F2937"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#475569"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="EssentialsAutomationTaskCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="#121E35"/>
+            <Setter Property="BorderBrush" Value="#1F2F4C"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="16"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
     </Page.Resources>
 
@@ -366,6 +483,11 @@
                                               Command="{Binding NavigatePivotCommand}"
                                               CommandParameter="{x:Static viewModels:EssentialsPivot.Queue}"
                                               IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Queue}}"/>
+                                <ToggleButton Content="Automation settings"
+                                              Style="{StaticResource EssentialsPivotToggleStyle}"
+                                              Command="{Binding NavigatePivotCommand}"
+                                              CommandParameter="{x:Static viewModels:EssentialsPivot.Settings}"
+                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Settings}}"/>
                             </WrapPanel>
                         </StackPanel>
                     </controls:PageTitleBar.BodyContent>
@@ -868,6 +990,141 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </Grid>
+                            </Border>
+                        </StackPanel>
+
+                        <StackPanel Style="{StaticResource EssentialsSettingsPivotStyle}"
+                                    DataContext="{Binding Automation}">
+                            <Border Style="{StaticResource EssentialsCardStyle}" Padding="28" Margin="0,0,0,24">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Automation runway"
+                                                   Style="{StaticResource EssentialsSettingsHeaderTextStyle}"/>
+                                        <ToggleButton Margin="12,0,0,0"
+                                                      Style="{StaticResource EssentialsSettingsToggleStyle}"
+                                                      IsChecked="{Binding IsAutomationEnabled, Mode=TwoWay}"/>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding StatusMessage}"
+                                               Style="{StaticResource EssentialsSettingsSubtitleTextStyle}"
+                                               Margin="0,6,0,16"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <TextBlock Text="Interval"
+                                                   Width="80"
+                                                   Foreground="#94A3B8"/>
+                                        <ComboBox Width="180"
+                                                  ItemsSource="{Binding IntervalOptions}"
+                                                  SelectedValuePath="Minutes"
+                                                  SelectedValue="{Binding IntervalMinutes, Mode=TwoWay}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding Label}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <Border Background="#2F1F4D"
+                                            CornerRadius="8"
+                                            Padding="10,6"
+                                            Margin="0,0,0,16"
+                                            Visibility="{Binding HasPendingChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Pending changes will take effect when you press apply."
+                                                   Foreground="#C084FC"
+                                                   FontWeight="SemiBold"/>
+                                    </Border>
+                                    <WrapPanel>
+                                        <Button Content="Apply &amp; queue now"
+                                                Style="{StaticResource EssentialsAccentButtonStyle}"
+                                                Command="{Binding ApplyAutomationCommand}"
+                                                Margin="0,0,12,12"/>
+                                        <Button Content="Run now"
+                                                Style="{StaticResource EssentialsSecondaryButtonStyle}"
+                                                Command="{Binding RunAutomationNowCommand}"
+                                                Margin="0,0,0,12"/>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource EssentialsCardStyle}" Padding="28">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Task selection"
+                                                   Style="{StaticResource EssentialsSettingsHeaderTextStyle}"/>
+                                        <Border Background="#1B2A44"
+                                                Padding="10,4"
+                                                CornerRadius="10"
+                                                Margin="12,0,0,0">
+                                            <TextBlock Text="{Binding SelectionSummary}"
+                                                       Foreground="#C8D6F6"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Text="Choose the flows that should run automatically. TidyWindow queues them sequentially to stay battery-friendly."
+                                               Style="{StaticResource EssentialsSettingsSubtitleTextStyle}"
+                                               Margin="0,6,0,18"/>
+                                    <ItemsControl ItemsSource="{Binding TaskOptions}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <ux:AdaptiveTilePanel MinColumnWidth="320"
+                                                                      MaxColumnWidth="420"
+                                                                      ColumnSpacing="18"
+                                                                      RowSpacing="18"/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource EssentialsAutomationTaskCardStyle}">
+                                                    <StackPanel>
+                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                      VerticalAlignment="Center"
+                                                                      Margin="0,0,10,0"/>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           FontSize="15"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#F8FAFC"/>
+                                                                <TextBlock Text="{Binding Category}"
+                                                                           Foreground="#94A3B8"
+                                                                           FontSize="12"/>
+                                                            </StackPanel>
+                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding Summary}"
+                                                                   Margin="0,8,0,0"
+                                                                   Foreground="#B4C4E0"
+                                                                   TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding DurationHint}"
+                                                                   Margin="0,6,0,0"
+                                                                   Foreground="#7DD3FC"
+                                                                   FontSize="12">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding DurationHint}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding DurationHint}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <WrapPanel Margin="0,12,0,0">
+                                                            <Button Content="Configure includes"
+                                                                    Style="{StaticResource EssentialsSecondaryButtonStyle}"
+                                                                    Padding="10,4"
+                                                                    MinWidth="140"
+                                                                    Command="{Binding DataContext.ConfigureAutomationTaskCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                                    CommandParameter="{Binding}"/>
+                                                        </WrapPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
                             </Border>
                         </StackPanel>
                     </Grid>

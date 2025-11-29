@@ -3070,10 +3070,6 @@
                                             Command="{Binding ShareCelebrationSummaryCommand}"
                                             Style="{StaticResource FlatButtonStyle}"
                                             Margin="0,0,12,12"/>
-                                    <Button Content="Schedule recurring scan"
-                                            Command="{Binding ScheduleRecurringScanCommand}"
-                                            Style="{StaticResource FlatButtonStyle}"
-                                            Margin="0,0,12,12"/>
                                     <Button Content="Back to dashboard"
                                             Command="{Binding CancelCommand}"
                                             Style="{StaticResource FlatButtonStyle}"

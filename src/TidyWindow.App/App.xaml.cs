@@ -76,6 +76,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<InstallQueueWorkObserver>();
                 services.AddSingleton<EssentialsQueueWorkObserver>();
                 services.AddSingleton<IBrowserCleanupService, BrowserCleanupService>();
+                services.AddSingleton<EssentialsAutomationSettingsStore>();
+                services.AddSingleton<EssentialsAutomationScheduler>();
 
                 services.AddSingleton<PowerShellInvoker>();
                 services.AddSingleton<PackageManagerDetector>();
@@ -118,6 +120,7 @@ public partial class App : WpfApplication
                 services.AddTransient<InstallHubViewModel>();
                 services.AddTransient<PackageMaintenanceViewModel>();
                 services.AddTransient<LogsViewModel>();
+                services.AddTransient<EssentialsAutomationViewModel>();
                 services.AddTransient<EssentialsViewModel>();
                 services.AddTransient<RegistryOptimizerViewModel>();
                 services.AddTransient<PathPilotViewModel>();
@@ -152,6 +155,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<IHighFrictionPromptService>();
         _ = _host.Services.GetRequiredService<InstallQueueWorkObserver>();
         _ = _host.Services.GetRequiredService<EssentialsQueueWorkObserver>();
+        _ = _host.Services.GetRequiredService<EssentialsAutomationScheduler>();
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
 
         var launchMinimized = e.Args?.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase)) == true;
