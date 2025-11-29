@@ -40,6 +40,14 @@ $payload = [pscustomobject]@{
             InstalledVersion = '21.0.2'
             AvailableVersion = $null
             Source = 'java'
+        },
+        [pscustomobject]@{
+            Manager = 'winget'
+            Id = 'Python.Python.3.12'
+            Name = 'Python 3.12'
+            InstalledVersion = '< 3.12.10'
+            AvailableVersion = '3.12.10'
+            Source = 'winget'
         }
     )
     warnings = @('scoop inventory executed from elevated session')
@@ -73,6 +81,19 @@ $payload | ConvertTo-Json -Depth 5";
         Assert.False(scoopPackage.IsUpdateAvailable);
         Assert.NotNull(scoopPackage.Catalog);
         Assert.Equal("openjdk21-scoop", scoopPackage.Catalog!.InstallPackageId);
+    }
+
+    [Fact]
+    public async Task GetInventoryAsync_NormalizesInequalityVersionStrings()
+    {
+        var service = new PackageInventoryService(new PowerShellInvoker(), new InstallCatalogService());
+
+        var snapshot = await service.GetInventoryAsync();
+
+        var python = Assert.Single(snapshot.Packages, item => item.PackageIdentifier == "Python.Python.3.12");
+        Assert.False(python.IsUpdateAvailable);
+        Assert.Equal("3.12.10", python.InstalledVersion);
+        Assert.Equal("3.12.10", python.AvailableVersion);
     }
 
     public void Dispose()

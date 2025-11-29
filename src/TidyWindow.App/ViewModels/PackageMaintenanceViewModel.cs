@@ -2500,25 +2500,7 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
             return null;
         }
 
-        var trimmed = value.Trim();
-        if (trimmed.Length == 0)
-        {
-            return null;
-        }
-
-        if (string.Equals(trimmed, "unknown", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(trimmed, "not installed", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
-
-        var candidate = trimmed.Replace('_', '.').Replace('-', '.');
-        while (candidate.Contains(".."))
-        {
-            candidate = candidate.Replace("..", ".");
-        }
-
-        return candidate.Trim('.');
+        return VersionStringHelper.Normalize(value);
     }
 
     private static string TryGetInitial(string? value)

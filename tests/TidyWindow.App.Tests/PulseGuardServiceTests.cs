@@ -40,6 +40,19 @@ public sealed class PulseGuardServiceTests
         });
     }
 
+    [Fact]
+    public async Task PulseGuardEntriesDoNotTriggerPrompts()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
+
+            scope.ActivityLog.LogWarning("PulseGuard", "PulseGuard detected app restart requirement.");
+
+            await Assert.ThrowsAsync<TimeoutException>(() => scope.Prompt.WaitForScenarioAsync(TimeSpan.FromMilliseconds(200)));
+        });
+    }
+
     private sealed class PulseGuardTestScope : IDisposable
     {
         private readonly string? _previousLocalAppData;

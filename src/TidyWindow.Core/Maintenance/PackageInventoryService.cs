@@ -234,8 +234,7 @@ public sealed class PackageInventoryService
             return null;
         }
 
-        var trimmed = value.Trim();
-        return string.Equals(trimmed, "unknown", StringComparison.OrdinalIgnoreCase) ? null : trimmed;
+        return VersionStringHelper.Normalize(value);
     }
 
     private static string? ExtractPackageIdentifier(InstallPackageDefinition definition)

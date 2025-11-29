@@ -66,6 +66,12 @@ public sealed class PulseGuardService : IDisposable
             return;
         }
 
+        if (string.Equals(entry.Source, "PulseGuard", StringComparison.OrdinalIgnoreCase))
+        {
+            // Prevent PulseGuard-generated entries from triggering duplicate prompts.
+            return;
+        }
+
         var scenario = ResolveHighFrictionScenario(entry);
         if (scenario != HighFrictionScenario.None)
         {
