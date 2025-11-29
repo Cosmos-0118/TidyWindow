@@ -1,14 +1,12 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using Microsoft.Win32;
 
 namespace TidyWindow.App.Services;
 
 public sealed class AppAutoStartService
 {
-    private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
-    private const string ValueName = "TidyWindow";
+    private const string TaskFullName = "\\TidyWindow\\TidyWindowElevatedStartup";
 
     public bool TrySetEnabled(bool enabled, out string? error)
     {
@@ -30,28 +28,105 @@ public sealed class AppAutoStartService
                     return false;
                 }
 
-                using var key = Registry.CurrentUser.CreateSubKey(RunKeyPath, writable: true);
-                if (key is null)
-                {
-                    error = "Unable to open the Windows Run registry key.";
-                    return false;
-                }
-
-                key.SetValue(ValueName, $"\"{executablePath}\" --minimized");
-            }
-            else
-            {
-                using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
-                key?.DeleteValue(ValueName, throwOnMissingValue: false);
+                return TryCreateTask(executablePath, out error);
             }
 
-            return true;
+            return TryDeleteTask(out error);
         }
         catch (Exception ex)
         {
             error = ex.Message;
             return false;
         }
+    }
+
+    private static bool TryCreateTask(string executablePath, out string? error)
+    {
+        var actionArgument = $"\"\\\"{executablePath}\\\" --minimized\"";
+        var arguments = $"/Create /TN \"{TaskFullName}\" /F /SC ONLOGON /RL HIGHEST /TR {actionArgument}";
+        return RunSchtasks(arguments, out error);
+    }
+
+    private static bool TryDeleteTask(out string? error)
+    {
+        return RunSchtasks($"/Delete /TN \"{TaskFullName}\" /F", out error, ignoreMissing: true);
+    }
+
+    private static bool RunSchtasks(string arguments, out string? error, bool ignoreMissing = false)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "schtasks.exe",
+            Arguments = arguments,
+            CreateNoWindow = true,
+            UseShellExecute = false,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true
+        };
+
+        using var process = Process.Start(startInfo);
+        if (process is null)
+        {
+            error = "Failed to launch schtasks.exe.";
+            return false;
+        }
+
+        var stdOut = process.StandardOutput.ReadToEnd();
+        var stdErr = process.StandardError.ReadToEnd();
+        process.WaitForExit();
+
+        if (process.ExitCode == 0)
+        {
+            error = null;
+            return true;
+        }
+
+        var failure = CombineOutput(stdOut, stdErr);
+        if (ignoreMissing && IsMissingTaskMessage(failure))
+        {
+            error = null;
+            return true;
+        }
+
+        error = failure.Length == 0
+            ? $"schtasks.exe exited with code {process.ExitCode}."
+            : failure;
+        return false;
+    }
+
+    private static bool IsMissingTaskMessage(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("cannot find", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("does not exist", StringComparison.OrdinalIgnoreCase)
+            || message.Contains("not exist", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string CombineOutput(string stdOut, string stdErr)
+    {
+        var hasErr = !string.IsNullOrWhiteSpace(stdErr);
+        var hasOut = !string.IsNullOrWhiteSpace(stdOut);
+
+        if (hasErr && hasOut)
+        {
+            return (stdErr + Environment.NewLine + stdOut).Trim();
+        }
+
+        if (hasErr)
+        {
+            return stdErr.Trim();
+        }
+
+        if (hasOut)
+        {
+            return stdOut.Trim();
+        }
+
+        return string.Empty;
     }
 
     private static string? ResolveExecutablePath()

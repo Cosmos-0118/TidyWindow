@@ -16,7 +16,7 @@ public sealed class BackgroundPresenceService : IDisposable
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
 
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.AddHandler(_preferences, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
-        ApplyAutoStart(_preferences.Current.RunInBackground);
+        ApplyAutoStart(_preferences.Current.LaunchAtStartup);
     }
 
     public void Dispose()
@@ -26,21 +26,21 @@ public sealed class BackgroundPresenceService : IDisposable
 
     private void OnPreferencesChanged(object? sender, UserPreferencesChangedEventArgs args)
     {
-        if (args.Preferences.RunInBackground == args.Previous.RunInBackground)
+        if (args.Preferences.LaunchAtStartup == args.Previous.LaunchAtStartup)
         {
             return;
         }
 
-        ApplyAutoStart(args.Preferences.RunInBackground);
+        ApplyAutoStart(args.Preferences.LaunchAtStartup);
     }
 
     private void ApplyAutoStart(bool enable)
     {
         if (_autoStartService.TrySetEnabled(enable, out var error))
         {
-            _activityLog.LogInformation("BackgroundMode", enable
-                ? "Registered run-at-startup entry so background mode can relaunch automatically."
-                : "Removed run-at-startup entry; background mode will no longer auto-launch.");
+            _activityLog.LogInformation("Startup", enable
+                ? "Registered elevated Task Scheduler entry so TidyWindow launches quietly at sign-in."
+                : "Removed the Task Scheduler entry; TidyWindow will no longer auto-launch.");
             return;
         }
 
@@ -48,6 +48,6 @@ public sealed class BackgroundPresenceService : IDisposable
             ? $"Failed to register TidyWindow for startup: {error}"
             : $"Failed to remove TidyWindow from startup: {error}";
 
-        _activityLog.LogWarning("BackgroundMode", message);
+        _activityLog.LogWarning("Startup", message);
     }
 }

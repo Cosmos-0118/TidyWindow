@@ -11,6 +11,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private bool _telemetryEnabled;
     private bool _runInBackground;
+    private bool _launchAtStartup;
     private bool _notificationsEnabled;
     private bool _notifyOnlyWhenInactive;
     private bool _pulseGuardEnabled;
@@ -91,6 +92,26 @@ public sealed class SettingsViewModel : ViewModelBase
                     : "PulseGuard notifications are paused.");
                 _preferences.SetNotificationsEnabled(value);
                 OnPropertyChanged(nameof(CanAdjustPulseGuardNotifications));
+            }
+        }
+    }
+
+    public bool LaunchAtStartup
+    {
+        get => _launchAtStartup;
+        set
+        {
+            if (SetProperty(ref _launchAtStartup, value))
+            {
+                if (_isApplyingPreferences)
+                {
+                    return;
+                }
+
+                PublishStatus(value
+                    ? "TidyWindow will now register a Task Scheduler entry to launch at sign-in."
+                    : "TidyWindow will no longer auto-launch at sign-in.");
+                _preferences.SetLaunchAtStartup(value);
             }
         }
     }
@@ -203,6 +224,7 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             RunInBackground = preferences.RunInBackground;
+            LaunchAtStartup = preferences.LaunchAtStartup;
             PulseGuardEnabled = preferences.PulseGuardEnabled;
             NotificationsEnabled = preferences.NotificationsEnabled;
             NotifyOnlyWhenInactive = preferences.NotifyOnlyWhenInactive;

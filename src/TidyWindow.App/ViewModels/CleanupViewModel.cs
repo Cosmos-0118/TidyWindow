@@ -496,9 +496,25 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isLockingProcessPopupOpen;
 
-    public int AutomationTopItemMinimum => CleanupAutomationSettings.MinimumTopItemCount;
+    public int AutomationTopItemMinimum
+    {
+        get => CleanupAutomationSettings.MinimumTopItemCount;
+        set
+        {
+            // Slider bindings occasionally push values back; keep the floor immutable.
+            _ = value;
+        }
+    }
 
-    public int AutomationTopItemMaximum => CleanupAutomationSettings.MaximumTopItemCount;
+    public int AutomationTopItemMaximum
+    {
+        get => CleanupAutomationSettings.MaximumTopItemCount;
+        set
+        {
+            // Slider bindings occasionally push values back; keep the ceiling immutable.
+            _ = value;
+        }
+    }
 
     public string AutomationTopItemCountDisplay => string.Format(
         CultureInfo.CurrentCulture,

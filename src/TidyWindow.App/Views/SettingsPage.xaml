@@ -213,6 +213,25 @@
                                                                                   Style="{StaticResource SettingsToggleSwitchStyle}"
                                                                                   IsChecked="{Binding RunInBackground, Mode=TwoWay}"/>
                                                 </Grid>
+
+                                                <Grid Margin="0,16,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                                <TextBlock Text="Launch at startup"
+                                                                                   Foreground="#E2E8F0"
+                                                                                   FontSize="14"
+                                                                                   FontWeight="SemiBold"/>
+                                                                <TextBlock Text="Create a Task Scheduler entry that runs with highest privileges so Windows won't prompt every logon."
+                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                                                                   Margin="0,4,0,0"/>
+                                                        </StackPanel>
+                                                        <ToggleButton Grid.Column="1"
+                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
+                                                                                  IsChecked="{Binding LaunchAtStartup, Mode=TwoWay}"/>
+                                                </Grid>
                                         </StackPanel>
                                 </Border>
 
