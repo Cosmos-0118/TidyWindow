@@ -98,9 +98,11 @@ public sealed class AdaptiveTilePanel : WpfPanel
 
     private readonly List<double> _rowHeights = new();
     private ItemsControl? _itemsOwner;
+    private ScrollViewer? _viewportHost;
 
     protected override WpfSize MeasureOverride(WpfSize availableSize)
     {
+        EnsureViewportSubscription();
         EnsureOwnerSubscription();
         var viewportWidth = ResolveViewportWidth(availableSize);
         var padding = Padding;
@@ -344,6 +346,43 @@ public sealed class AdaptiveTilePanel : WpfPanel
         return MinColumnWidth;
     }
 
+    private void EnsureViewportSubscription()
+    {
+        var scrollViewer = FindOwningScrollViewer(this);
+        if (ReferenceEquals(scrollViewer, _viewportHost))
+        {
+            return;
+        }
+
+        if (_viewportHost is not null)
+        {
+            _viewportHost.SizeChanged -= OnViewportSizeChanged;
+        }
+
+        _viewportHost = scrollViewer;
+        if (_viewportHost is not null)
+        {
+            _viewportHost.SizeChanged += OnViewportSizeChanged;
+        }
+    }
+
+    private void ReleaseViewportSubscription()
+    {
+        if (_viewportHost is not null)
+        {
+            _viewportHost.SizeChanged -= OnViewportSizeChanged;
+            _viewportHost = null;
+        }
+    }
+
+    private void OnViewportSizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        if (e.WidthChanged)
+        {
+            InvalidateMeasure();
+        }
+    }
+
     private static double FindScrollViewerWidth(DependencyObject source)
     {
         var current = source;
@@ -366,6 +405,22 @@ public sealed class AdaptiveTilePanel : WpfPanel
         }
 
         return double.NaN;
+    }
+
+    private static ScrollViewer? FindOwningScrollViewer(DependencyObject source)
+    {
+        var current = source;
+        while (current is not null)
+        {
+            if (current is ScrollViewer viewer)
+            {
+                return viewer;
+            }
+
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        return null;
     }
 
     private static double FindAncestorWidth(DependencyObject source)
@@ -516,6 +571,15 @@ public sealed class AdaptiveTilePanel : WpfPanel
     protected override void OnVisualParentChanged(DependencyObject oldParent)
     {
         base.OnVisualParentChanged(oldParent);
+        if (VisualParent is null)
+        {
+            ReleaseViewportSubscription();
+        }
+        else
+        {
+            EnsureViewportSubscription();
+        }
+
         EnsureOwnerSubscription();
     }
 }

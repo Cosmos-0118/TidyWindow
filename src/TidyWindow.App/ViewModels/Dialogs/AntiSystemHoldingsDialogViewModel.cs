@@ -4,16 +4,29 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Services;
+using TidyWindow.App.ViewModels;
 using TidyWindow.Core.Processes;
 
 namespace TidyWindow.App.ViewModels.Dialogs;
 
 public sealed partial class AntiSystemHoldingsDialogViewModel : ObservableObject
 {
+    private readonly ProcessStateStore _stateStore;
+    private readonly MainViewModel _mainViewModel;
+    private readonly IUserConfirmationService _confirmationService;
+
     public AntiSystemHoldingsDialogViewModel(
+        ProcessStateStore stateStore,
+        MainViewModel mainViewModel,
+        IUserConfirmationService confirmationService,
         IEnumerable<AntiSystemWhitelistEntryViewModel>? whitelist,
         IEnumerable<AntiSystemQuarantineEntryViewModel>? quarantine)
     {
+        _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
+        _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         WhitelistEntries = new ObservableCollection<AntiSystemWhitelistEntryViewModel>(whitelist ?? Enumerable.Empty<AntiSystemWhitelistEntryViewModel>());
         QuarantineEntries = new ObservableCollection<AntiSystemQuarantineEntryViewModel>(quarantine ?? Enumerable.Empty<AntiSystemQuarantineEntryViewModel>());
 
@@ -28,6 +41,68 @@ public sealed partial class AntiSystemHoldingsDialogViewModel : ObservableObject
     public bool HasWhitelistEntries => WhitelistEntries.Count > 0;
 
     public bool HasQuarantineEntries => QuarantineEntries.Count > 0;
+
+    [RelayCommand]
+    private void RemoveWhitelistEntry(AntiSystemWhitelistEntryViewModel? entry)
+    {
+        if (entry is null)
+        {
+            return;
+        }
+
+        if (!_confirmationService.Confirm("Remove whitelist entry", $"Stop ignoring '{entry.Value}'?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (_stateStore.RemoveWhitelistEntry(entry.Id))
+            {
+                WhitelistEntries.Remove(entry);
+                _mainViewModel.LogActivityInformation("Anti-System", $"Removed whitelist entry for {entry.Value}.");
+            }
+            else
+            {
+                _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", "Whitelist entry could not be removed.", new[] { entry.Value });
+            }
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Anti-System", "Failed to remove whitelist entry.", new[] { ex.Message });
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveQuarantineEntry(AntiSystemQuarantineEntryViewModel? entry)
+    {
+        if (entry is null)
+        {
+            return;
+        }
+
+        if (!_confirmationService.Confirm("Remove quarantine record", $"Delete the quarantine log for '{entry.ProcessName}'?"))
+        {
+            return;
+        }
+
+        try
+        {
+            if (_stateStore.RemoveQuarantineEntry(entry.Id))
+            {
+                QuarantineEntries.Remove(entry);
+                _mainViewModel.LogActivityInformation("Anti-System", $"Removed quarantine record for {entry.ProcessName}.");
+            }
+            else
+            {
+                _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", "Quarantine record could not be removed.", new[] { entry.ProcessName });
+            }
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Anti-System", "Failed to remove quarantine record.", new[] { ex.Message });
+        }
+    }
 }
 
 public sealed class AntiSystemWhitelistEntryViewModel

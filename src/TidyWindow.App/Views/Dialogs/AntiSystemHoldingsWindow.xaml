@@ -6,11 +6,56 @@
         xmlns:vm="clr-namespace:TidyWindow.App.ViewModels.Dialogs"
         mc:Ignorable="d"
         Title="Anti-System allowances"
-        Height="520"
-        Width="900"
+        Height="540"
+        Width="940"
         Background="#0B1120"
         Foreground="#E2E8F0"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <Style x:Key="HoldingsCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0F172A" />
+            <Setter Property="BorderBrush" Value="#1D2A44" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+        </Style>
+
+        <Style x:Key="HoldingsActionButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#F8FAFC" />
+            <Setter Property="Background" Value="#1D4ED8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#2563EB" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1E40AF" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
     <Grid Margin="24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -27,18 +72,14 @@
                        Margin="0,4,0,0" />
         </StackPanel>
 
-        <Grid Grid.Row="1">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-                <Border Background="#0F172A"
-                    BorderBrush="#1D2A44"
-                    BorderThickness="1"
-                    CornerRadius="14"
-                    Padding="16"
-                    Grid.Column="0">
+            <Border Grid.Column="0" Style="{StaticResource HoldingsCardStyle}">
                 <StackPanel>
                     <TextBlock Text="Whitelisted entries"
                                FontSize="18"
@@ -46,55 +87,60 @@
                     <TextBlock Text="Directories, hashes, or process names Anti-System will ignore."
                                Foreground="#94A3B8"
                                Margin="0,4,0,12" />
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding WhitelistEntries}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:AntiSystemWhitelistEntryViewModel}">
-                                    <Border Background="#111C36"
-                                            BorderBrush="#1F2A44"
-                                            BorderThickness="1"
-                                            CornerRadius="10"
-                                            Padding="12"
-                                            Margin="0,0,0,12">
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding KindLabel}"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#F8FAFC" />
-                                                <TextBlock Text="{Binding AddedAtDisplay}"
-                                                           Foreground="#94A3B8"
-                                                           Margin="12,0,0,0" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding Value}"
-                                                       FontSize="14"
-                                                       Margin="0,6,0,0" />
-                                            <TextBlock Text="{Binding Notes}"
+                    <ItemsControl ItemsSource="{Binding WhitelistEntries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:AntiSystemWhitelistEntryViewModel}">
+                                <Border Background="#111C36"
+                                        BorderBrush="#1F2A44"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="14"
+                                        Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding KindLabel}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F8FAFC" />
+                                            <TextBlock Text="{Binding AddedAtDisplay}"
                                                        Foreground="#94A3B8"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,4,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Notes}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Notes}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding AddedBy, StringFormat=Added by {0}}"
-                                                       Foreground="#64748B"
-                                                       Margin="0,6,0,0" />
+                                                       Margin="12,0,0,0" />
                                         </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                                        <TextBlock Text="{Binding Value}"
+                                                   FontSize="14"
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Notes}"
+                                                   Foreground="#94A3B8"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Notes}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Notes}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding AddedBy, StringFormat=Added by {0}}"
+                                                   Foreground="#64748B"
+                                                   Margin="0,6,0,0" />
+                                        <Button Content="Remove"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,12,0,0"
+                                                Style="{StaticResource HoldingsActionButtonStyle}"
+                                                Command="{Binding DataContext.RemoveWhitelistEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <TextBlock Text="No whitelist entries yet."
                                Foreground="#94A3B8"
                                Margin="0,12,0,0"
@@ -113,13 +159,7 @@
                 </StackPanel>
             </Border>
 
-                <Border Background="#0F172A"
-                    BorderBrush="#1D2A44"
-                    BorderThickness="1"
-                    CornerRadius="14"
-                    Padding="16"
-                    Grid.Column="1"
-                    Margin="16,0,0,0">
+            <Border Grid.Column="1" Margin="18,0,0,0" Style="{StaticResource HoldingsCardStyle}">
                 <StackPanel>
                     <TextBlock Text="Quarantined executables"
                                FontSize="18"
@@ -127,56 +167,60 @@
                     <TextBlock Text="Everything you've attempted to quarantine via Anti-System."
                                Foreground="#94A3B8"
                                Margin="0,4,0,12" />
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <ItemsControl ItemsSource="{Binding QuarantineEntries}">
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type vm:AntiSystemQuarantineEntryViewModel}">
-                                    <Border Background="#111C36"
-                                            BorderBrush="#1F2A44"
-                                            BorderThickness="1"
-                                            CornerRadius="10"
-                                            Padding="12"
-                                            Margin="0,0,0,12">
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding ProcessName}"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#F8FAFC" />
-                                                <TextBlock Text="{Binding QuarantinedAtDisplay}"
-                                                           Foreground="#94A3B8"
-                                                           Margin="12,0,0,0" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding FilePath}"
-                                                       FontSize="14"
-                                                       Margin="0,6,0,0"
-                                                       TextWrapping="Wrap" />
-                                            <TextBlock Text="{Binding Notes}"
+                    <ItemsControl ItemsSource="{Binding QuarantineEntries}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="{x:Type vm:AntiSystemQuarantineEntryViewModel}">
+                                <Border Background="#111C36"
+                                        BorderBrush="#1F2A44"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="14"
+                                        Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding ProcessName}"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#F8FAFC" />
+                                            <TextBlock Text="{Binding QuarantinedAtDisplay}"
                                                        Foreground="#94A3B8"
-                                                       TextWrapping="Wrap"
-                                                       Margin="0,4,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Notes}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding Notes}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                            <TextBlock Text="{Binding AddedBy, StringFormat=Logged by {0}}"
-                                                       Foreground="#64748B"
-                                                       Margin="0,6,0,0" />
+                                                       Margin="12,0,0,0" />
                                         </StackPanel>
-                                    </Border>
-                                </DataTemplate>
-                            </ItemsControl.ItemTemplate>
-                        </ItemsControl>
-                    </ScrollViewer>
+                                        <TextBlock Text="{Binding FilePath}"
+                                                   FontSize="14"
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Notes}"
+                                                   Foreground="#94A3B8"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Notes}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Notes}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding AddedBy, StringFormat=Logged by {0}}"
+                                                   Foreground="#64748B"
+                                                   Margin="0,6,0,0" />
+                                        <Button Content="Remove"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,12,0,0"
+                                                Style="{StaticResource HoldingsActionButtonStyle}"
+                                                Command="{Binding DataContext.RemoveQuarantineEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                CommandParameter="{Binding}" />
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <TextBlock Text="No quarantine attempts recorded yet."
                                Foreground="#94A3B8"
                                Margin="0,12,0,0"
@@ -194,7 +238,8 @@
                     </TextBlock>
                 </StackPanel>
             </Border>
-        </Grid>
+            </Grid>
+        </ScrollViewer>
 
         <StackPanel Grid.Row="2"
                     Orientation="Horizontal"

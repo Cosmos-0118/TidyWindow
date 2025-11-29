@@ -196,9 +196,9 @@
                     <Setter Property="CornerRadius"
                         Value="12"/>
                     <Setter Property="Padding"
-                        Value="16"/>
+                                Value="20"/>
                     <Setter Property="Margin"
-                        Value="0,0,16,16"/>
+                                Value="0,0,24,24"/>
                     <Setter Property="Effect"
                         Value="{StaticResource DeepScanSoftShadowEffect}"/>
                 </Style>
@@ -436,16 +436,16 @@
                         <StackPanel Orientation="Vertical"
                             Margin="0,0,0,16">
                         <ux:AdaptiveTilePanel Margin="0"
-                                      MinColumnWidth="240"
-                                      MaxColumnWidth="420"
+                                      MinColumnWidth="280"
+                                      MaxColumnWidth="520"
                                       MinColumns="1"
                                       MaxColumns="4"
-                                      ColumnSpacing="20"
-                                      RowSpacing="16"
-                                      Padding="0">
+                                      ColumnSpacing="28"
+                                      RowSpacing="22"
+                                      Padding="0,0,8,8">
                             <Border Style="{StaticResource FilterCardBorderStyle}"
-                                MinWidth="320"
-                                MaxWidth="480">
+                                MinWidth="360"
+                                MaxWidth="520">
                                 <StackPanel>
                                     <TextBlock Text="Target location"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -494,8 +494,8 @@
                             </Border>
 
                                 <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="240"
-                                    MaxWidth="320">
+                                    MinWidth="280"
+                                    MaxWidth="360">
                                 <StackPanel>
                                     <TextBlock Text="Result limits"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -526,8 +526,8 @@
                             </Border>
 
                                 <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="220"
-                                    MaxWidth="260">
+                                    MinWidth="260"
+                                    MaxWidth="320">
                                 <StackPanel>
                                     <TextBlock Text="Scan options"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -548,8 +548,8 @@
                             </Border>
 
                                 <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="280"
-                                    MaxWidth="360">
+                                    MinWidth="320"
+                                    MaxWidth="420">
                                 <StackPanel>
                                     <TextBlock Text="Name matching"
                                                Style="{StaticResource FilterLabelStyle}"/>

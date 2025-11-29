@@ -152,6 +152,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<IHighFrictionPromptService>();
         _ = _host.Services.GetRequiredService<InstallQueueWorkObserver>();
         _ = _host.Services.GetRequiredService<EssentialsQueueWorkObserver>();
+        _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
 
         var launchMinimized = e.Args?.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase)) == true;
         var startHidden = launchMinimized && preferences.Current.RunInBackground;

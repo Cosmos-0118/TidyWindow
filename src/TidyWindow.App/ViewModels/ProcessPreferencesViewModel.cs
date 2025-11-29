@@ -340,7 +340,12 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
                 entry.QuarantinedAtUtc))
             .ToList();
 
-        var dialogViewModel = new AntiSystemHoldingsDialogViewModel(whitelist, quarantine);
+        var dialogViewModel = new AntiSystemHoldingsDialogViewModel(
+            _processStateStore,
+            _mainViewModel,
+            _confirmationService,
+            whitelist,
+            quarantine);
         var window = new AntiSystemHoldingsWindow(dialogViewModel)
         {
             Owner = WpfApplication.Current?.MainWindow,

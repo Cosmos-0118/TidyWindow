@@ -1,8 +1,0 @@
-whats the idea:
-
-windows have lot of useless operations which run in the background.
-
-also there is a possiblity that the user computer may have a viruses or spyware.
-
-there is also crashreports. user diesnt even know what happend or y it happend,
-so we read the log files and if we find any critical issue we show the user.

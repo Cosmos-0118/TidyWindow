@@ -108,7 +108,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
             Summary = BuildSummary(result);
             LastScanCompletedAt = result.CompletedAtUtc;
             OnPropertyChanged(nameof(LastScanSummary));
-            _mainViewModel.LogActivityInformation("Anti-System", Summary);
+            LogScanOutcome(result);
         }
         catch (Exception ex)
         {
@@ -271,6 +271,50 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         var elevated = result.Hits.Count(hit => hit.Level == SuspicionLevel.Orange);
         var watch = result.Hits.Count(hit => hit.Level == SuspicionLevel.Yellow);
         return $"Critical: {critical} · Elevated: {elevated} · Watch: {watch}";
+    }
+
+    private void LogScanOutcome(AntiSystemDetectionResult result)
+    {
+        if (result.Hits.Count == 0)
+        {
+            _mainViewModel.LogActivityInformation("Anti-System", "No suspicious activity detected.");
+            return;
+        }
+
+        var detailLines = BuildHitDetails(result.Hits, 12);
+        var message = result.Hits.Count == 1
+            ? "Anti-System flagged 1 suspicious process."
+            : $"Anti-System flagged {result.Hits.Count} suspicious processes.";
+        _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", message, detailLines);
+    }
+
+    private static IEnumerable<string> BuildHitDetails(IEnumerable<SuspiciousProcessHit> hits, int max)
+    {
+        var ordered = hits
+            .OrderByDescending(hit => hit.Level)
+            .ThenBy(hit => hit.ProcessName, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (ordered.Count == 0)
+        {
+            return Array.Empty<string>();
+        }
+
+        var limit = Math.Min(max, ordered.Count);
+        var details = new List<string>(limit + 1);
+        for (var i = 0; i < limit; i++)
+        {
+            var hit = ordered[i];
+            var location = string.IsNullOrWhiteSpace(hit.FilePath) ? "(unknown location)" : hit.FilePath;
+            details.Add($"{hit.Level}: {hit.ProcessName} — {location}");
+        }
+
+        if (ordered.Count > limit)
+        {
+            details.Add($"(+{ordered.Count - limit} more)");
+        }
+
+        return details;
     }
 
     private void ApplyHits(IReadOnlyCollection<SuspiciousProcessHit> hits)
