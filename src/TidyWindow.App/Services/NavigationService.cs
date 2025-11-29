@@ -92,27 +92,34 @@ public sealed class NavigationService
 
     private Page ResolvePage(Type pageType)
     {
-        if (!_pageCache.TryGetValue(pageType, out var page))
+        if (PageCacheRegistry.IsCacheable(pageType) && _pageCache.TryGetValue(pageType, out var cached))
         {
-            try
-            {
-                page = _serviceProvider.GetService(pageType) as Page
-                       ?? ActivatorUtilities.CreateInstance(_serviceProvider, pageType) as Page
-                       ?? throw new InvalidOperationException($"Unable to resolve page instance for {pageType.FullName}.");
-            }
-            catch (Exception ex)
-            {
-                _activityLog.LogError("Navigation", $"Failed to materialize {pageType.FullName}", new object?[] { ex });
-                throw;
-            }
+            return cached;
+        }
 
-            if (page is ICacheablePage)
-            {
-                _pageCache[pageType] = page;
-            }
+        var page = CreatePageInstance(pageType);
+
+        if (PageCacheRegistry.IsCacheable(pageType))
+        {
+            _pageCache[pageType] = page;
         }
 
         return page;
+    }
+
+    private Page CreatePageInstance(Type pageType)
+    {
+        try
+        {
+            return _serviceProvider.GetService(pageType) as Page
+                   ?? ActivatorUtilities.CreateInstance(_serviceProvider, pageType) as Page
+                   ?? throw new InvalidOperationException($"Unable to resolve page instance for {pageType.FullName}.");
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogError("Navigation", $"Failed to materialize {pageType.FullName}", new object?[] { ex });
+            throw;
+        }
     }
 
     private void BeginTransition(Type pageType, Page targetPage)

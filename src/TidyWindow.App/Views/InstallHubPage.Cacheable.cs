@@ -1,7 +1,5 @@
-using TidyWindow.App.Services;
-
 namespace TidyWindow.App.Views;
 
-public partial class InstallHubPage : ICacheablePage
+public partial class InstallHubPage
 {
 }
