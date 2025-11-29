@@ -194,11 +194,11 @@
                     <Setter Property="BorderThickness"
                         Value="1"/>
                     <Setter Property="CornerRadius"
-                        Value="12"/>
+                                Value="18"/>
                     <Setter Property="Padding"
-                                Value="20"/>
+                                Value="26"/>
                     <Setter Property="Margin"
-                                Value="0,0,24,24"/>
+                                Value="0,0,32,32"/>
                     <Setter Property="Effect"
                         Value="{StaticResource DeepScanSoftShadowEffect}"/>
                 </Style>
@@ -436,40 +436,35 @@
                         <StackPanel Orientation="Vertical"
                             Margin="0,0,0,16">
                         <ux:AdaptiveTilePanel Margin="0"
-                                      MinColumnWidth="280"
-                                      MaxColumnWidth="520"
+                                      MinColumnWidth="360"
+                                      MaxColumnWidth="640"
                                       MinColumns="1"
-                                      MaxColumns="4"
-                                      ColumnSpacing="28"
-                                      RowSpacing="22"
-                                      Padding="0,0,8,8">
+                                      MaxColumns="3"
+                                      ColumnSpacing="36"
+                                      RowSpacing="28"
+                                      Padding="0,0,12,12">
                             <Border Style="{StaticResource FilterCardBorderStyle}"
-                                MinWidth="360"
-                                MaxWidth="520">
+                                 MinWidth="320"
+                                 MaxWidth="460">
                                 <StackPanel>
                                     <TextBlock Text="Target location"
                                                Style="{StaticResource FilterLabelStyle}"/>
                                     <TextBlock Text="Choose where the deep scan should dig in."
                                                Style="{StaticResource FilterHintStyle}"/>
-                                    <Grid Margin="0,14,0,0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0"
-                                                 Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged, Delay=120}"
-                                                 MinWidth="220"
+                                    <StackPanel Margin="0,14,0,0">
+                                        <TextBox Text="{Binding TargetPath, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                                                 MinWidth="280"
                                                  Style="{StaticResource App.TextBoxStyle}"/>
-                                        <Button Grid.Column="1"
-                                                Content="Browse"
+                                        <Button Content="Browse"
                                                 Click="BrowseButton_OnClick"
-                                                Margin="10,0,0,0"
-                                                Padding="16,6"
+                                                Margin="0,10,0,0"
+                                                Padding="16,8"
+                                                Width="140"
                                                 Background="#1E293B"
                                                 Foreground="#38BDF8"
                                                 BorderBrush="#0F172A"
                                                 Cursor="Hand"/>
-                                    </Grid>
+                                    </StackPanel>
                                     <ComboBox Margin="0,16,0,0"
                                               ItemsSource="{Binding PresetLocations}"
                                               SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
@@ -493,9 +488,9 @@
                                 </StackPanel>
                             </Border>
 
-                                <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="280"
-                                    MaxWidth="360">
+                                  <Border Style="{StaticResource FilterCardBorderStyle}"
+                                      MinWidth="340"
+                                      MaxWidth="520">
                                 <StackPanel>
                                     <TextBlock Text="Result limits"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -526,8 +521,8 @@
                             </Border>
 
                                 <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="260"
-                                    MaxWidth="320">
+                                    MinWidth="320"
+                                    MaxWidth="440">
                                 <StackPanel>
                                     <TextBlock Text="Scan options"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -548,8 +543,8 @@
                             </Border>
 
                                 <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="320"
-                                    MaxWidth="420">
+                                    MinWidth="360"
+                                    MaxWidth="520">
                                 <StackPanel>
                                     <TextBlock Text="Name matching"
                                                Style="{StaticResource FilterLabelStyle}"/>

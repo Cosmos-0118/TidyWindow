@@ -522,6 +522,512 @@
           }
         ]
       }
+    },
+    {
+      "id": "startup-delay",
+      "name": "Disable startup delay",
+      "category": "Startup & shell",
+      "summary": "Runs startup apps immediately after signing in by removing the safety pause.",
+      "riskLevel": "Safe",
+      "icon": "🚀",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-startup-delay.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-startup-delay.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize",
+            "valueName": "StartupDelayInMSec",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          },
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Serialize",
+            "valueName": "WaitForIdleState",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "taskbar-seconds",
+      "name": "Show seconds on clock",
+      "category": "Startup & shell",
+      "summary": "Adds the seconds readout back to the taskbar clock.",
+      "riskLevel": "Safe",
+      "icon": "⏲️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-taskbar-clock-seconds.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-taskbar-clock-seconds.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+            "valueName": "ShowSecondsInSystemClock",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "taskbar-last-active",
+      "name": "Last active taskbar click",
+      "category": "Startup & shell",
+      "summary": "Clicking a grouped icon focuses the most recently used window for that app.",
+      "riskLevel": "Safe",
+      "icon": "🪟",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-taskbar-last-active-click.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-taskbar-last-active-click.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+            "valueName": "LastActiveClick",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "folder-type-optimization",
+      "name": "Speed up folder browsing",
+      "category": "File Explorer",
+      "summary": "Prevents Explorer from re-sniffing every folder for content type to keep navigation instant.",
+      "riskLevel": "Safe",
+      "icon": "🗂️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-folder-type-optimization.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-folder-type-optimization.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\Shell\\Bags\\AllFolders\\Shell",
+            "valueName": "FolderType",
+            "valueType": "String",
+            "supportsCustomValue": false,
+            "recommendedValue": "NotSpecified"
+          }
+        ]
+      }
+    },
+    {
+      "id": "power-throttling",
+      "name": "Disable power throttling",
+      "category": "Performance & gaming",
+      "summary": "Stops Windows from limiting background CPU usage on desktop rigs.",
+      "riskLevel": "Moderate",
+      "icon": "🔋",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-power-throttling.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-power-throttling.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\Power\\PowerThrottling",
+            "valueName": "PowerThrottlingOff",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "take-ownership-context",
+      "name": "Take ownership menu",
+      "category": "Advanced scripts",
+      "summary": "Adds a right-click Take Ownership entry for files, folders, and drives.",
+      "riskLevel": "Moderate",
+      "icon": "🛡️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/toggle-take-ownership.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/toggle-take-ownership.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      }
+    },
+    {
+      "id": "verbose-status",
+      "name": "Verbose startup messages",
+      "category": "Diagnostics",
+      "summary": "Shows detailed boot and shutdown messages for easier troubleshooting.",
+      "riskLevel": "Safe",
+      "icon": "📋",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-verbose-status.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-verbose-status.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",
+            "valueName": "VerboseStatus",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "win32-priority",
+      "name": "Prioritise foreground apps",
+      "category": "Performance & gaming",
+      "summary": "Applies the 0x26 Win32 priority separation profile for foreground workloads.",
+      "riskLevel": "Moderate",
+      "icon": "🎮",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-win32-priority-separation.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-win32-priority-separation.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\PriorityControl",
+            "valueName": "Win32PrioritySeparation",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 38
+          }
+        ]
+      }
+    },
+    {
+      "id": "core-parking",
+      "name": "Disable CPU core parking",
+      "category": "Performance & gaming",
+      "summary": "Keeps all logical cores awake to avoid micro-stutter when threads burst.",
+      "riskLevel": "Advanced",
+      "icon": "🌀",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-core-parking.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-core-parking.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\Power\\PowerSettings\\54533251-82be-4824-96c1-47b60b740d00\\0cc5b647-c1df-4637-891a-dec35c318583",
+            "valueName": "ValueMax",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "network-throttling-index",
+      "name": "Remove network throttling",
+      "category": "Networking",
+      "summary": "Sets NetworkThrottlingIndex to 0xFFFFFFFF for the multimedia stack.",
+      "riskLevel": "Advanced",
+      "icon": "🌐",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-network-throttling-index.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-network-throttling-index.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+            "valueName": "NetworkThrottlingIndex",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 4294967295
+          }
+        ]
+      }
+    },
+    {
+      "id": "mmcss-responsiveness",
+      "name": "Lower MMCSS reservation",
+      "category": "Performance & gaming",
+      "summary": "Reduces the CPU slice reserved for background multimedia scheduling to 10%.",
+      "riskLevel": "Advanced",
+      "icon": "🎚️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-mmcss-responsiveness.ps1",
+          "parameters": {
+            "Enable": true,
+            "ResponsivenessPercent": 10
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-mmcss-responsiveness.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile",
+            "valueName": "SystemResponsiveness",
+            "valueType": "DWord",
+            "supportsCustomValue": true,
+            "recommendedValue": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": "gpu-priority",
+      "name": "Boost GPU scheduling",
+      "category": "Performance & gaming",
+      "summary": "Pushes the Games MMCSS profile to Priority/GPU Priority 8 for lower latency.",
+      "riskLevel": "Advanced",
+      "icon": "🕹️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-gpu-priority.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-gpu-priority.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+            "valueName": "Priority",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 8
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+            "valueName": "GPU Priority",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": "keyboard-polling",
+      "name": "Faster keyboard polling",
+      "category": "Input & devices",
+      "summary": "Sets PollStatusIterations to 1 for snappier PS/2 keyboard response.",
+      "riskLevel": "Moderate",
+      "icon": "⌨️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-keyboard-polling.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-keyboard-polling.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Services\\i8042prt\\Parameters",
+            "valueName": "PollStatusIterations",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "usb-selective-suspend",
+      "name": "Disable USB selective suspend",
+      "category": "Input & devices",
+      "summary": "Runs powercfg to keep USB devices awake and prevent random input drop-outs.",
+      "riskLevel": "Moderate",
+      "icon": "🖱️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-usb-selective-suspend.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-usb-selective-suspend.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      }
+    },
+    {
+      "id": "hpet-toggle",
+      "name": "Disable HPET usage",
+      "category": "Performance & gaming",
+      "summary": "Applies the bcdedit flags commonly used to reduce input latency on modern CPUs.",
+      "riskLevel": "Advanced",
+      "icon": "🕘",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/toggle-hpet.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/toggle-hpet.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      }
     }
   ],
   "presets": [
