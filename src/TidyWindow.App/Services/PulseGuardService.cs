@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
@@ -37,6 +39,42 @@ public sealed class PulseGuardService : IDisposable
 
         _activityLog.EntryAdded += OnEntryAdded;
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.AddHandler(_preferencesService, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
+    }
+
+    public PendingAutomationDecision PromptPendingAutomation(IReadOnlyList<AutomationWorkItem> workItems)
+    {
+        if (workItems is null || workItems.Count == 0)
+        {
+            return PendingAutomationDecision.CloseAnyway;
+        }
+
+        PendingAutomationDecision decision = PendingAutomationDecision.WaitForCompletion;
+
+        _dispatcher.Invoke(() =>
+        {
+            var window = new Views.Dialogs.PendingAutomationPromptWindow(workItems)
+            {
+                Owner = WpfApplication.Current?.MainWindow
+            };
+
+            window.ShowDialog();
+            decision = window.Result;
+        });
+
+        var detailLines = workItems
+            .Select(item => $"{item.Type}: {item.Description}")
+            .ToArray();
+
+        if (decision == PendingAutomationDecision.WaitForCompletion)
+        {
+            _activityLog.LogWarning("PulseGuard", "Exit postponed until active automation finishes.", detailLines);
+        }
+        else
+        {
+            _activityLog.LogWarning("PulseGuard", "Exit forced while automation was still active.", detailLines);
+        }
+
+        return decision;
     }
 
     public void Dispose()

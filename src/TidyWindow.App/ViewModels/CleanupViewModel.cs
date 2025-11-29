@@ -192,6 +192,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly IPrivilegeService _privilegeService;
     private readonly IResourceLockService _resourceLockService;
     private readonly IBrowserCleanupService _browserCleanupService;
+    private readonly IAutomationWorkTracker _workTracker;
 
     private const int PreviewCountMinimumValue = 10;
     private const int PreviewCountMaximumValue = 100_000;
@@ -216,13 +217,20 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
     private DateTime? _minimumAgeThresholdUtc;
 
-    public CleanupViewModel(CleanupService cleanupService, MainViewModel mainViewModel, IPrivilegeService privilegeService, IResourceLockService resourceLockService, IBrowserCleanupService browserCleanupService)
+    public CleanupViewModel(
+        CleanupService cleanupService,
+        MainViewModel mainViewModel,
+        IPrivilegeService privilegeService,
+        IResourceLockService resourceLockService,
+        IBrowserCleanupService browserCleanupService,
+        IAutomationWorkTracker workTracker)
     {
         _cleanupService = cleanupService;
         _mainViewModel = mainViewModel;
         _privilegeService = privilegeService;
         _resourceLockService = resourceLockService;
         _browserCleanupService = browserCleanupService;
+        _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
 
         _previewFilter = new CleanupPreviewFilter
         {
@@ -1494,11 +1502,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
         }
 
+        var workDescription = BuildCleanupWorkDescription(itemsToDelete.Count, totalSizeMb);
+        Guid workToken = Guid.Empty;
+
         var manualBrowserEntries = new List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item, CleanupDeletionEntry entry)>();
         BrowserHistoryHandleResult browserHistoryResult = BrowserHistoryHandleResult.Empty;
 
         try
         {
+            workToken = _workTracker.BeginWork(AutomationWorkType.Cleanup, workDescription);
             IsDeleting = true;
             IsBusy = true;
 
@@ -1756,7 +1768,27 @@ public sealed partial class CleanupViewModel : ViewModelBase
             ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(SelectionSummaryText));
             OnPropertyChanged(nameof(IsCurrentCategoryFullySelected));
+
+            if (workToken != Guid.Empty)
+            {
+                _workTracker.CompleteWork(workToken);
+            }
         }
+    }
+
+    private static string BuildCleanupWorkDescription(int itemCount, double totalSizeMb)
+    {
+        if (itemCount <= 0)
+        {
+            return "Cleanup run";
+        }
+
+        if (totalSizeMb > 0.05)
+        {
+            return $"Cleanup run ({itemCount:N0} items, {totalSizeMb:F1} MB)";
+        }
+
+        return $"Cleanup run ({itemCount:N0} items)";
     }
 
     private async Task<BrowserHistoryHandleResult> HandleEdgeHistoryAsync(

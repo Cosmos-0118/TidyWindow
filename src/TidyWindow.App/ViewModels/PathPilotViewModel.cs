@@ -22,15 +22,17 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private readonly PathPilotInventoryService _inventoryService;
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
+    private readonly IAutomationWorkTracker _workTracker;
     private bool _isDisposed;
     private bool _hasAcknowledgedMachineScopeWarning;
     private PathPilotSwitchRequest? _pendingSwitchRequest;
 
-    public PathPilotViewModel(PathPilotInventoryService inventoryService, ActivityLogService activityLogService, MainViewModel mainViewModel)
+    public PathPilotViewModel(PathPilotInventoryService inventoryService, ActivityLogService activityLogService, MainViewModel mainViewModel, IAutomationWorkTracker workTracker)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
 
         Runtimes = new ObservableCollection<PathPilotRuntimeCardViewModel>();
         Warnings = new ObservableCollection<string>();
@@ -177,8 +179,15 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         var runtimeName = string.IsNullOrWhiteSpace(request.RuntimeName) ? request.RuntimeId : request.RuntimeName;
         _mainViewModel.SetStatusMessage($"Switching {runtimeName}...");
 
+        Guid workToken = Guid.Empty;
+
         try
         {
+            var workDescription = string.IsNullOrWhiteSpace(runtimeName)
+                ? "PathPilot runtime switch"
+                : $"PathPilot switch to {runtimeName}";
+            workToken = _workTracker.BeginWork(AutomationWorkType.Maintenance, workDescription);
+
             var result = await _inventoryService.SwitchRuntimeAsync(request).ConfigureAwait(false);
             var snapshotToApply = result.Snapshot;
 
@@ -225,6 +234,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         }
         finally
         {
+            if (workToken != Guid.Empty)
+            {
+                _workTracker.CompleteWork(workToken);
+            }
+
             await RunOnUiThreadAsync(() =>
             {
                 IsBusy = false;
@@ -307,8 +321,13 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         var label = format == PathPilotExportFormat.Json ? "JSON" : "Markdown";
         _mainViewModel.SetStatusMessage($"Preparing {label} PathPilot report...");
 
+        Guid workToken = Guid.Empty;
+
         try
         {
+            var workDescription = $"PathPilot {label} export";
+            workToken = _workTracker.BeginWork(AutomationWorkType.Maintenance, workDescription);
+
             var result = await _inventoryService.ExportInventoryAsync(format).ConfigureAwait(false);
             var message = $"{label} report saved to {result.FilePath}.";
             var details = new List<string>
@@ -326,6 +345,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         }
         finally
         {
+            if (workToken != Guid.Empty)
+            {
+                _workTracker.CompleteWork(workToken);
+            }
+
             await RunOnUiThreadAsync(() => IsBusy = false).ConfigureAwait(false);
         }
     }

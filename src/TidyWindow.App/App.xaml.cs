@@ -69,9 +69,12 @@ public partial class App : WpfApplication
                 services.AddSingleton<AppRestartService>();
                 services.AddSingleton<ITrayService, TrayService>();
                 services.AddSingleton<IHighFrictionPromptService, HighFrictionPromptService>();
+                services.AddSingleton<IAutomationWorkTracker, AutomationWorkTracker>();
                 services.AddSingleton<IUserConfirmationService, UserConfirmationService>();
                 services.AddSingleton<BackgroundPresenceService>();
                 services.AddSingleton<PulseGuardService>();
+                services.AddSingleton<InstallQueueWorkObserver>();
+                services.AddSingleton<EssentialsQueueWorkObserver>();
                 services.AddSingleton<IBrowserCleanupService, BrowserCleanupService>();
 
                 services.AddSingleton<PowerShellInvoker>();
@@ -146,6 +149,8 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<BackgroundPresenceService>();
         _ = _host.Services.GetRequiredService<PulseGuardService>();
         _ = _host.Services.GetRequiredService<IHighFrictionPromptService>();
+        _ = _host.Services.GetRequiredService<InstallQueueWorkObserver>();
+        _ = _host.Services.GetRequiredService<EssentialsQueueWorkObserver>();
 
         var launchMinimized = e.Args?.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase)) == true;
         var startHidden = launchMinimized && preferences.Current.RunInBackground;

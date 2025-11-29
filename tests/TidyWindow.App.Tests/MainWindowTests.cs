@@ -119,6 +119,9 @@ public sealed class MainWindowTests
             services.AddSingleton<MainViewModel>();
             services.AddSingleton<UserPreferencesService>();
             services.AddSingleton<ITrayService, TestTrayService>();
+            services.AddSingleton<IHighFrictionPromptService, TestPromptService>();
+            services.AddSingleton<IAutomationWorkTracker, AutomationWorkTracker>();
+            services.AddSingleton<PulseGuardService>();
 
             var provider = services.BuildServiceProvider();
 
@@ -126,10 +129,12 @@ public sealed class MainWindowTests
             var viewModel = provider.GetRequiredService<MainViewModel>();
             var preferences = provider.GetRequiredService<UserPreferencesService>();
             var tray = (TestTrayService)provider.GetRequiredService<ITrayService>();
+            var pulseGuard = provider.GetRequiredService<PulseGuardService>();
+            var workTracker = provider.GetRequiredService<IAutomationWorkTracker>();
 
             preferences.SetRunInBackground(runInBackground);
 
-            var window = new MainWindow(viewModel, navigation, tray, preferences);
+            var window = new MainWindow(viewModel, navigation, tray, preferences, pulseGuard, workTracker);
 
             await Task.Yield();
 
@@ -162,6 +167,13 @@ public sealed class MainWindowTests
             catch
             {
             }
+        }
+    }
+
+    private sealed class TestPromptService : IHighFrictionPromptService
+    {
+        public void TryShowPrompt(HighFrictionScenario scenario, ActivityLogEntry entry)
+        {
         }
     }
 }

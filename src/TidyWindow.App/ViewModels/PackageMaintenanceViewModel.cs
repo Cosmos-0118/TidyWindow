@@ -28,6 +28,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly MainViewModel _mainViewModel;
     private readonly IPrivilegeService _privilegeService;
     private readonly ActivityLogService _activityLog;
+    private readonly IAutomationWorkTracker _workTracker;
     private readonly UserPreferencesService _preferences;
 
     private const int WingetCannotUpgradeExitCode = -1978334956;
@@ -72,7 +73,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         MainViewModel mainViewModel,
         IPrivilegeService privilegeService,
         ActivityLogService activityLogService,
-        UserPreferencesService userPreferencesService)
+        UserPreferencesService userPreferencesService,
+        IAutomationWorkTracker automationWorkTracker)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _maintenanceService = maintenanceService ?? throw new ArgumentNullException(nameof(maintenanceService));
@@ -81,6 +83,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _privilegeService = privilegeService ?? throw new ArgumentNullException(nameof(privilegeService));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _preferences = userPreferencesService ?? throw new ArgumentNullException(nameof(userPreferencesService));
+        _workTracker = automationWorkTracker ?? throw new ArgumentNullException(nameof(automationWorkTracker));
 
         ManagerFilters.Add(AllManagersFilter);
         Operations.CollectionChanged += OnOperationsCollectionChanged;
@@ -509,38 +512,49 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         var queuedMessage = ResolveQueuedMessage(kind, requestedVersion);
         operation.MarkQueued(queuedMessage);
 
-        var request = new MaintenanceOperationRequest(item, kind, packageId, requiresAdmin, operation, requestedVersion);
+        var workDescription = $"{operation.OperationDisplay} for '{item.DisplayName}'";
+        var workToken = _workTracker.BeginWork(AutomationWorkType.Maintenance, workDescription);
 
-        bool shouldStartProcessor;
-
-        lock (_operationLock)
+        try
         {
-            _pendingOperations.Enqueue(request);
-            shouldStartProcessor = !_isProcessingOperations;
+            var request = new MaintenanceOperationRequest(item, kind, packageId, requiresAdmin, operation, requestedVersion, workToken);
+
+            bool shouldStartProcessor;
+
+            lock (_operationLock)
+            {
+                _pendingOperations.Enqueue(request);
+                shouldStartProcessor = !_isProcessingOperations;
+                if (shouldStartProcessor)
+                {
+                    _isProcessingOperations = true;
+                }
+            }
+
+            item.IsQueued = true;
+            item.IsBusy = true;
+            item.QueueStatus = queuedMessage;
+            item.LastOperationSucceeded = null;
+            item.LastOperationMessage = queuedMessage;
+
+            Operations.Insert(0, operation);
+            SelectedOperation = operation;
+            _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} queued for '{item.DisplayName}'.", BuildOperationDetails(item, kind, packageId, requiresAdmin, requestedVersion));
+
+            _mainViewModel.SetStatusMessage($"{operation.OperationDisplay} queued for '{item.DisplayName}'.");
+
             if (shouldStartProcessor)
             {
-                _isProcessingOperations = true;
+                _ = Task.Run(ProcessOperationsAsync);
             }
+
+            return true;
         }
-
-        item.IsQueued = true;
-        item.IsBusy = true;
-        item.QueueStatus = queuedMessage;
-        item.LastOperationSucceeded = null;
-        item.LastOperationMessage = queuedMessage;
-
-        Operations.Insert(0, operation);
-        SelectedOperation = operation;
-        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} queued for '{item.DisplayName}'.", BuildOperationDetails(item, kind, packageId, requiresAdmin, requestedVersion));
-
-        _mainViewModel.SetStatusMessage($"{operation.OperationDisplay} queued for '{item.DisplayName}'.");
-
-        if (shouldStartProcessor)
+        catch
         {
-            _ = Task.Run(ProcessOperationsAsync);
+            _workTracker.CompleteWork(workToken);
+            throw;
         }
-
-        return true;
     }
 
     private async Task ProcessOperationsAsync()
@@ -566,141 +580,148 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     private async Task ProcessOperationAsync(MaintenanceOperationRequest request)
     {
-        var item = request.Item;
-        var operation = request.Operation;
-        var progressMessage = ResolveProcessingMessage(request.Kind, request.TargetVersion);
-        var contextDetails = BuildOperationDetails(item, request.Kind, request.PackageId, request.RequiresAdministrator, request.TargetVersion);
-
-        await RunOnUiThreadAsync(() =>
+        try
         {
-            operation.MarkStarted(progressMessage);
-            item.QueueStatus = progressMessage;
-        }).ConfigureAwait(false);
+            var item = request.Item;
+            var operation = request.Operation;
+            var progressMessage = ResolveProcessingMessage(request.Kind, request.TargetVersion);
+            var contextDetails = BuildOperationDetails(item, request.Kind, request.PackageId, request.RequiresAdministrator, request.TargetVersion);
 
-        _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} started for '{item.DisplayName}'.", contextDetails);
+            await RunOnUiThreadAsync(() =>
+            {
+                operation.MarkStarted(progressMessage);
+                item.QueueStatus = progressMessage;
+            }).ConfigureAwait(false);
 
-        var waitAttempts = 0;
+            _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} started for '{item.DisplayName}'.", contextDetails);
 
-        while (true)
+            var waitAttempts = 0;
+
+            while (true)
+            {
+                try
+                {
+                    var payload = new PackageMaintenanceRequest(
+                        request.Item.Manager,
+                        request.PackageId,
+                        request.Item.DisplayName,
+                        request.RequiresAdministrator,
+                        request.TargetVersion);
+
+                    PackageMaintenanceResult result = request.Kind switch
+                    {
+                        MaintenanceOperationKind.Update => await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false),
+                        MaintenanceOperationKind.ForceRemove => await _maintenanceService.ForceRemoveAsync(payload).ConfigureAwait(false),
+                        _ => await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false)
+                    };
+
+                    if (!result.Success
+                        && waitAttempts < InstallerBusyMaxWaitAttempts
+                        && TryDetectInstallerBusy(result, out var busyReason))
+                    {
+                        waitAttempts++;
+                        var delay = CalculateInstallerBusyDelay(waitAttempts);
+                        var waitMessage = BuildInstallerBusyWaitMessage(busyReason, waitAttempts, delay);
+                        await EnterInstallerBusyWaitAsync(request, waitMessage, delay, progressMessage).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    var message = string.IsNullOrWhiteSpace(result.Summary)
+                        ? BuildDefaultCompletionMessage(request.Kind, result.Success)
+                        : result.Summary.Trim();
+
+                    var isNonActionableFailure = false;
+                    MaintenanceSuppressionEntry? suppressionEntry = null;
+                    var suppressionRemoved = false;
+
+                    if (!result.Success && TryGetNonActionableMaintenanceMessage(result, item.DisplayName, out var friendlyMessage))
+                    {
+                        message = friendlyMessage;
+                        isNonActionableFailure = true;
+                        suppressionEntry = RegisterNonActionableSuppression(request, item, result, message);
+                    }
+                    else if (result.Success)
+                    {
+                        suppressionRemoved = TryClearSuppression(result, item, request);
+                    }
+
+                    await RunOnUiThreadAsync(() =>
+                    {
+                        operation.UpdateTranscript(result.Output, result.Errors);
+                        operation.LogFilePath = result.LogFilePath;
+                        operation.MarkCompleted(result.Success, message);
+                        item.IsBusy = false;
+                        item.IsQueued = false;
+                        item.QueueStatus = message;
+                        item.ApplyMaintenanceResult(result);
+                        item.ApplyOperationResult(result.Success, message);
+                        if (suppressionEntry is not null)
+                        {
+                            item.ApplySuppression(suppressionEntry);
+                            AddSuppressionWarning(item, suppressionEntry);
+                        }
+                        else if (suppressionRemoved)
+                        {
+                            item.ClearSuppression();
+                            RemoveSuppressionWarnings(item.DisplayName);
+                        }
+                    }).ConfigureAwait(false);
+
+                    await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+
+                    var resultDetails = BuildResultDetails(result);
+                    if (result.Success)
+                    {
+                        _activityLog.LogSuccess("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' completed: {message}", resultDetails);
+                    }
+                    else if (isNonActionableFailure)
+                    {
+                        _activityLog.LogWarning("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' requires manual action: {message}", resultDetails);
+                    }
+                    else
+                    {
+                        _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", resultDetails);
+                    }
+
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    if (waitAttempts < InstallerBusyMaxWaitAttempts
+                        && TryDetectInstallerBusy(ex, out var busyReason))
+                    {
+                        waitAttempts++;
+                        var delay = CalculateInstallerBusyDelay(waitAttempts);
+                        var waitMessage = BuildInstallerBusyWaitMessage(busyReason, waitAttempts, delay);
+                        await EnterInstallerBusyWaitAsync(request, waitMessage, delay, progressMessage).ConfigureAwait(false);
+                        continue;
+                    }
+
+                    var message = string.IsNullOrWhiteSpace(ex.Message)
+                        ? BuildDefaultCompletionMessage(request.Kind, success: false)
+                        : ex.Message.Trim();
+
+                    await RunOnUiThreadAsync(() =>
+                    {
+                        operation.UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray.Create(message));
+                        operation.LogFilePath = null;
+                        operation.MarkCompleted(false, message);
+                        item.IsBusy = false;
+                        item.IsQueued = false;
+                        item.QueueStatus = message;
+                        item.ApplyOperationResult(false, message);
+                    }).ConfigureAwait(false);
+
+                    await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+
+                    _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", new[] { ex.ToString() });
+                    return;
+                }
+            }
+        }
+        finally
         {
-            try
-            {
-                var payload = new PackageMaintenanceRequest(
-                    request.Item.Manager,
-                    request.PackageId,
-                    request.Item.DisplayName,
-                    request.RequiresAdministrator,
-                    request.TargetVersion);
-
-                PackageMaintenanceResult result = request.Kind switch
-                {
-                    MaintenanceOperationKind.Update => await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false),
-                    MaintenanceOperationKind.ForceRemove => await _maintenanceService.ForceRemoveAsync(payload).ConfigureAwait(false),
-                    _ => await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false)
-                };
-
-                if (!result.Success
-                    && waitAttempts < InstallerBusyMaxWaitAttempts
-                    && TryDetectInstallerBusy(result, out var busyReason))
-                {
-                    waitAttempts++;
-                    var delay = CalculateInstallerBusyDelay(waitAttempts);
-                    var waitMessage = BuildInstallerBusyWaitMessage(busyReason, waitAttempts, delay);
-                    await EnterInstallerBusyWaitAsync(request, waitMessage, delay, progressMessage).ConfigureAwait(false);
-                    continue;
-                }
-
-                var message = string.IsNullOrWhiteSpace(result.Summary)
-                    ? BuildDefaultCompletionMessage(request.Kind, result.Success)
-                    : result.Summary.Trim();
-
-                var isNonActionableFailure = false;
-                MaintenanceSuppressionEntry? suppressionEntry = null;
-                var suppressionRemoved = false;
-
-                if (!result.Success && TryGetNonActionableMaintenanceMessage(result, item.DisplayName, out var friendlyMessage))
-                {
-                    message = friendlyMessage;
-                    isNonActionableFailure = true;
-                    suppressionEntry = RegisterNonActionableSuppression(request, item, result, message);
-                }
-                else if (result.Success)
-                {
-                    suppressionRemoved = TryClearSuppression(result, item, request);
-                }
-
-                await RunOnUiThreadAsync(() =>
-                {
-                    operation.UpdateTranscript(result.Output, result.Errors);
-                    operation.LogFilePath = result.LogFilePath;
-                    operation.MarkCompleted(result.Success, message);
-                    item.IsBusy = false;
-                    item.IsQueued = false;
-                    item.QueueStatus = message;
-                    item.ApplyMaintenanceResult(result);
-                    item.ApplyOperationResult(result.Success, message);
-                    if (suppressionEntry is not null)
-                    {
-                        item.ApplySuppression(suppressionEntry);
-                        AddSuppressionWarning(item, suppressionEntry);
-                    }
-                    else if (suppressionRemoved)
-                    {
-                        item.ClearSuppression();
-                        RemoveSuppressionWarnings(item.DisplayName);
-                    }
-                }).ConfigureAwait(false);
-
-                await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
-
-                var resultDetails = BuildResultDetails(result);
-                if (result.Success)
-                {
-                    _activityLog.LogSuccess("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' completed: {message}", resultDetails);
-                }
-                else if (isNonActionableFailure)
-                {
-                    _activityLog.LogWarning("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' requires manual action: {message}", resultDetails);
-                }
-                else
-                {
-                    _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", resultDetails);
-                }
-
-                return;
-            }
-            catch (Exception ex)
-            {
-                if (waitAttempts < InstallerBusyMaxWaitAttempts
-                    && TryDetectInstallerBusy(ex, out var busyReason))
-                {
-                    waitAttempts++;
-                    var delay = CalculateInstallerBusyDelay(waitAttempts);
-                    var waitMessage = BuildInstallerBusyWaitMessage(busyReason, waitAttempts, delay);
-                    await EnterInstallerBusyWaitAsync(request, waitMessage, delay, progressMessage).ConfigureAwait(false);
-                    continue;
-                }
-
-                var message = string.IsNullOrWhiteSpace(ex.Message)
-                    ? BuildDefaultCompletionMessage(request.Kind, success: false)
-                    : ex.Message.Trim();
-
-                await RunOnUiThreadAsync(() =>
-                {
-                    operation.UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray.Create(message));
-                    operation.LogFilePath = null;
-                    operation.MarkCompleted(false, message);
-                    item.IsBusy = false;
-                    item.IsQueued = false;
-                    item.QueueStatus = message;
-                    item.ApplyOperationResult(false, message);
-                }).ConfigureAwait(false);
-
-                await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
-
-                _activityLog.LogError("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' failed: {message}", new[] { ex.ToString() });
-                return;
-            }
+            _workTracker.CompleteWork(request.WorkToken);
         }
     }
 
@@ -1829,7 +1850,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         string PackageId,
         bool RequiresAdministrator,
         PackageMaintenanceOperationViewModel Operation,
-        string? TargetVersion);
+        string? TargetVersion,
+        Guid WorkToken);
 
     private static bool ManagerRequiresElevation(string manager)
     {

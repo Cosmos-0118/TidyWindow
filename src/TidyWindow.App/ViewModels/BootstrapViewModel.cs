@@ -17,6 +17,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
     private readonly PackageManagerInstaller _installer;
     private readonly MainViewModel _mainViewModel;
     private readonly ActivityLogService _activityLog;
+    private readonly IAutomationWorkTracker _workTracker;
     private readonly Dictionary<string, PackageManagerEntryViewModel> _managerLookup = new(StringComparer.OrdinalIgnoreCase);
 
     [ObservableProperty]
@@ -33,12 +34,13 @@ public sealed partial class BootstrapViewModel : ViewModelBase
 
     public ObservableCollection<PackageManagerEntryViewModel> Managers { get; } = new();
 
-    public BootstrapViewModel(PackageManagerDetector detector, PackageManagerInstaller installer, MainViewModel mainViewModel, ActivityLogService activityLogService)
+    public BootstrapViewModel(PackageManagerDetector detector, PackageManagerInstaller installer, MainViewModel mainViewModel, ActivityLogService activityLogService, IAutomationWorkTracker workTracker)
     {
         _detector = detector ?? throw new ArgumentNullException(nameof(detector));
         _installer = installer ?? throw new ArgumentNullException(nameof(installer));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
+        _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
     }
 
     [RelayCommand]
@@ -86,6 +88,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
 
         var managerName = manager.Name;
         var refreshAfterInstall = false;
+        Guid workToken = Guid.Empty;
 
         try
         {
@@ -97,6 +100,9 @@ public sealed partial class BootstrapViewModel : ViewModelBase
             var statusMessage = $"Running install or repair for {managerName}...";
             _mainViewModel.SetStatusMessage(statusMessage);
             _activityLog.LogInformation("Bootstrap", statusMessage, BuildManagerContextDetails(manager));
+
+            var workDescription = $"Bootstrap install/repair for {managerName}";
+            workToken = _workTracker.BeginWork(AutomationWorkType.Install, workDescription);
 
             var result = await _installer.InstallOrRepairAsync(managerName);
             var invocationDetails = BuildInvocationDetails(manager, result);
@@ -140,6 +146,11 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         }
         finally
         {
+            if (workToken != Guid.Empty)
+            {
+                _workTracker.CompleteWork(workToken);
+            }
+
             manager.IsBusy = false;
             IsBusy = false;
         }
@@ -167,6 +178,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
 
         var managerName = manager.Name;
         var refreshAfterUninstall = false;
+        Guid workToken = Guid.Empty;
 
         try
         {
@@ -178,6 +190,9 @@ public sealed partial class BootstrapViewModel : ViewModelBase
             var statusMessage = $"Uninstalling {managerName}...";
             _mainViewModel.SetStatusMessage(statusMessage);
             _activityLog.LogInformation("Bootstrap", statusMessage, BuildManagerContextDetails(manager));
+
+            var workDescription = $"Bootstrap uninstall for {managerName}";
+            workToken = _workTracker.BeginWork(AutomationWorkType.Install, workDescription);
 
             var result = await _installer.UninstallAsync(managerName);
             var invocationDetails = BuildInvocationDetails(manager, result);
@@ -222,6 +237,11 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         }
         finally
         {
+            if (workToken != Guid.Empty)
+            {
+                _workTracker.CompleteWork(workToken);
+            }
+
             manager.IsBusy = false;
             IsBusy = false;
         }

@@ -19,16 +19,21 @@ public partial class MainWindow : Window
     private readonly MainViewModel _viewModel;
     private readonly ITrayService _trayService;
     private readonly UserPreferencesService _preferences;
+    private readonly PulseGuardService _pulseGuard;
+    private readonly IAutomationWorkTracker _workTracker;
     private System.Windows.Navigation.NavigationService? _frameNavigationService;
     private bool _initialNavigationCompleted;
+    private bool _autoCloseArmed;
 
-    public MainWindow(MainViewModel viewModel, NavigationService navigationService, ITrayService trayService, UserPreferencesService preferences)
+    public MainWindow(MainViewModel viewModel, NavigationService navigationService, ITrayService trayService, UserPreferencesService preferences, PulseGuardService pulseGuard, IAutomationWorkTracker workTracker)
     {
         InitializeComponent();
         _navigationService = navigationService;
         _viewModel = viewModel;
         _trayService = trayService ?? throw new ArgumentNullException(nameof(trayService));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
+        _pulseGuard = pulseGuard ?? throw new ArgumentNullException(nameof(pulseGuard));
+        _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
         DataContext = _viewModel;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         ToggleLoadingOverlay(_viewModel.IsShellLoading);
@@ -126,6 +131,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        CancelAutoCloseSubscription();
         base.OnClosed(e);
 
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
@@ -148,8 +154,64 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!_preferences.Current.RunInBackground)
+        {
+            var activeWork = _workTracker.GetActiveWork();
+            if (activeWork.Count > 0)
+            {
+                var decision = _pulseGuard.PromptPendingAutomation(activeWork);
+                if (decision == PendingAutomationDecision.WaitForCompletion)
+                {
+                    e.Cancel = true;
+                    ArmAutoClose();
+                    return;
+                }
+
+                CancelAutoCloseSubscription();
+            }
+        }
+
         _trayService.PrepareForExit();
         base.OnClosing(e);
+    }
+
+    private void ArmAutoClose()
+    {
+        if (_autoCloseArmed)
+        {
+            return;
+        }
+
+        _autoCloseArmed = true;
+        _workTracker.ActiveWorkChanged += OnActiveWorkChanged;
+        _viewModel.SetStatusMessage("Waiting for automation to finish before closing...");
+    }
+
+    private void CancelAutoCloseSubscription()
+    {
+        if (!_autoCloseArmed)
+        {
+            return;
+        }
+
+        _workTracker.ActiveWorkChanged -= OnActiveWorkChanged;
+        _autoCloseArmed = false;
+    }
+
+    private void OnActiveWorkChanged(object? sender, EventArgs e)
+    {
+        if (!_autoCloseArmed || _workTracker.HasActiveWork)
+        {
+            return;
+        }
+
+        CancelAutoCloseSubscription();
+
+        Dispatcher.Invoke(() =>
+        {
+            _trayService.PrepareForExit();
+            Close();
+        });
     }
 
     private void TitleBar_OnMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
