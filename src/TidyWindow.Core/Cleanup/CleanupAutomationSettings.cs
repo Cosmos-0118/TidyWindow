@@ -21,7 +21,7 @@ public sealed record CleanupAutomationSettings
     public const int MaximumIntervalMinutes = 43_200; // 30 days
     private const int DefaultIntervalMinutes = 1_440; // 1 day
     public const int MinimumTopItemCount = 50;
-    public const int MaximumTopItemCount = 400;
+    public const int MaximumTopItemCount = 50_000;
     private const int DefaultTopItemCount = 200;
 
     public static CleanupAutomationSettings Default { get; } = new(
