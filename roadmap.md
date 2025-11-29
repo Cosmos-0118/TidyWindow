@@ -159,33 +159,3 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 ## Driver Updates Experience (retired)
 
 > Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.
-
-## Settings Control Center Redesign
-
-Reference: `Future-ideas/idea4.txt` (Settings Redesign blueprint).
-
-[ ] Step 14.1: Introduce `Views/SettingsShellPage.xaml` + `SettingsShellViewModel` hosting a nav rail and content frame that loads discrete `Settings*.xaml` pages.
-[ ] Step 14.2: Split the current settings monolith into scoped views (`SettingsGeneralPage`, `SettingsAutomationPage`, `SettingsNotificationsPage`, `SettingsIntegrationsPage`, `SettingsDataPage`, `SettingsLabsPage`) each with dedicated view models and responsive layouts.
-[ ] Step 14.3: Build `AutomationScheduleService` to persist per-task schedules (JSON under `%ProgramData%/TidyWindow/`) and surface shared scheduler UI (upcoming runs, last status, run-now actions).
-[ ] Step 14.4: Wire feature modules (Maintenance, Cleanup, Install Hub, Version Control) to register automation metadata and respond to schedule changes.
-[ ] Step 14.5: Add search/help affordances, reset/export buttons, and telemetry so the new control center becomes the canonical home for automation, notifications, integrations, and safety policies.
-
-## Registry Optimizer Rework
-
-Reference: `Future-ideas/idea5.txt` (Registry Optimizer blueprint) and `newregistoryadditions.txt`.
-
-[ ] Step 15.1: Convert the registry tweak backlog into a structured catalog JSON (category, risk, scripts, keys) plus persistence stores for user state and history logs.
-[ ] Step 15.2: Implement `RegistryStateService` + state persistence (`%AppData%/TidyWindow/registry-optimizer-state.json`) that tracks desired/detected states and hydrates the UI on launch.
-[ ] Step 15.3: Build the new multi-pane UI as discrete controls (`Views/RegistryOptimizer/RegistryOptimizerShell.xaml` plus `CategoryNavView.xaml`, `CatalogPageView.xaml`, `TweakDetailsDrawer.xaml`, `ActionLogView.xaml`) with paging, search, and badges for applied/different states.
-[ ] Step 15.4: Wire apply/revert flows through existing automation runners, ensuring backups (.reg snapshots) are captured, stored, and reusable for rollbacks; log the last 20 operations.
-[ ] Step 15.5: Add tests for catalog validation, apply/revert flows (stub registry provider)
-
-## Startup Controller
-
-Reference: `Future-ideas/startupcontroller.txt` (Startup Controller concept).
-
-[ ] Step 16.1: Create `automation/scripts/get-startup-footprint.ps1` to enumerate Run keys, Startup folders, scheduled tasks, services, and AppX startup tasks with impact data.
-[ ] Step 16.2: Develop `StartupControllerService` (Windows service or scheduled task) that runs at boot, reads a stored schedule, launches items in waves, and logs telemetry.
-[ ] Step 16.3: Build `StartupControllerViewModel` plus modular views (`Views/StartupController/StartupControllerShell.xaml`, `StartupOverviewCardView.xaml`, `StartupListView.xaml`, `DiagnosticsTimelineView.xaml`, `ProfileManagerView.xaml`) so reorderable lists, sliders, and diagnostics remain isolated and maintainable.
-[ ] Step 16.4: Implement apply/reset logic that safely disables native startup entries, stores backups, writes schedule JSON, and offers a panic "Restore defaults" action.
-[ ] Step 16.5: Integrate with the Activity Log so startup changes stay in sync with installs/uninstalls and users can export/import profiles.
