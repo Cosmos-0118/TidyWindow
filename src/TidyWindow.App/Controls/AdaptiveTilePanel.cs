@@ -251,6 +251,20 @@ public sealed class AdaptiveTilePanel : WpfPanel
         var inset = 0d;
         var usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;
         var leftover = Math.Max(0, width - usedWidth);
+
+        if (columns > 0 && leftover > 0 && tileWidth < maxWidth)
+        {
+            var growthPerTile = leftover / columns;
+            var maxGrowth = Math.Max(0, maxWidth - tileWidth);
+            var appliedGrowth = Math.Min(growthPerTile, maxGrowth);
+            if (appliedGrowth > 0)
+            {
+                tileWidth += appliedGrowth;
+                usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;
+                leftover = Math.Max(0, width - usedWidth);
+            }
+        }
+
         if (columns > 0 && leftover > 0)
         {
             var smartGap = leftover / (columns + 1);

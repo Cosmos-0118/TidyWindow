@@ -198,9 +198,21 @@ public partial class MainWindow : Window
         _autoCloseArmed = false;
     }
 
-    private void OnActiveWorkChanged(object? sender, EventArgs e)
+    private async void OnActiveWorkChanged(object? sender, EventArgs e)
     {
-        if (!_autoCloseArmed || _workTracker.HasActiveWork)
+        if (!_autoCloseArmed)
+        {
+            return;
+        }
+
+        if (_workTracker.HasActiveWork)
+        {
+            return;
+        }
+
+        await Task.Delay(400).ConfigureAwait(false);
+
+        if (_workTracker.HasActiveWork)
         {
             return;
         }

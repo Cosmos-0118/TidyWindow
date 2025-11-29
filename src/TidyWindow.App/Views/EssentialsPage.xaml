@@ -473,22 +473,20 @@
                                                         </Grid.RowDefinitions>
 
                                                         <StackPanel>
-                                                            <StackPanel Orientation="Horizontal"
-                                                                        VerticalAlignment="Center">
-                                                                <TextBlock Text="{Binding Title}"
-                                                                           FontSize="15"
-                                                                           FontWeight="SemiBold"
-                                                                           Foreground="#E2E8F0"/>
-                                                                <Border Margin="10,0,0,0"
-                                                                        Background="#182842"
+                                                            <TextBlock Text="{Binding Title}"
+                                                                       FontSize="15"
+                                                                       FontWeight="SemiBold"
+                                                                       Foreground="#E2E8F0"/>
+                                                            <WrapPanel Margin="0,6,0,0">
+                                                                <Border Background="#182842"
                                                                         CornerRadius="6"
-                                                                        Padding="6,2">
+                                                                        Padding="6,2"
+                                                                        Margin="0,0,10,0">
                                                                     <TextBlock Text="{Binding Category}"
                                                                                FontSize="11"
                                                                                Foreground="#9DB4D3"/>
                                                                 </Border>
-                                                                <Border Margin="10,0,0,0"
-                                                                        Background="{Binding StatusChipBrush}"
+                                                                <Border Background="{Binding StatusChipBrush}"
                                                                         CornerRadius="10"
                                                                         Padding="10,2"
                                                                         Visibility="{Binding HasStatusChip, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -497,7 +495,7 @@
                                                                                FontWeight="SemiBold"
                                                                                Foreground="#020617"/>
                                                                 </Border>
-                                                            </StackPanel>
+                                                            </WrapPanel>
 
                                                             <TextBlock Text="{Binding Summary}"
                                                                        Margin="0,8,0,0"
@@ -606,64 +604,61 @@
 
                         <StackPanel Style="{StaticResource EssentialsQueuePivotStyle}">
                             <Border Style="{StaticResource EssentialsCardStyle}" Padding="28">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Queue monitor"
-                                                   FontSize="20"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#F8FAFC"/>
-                                        <TextBlock Text="Retry failed jobs, cancel live ones, and inspect transcripts without leaving the tab."
-                                                   Margin="0,6,0,0"
-                                                   Foreground="#9DB4D3"
-                                                   FontSize="13"
-                                                   TextWrapping="Wrap"/>
-                                        <WrapPanel Margin="0,18,0,0">
-                                            <Border Background="#13233E"
-                                                    CornerRadius="8"
-                                                    Padding="10,4"
-                                                    Margin="0,0,12,12"
-                                                    BorderBrush="#1E3454"
-                                                    BorderThickness="1">
-                                                <TextBlock Text="{Binding Operations.Count, StringFormat={}{0} entries}"
-                                                           Foreground="#CBD5F5"
-                                                           FontSize="12"
-                                                           FontWeight="SemiBold"/>
-                                            </Border>
-                                            <Border Background="#122737"
-                                                    CornerRadius="8"
-                                                    Padding="10,4"
-                                                    Margin="0,0,12,12"
-                                                    BorderBrush="#244157"
-                                                    BorderThickness="1"
-                                                    Visibility="{Binding HasActiveOperations, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBlock Text="Active runs"
-                                                           Foreground="#38BDF8"
-                                                           FontSize="12"
-                                                           FontWeight="SemiBold"/>
-                                            </Border>
-                                        </WrapPanel>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1"
-                                                Orientation="Horizontal"
-                                                HorizontalAlignment="Right">
+                                <StackPanel>
+                                    <TextBlock Text="Queue monitor"
+                                               FontSize="20"
+                                               FontWeight="SemiBold"
+                                               Foreground="#F8FAFC"/>
+                                    <TextBlock Text="Retry failed jobs, cancel live ones, and inspect transcripts without leaving the tab."
+                                               Margin="0,6,0,0"
+                                               Foreground="#9DB4D3"
+                                               FontSize="13"
+                                               TextWrapping="Wrap"/>
+                                    <WrapPanel Margin="0,18,0,0">
+                                        <Border Background="#13233E"
+                                                CornerRadius="8"
+                                                Padding="10,4"
+                                                Margin="0,0,12,12"
+                                                BorderBrush="#1E3454"
+                                                BorderThickness="1">
+                                            <TextBlock Text="{Binding Operations.Count, StringFormat={}{0} entries}"
+                                                       Foreground="#CBD5F5"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                        <Border Background="#122737"
+                                                CornerRadius="8"
+                                                Padding="10,4"
+                                                Margin="0,0,12,12"
+                                                BorderBrush="#244157"
+                                                BorderThickness="1"
+                                                Visibility="{Binding HasActiveOperations, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="Active runs"
+                                                       Foreground="#38BDF8"
+                                                       FontSize="12"
+                                                       FontWeight="SemiBold"/>
+                                        </Border>
+                                    </WrapPanel>
+                                    <StackPanel Orientation="Horizontal"
+                                                Margin="0,12,0,0">
                                         <Button Content="Retry failed"
                                                 Command="{Binding RetryFailedCommand}"
-                                            Style="{StaticResource EssentialsSecondaryButtonStyle}"
-                                            Margin="0,0,12,0"
-                                            Padding="10,4"
-                                            MinWidth="96"/>
+                                                Style="{StaticResource EssentialsAccentButtonStyle}"
+                                                MinWidth="112"/>
                                         <Button Content="Clear completed"
                                                 Command="{Binding ClearCompletedCommand}"
-                                            Style="{StaticResource EssentialsSecondaryButtonStyle}"
-                                            Padding="10,4"
-                                            MinWidth="96"/>
+                                                Style="{StaticResource EssentialsSecondaryButtonStyle}"
+                                                Margin="12,0,0,0"
+                                                MinWidth="112"/>
                                     </StackPanel>
-                                </Grid>
+                                        <Button Content="Stop old process"
+                                            Command="{Binding StopActiveRunCommand}"
+                                            Style="{StaticResource EssentialsAccentButtonStyle}"
+                                            Background="#B91C1C"
+                                            Margin="0,12,0,0"
+                                            MinWidth="112"
+                                            Visibility="{Binding HasActiveOperations, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                </StackPanel>
                             </Border>
 
                             <Border Style="{StaticResource EssentialsCardStyle}" Margin="{StaticResource CardSpacing}">
@@ -787,14 +782,24 @@
                                                                         </Style>
                                                                     </Button.Style>
                                                                 </Button>
-                                                                <Button Content="Cancel"
-                                                                    Margin="12,0,0,0"
-                                                                    Padding="10,4"
-                                                                    MinWidth="96"
-                                                                    Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Style="{StaticResource EssentialsSecondaryButtonStyle}"
-                                                                    Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                <Button Margin="12,0,0,0"
+                                                                        Padding="10,4"
+                                                                        MinWidth="96"
+                                                                        Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                        CommandParameter="{Binding}"
+                                                                        Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                        IsEnabled="{Binding CanCancel}">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button" BasedOn="{StaticResource EssentialsSecondaryButtonStyle}">
+                                                                            <Setter Property="Content" Value="Cancel"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsCancellationRequested}" Value="True">
+                                                                                    <Setter Property="Content" Value="Stopping..."/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
                                                             </StackPanel>
                                                         </Grid>
 

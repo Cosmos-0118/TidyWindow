@@ -79,6 +79,11 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _hasActiveOperations;
 
+    partial void OnHasActiveOperationsChanged(bool value)
+    {
+        StopActiveRunCommand.NotifyCanExecuteChanged();
+    }
+
     [ObservableProperty]
     private EssentialsPivot _currentPivot = EssentialsPivot.Tasks;
 
@@ -276,6 +281,24 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
         _activityLog.LogInformation("Essentials", $"Retrying {snapshots.Count} run(s).");
         _mainViewModel.SetStatusMessage($"Retrying {snapshots.Count} run(s)...");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanStopActiveRun))]
+    private void StopActiveRun()
+    {
+        var target = Operations.FirstOrDefault(op => op.IsActive);
+        if (target is null)
+        {
+            _mainViewModel.SetStatusMessage("No active essentials runs to stop.");
+            return;
+        }
+
+        CancelOperation(target);
+    }
+
+    private bool CanStopActiveRun()
+    {
+        return HasActiveOperations;
     }
 
     private void OnQueueOperationChanged(object? sender, EssentialsQueueChangedEventArgs e)
@@ -891,6 +914,9 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
     [ObservableProperty]
     private bool _isOutputVisible;
 
+    [ObservableProperty]
+    private bool _isCancellationRequested;
+
     public string AttemptLabel { get; private set; } = string.Empty;
 
     public IReadOnlyList<string> DisplayLines
@@ -898,7 +924,46 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
 
     public void Update(EssentialsQueueOperationSnapshot snapshot)
     {
-        StatusLabel = snapshot.Status switch
+        StatusLabel = ResolveStatusLabel(snapshot);
+
+        Message = snapshot.LastMessage;
+        CompletedAt = snapshot.CompletedAt?.ToLocalTime();
+        IsActive = snapshot.IsActive;
+        HasErrors = !snapshot.Errors.IsDefaultOrEmpty && snapshot.Errors.Length > 0;
+        Output = snapshot.Output;
+        Errors = snapshot.Errors;
+        IsCancellationRequested = snapshot.IsCancellationRequested;
+        AttemptLabel = snapshot.AttemptCount > 1 ? $"Attempt {snapshot.AttemptCount}" : string.Empty;
+        OnPropertyChanged(nameof(AttemptLabel));
+        OnPropertyChanged(nameof(CanCancel));
+
+    }
+
+    public bool CanCancel => IsActive && !IsCancellationRequested;
+
+    partial void OnIsActiveChanged(bool oldValue, bool newValue)
+    {
+        OnPropertyChanged(nameof(CanCancel));
+    }
+
+    partial void OnIsCancellationRequestedChanged(bool oldValue, bool newValue)
+    {
+        OnPropertyChanged(nameof(CanCancel));
+    }
+
+    private static string ResolveStatusLabel(EssentialsQueueOperationSnapshot snapshot)
+    {
+        if (snapshot.IsCancellationRequested)
+        {
+            return snapshot.Status switch
+            {
+                EssentialsQueueStatus.Pending => "Cancelling",
+                EssentialsQueueStatus.Running => "Stopping",
+                _ => "Cancelled"
+            };
+        }
+
+        return snapshot.Status switch
         {
             EssentialsQueueStatus.Pending => "Queued",
             EssentialsQueueStatus.Running => "Running",
@@ -907,16 +972,6 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
             EssentialsQueueStatus.Cancelled => "Cancelled",
             _ => snapshot.Status.ToString()
         };
-
-        Message = snapshot.LastMessage;
-        CompletedAt = snapshot.CompletedAt?.ToLocalTime();
-        IsActive = snapshot.IsActive;
-        HasErrors = !snapshot.Errors.IsDefaultOrEmpty && snapshot.Errors.Length > 0;
-        Output = snapshot.Output;
-        Errors = snapshot.Errors;
-        AttemptLabel = snapshot.AttemptCount > 1 ? $"Attempt {snapshot.AttemptCount}" : string.Empty;
-        OnPropertyChanged(nameof(AttemptLabel));
-
     }
 
     [RelayCommand]

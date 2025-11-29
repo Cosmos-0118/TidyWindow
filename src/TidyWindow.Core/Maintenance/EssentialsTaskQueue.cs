@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -15,19 +16,24 @@ namespace TidyWindow.Core.Maintenance;
 public sealed class EssentialsTaskQueue : IDisposable
 {
     private readonly PowerShellInvoker _powerShellInvoker;
+    private readonly EssentialsTaskCatalog _catalog;
+    private readonly IEssentialsQueueStateStore _stateStore;
     private readonly Channel<EssentialsQueueOperation> _channel;
     private readonly List<EssentialsQueueOperation> _operations = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _processingTask;
 
-    public EssentialsTaskQueue(PowerShellInvoker powerShellInvoker)
+    public EssentialsTaskQueue(PowerShellInvoker powerShellInvoker, EssentialsTaskCatalog catalog, IEssentialsQueueStateStore stateStore)
     {
         _powerShellInvoker = powerShellInvoker ?? throw new ArgumentNullException(nameof(powerShellInvoker));
+        _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
+        _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _channel = Channel.CreateUnbounded<EssentialsQueueOperation>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = false
         });
+        RestorePersistedOperations();
         _processingTask = Task.Run(ProcessQueueAsync, _cts.Token);
     }
 
@@ -39,6 +45,60 @@ public sealed class EssentialsTaskQueue : IDisposable
         {
             return _operations.Select(op => op.CreateSnapshot()).ToImmutableArray();
         }
+    }
+
+    private void RestorePersistedOperations()
+    {
+        IReadOnlyList<EssentialsQueueOperationRecord> records;
+        try
+        {
+            records = _stateStore.Load();
+        }
+        catch
+        {
+            records = Array.Empty<EssentialsQueueOperationRecord>();
+        }
+
+        if (records.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var record in records)
+        {
+            if (string.IsNullOrWhiteSpace(record.TaskId))
+            {
+                continue;
+            }
+
+            EssentialsTaskDefinition? task;
+            try
+            {
+                task = _catalog.GetTask(record.TaskId);
+            }
+            catch
+            {
+                continue;
+            }
+
+            if (task is null)
+            {
+                continue;
+            }
+
+            var operation = EssentialsQueueOperation.Restore(task, record);
+            lock (_operations)
+            {
+                _operations.Add(operation);
+            }
+
+            if (operation.IsPending)
+            {
+                _channel.Writer.TryWrite(operation);
+            }
+        }
+
+        RefreshPendingWaitMessages();
     }
 
     public EssentialsQueueOperationSnapshot Enqueue(EssentialsTaskDefinition task, IReadOnlyDictionary<string, object?>? parameters = null)
@@ -58,6 +118,7 @@ public sealed class EssentialsTaskQueue : IDisposable
         _channel.Writer.TryWrite(operation);
         var snapshot = operation.CreateSnapshot();
         RaiseOperationChanged(snapshot);
+        RefreshPendingWaitMessages();
         return snapshot;
     }
 
@@ -109,6 +170,7 @@ public sealed class EssentialsTaskQueue : IDisposable
             RaiseOperationChanged(snapshot);
         }
 
+        RefreshPendingWaitMessages();
         return snapshots.ToImmutableArray();
     }
 
@@ -131,6 +193,7 @@ public sealed class EssentialsTaskQueue : IDisposable
             }
         }
 
+        PersistState();
         return removed.ToImmutableArray();
     }
 
@@ -187,6 +250,7 @@ public sealed class EssentialsTaskQueue : IDisposable
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         operation.MarkRunning(linkedCts);
         RaiseOperationChanged(operation.CreateSnapshot());
+        RefreshPendingWaitMessages(operation.Task.Name);
 
         try
         {
@@ -213,11 +277,61 @@ public sealed class EssentialsTaskQueue : IDisposable
             operation.MarkFailed(ImmutableArray<string>.Empty, ImmutableArray.Create(ex.Message));
             RaiseOperationChanged(operation.CreateSnapshot());
         }
+        finally
+        {
+            RefreshPendingWaitMessages();
+        }
+    }
+
+    private void RefreshPendingWaitMessages(string? blockingTaskNameOverride = null)
+    {
+        var updates = new List<EssentialsQueueOperationSnapshot>();
+
+        lock (_operations)
+        {
+            var blocker = blockingTaskNameOverride
+                ?? _operations.FirstOrDefault(op => op.IsRunning)?.Task.Name;
+
+            foreach (var operation in _operations)
+            {
+                if (!operation.IsPending)
+                {
+                    continue;
+                }
+
+                var message = blocker is null
+                    ? "Queued and ready"
+                    : $"Waiting for '{blocker}' to finish";
+
+                if (operation.MarkWaiting(message))
+                {
+                    updates.Add(operation.CreateSnapshot());
+                }
+            }
+        }
+
+        foreach (var snapshot in updates)
+        {
+            RaiseOperationChanged(snapshot);
+        }
+    }
+
+    private void PersistState()
+    {
+        List<EssentialsQueueOperationRecord> records;
+
+        lock (_operations)
+        {
+            records = _operations.Select(op => op.CreateRecord()).ToList();
+        }
+
+        _stateStore.Save(records);
     }
 
     private void RaiseOperationChanged(EssentialsQueueOperationSnapshot snapshot)
     {
         OperationChanged?.Invoke(this, new EssentialsQueueChangedEventArgs(snapshot));
+        PersistState();
     }
 }
 
@@ -274,13 +388,45 @@ internal sealed class EssentialsQueueOperation
     private int _attemptCount;
 
     public EssentialsQueueOperation(EssentialsTaskDefinition task, IReadOnlyDictionary<string, object?>? parameters)
+        : this(task, parameters, null)
+    {
+    }
+
+    private EssentialsQueueOperation(EssentialsTaskDefinition task, IReadOnlyDictionary<string, object?>? parameters, EssentialsQueueOperationRecord? record)
     {
         Task = task ?? throw new ArgumentNullException(nameof(task));
-        Id = Guid.NewGuid();
-        EnqueuedAt = DateTimeOffset.UtcNow;
         Parameters = parameters is null
             ? ImmutableDictionary<string, object?>.Empty
             : parameters.ToImmutableDictionary(StringComparer.OrdinalIgnoreCase);
+
+        if (record is null)
+        {
+            Id = Guid.NewGuid();
+            EnqueuedAt = DateTimeOffset.UtcNow;
+            return;
+        }
+
+        Id = record.Id == Guid.Empty ? Guid.NewGuid() : record.Id;
+        EnqueuedAt = record.EnqueuedAt == default ? DateTimeOffset.UtcNow : record.EnqueuedAt;
+        _status = record.Status == EssentialsQueueStatus.Running ? EssentialsQueueStatus.Pending : record.Status;
+        _attemptCount = record.AttemptCount;
+        _startedAt = record.StartedAt;
+        _completedAt = record.CompletedAt;
+        _lastMessage = string.IsNullOrWhiteSpace(record.LastMessage) ? "Queued" : record.LastMessage;
+        _output = record.Output is null ? ImmutableArray<string>.Empty : record.Output.ToImmutableArray();
+        _errors = record.Errors is null ? ImmutableArray<string>.Empty : record.Errors.ToImmutableArray();
+        _cancelRequested = record.IsCancellationRequested;
+    }
+
+    public static EssentialsQueueOperation Restore(EssentialsTaskDefinition task, EssentialsQueueOperationRecord record)
+    {
+        if (record is null)
+        {
+            throw new ArgumentNullException(nameof(record));
+        }
+
+        var parameters = ConvertParameters(record.Parameters);
+        return new EssentialsQueueOperation(task, parameters, record);
     }
 
     public Guid Id { get; }
@@ -292,6 +438,28 @@ internal sealed class EssentialsQueueOperation
     public ImmutableDictionary<string, object?> Parameters { get; }
 
     public bool IsActive => _status is EssentialsQueueStatus.Pending or EssentialsQueueStatus.Running;
+
+    public bool IsPending
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _status == EssentialsQueueStatus.Pending;
+            }
+        }
+    }
+
+    public bool IsRunning
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _status == EssentialsQueueStatus.Running;
+            }
+        }
+    }
 
     public bool IsCancellationRequested => _cancelRequested;
 
@@ -313,6 +481,49 @@ internal sealed class EssentialsQueueOperation
                 _output,
                 _errors,
                 _cancelRequested);
+        }
+    }
+
+    public bool MarkWaiting(string? message)
+    {
+        lock (_lock)
+        {
+            if (_status != EssentialsQueueStatus.Pending)
+            {
+                return false;
+            }
+
+            var normalized = string.IsNullOrWhiteSpace(message) ? "Queued and ready" : message.Trim();
+            if (string.Equals(_lastMessage, normalized, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            _lastMessage = normalized;
+            return true;
+        }
+    }
+
+    public EssentialsQueueOperationRecord CreateRecord()
+    {
+        lock (_lock)
+        {
+            var output = _output.IsDefaultOrEmpty ? Array.Empty<string>() : _output.ToArray();
+            var errors = _errors.IsDefaultOrEmpty ? Array.Empty<string>() : _errors.ToArray();
+
+            return new EssentialsQueueOperationRecord(
+                Id,
+                Task.Id,
+                _status,
+                _attemptCount,
+                EnqueuedAt,
+                _startedAt,
+                _completedAt,
+                _lastMessage,
+                output,
+                errors,
+                _cancelRequested,
+                SerializeParameters());
         }
     }
 
@@ -393,6 +604,61 @@ internal sealed class EssentialsQueueOperation
     public string ResolveScriptPath()
     {
         return Task.ResolveScriptPath();
+    }
+
+    private IReadOnlyDictionary<string, JsonElement>? SerializeParameters()
+    {
+        if (Parameters.Count == 0)
+        {
+            return null;
+        }
+
+        var dictionary = new Dictionary<string, JsonElement>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var kvp in Parameters)
+        {
+            dictionary[kvp.Key] = ToJsonElement(kvp.Value);
+        }
+
+        return dictionary;
+    }
+
+    private static JsonElement ToJsonElement(object? value)
+    {
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(value));
+        return document.RootElement.Clone();
+    }
+
+    private static IReadOnlyDictionary<string, object?>? ConvertParameters(IReadOnlyDictionary<string, JsonElement>? parameters)
+    {
+        if (parameters is null || parameters.Count == 0)
+        {
+            return null;
+        }
+
+        var dictionary = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var kvp in parameters)
+        {
+            dictionary[kvp.Key] = ConvertJsonElement(kvp.Value);
+        }
+
+        return dictionary;
+    }
+
+    private static object? ConvertJsonElement(JsonElement element)
+    {
+        return element.ValueKind switch
+        {
+            JsonValueKind.String => element.GetString(),
+            JsonValueKind.Number => element.TryGetInt64(out var longValue) ? longValue : element.GetDouble(),
+            JsonValueKind.True => true,
+            JsonValueKind.False => false,
+            JsonValueKind.Array => element.EnumerateArray().Select(ConvertJsonElement).ToArray(),
+            JsonValueKind.Object => element.ToString(),
+            JsonValueKind.Null or JsonValueKind.Undefined => null,
+            _ => element.ToString()
+        };
     }
 
     private static string? SelectSummary(IReadOnlyList<string> lines)

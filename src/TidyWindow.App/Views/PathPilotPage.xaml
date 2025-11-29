@@ -701,13 +701,18 @@
                             BorderThickness="1"
                             CornerRadius="10"
                             Padding="16">
-                        <ux:AdaptiveTilePanel MinColumnWidth="220"
-                                              MaxColumnWidth="420"
-                                              ColumnSpacing="16"
-                                              RowSpacing="16">
+                        <ux:AdaptiveTilePanel MinColumnWidth="320"
+                                      MaxColumnWidth="560"
+                                      MinColumns="1"
+                                      MaxColumns="3"
+                                      ColumnSpacing="20"
+                                      RowSpacing="20"
+                                      Padding="4,0,4,0">
                             <Border Style="{StaticResource PathPilotCardStyle}"
-                                    Padding="16"
-                                    HorizontalAlignment="Stretch">
+                                Padding="16"
+                                HorizontalAlignment="Stretch"
+                                MinWidth="320"
+                                MaxWidth="560">
                                 <StackPanel>
                                     <TextBlock Text="Runtime overview"
                                                Foreground="#93C5FD"
@@ -747,7 +752,9 @@
                             </Border>
                                 <Border Style="{StaticResource PathPilotCardStyle}"
                                     Padding="16"
-                                    HorizontalAlignment="Stretch">
+                                    HorizontalAlignment="Stretch"
+                                    MinWidth="320"
+                                    MaxWidth="560">
                                 <StackPanel>
                                     <TextBlock Text="Last refreshed"
                                                Foreground="#93C5FD"
@@ -781,9 +788,11 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource PathPilotCardStyle}"
+                                <Border Style="{StaticResource PathPilotCardStyle}"
                                     Padding="16"
-                                    HorizontalAlignment="Stretch">
+                                    HorizontalAlignment="Stretch"
+                                    MinWidth="320"
+                                    MaxWidth="560">
                                 <StackPanel>
                                     <TextBlock Text="Machine scope"
                                                Foreground="#93C5FD"
@@ -854,10 +863,13 @@
                                  SelectionMode="Single">
                             <ListBox.ItemsPanel>
                             <ItemsPanelTemplate>
-                                <ux:AdaptiveTilePanel MinColumnWidth="340"
-                                         MaxColumnWidth="520"
+                                <ux:AdaptiveTilePanel MinColumnWidth="380"
+                                         MaxColumnWidth="600"
+                                         MinColumns="1"
+                                         MaxColumns="3"
                                          ColumnSpacing="24"
-                                         RowSpacing="24"/>
+                                         RowSpacing="28"
+                                         Padding="4,0,4,0"/>
                             </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>

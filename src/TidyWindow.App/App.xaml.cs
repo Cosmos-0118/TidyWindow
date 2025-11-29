@@ -92,6 +92,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<IAppUninstallService, AppUninstallService>();
                 services.AddSingleton<AppCleanupPlanner>();
                 services.AddSingleton<EssentialsTaskCatalog>();
+                services.AddSingleton<IEssentialsQueueStateStore, EssentialsQueueStateStore>();
                 services.AddSingleton<EssentialsTaskQueue>();
                 services.AddSingleton<IRegistryOptimizerService, RegistryOptimizerService>();
                 services.AddSingleton<RegistryPreferenceService>();
