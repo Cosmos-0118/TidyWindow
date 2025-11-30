@@ -22,10 +22,15 @@ internal sealed class CleanupScanner
 
     public Task<CleanupReport> ScanAsync(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, CancellationToken cancellationToken)
     {
+        return Task.Run(() => ScanInternal(includeDownloads, includeBrowserHistory, previewCount, itemKind, cancellationToken), cancellationToken);
+    }
+
+    private CleanupReport ScanInternal(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, CancellationToken cancellationToken)
+    {
         var definitions = _definitionProvider.GetDefinitions(includeDownloads, includeBrowserHistory);
         if (definitions.Count == 0)
         {
-            return Task.FromResult(CleanupReport.Empty);
+            return CleanupReport.Empty;
         }
 
         previewCount = Math.Max(0, previewCount);
@@ -48,7 +53,7 @@ internal sealed class CleanupScanner
 
         if (results.IsEmpty)
         {
-            return Task.FromResult(CleanupReport.Empty);
+            return CleanupReport.Empty;
         }
 
         var ordered = results
@@ -56,7 +61,7 @@ internal sealed class CleanupScanner
             .ThenByDescending(static report => report.TotalSizeBytes)
             .ToList();
 
-        return Task.FromResult(new CleanupReport(ordered));
+        return new CleanupReport(ordered);
     }
 
     private static CleanupTargetReport BuildReport(CleanupTargetDefinition definition, int previewCount, CleanupItemKind itemKind, CancellationToken cancellationToken)

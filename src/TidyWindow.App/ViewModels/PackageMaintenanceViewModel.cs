@@ -6,6 +6,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Globalization;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -53,6 +54,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         "msiexec is already running"
     };
     private static readonly TimeSpan SearchDebounceInterval = TimeSpan.FromMilliseconds(110);
+    private static readonly TimeSpan VersionCacheDuration = TimeSpan.FromMinutes(15);
 
     private readonly List<PackageMaintenanceItemViewModel> _allPackages = new();
     private readonly Dictionary<string, PackageMaintenanceItemViewModel> _packagesByKey = new(StringComparer.OrdinalIgnoreCase);
@@ -61,6 +63,9 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly Queue<MaintenanceOperationRequest> _pendingOperations = new();
     private readonly object _operationLock = new();
     private readonly UiDebounceDispatcher _searchFilterDebounce;
+    private readonly PackageVersionDiscoveryService _versionDiscoveryService;
+    private readonly Dictionary<string, VersionCacheEntry> _versionCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CancellationTokenSource _versionLookupCts = new();
 
     private bool _isProcessingOperations;
     private DateTimeOffset? _lastRefreshedAt;
@@ -69,6 +74,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     public PackageMaintenanceViewModel(
         PackageInventoryService inventoryService,
         PackageMaintenanceService maintenanceService,
+        PackageVersionDiscoveryService versionDiscoveryService,
         InstallCatalogService catalogService,
         MainViewModel mainViewModel,
         IPrivilegeService privilegeService,
@@ -79,6 +85,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _maintenanceService = maintenanceService ?? throw new ArgumentNullException(nameof(maintenanceService));
+        _versionDiscoveryService = versionDiscoveryService ?? throw new ArgumentNullException(nameof(versionDiscoveryService));
         _catalogService = catalogService ?? throw new ArgumentNullException(nameof(catalogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _privilegeService = privilegeService ?? throw new ArgumentNullException(nameof(privilegeService));
@@ -295,6 +302,215 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
     }
 
+    [RelayCommand]
+    private async Task ToggleVersionPickerAsync(PackageMaintenanceItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        if (item.IsVersionPickerOpen)
+        {
+            item.IsVersionPickerOpen = false;
+            _activityLog.LogInformation("Maintenance", $"Dismissed version picker for '{item.DisplayName}'.");
+            return;
+        }
+
+        item.IsVersionPickerOpen = true;
+        _activityLog.LogInformation("Maintenance", $"Opening version picker for '{item.DisplayName}'.");
+        await LoadVersionOptionsAsync(item).ConfigureAwait(false);
+    }
+
+    [RelayCommand]
+    private Task RefreshVersionOptionsAsync(PackageMaintenanceItemViewModel? item)
+    {
+        if (item is not null)
+        {
+            _activityLog.LogInformation("Maintenance", $"Refreshing version options for '{item.DisplayName}'.");
+        }
+
+        return LoadVersionOptionsAsync(item, forceRefresh: true);
+    }
+
+    [RelayCommand]
+    private void ApplyVersionSelection(PackageVersionOptionViewModel? option)
+    {
+        if (option?.Owner is null)
+        {
+            return;
+        }
+
+        option.Owner.TargetVersion = option.Value;
+        option.Owner.IsVersionPickerOpen = false;
+        _mainViewModel.SetStatusMessage($"Pinned {option.Value} for '{option.Owner.DisplayName}'.");
+        _activityLog.LogInformation("Maintenance", $"Pinned version '{option.Value}' for '{option.Owner.DisplayName}'.");
+    }
+
+    [RelayCommand]
+    private void ClearTargetVersion(PackageMaintenanceItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.TargetVersion))
+        {
+            item.TargetVersion = null;
+            _mainViewModel.SetStatusMessage($"'{item.DisplayName}' will use the latest release.");
+            _activityLog.LogInformation("Maintenance", $"Cleared pinned version for '{item.DisplayName}'.");
+        }
+
+        item.IsVersionPickerOpen = false;
+    }
+
+    [RelayCommand]
+    private void CloseVersionPicker(PackageMaintenanceItemViewModel? item)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        item.IsVersionPickerOpen = false;
+        _activityLog.LogInformation("Maintenance", $"Closed version picker for '{item.DisplayName}'.");
+    }
+
+    private async Task LoadVersionOptionsAsync(PackageMaintenanceItemViewModel? item, bool forceRefresh = false)
+    {
+        if (item is null)
+        {
+            return;
+        }
+
+        var manager = item.Manager;
+        var packageId = ResolveVersionLookupIdentifier(item);
+
+        if (string.IsNullOrWhiteSpace(manager) || string.IsNullOrWhiteSpace(packageId))
+        {
+            await RunOnUiThreadAsync(() =>
+            {
+                item.VersionOptions.Clear();
+                item.VersionLookupError = "Package identifier is missing.";
+                item.IsVersionLookupInProgress = false;
+            }).ConfigureAwait(false);
+            _activityLog.LogWarning("Maintenance", $"Unable to load versions for '{item.DisplayName}' because the identifier is missing.");
+            return;
+        }
+
+        var cacheKey = BuildKey(manager, packageId);
+        if (forceRefresh)
+        {
+            lock (_versionCache)
+            {
+                _versionCache.Remove(cacheKey);
+            }
+        }
+
+        await RunOnUiThreadAsync(() =>
+        {
+            item.VersionLookupError = null;
+            item.IsVersionLookupInProgress = true;
+        }).ConfigureAwait(false);
+
+        try
+        {
+            var (versions, errorMessage) = await ResolveVersionOptionsAsync(manager, packageId, cacheKey, _versionLookupCts.Token)
+                .ConfigureAwait(false);
+
+            await RunOnUiThreadAsync(() =>
+            {
+                item.ReplaceVersionOptions(versions);
+                item.VersionLookupError = errorMessage;
+            }).ConfigureAwait(false);
+
+            var logMessage = errorMessage is null
+                ? $"Loaded {versions.Length} version(s) for '{item.DisplayName}'."
+                : $"Loaded {versions.Length} version(s) for '{item.DisplayName}' with warning: {errorMessage}";
+
+            _activityLog.LogInformation("Maintenance", logMessage);
+        }
+        catch (OperationCanceledException)
+        {
+            // Ignore cancellation when shutting down or switching contexts.
+        }
+        catch (Exception ex)
+        {
+            await RunOnUiThreadAsync(() =>
+            {
+                item.VersionOptions.Clear();
+                item.VersionLookupError = ex.Message;
+            }).ConfigureAwait(false);
+            _activityLog.LogError("Maintenance", $"Version lookup failed for '{item.DisplayName}': {ex.Message}");
+        }
+        finally
+        {
+            await RunOnUiThreadAsync(() => item.IsVersionLookupInProgress = false).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<(ImmutableArray<string> Versions, string? Error)> ResolveVersionOptionsAsync(
+        string manager,
+        string packageId,
+        string cacheKey,
+        CancellationToken cancellationToken)
+    {
+        VersionCacheEntry? cachedEntry = null;
+
+        lock (_versionCache)
+        {
+            if (_versionCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > DateTimeOffset.UtcNow)
+            {
+                cachedEntry = cached;
+            }
+        }
+
+        if (cachedEntry is not null)
+        {
+            _activityLog.LogInformation("Maintenance", $"Using cached version list ({cachedEntry.Versions.Length} entries) for '{packageId}'.");
+            return (cachedEntry.Versions, cachedEntry.ErrorMessage);
+        }
+
+        var discoveryResult = await _versionDiscoveryService
+            .GetVersionsAsync(manager, packageId, cancellationToken)
+            .ConfigureAwait(false);
+
+        var builder = ImmutableArray.CreateBuilder<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var version in discoveryResult.Versions)
+        {
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                continue;
+            }
+
+            var candidate = version.Trim();
+            if (candidate.Length == 0 || !seen.Add(candidate))
+            {
+                continue;
+            }
+
+            builder.Add(candidate);
+        }
+
+        var normalized = builder.ToImmutable();
+        var error = discoveryResult.Success
+            ? null
+            : (string.IsNullOrWhiteSpace(discoveryResult.ErrorMessage)
+                ? "Version lookup failed."
+                : discoveryResult.ErrorMessage.Trim());
+
+        var entry = new VersionCacheEntry(normalized, DateTimeOffset.UtcNow.Add(VersionCacheDuration), error);
+
+        lock (_versionCache)
+        {
+            _versionCache[cacheKey] = entry;
+        }
+
+        return (entry.Versions, entry.ErrorMessage);
+    }
+
     [RelayCommand(CanExecute = nameof(CanToggleWarnings))]
     private void ToggleWarnings()
     {
@@ -491,6 +707,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             _activityLog.LogInformation("Maintenance", $"Skipped {ResolveOperationNoun(kind).ToLowerInvariant()} for '{item.DisplayName}' because a task is already queued.");
             return false;
         }
+
+        item.IsVersionPickerOpen = false;
 
         var requiresAdmin = item.RequiresAdministrativeAccess || ManagerRequiresElevation(item.Manager);
 
@@ -1862,6 +2080,23 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         string? TargetVersion,
         Guid WorkToken);
 
+    private static string? ResolveVersionLookupIdentifier(PackageMaintenanceItemViewModel item)
+    {
+        if (item is null)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.PackageIdentifier))
+        {
+            return item.PackageIdentifier;
+        }
+
+        return string.IsNullOrWhiteSpace(item.InstallPackageId) ? null : item.InstallPackageId;
+    }
+
+    private sealed record VersionCacheEntry(ImmutableArray<string> Versions, DateTimeOffset ExpiresAt, string? ErrorMessage);
+
     private static bool ManagerRequiresElevation(string manager)
     {
         return manager.Equals("winget", StringComparison.OrdinalIgnoreCase)
@@ -1963,6 +2198,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _searchFilterDebounce.Flush();
         _searchFilterDebounce.Dispose();
         Automation.Dispose();
+        _versionLookupCts.Cancel();
+        _versionLookupCts.Dispose();
     }
 }
 
@@ -2159,6 +2396,8 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
             _ => string.IsNullOrWhiteSpace(Manager) ? "Unknown" : Manager
         };
 
+
+        VersionOptions.CollectionChanged += (_, _) => OnPropertyChanged(nameof(HasVersionOptions));
         if (item.Catalog is not null)
         {
             InstallPackageId = item.Catalog.InstallPackageId;
@@ -2310,6 +2549,10 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
         private set => SetProperty(ref _requiresAdministrativeAccess, value);
     }
 
+    public ObservableCollection<PackageVersionOptionViewModel> VersionOptions { get; } = new();
+
+    public bool HasVersionOptions => VersionOptions.Count > 0;
+
     public bool CanUpdate => !IsSuppressed
                              && (HasUpdate || !string.IsNullOrWhiteSpace(TargetVersion))
                              && (!string.IsNullOrWhiteSpace(InstallPackageId) || !string.IsNullOrWhiteSpace(PackageIdentifier));
@@ -2363,6 +2606,15 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     [ObservableProperty]
     private bool? _lastOperationSucceeded;
 
+    [ObservableProperty]
+    private bool _isVersionLookupInProgress;
+
+    [ObservableProperty]
+    private bool _isVersionPickerOpen;
+
+    [ObservableProperty]
+    private string? _versionLookupError;
+
     partial void OnTargetVersionChanged(string? oldValue, string? newValue)
     {
         var normalized = string.IsNullOrWhiteSpace(newValue) ? null : newValue.Trim();
@@ -2373,7 +2625,12 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
         }
 
         OnPropertyChanged(nameof(CanUpdate));
+        OnPropertyChanged(nameof(TargetVersionLabel));
     }
+
+    public string TargetVersionLabel => string.IsNullOrWhiteSpace(TargetVersion)
+        ? "Use latest release"
+        : $"Version {TargetVersion}";
 
     public void UpdateFrom(PackageInventoryItem item)
     {
@@ -2520,6 +2777,29 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
         }
     }
 
+    public void ReplaceVersionOptions(IEnumerable<string> versions)
+    {
+        VersionOptions.Clear();
+
+        if (versions is null)
+        {
+            OnPropertyChanged(nameof(HasVersionOptions));
+            return;
+        }
+
+        foreach (var version in versions)
+        {
+            if (string.IsNullOrWhiteSpace(version))
+            {
+                continue;
+            }
+
+            VersionOptions.Add(new PackageVersionOptionViewModel(this, version));
+        }
+
+        OnPropertyChanged(nameof(HasVersionOptions));
+    }
+
     private void NotifyPackageStateChanged()
     {
         OnPropertyChanged(nameof(VersionDisplay));
@@ -2560,4 +2840,26 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
 
         return "?";
     }
+}
+
+public sealed class PackageVersionOptionViewModel
+{
+    public PackageVersionOptionViewModel(PackageMaintenanceItemViewModel owner, string value)
+    {
+        Owner = owner ?? throw new ArgumentNullException(nameof(owner));
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            throw new ArgumentException("Version value must be provided.", nameof(value));
+        }
+
+        Value = value.Trim();
+        Display = Value;
+    }
+
+    public PackageMaintenanceItemViewModel Owner { get; }
+
+    public string Value { get; }
+
+    public string Display { get; }
 }

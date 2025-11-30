@@ -363,11 +363,19 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
         for (var i = InternalChildren.Count - 1; i >= 0; i--)
         {
             var child = InternalChildren[i];
-            if (!_childIndexLookup.TryGetValue(child, out var index) || index < minIndex || index > maxIndex)
+            var hasIndex = _childIndexLookup.TryGetValue(child, out var itemIndex);
+            if (!hasIndex || itemIndex < minIndex || itemIndex > maxIndex)
             {
                 _childIndexLookup.Remove(child);
+                if (hasIndex && itemIndex >= 0)
+                {
+                    var position = generator.GeneratorPositionFromIndex(itemIndex);
+                    if (position.Index >= 0 || position.Offset != 0)
+                    {
+                        generator.Remove(position, 1);
+                    }
+                }
                 RemoveInternalChildRange(i, 1);
-                generator.Remove(new GeneratorPosition(i, 0), 1);
             }
         }
     }
@@ -377,9 +385,17 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
         for (var i = InternalChildren.Count - 1; i >= 0; i--)
         {
             var child = InternalChildren[i];
+            var hasIndex = _childIndexLookup.TryGetValue(child, out var itemIndex);
             _childIndexLookup.Remove(child);
+            if (hasIndex)
+            {
+                var position = generator.GeneratorPositionFromIndex(itemIndex);
+                if (position.Index >= 0 || position.Offset != 0)
+                {
+                    generator.Remove(position, 1);
+                }
+            }
             RemoveInternalChildRange(i, 1);
-            generator.Remove(new GeneratorPosition(i, 0), 1);
         }
     }
 
@@ -420,10 +436,29 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
 
                     generator.PrepareItemContainer(child);
                 }
-                else if (InternalChildren[childIndex] != child)
+                else
                 {
-                    RemoveInternalChildRange(childIndex, 1);
-                    InsertInternalChild(childIndex, child);
+                    var currentIndex = InternalChildren.IndexOf(child);
+                    if (currentIndex != childIndex)
+                    {
+                        if (currentIndex >= 0)
+                        {
+                            RemoveInternalChildRange(currentIndex, 1);
+                            if (currentIndex < childIndex)
+                            {
+                                childIndex--;
+                            }
+                        }
+
+                        if (childIndex >= InternalChildren.Count)
+                        {
+                            AddInternalChild(child);
+                        }
+                        else
+                        {
+                            InsertInternalChild(childIndex, child);
+                        }
+                    }
                 }
 
                 child.Measure(childConstraint);

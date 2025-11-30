@@ -316,6 +316,21 @@ public sealed class AdaptiveTilePanel : WpfPanel
             return size.Width;
         }
 
+        if (!double.IsNaN(Width) && Width > 0)
+        {
+            return Width;
+        }
+
+        if (!double.IsNaN(MaxWidth) && !double.IsInfinity(MaxWidth) && MaxWidth > 0)
+        {
+            return MaxWidth;
+        }
+
+        if (!double.IsNaN(MinWidth) && MinWidth > 0)
+        {
+            return MinWidth;
+        }
+
         var scrollViewerWidth = FindScrollViewerWidth(this);
         if (scrollViewerWidth > 0)
         {
@@ -343,7 +358,16 @@ public sealed class AdaptiveTilePanel : WpfPanel
             return ActualWidth;
         }
 
-        return MinColumnWidth;
+        if (DesiredSize.Width > 0)
+        {
+            return DesiredSize.Width;
+        }
+
+        var minimumLayoutWidth = MinColumns <= 1
+            ? MinColumnWidth
+            : (MinColumns * MinColumnWidth) + Math.Max(0, MinColumns - 1) * ColumnSpacing;
+
+        return Math.Max(MinColumnWidth, minimumLayoutWidth);
     }
 
     private void EnsureViewportSubscription()

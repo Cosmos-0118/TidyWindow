@@ -113,6 +113,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<BundlePresetService>();
                 services.AddSingleton<PackageInventoryService>();
                 services.AddSingleton<PackageMaintenanceService>();
+                services.AddSingleton<PackageVersionDiscoveryService>();
                 services.AddSingleton<IAppInventoryService, AppInventoryService>();
                 services.AddSingleton<IAppUninstallService, AppUninstallService>();
                 services.AddSingleton<AppCleanupPlanner>();
