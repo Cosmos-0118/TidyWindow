@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -16,7 +15,7 @@ public sealed class NavigationService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ActivityLogService _activityLog;
-    private readonly Dictionary<Type, Page> _pageCache = new();
+    private readonly SmartPageCache _pageCache;
     private Frame? _frame;
     private readonly Duration _transitionDuration = new(TimeSpan.FromMilliseconds(220));
     private readonly IEasingFunction _transitionEasing = new QuarticEase { EasingMode = EasingMode.EaseInOut };
@@ -25,10 +24,11 @@ public sealed class NavigationService
     private Type? _queuedNavigation;
     private Type? _activeNavigationTarget;
 
-    public NavigationService(IServiceProvider serviceProvider, ActivityLogService activityLog)
+    public NavigationService(IServiceProvider serviceProvider, ActivityLogService activityLog, SmartPageCache pageCache)
     {
         _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
+        _pageCache = pageCache ?? throw new ArgumentNullException(nameof(pageCache));
     }
 
     public bool IsInitialized => _frame is not null;
@@ -85,6 +85,7 @@ public sealed class NavigationService
 
         _activityLog.LogInformation("Navigation", $"Navigating to {pageType.Name}");
 
+        _pageCache.SweepExpired();
         var page = ResolvePage(pageType);
 
         BeginTransition(pageType, page);
@@ -92,19 +93,19 @@ public sealed class NavigationService
 
     private Page ResolvePage(Type pageType)
     {
-        if (PageCacheRegistry.IsCacheable(pageType) && _pageCache.TryGetValue(pageType, out var cached))
+        if (PageCacheRegistry.TryGetPolicy(pageType, out var policy))
         {
-            return cached;
+            if (_pageCache.TryGetPage(pageType, out var cached))
+            {
+                return cached;
+            }
+
+            var cachedPage = CreatePageInstance(pageType);
+            _pageCache.StorePage(pageType, cachedPage, policy);
+            return cachedPage;
         }
 
-        var page = CreatePageInstance(pageType);
-
-        if (PageCacheRegistry.IsCacheable(pageType))
-        {
-            _pageCache[pageType] = page;
-        }
-
-        return page;
+        return CreatePageInstance(pageType);
     }
 
     private Page CreatePageInstance(Type pageType)
@@ -152,7 +153,7 @@ public sealed class NavigationService
             catch (Exception ex)
             {
                 _activityLog.LogError("Navigation", $"Navigation failure for {pageType.FullName}", new object?[] { ex });
-                _pageCache.Remove(pageType);
+                _pageCache.Invalidate(pageType);
                 _frame.Opacity = 1d;
                 ResetTransition();
                 throw;

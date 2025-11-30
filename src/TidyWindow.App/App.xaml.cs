@@ -78,6 +78,7 @@ public partial class App : WpfApplication
             .ConfigureServices(services =>
             {
                 services.AddSingleton<NavigationService>();
+                services.AddSingleton<SmartPageCache>();
                 services.AddSingleton<ActivityLogService>();
                 services.AddSingleton<IPrivilegeService, PrivilegeService>();
                 services.AddSingleton<UserPreferencesService>();

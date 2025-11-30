@@ -5,36 +5,59 @@ using TidyWindow.App.Views;
 namespace TidyWindow.App.Services;
 
 /// <summary>
+/// Describes caching preferences for a Page type.
+/// </summary>
+public sealed record PageCachePolicy(TimeSpan? IdleExpiration)
+{
+    public static PageCachePolicy KeepAlive { get; } = new((TimeSpan?)null);
+
+    public static PageCachePolicy Sliding(TimeSpan ttl)
+        => new(ttl <= TimeSpan.Zero ? TimeSpan.FromSeconds(1) : ttl);
+}
+
+/// <summary>
 /// Central registry describing which pages are safe to cache and reuse.
 /// </summary>
 public static class PageCacheRegistry
 {
-    private static readonly HashSet<Type> _cacheablePages = new(new[]
+    private static readonly Dictionary<Type, PageCachePolicy> _cacheablePages = new()
     {
-        typeof(CleanupPage),
-        typeof(EssentialsPage),
-        typeof(InstallHubPage),
-        typeof(PackageMaintenancePage),
-        typeof(RegistryOptimizerPage),
-        typeof(KnownProcessesPage),
-        typeof(DeepScanPage)
-    });
+        { typeof(BootstrapPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(30)) },
+        { typeof(CleanupPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
+        { typeof(DeepScanPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
+        { typeof(EssentialsPage), PageCachePolicy.KeepAlive },
+        { typeof(InstallHubPage), PageCachePolicy.KeepAlive },
+        { typeof(KnownProcessesPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
+        { typeof(LogsPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
+        { typeof(PackageMaintenancePage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(25)) },
+        { typeof(PathPilotPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(25)) },
+        { typeof(RegistryOptimizerPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(30)) },
+        { typeof(SettingsPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(30)) }
+    };
 
-    public static IReadOnlyCollection<Type> CacheablePages => _cacheablePages;
+    public static IReadOnlyCollection<Type> CacheablePages => _cacheablePages.Keys;
 
-    public static bool IsCacheable(Type? pageType)
+    public static bool IsCacheable(Type? pageType) => TryGetPolicy(pageType, out _);
+
+    public static bool TryGetPolicy(Type? pageType, out PageCachePolicy policy)
     {
-        return pageType is not null && _cacheablePages.Contains(pageType);
+        if (pageType is null)
+        {
+            policy = null!;
+            return false;
+        }
+
+        return _cacheablePages.TryGetValue(pageType, out policy!);
     }
 
-    public static void Register(Type pageType)
+    public static void Register(Type pageType, PageCachePolicy policy)
     {
         if (pageType is null)
         {
             return;
         }
 
-        _cacheablePages.Add(pageType);
+        _cacheablePages[pageType] = policy ?? throw new ArgumentNullException(nameof(policy));
     }
 
     public static void Unregister(Type pageType)

@@ -111,10 +111,12 @@ public sealed class MainWindowTests
 
             var services = new ServiceCollection();
             services.AddSingleton<ActivityLogService>();
+            services.AddSingleton<SmartPageCache>();
             services.AddSingleton(provider =>
             {
                 var activityLog = provider.GetRequiredService<ActivityLogService>();
-                return new NavigationService(provider, activityLog);
+                var cache = provider.GetRequiredService<SmartPageCache>();
+                return new NavigationService(provider, activityLog, cache);
             });
             services.AddSingleton<MainViewModel>();
             services.AddSingleton<UserPreferencesService>();

@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using System.Windows.Media;
 using WpfListView = System.Windows.Controls.ListView;
@@ -13,6 +14,7 @@ public partial class LogsPage : Page
     private readonly LogsViewModel _viewModel;
     private WpfListView? _logsListView;
     private bool _isDisposed;
+    private readonly bool _shouldDisposeOnUnload;
     private bool _scrollHandlersAttached;
 
     public LogsPage(LogsViewModel viewModel)
@@ -20,6 +22,7 @@ public partial class LogsPage : Page
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
+        _shouldDisposeOnUnload = !PageCacheRegistry.IsCacheable(GetType());
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
     }
@@ -32,7 +35,7 @@ public partial class LogsPage : Page
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        if (_isDisposed)
+        if (_isDisposed || !_shouldDisposeOnUnload)
         {
             return;
         }
