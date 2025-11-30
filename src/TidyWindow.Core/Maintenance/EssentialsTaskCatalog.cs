@@ -251,45 +251,6 @@ public sealed class EssentialsTaskCatalog
                         defaultValue: false))),
 
             new EssentialsTaskDefinition(
-                "startup-analyzer",
-                "Startup impact analyzer",
-                "Diagnostics",
-                "Inventories startup hooks, services, and boot history to surface heavy hitters.",
-                ImmutableArray.Create(
-                    "Lists registry, scheduled task, and service startup entries",
-                    "Exports optional CSV or JSON inventories"),
-                "automation/essentials/startup-impact-analyzer.ps1",
-                DurationHint: "Approx. 3-7 minutes; exports extend the run slightly",
-                DetailedDescription: "Collects Run and RunOnce entries, scheduled tasks, startup services, and boot history with size, signature, and timestamps, plus optional CSV or JSON exports for deeper review.",
-                DocumentationLink: "docs/essentials-overview.md#8-startup-impact-analyzer",
-                Options: ImmutableArray.Create(
-                    new EssentialsTaskOptionDefinition(
-                        id: "include-disabled",
-                        label: "Include disabled entries in ranking",
-                        parameterName: "IncludeDisabled",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "include-services",
-                        label: "Include auto-start services",
-                        parameterName: "IncludeServices",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "include-scheduled-tasks",
-                        label: "Include scheduled tasks",
-                        parameterName: "IncludeScheduledTasks",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "boot-timeline",
-                        label: "Capture boot timeline events",
-                        parameterName: "IncludeBootTimeline",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "export-json",
-                        label: "Export JSON summary",
-                        parameterName: "ExportAsJson",
-                        defaultValue: false))),
-
-            new EssentialsTaskDefinition(
                 "windows-update-repair",
                 "Windows Update repair toolkit",
                 "Updates",
@@ -347,60 +308,6 @@ public sealed class EssentialsTaskCatalog
                 DurationHint: "Approx. 15-30 minutes (full scans or large path sets extend runtime)",
                 DetailedDescription: "Heals Microsoft Defender by restarting critical services, forcing signature and engine refreshes, optionally re-enabling real-time protection, and executing quick, full, or custom scans while producing transcripts and JSON run summaries for the UI.",
                 DocumentationLink: "docs/essentials-overview.md#10-windows-defender-repair--deep-scan"),
-
-            new EssentialsTaskDefinition(
-                "storage-declutter",
-                "Storage declutter & temp cleanup",
-                "Storage",
-                "Clears safe temp caches and shrinks WinSxS with optional deeper reclamation.",
-                ImmutableArray.Create(
-                    "Dry-run aware purge of user/system temp directories with guard rails",
-                    "Optional Delivery Optimization, Windows Update cache, recycle bin, and DISM cleanup"),
-                "automation/essentials/storage-declutter-and-temp-cleanup.ps1",
-                DurationHint: "Approx. 10-25 minutes (component cleanup and large caches may extend time)",
-                DetailedDescription: "Automates temp directory cleanup with dry-run previews, purges Delivery Optimization, Windows Update downloads, error reports, and recycle bin when requested, and finishes with DISM StartComponentCleanup (with optional ResetBase) while logging reclaimed space for the UI.",
-                DocumentationLink: "docs/essentials-overview.md#11-storage-declutter--temp-cleanup",
-                Options: ImmutableArray.Create(
-                    new EssentialsTaskOptionDefinition(
-                        id: "component-cleanup",
-                        label: "Run DISM component cleanup",
-                        parameterName: "SkipComponentCleanup",
-                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
-                    new EssentialsTaskOptionDefinition(
-                        id: "reset-base",
-                        label: "Run ResetBase (make updates permanent)",
-                        parameterName: "ResetBase",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "delivery-optimization",
-                        label: "Clear Delivery Optimization cache",
-                        parameterName: "IncludeDeliveryOptimization",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "windows-update-cache",
-                        label: "Clear Windows Update downloads",
-                        parameterName: "IncludeWindowsUpdateCache",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "prefetch",
-                        label: "Clear Prefetch contents",
-                        parameterName: "IncludePrefetch",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "error-reports",
-                        label: "Clear Windows error reports",
-                        parameterName: "IncludeErrorReports",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "recycle-bin",
-                        label: "Empty recycle bin(s)",
-                        parameterName: "IncludeRecycleBin",
-                        defaultValue: false),
-                    new EssentialsTaskOptionDefinition(
-                        id: "dry-run",
-                        label: "Dry run (preview only)",
-                        parameterName: "DryRun",
-                        defaultValue: false))),
 
             new EssentialsTaskDefinition(
                 "print-spooler-recovery",

@@ -23,7 +23,6 @@ The Essentials automations are designed with multiple layers of safety to protec
 
 Many essential tasks support a "dry-run" or preview mode that shows what would happen without making any changes:
 
--   **Storage Declutter**: Preview what files would be deleted and how much space would be reclaimed
 -   **System Health Scanner**: Preview which SFC/DISM operations would run
 -   **Windows Defender Repair**: Preview scan types and service operations
 -   **Print Spooler Recovery**: Preview service restarts and queue operations
@@ -336,20 +335,7 @@ The Essentials page uses three pivot views:
     -   Limit repairs to current user
 -   **Safety**: Only affects Store/UWP apps; no system files modified
 
-### 8. Startup Impact Analyzer
-
--   **Category**: Diagnostics
--   **Purpose**: Inventories startup hooks, services, and boot history
--   **Duration**: 3-7 minutes
--   **Options**:
-    -   Include disabled entries in ranking
-    -   Include auto-start services
-    -   Include scheduled tasks
-    -   Capture boot timeline events
-    -   Export JSON summary
--   **Safety**: Read-only analysis; no changes made
-
-### 9. Windows Update Repair Toolkit
+### 8. Windows Update Repair Toolkit
 
 -   **Category**: Updates
 -   **Purpose**: Resets Windows Update services, caches, and components
@@ -365,7 +351,7 @@ The Essentials page uses three pivot views:
     -   Reset network stack
 -   **Safety**: Creates restore point before major operations
 
-### 10. Windows Defender Repair & Deep Scan
+### 9. Windows Defender Repair & Deep Scan
 
 -   **Category**: Security
 -   **Purpose**: Restores Defender services, updates signatures, runs scans
@@ -378,23 +364,7 @@ The Essentials page uses three pivot views:
     -   Skip real-time heal
 -   **Safety**: Uses Windows Defender's built-in repair mechanisms
 
-### 11. Storage Declutter & Temp Cleanup
-
--   **Category**: Storage
--   **Purpose**: Clears safe temp caches and reclaims storage
--   **Duration**: 10-25 minutes
--   **Options**:
-    -   Run DISM component cleanup
-    -   Run ResetBase (make updates permanent)
-    -   Clear Delivery Optimization cache
-    -   Clear Windows Update downloads
-    -   Clear Prefetch contents
-    -   Clear Windows error reports
-    -   Empty recycle bin(s)
-    -   **Dry run (preview only)**
--   **Safety**: Dry-run mode available; only clears safe temp locations
-
-### 12. Print Spooler Recovery Suite
+### 10. Print Spooler Recovery Suite
 
 -   **Category**: Printing
 -   **Purpose**: Clears jammed queues and rebuilds spooler services
