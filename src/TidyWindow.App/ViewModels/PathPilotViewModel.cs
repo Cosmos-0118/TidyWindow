@@ -90,6 +90,20 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         ? "Inventory has not been collected yet."
         : $"Inventory updated {FormatRelativeTime(LastRefreshedAt.Value)}";
 
+    public void ResetCachedInteractionState()
+    {
+        _pendingSwitchRequest = null;
+        _hasAcknowledgedMachineScopeWarning = false;
+        if (IsMachineScopeWarningOpen)
+        {
+            IsMachineScopeWarningOpen = false;
+        }
+
+        InstallationsDialogRuntime = null;
+        DetailsDialogRuntime = null;
+        ResolutionDialogRuntime = null;
+    }
+
     [RelayCommand]
     private async Task RefreshAsync()
     {
@@ -532,6 +546,12 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
                 .ToImmutableArray();
 
             matchedInstallation = updatedInstallations.First(install => install.Id == matchedInstallation.Id);
+        }
+        else if (installations.Any(install => install.IsActive))
+        {
+            updatedInstallations = installations
+                .Select(install => install with { IsActive = false })
+                .ToImmutableArray();
         }
 
         var activeResolution = new PathPilotActiveResolution(

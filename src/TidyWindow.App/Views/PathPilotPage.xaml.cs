@@ -31,7 +31,7 @@ public partial class PathPilotPage : Page
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
-        Loaded -= OnLoaded;
+        _viewModel.ResetCachedInteractionState();
         UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
 
         if (_viewModel.Runtimes.Count > 0)
