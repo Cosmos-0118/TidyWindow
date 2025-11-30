@@ -53,6 +53,32 @@ public sealed class PulseGuardServiceTests
         });
     }
 
+    [Fact]
+    public async Task KnownProcessesMissingServiceWarningDoesNotNotify()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
+
+            scope.ActivityLog.LogWarning("Known Processes", "Contoso Telemetry Service: Service not found.");
+
+            await Assert.ThrowsAsync<TimeoutException>(() => scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromMilliseconds(200)));
+        });
+    }
+
+    [Fact]
+    public async Task AntiSystemScanClearDoesNotNotify()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
+
+            scope.ActivityLog.LogSuccess("Anti-System", "Background scan is clear.");
+
+            await Assert.ThrowsAsync<TimeoutException>(() => scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromMilliseconds(200)));
+        });
+    }
+
     private sealed class PulseGuardTestScope : IDisposable
     {
         private readonly string? _previousLocalAppData;

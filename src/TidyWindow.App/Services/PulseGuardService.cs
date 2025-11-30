@@ -16,6 +16,13 @@ public sealed class PulseGuardService : IDisposable
     private static readonly TimeSpan SuccessCooldown = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan InsightCooldown = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan ActionCooldown = TimeSpan.FromMinutes(1);
+    private static readonly string[] KnownProcessMissingPhrases =
+    {
+        "not found",
+        "does not exist",
+        "cannot find",
+        "missing"
+    };
 
     private readonly ActivityLogService _activityLog;
     private readonly UserPreferencesService _preferencesService;
@@ -132,6 +139,11 @@ public sealed class PulseGuardService : IDisposable
             {
                 return;
             }
+        }
+
+        if (ShouldSuppressNotification(entry))
+        {
+            return;
         }
 
         var kind = ResolveKind(entry);
@@ -309,6 +321,77 @@ public sealed class PulseGuardService : IDisposable
             || text.Contains("relaunch", StringComparison.Ordinal)
             || text.Contains("re-open", StringComparison.Ordinal)
             || text.Contains("reopen", StringComparison.Ordinal);
+    }
+
+    private static bool ShouldSuppressNotification(ActivityLogEntry entry)
+    {
+        if (IsKnownProcessesMissingServiceWarning(entry))
+        {
+            return true;
+        }
+
+        if (IsAntiSystemPassiveScanEntry(entry))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private static bool IsKnownProcessesMissingServiceWarning(ActivityLogEntry entry)
+    {
+        if (entry.Level != ActivityLogLevel.Warning)
+        {
+            return false;
+        }
+
+        if (!string.Equals(entry.Source, "Known Processes", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (ContainsMissingServiceLanguage(entry.Message))
+        {
+            return true;
+        }
+
+        foreach (var detail in entry.Details)
+        {
+            if (ContainsMissingServiceLanguage(detail))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool ContainsMissingServiceLanguage(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        foreach (var phrase in KnownProcessMissingPhrases)
+        {
+            if (text.IndexOf(phrase, StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool IsAntiSystemPassiveScanEntry(ActivityLogEntry entry)
+    {
+        if (!string.Equals(entry.Source, "Anti-System", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return entry.Level is ActivityLogLevel.Information or ActivityLogLevel.Success;
     }
 
     private PulseGuardNotification CreateNotification(ActivityLogEntry entry, PulseGuardNotificationKind kind)
