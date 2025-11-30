@@ -149,7 +149,7 @@ Scans can be cancelled safely:
 │         File System Enumeration                         │
 │  • Directory traversal                                  │
 │  • File size calculation                                │
-│  • Category classification                               │
+│  • Category classification                              │
 │  • Progress reporting                                   │
 └─────────────────────────────────────────────────────────┘
 ```

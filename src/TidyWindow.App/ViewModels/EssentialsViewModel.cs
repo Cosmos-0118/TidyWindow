@@ -27,23 +27,27 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     private readonly EssentialsTaskQueue _queue;
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
+    private readonly ISystemRestoreGuardService _restoreGuardService;
     private readonly Dictionary<Guid, EssentialsOperationItemViewModel> _operationLookup = new();
     private readonly Dictionary<Guid, EssentialsQueueOperationSnapshot> _snapshotCache = new();
     private readonly Dictionary<string, EssentialsTaskItemViewModel> _taskLookup = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> _activeTaskCounts = new(StringComparer.OrdinalIgnoreCase);
     private bool _isDisposed;
+    private SystemRestoreGuardPrompt? _activeRestoreGuardPrompt;
 
     public EssentialsViewModel(
         EssentialsTaskCatalog catalog,
         EssentialsTaskQueue queue,
         ActivityLogService activityLogService,
         MainViewModel mainViewModel,
-        EssentialsAutomationViewModel automationViewModel)
+        EssentialsAutomationViewModel automationViewModel,
+        ISystemRestoreGuardService restoreGuardService)
     {
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _queue = queue ?? throw new ArgumentNullException(nameof(queue));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _restoreGuardService = restoreGuardService ?? throw new ArgumentNullException(nameof(restoreGuardService));
         Automation = automationViewModel ?? throw new ArgumentNullException(nameof(automationViewModel));
 
         Tasks = new ObservableCollection<EssentialsTaskItemViewModel>();
@@ -74,6 +78,12 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
         HasActiveOperations = _activeTaskCounts.Any(pair => pair.Value > 0);
 
         _queue.OperationChanged += OnQueueOperationChanged;
+        _restoreGuardService.PromptRequested += OnRestoreGuardPromptRequested;
+
+        if (_restoreGuardService.TryConsumePendingPrompt(out var pendingPrompt))
+        {
+            ActivateRestoreGuardPrompt(pendingPrompt);
+        }
     }
 
     public ObservableCollection<EssentialsTaskItemViewModel> Tasks { get; }
@@ -113,6 +123,21 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _isAutomationConfigurationMode;
+
+    [ObservableProperty]
+    private bool _isRestoreGuardDialogVisible;
+
+    [ObservableProperty]
+    private string _restoreGuardHeadline = "Create a restore point before continuing";
+
+    [ObservableProperty]
+    private string _restoreGuardBody = "Run System Restore manager from Essentials to capture a checkpoint before launching high-impact automation.";
+
+    [ObservableProperty]
+    private string _restoreGuardPrimaryActionLabel = "Open restore manager";
+
+    [ObservableProperty]
+    private string _restoreGuardSecondaryActionLabel = "Later";
 
     public string RunDialogPrimaryButtonLabel => IsAutomationConfigurationMode ? "Set" : "Queue run";
 
@@ -217,6 +242,26 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
         }
 
         OpenRunDialog(task, automationMode: true);
+    }
+
+    [RelayCommand]
+    private void DismissRestoreGuard()
+    {
+        _activeRestoreGuardPrompt = null;
+        IsRestoreGuardDialogVisible = false;
+    }
+
+    [RelayCommand]
+    private void LaunchRestoreGuardTask()
+    {
+        if (!_taskLookup.TryGetValue("restore-manager", out var task))
+        {
+            DismissRestoreGuard();
+            return;
+        }
+
+        IsRestoreGuardDialogVisible = false;
+        OpenRunDialog(task, automationMode: false);
     }
 
     [RelayCommand]
@@ -567,7 +612,35 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
         _isDisposed = true;
         _queue.OperationChanged -= OnQueueOperationChanged;
+        _restoreGuardService.PromptRequested -= OnRestoreGuardPromptRequested;
         Automation.Dispose();
+    }
+
+    private void OnRestoreGuardPromptRequested(object? sender, SystemRestoreGuardPromptEventArgs e)
+    {
+        if (e?.Prompt is null)
+        {
+            return;
+        }
+
+        if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.InvokeAsync(() => ActivateRestoreGuardPrompt(e.Prompt));
+        }
+        else
+        {
+            ActivateRestoreGuardPrompt(e.Prompt);
+        }
+    }
+
+    private void ActivateRestoreGuardPrompt(SystemRestoreGuardPrompt prompt)
+    {
+        _activeRestoreGuardPrompt = prompt;
+        RestoreGuardHeadline = prompt.Headline;
+        RestoreGuardBody = prompt.Body;
+        RestoreGuardPrimaryActionLabel = prompt.PrimaryActionLabel;
+        RestoreGuardSecondaryActionLabel = prompt.SecondaryActionLabel;
+        IsRestoreGuardDialogVisible = true;
     }
 }
 

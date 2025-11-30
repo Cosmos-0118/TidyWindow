@@ -12,6 +12,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using TidyWindow.App.Resources.Strings;
+using TidyWindow.App.Views;
 using TidyWindow.Core.Maintenance;
 
 namespace TidyWindow.App.ViewModels;
@@ -22,8 +23,11 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private readonly MainViewModel _mainViewModel;
     private readonly IRegistryOptimizerService _registryService;
     private readonly RegistryPreferenceService _registryPreferenceService;
+    private readonly ISystemRestoreGuardService _restoreGuardService;
     private bool _isInitialized;
     private bool _isRestoringState;
+
+    private static readonly TimeSpan SystemRestoreFreshnessThreshold = TimeSpan.FromHours(24);
 
     public event EventHandler<RegistryRestorePointCreatedEventArgs>? RestorePointCreated;
 
@@ -31,12 +35,14 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         ActivityLogService activityLogService,
         MainViewModel mainViewModel,
         IRegistryOptimizerService registryService,
-        RegistryPreferenceService registryPreferenceService)
+        RegistryPreferenceService registryPreferenceService,
+        ISystemRestoreGuardService restoreGuardService)
     {
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
         _registryPreferenceService = registryPreferenceService ?? throw new ArgumentNullException(nameof(registryPreferenceService));
+        _restoreGuardService = restoreGuardService ?? throw new ArgumentNullException(nameof(restoreGuardService));
 
         Tweaks = new ObservableCollection<RegistryTweakCardViewModel>();
         Presets = new ObservableCollection<RegistryPresetViewModel>();
@@ -168,6 +174,13 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             LastOperationSummary = $"No registry scripts required ({DateTime.Now:t}).";
             _activityLog.LogInformation("Registry", LastOperationSummary);
             _mainViewModel.SetStatusMessage("Registry tweaks already in desired state.");
+            return;
+        }
+
+        var guardResult = await _restoreGuardService.CheckAsync(SystemRestoreFreshnessThreshold);
+        if (!guardResult.IsSatisfied)
+        {
+            HandleMissingSystemRestorePoint(guardResult);
             return;
         }
 
@@ -465,6 +478,26 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private void OnRestorePointCreated(RegistryRestorePoint restorePoint)
     {
         RestorePointCreated?.Invoke(this, new RegistryRestorePointCreatedEventArgs(restorePoint));
+    }
+
+    private void HandleMissingSystemRestorePoint(SystemRestoreGuardCheckResult result)
+    {
+        var latestDescription = result.LatestRestorePointUtc is null
+            ? "No System Restore checkpoint detected."
+            : $"Latest checkpoint: {result.LatestRestorePointUtc.Value.ToLocalTime():f}.";
+
+        var summary = "Blocked: create a System Restore checkpoint within the last 24 hours before applying registry tweaks.";
+        LastOperationSummary = summary;
+        _activityLog.LogWarning("Registry", $"{summary} {latestDescription}");
+        _mainViewModel.SetStatusMessage("Create a System Restore checkpoint before applying registry tweaks.");
+
+        var prompt = new SystemRestoreGuardPrompt(
+            source: "Registry optimizer",
+            headline: "Create a restore point first",
+            body: "Open Essentials ▸ System Restore manager to capture a checkpoint automatically, then return to Registry optimizer.");
+
+        _restoreGuardService.RequestPrompt(prompt);
+        _mainViewModel.NavigateTo(typeof(EssentialsPage));
     }
 }
 

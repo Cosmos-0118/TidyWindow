@@ -20,6 +20,10 @@ The Registry Optimizer serves as a centralized control panel for:
 
 The Registry Optimizer implements multiple safety mechanisms to protect system stability:
 
+#### **System Restore Guard (24-hour freshness)**
+
+Before any tweak plan runs, the page now verifies that Windows has a System Restore checkpoint newer than 24 hours. If the guard cannot find a fresh checkpoint, the Apply action is blocked, you are redirected to the Essentials page, and a PathPilot-style overlay prompts you to launch the **System Restore manager** automation. This ensures high-risk registry batches always have an OS-level safety net in addition to the internal rollback files.
+
 #### 1. **Automatic Restore Point Creation**
 
 Before applying any registry changes, the system automatically creates a restore point:

@@ -24,6 +24,7 @@ The Essentials automations are designed with multiple layers of safety to protec
 Many essential tasks support a "dry-run" or preview mode that shows what would happen without making any changes:
 
 -   **System Health Scanner**: Preview which SFC/DISM operations would run
+-   **Browser Reset & Cache Cleanup**: Preview which caches, policies, or repairs would run per selected browser
 -   **Windows Defender Repair**: Preview scan types and service operations
 -   **Print Spooler Recovery**: Preview service restarts and queue operations
 
@@ -112,7 +113,7 @@ Full visibility into what's happening:
 ┌───────────────────┐         ┌──────────────────────────┐
 │ EssentialsTask    │         │ EssentialsTaskQueue      │
 │ Catalog           │         │ (Sequential Processing)  │
-│ (Task Definitions) │         │                          │
+│ (Task Definitions)│         │                          │
 └─────────┬─────────┘         └──────────-┬──────────────┘
           │                               │
           ▼                               ▼
@@ -335,7 +336,26 @@ The Essentials page uses three pivot views:
     -   Limit repairs to current user
 -   **Safety**: Only affects Store/UWP apps; no system files modified
 
-### 8. Windows Update Repair Toolkit
+### 8. Browser Reset & Cache Cleanup
+
+-   **Category**: Apps
+-   **Purpose**: Clears caches, resets policies, and optionally repairs Microsoft Edge across Edge, Chrome, Brave, Firefox, and Opera
+-   **Duration**: 4-10 minutes (longer if installer repair runs)
+-   **Options**:
+    -   Include Microsoft Edge (enables WebView cleanup/repair)
+    -   Include Google Chrome
+    -   Include Brave
+    -   Include Firefox
+    -   Include Opera
+    -   Force close selected browsers
+    -   Clear browser profile caches
+    -   Clear Edge WebView2 runtime caches
+    -   Reset browser policy keys (requires admin for HKLM scope)
+    -   Run Edge installer repair
+    -   Dry run (preview only)
+-   **Safety**: Dry-run previews available; policy resets scoped to chosen browsers; repair uses the signed Microsoft Edge installer
+
+### 9. Windows Update Repair Toolkit
 
 -   **Category**: Updates
 -   **Purpose**: Resets Windows Update services, caches, and components
@@ -351,7 +371,7 @@ The Essentials page uses three pivot views:
     -   Reset network stack
 -   **Safety**: Creates restore point before major operations
 
-### 9. Windows Defender Repair & Deep Scan
+### 10. Windows Defender Repair & Deep Scan
 
 -   **Category**: Security
 -   **Purpose**: Restores Defender services, updates signatures, runs scans
@@ -364,7 +384,7 @@ The Essentials page uses three pivot views:
     -   Skip real-time heal
 -   **Safety**: Uses Windows Defender's built-in repair mechanisms
 
-### 10. Print Spooler Recovery Suite
+### 11. Print Spooler Recovery Suite
 
 -   **Category**: Printing
 -   **Purpose**: Clears jammed queues and rebuilds spooler services

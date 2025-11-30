@@ -251,6 +251,79 @@ public sealed class EssentialsTaskCatalog
                         defaultValue: false))),
 
             new EssentialsTaskDefinition(
+                "edge-reset",
+                "Browser reset & cache cleanup",
+                "Apps",
+                "Clears caches, WebView data, or stuck policies across Edge, Chrome, Brave, Firefox, and Opera with optional repair actions.",
+                ImmutableArray.Create(
+                    "Stops selected browsers before purging profile caches with dry-run previews",
+                    "Optional WebView reset, policy removal, and signed Edge repair when applicable"),
+                "automation/essentials/browser-reset-and-cache-cleanup.ps1",
+                DurationHint: "Approx. 4-10 minutes (repairs add a few extra minutes)",
+                DetailedDescription: "Safely closes running Microsoft Edge, Google Chrome, Brave, Firefox, or Opera instances, clears profile caches for each selected browser, optionally wipes Edge WebView2 data, removes HKCU/HKLM policy overrides, and can trigger setup.exe --force-reinstall so Edge resets to a known-good state with full transcript logging.",
+                DocumentationLink: "docs/essentials.md#8-browser-reset--cache-cleanup",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "include-edge",
+                        label: "Include Microsoft Edge",
+                        parameterName: "IncludeEdge",
+                        description: "Adds Edge caches, policies, WebView cleanup, and unlocks installer repair."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "include-chrome",
+                        label: "Include Google Chrome",
+                        parameterName: "IncludeChrome",
+                        defaultValue: false,
+                        description: "Targets Chrome profile caches and policy keys."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "include-brave",
+                        label: "Include Brave",
+                        parameterName: "IncludeBrave",
+                        defaultValue: false,
+                        description: "Targets Brave profile caches and policy keys."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "include-firefox",
+                        label: "Include Firefox",
+                        parameterName: "IncludeFirefox",
+                        defaultValue: false,
+                        description: "Targets Firefox cache stores across roaming/local profiles."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "include-opera",
+                        label: "Include Opera",
+                        parameterName: "IncludeOpera",
+                        defaultValue: false,
+                        description: "Targets Opera profile caches discovered under AppData."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "force-close-browsers",
+                        label: "Force close selected browsers",
+                        parameterName: "ForceCloseBrowsers"),
+                    new EssentialsTaskOptionDefinition(
+                        id: "clear-profile-caches",
+                        label: "Clear profile caches",
+                        parameterName: "ClearProfileCaches"),
+                    new EssentialsTaskOptionDefinition(
+                        id: "clear-webview-caches",
+                        label: "Clear Edge WebView2 caches",
+                        parameterName: "ClearWebViewCaches"),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-browser-policies",
+                        label: "Reset browser policy keys (requires admin for HKLM)",
+                        parameterName: "ResetPolicies",
+                        defaultValue: false,
+                        description: "Removes policy hives for each selected browser so they can revert to defaults."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-edge-install",
+                        label: "Run Edge installer repair",
+                        parameterName: "RepairEdgeInstall",
+                        defaultValue: false,
+                        description: "Executes setup.exe --force-reinstall when Edge is included and session is elevated."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "browser-dry-run",
+                        label: "Dry run (preview only)",
+                        parameterName: "DryRun",
+                        defaultValue: false,
+                        description: "Report the directories/policies that would be touched without making changes."))),
+
+            new EssentialsTaskDefinition(
                 "windows-update-repair",
                 "Windows Update repair toolkit",
                 "Updates",
