@@ -375,13 +375,18 @@
         </Style>
     </Page.Resources>
 
-    <Grid Margin="24">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-        </Grid.RowDefinitions>
+    <ScrollViewer x:Name="PageScrollViewer"
+                  Margin="24"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  CanContentScroll="False">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
         <controls:PageTitleBar Grid.Row="0"
                                Title="Known processes"
@@ -1234,4 +1239,5 @@
             </ScrollViewer>
         </Grid>
     </Grid>
+    </ScrollViewer>
 </Page>

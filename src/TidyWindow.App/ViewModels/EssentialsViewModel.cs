@@ -58,11 +58,11 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
         foreach (var snapshot in _queue.GetSnapshot())
         {
-            _snapshotCache[snapshot.Id] = snapshot;
             UpdateTaskState(snapshot);
             var opVm = new EssentialsOperationItemViewModel(snapshot);
             _operationLookup[snapshot.Id] = opVm;
             Operations.Insert(0, opVm);
+            _snapshotCache[snapshot.Id] = snapshot;
         }
 
         if (Operations.Count > 0)
@@ -244,6 +244,7 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
                 _mainViewModel.SetStatusMessage($"Queued {task.Definition.Name}.");
             }
             UpdateTaskState(snapshot);
+            _snapshotCache[snapshot.Id] = snapshot;
         }
         catch (Exception ex)
         {
@@ -279,8 +280,8 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
         _activityLog.LogWarning("Essentials", $"Cancellation requested for {snapshot.Task.Name}.");
         _mainViewModel.SetStatusMessage($"Cancelling {snapshot.Task.Name}...");
-        _snapshotCache[snapshot.Id] = snapshot;
         UpdateTaskState(snapshot);
+        _snapshotCache[snapshot.Id] = snapshot;
     }
 
     [RelayCommand]
@@ -327,8 +328,8 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
         foreach (var snapshot in snapshots)
         {
-            _snapshotCache[snapshot.Id] = snapshot;
             UpdateTaskState(snapshot);
+            _snapshotCache[snapshot.Id] = snapshot;
         }
 
         _activityLog.LogInformation("Essentials", $"Retrying {snapshots.Count} run(s).");

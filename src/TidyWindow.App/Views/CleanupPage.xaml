@@ -2276,13 +2276,17 @@
         </StackPanel>
     </ScrollViewer>
 
-    <Border Background="#CC020B1F"
+        <Border Background="#CC020B1F"
             Visibility="{Binding IsAutomationPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
             HorizontalAlignment="Stretch"
             VerticalAlignment="Stretch"
             Panel.ZIndex="3"
             Focusable="False">
-        <Border HorizontalAlignment="Center"
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  CanContentScroll="False"
+                  Padding="24">
+            <Border HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Background="{StaticResource CleanupAutomationPanelBrush}"
                 BorderBrush="{StaticResource CleanupAutomationPanelBorderBrush}"
@@ -2572,7 +2576,8 @@
                                Foreground="{StaticResource CleanupMutedTextBrush}"/>
                 </StackPanel>
             </Grid>
-        </Border>
+            </Border>
+        </ScrollViewer>
     </Border>
 
     <Border Background="#AA020B1F"
