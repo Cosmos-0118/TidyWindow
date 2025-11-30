@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Security.Principal;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media.Animation;
@@ -29,12 +30,27 @@ namespace TidyWindow.App;
 /// </summary>
 public partial class App : WpfApplication
 {
+    private const string SingleInstanceMutexName = "Global\\TidyWindow.App.Singleton";
+    private const string ActivationEventName = "Global\\TidyWindow.App.Activate";
+
     private IHost? _host;
     private CrashLogService? _crashLogs;
+    private Mutex? _singleInstanceMutex;
+    private bool _ownsSingleInstanceMutex;
+    private EventWaitHandle? _instanceActivationSignal;
+    private CancellationTokenSource? _activationListenerCts;
+    private volatile bool _uiReadyForActivation;
+    private volatile bool _activationRequestedDuringInit;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         CaptureOriginalUserSid(e);
+
+        if (!EnsureSingleInstance())
+        {
+            Shutdown();
+            return;
+        }
 
         AppUserModelIdService.EnsureCurrentProcessAppUserModelId();
 
@@ -197,6 +213,7 @@ public partial class App : WpfApplication
         }
 
         ShutdownMode = ShutdownMode.OnMainWindowClose;
+        MarkUiReadyForActivation();
     }
 
     private static bool EnsureElevated()
@@ -241,6 +258,8 @@ public partial class App : WpfApplication
 
         _crashLogs?.Dispose();
 
+        CleanupSingleInstanceResources();
+
         base.OnExit(e);
     }
 
@@ -281,6 +300,143 @@ public partial class App : WpfApplication
         if (!string.IsNullOrWhiteSpace(sid))
         {
             Environment.SetEnvironmentVariable(RegistryUserContext.OriginalUserSidEnvironmentVariable, sid);
+        }
+    }
+
+    private bool EnsureSingleInstance()
+    {
+        try
+        {
+            _instanceActivationSignal = new EventWaitHandle(false, EventResetMode.AutoReset, ActivationEventName);
+        }
+        catch
+        {
+            _instanceActivationSignal = null;
+        }
+
+        try
+        {
+            _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out var createdNew);
+            if (!createdNew)
+            {
+                _instanceActivationSignal?.Set();
+                _singleInstanceMutex.Dispose();
+                _singleInstanceMutex = null;
+                return false;
+            }
+
+            _ownsSingleInstanceMutex = true;
+            _activationListenerCts = new CancellationTokenSource();
+            Task.Factory.StartNew(
+                () => WatchForActivationRequests(_activationListenerCts.Token),
+                _activationListenerCts.Token,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+
+            return true;
+        }
+        catch
+        {
+            _singleInstanceMutex?.Dispose();
+            _singleInstanceMutex = null;
+            // If we cannot create or own the mutex, allow the app to proceed to avoid blocking users.
+            return true;
+        }
+    }
+
+    private void WatchForActivationRequests(CancellationToken token)
+    {
+        var signal = _instanceActivationSignal;
+        if (signal is null)
+        {
+            return;
+        }
+
+        while (!token.IsCancellationRequested)
+        {
+            try
+            {
+                if (!signal.WaitOne())
+                {
+                    continue;
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                break;
+            }
+
+            if (token.IsCancellationRequested)
+            {
+                break;
+            }
+
+            Dispatcher.BeginInvoke(HandleActivationRequest);
+        }
+    }
+
+    private void HandleActivationRequest()
+    {
+        if (!_uiReadyForActivation)
+        {
+            _activationRequestedDuringInit = true;
+            return;
+        }
+
+        ActivateMainWindow();
+    }
+
+    private void ActivateMainWindow()
+    {
+        var trayService = _host?.Services.GetService<ITrayService>();
+        trayService?.ShowMainWindow();
+    }
+
+    private void MarkUiReadyForActivation()
+    {
+        _uiReadyForActivation = true;
+
+        if (_activationRequestedDuringInit)
+        {
+            _activationRequestedDuringInit = false;
+            ActivateMainWindow();
+        }
+    }
+
+    private void CleanupSingleInstanceResources()
+    {
+        try
+        {
+            if (_activationListenerCts is not null)
+            {
+                _activationListenerCts.Cancel();
+                _instanceActivationSignal?.Set();
+                _activationListenerCts.Dispose();
+                _activationListenerCts = null;
+            }
+        }
+        catch
+        {
+        }
+
+        _instanceActivationSignal?.Dispose();
+        _instanceActivationSignal = null;
+
+        if (_ownsSingleInstanceMutex && _singleInstanceMutex is not null)
+        {
+            try
+            {
+                _singleInstanceMutex.ReleaseMutex();
+            }
+            catch (ApplicationException)
+            {
+            }
+            finally
+            {
+                _singleInstanceMutex.Dispose();
+                _singleInstanceMutex = null;
+                _ownsSingleInstanceMutex = false;
+            }
         }
     }
 }
