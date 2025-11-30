@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -19,6 +20,8 @@ public sealed partial class BootstrapViewModel : ViewModelBase
     private readonly ActivityLogService _activityLog;
     private readonly IAutomationWorkTracker _workTracker;
     private readonly Dictionary<string, PackageManagerEntryViewModel> _managerLookup = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Uri AppInstallerStoreUri = new("ms-windows-store://pdp/?productid=9NBLGGH4NNS1");
+    private static readonly Uri AppInstallerDownloadUri = new("https://aka.ms/getwinget");
 
     [ObservableProperty]
     private bool _includeScoop = true;
@@ -274,6 +277,69 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         if (refreshAfterUninstall)
         {
             await DetectAsync();
+        }
+    }
+
+    [RelayCommand]
+    private void OpenWingetStore(PackageManagerEntryViewModel? manager)
+    {
+        OpenWingetUri(
+            manager,
+            AppInstallerStoreUri,
+            "Opening Microsoft Store to reinstall App Installer.",
+            "Unable to open Microsoft Store. Try the download button instead.");
+    }
+
+    [RelayCommand]
+    private void OpenWingetDownload(PackageManagerEntryViewModel? manager)
+    {
+        OpenWingetUri(
+            manager,
+            AppInstallerDownloadUri,
+            "Opening App Installer download page in your browser.",
+            "Unable to open download page. Copy https://aka.ms/getwinget into your browser manually.");
+    }
+
+    private void OpenWingetUri(PackageManagerEntryViewModel? manager, Uri target, string startingStatus, string failureStatus)
+    {
+        if (manager is null || !manager.IsWingetEntry)
+        {
+            return;
+        }
+
+        var context = BuildManagerContextDetails(manager).ToList();
+        _mainViewModel.SetStatusMessage(startingStatus);
+        _activityLog.LogInformation("Bootstrap", startingStatus, context);
+
+        if (TryLaunchUri(target))
+        {
+            return;
+        }
+
+        _mainViewModel.SetStatusMessage(failureStatus);
+        _activityLog.LogError("Bootstrap", failureStatus, context);
+    }
+
+    private static bool TryLaunchUri(Uri? uri)
+    {
+        if (uri is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = uri.ToString(),
+                UseShellExecute = true
+            };
+            Process.Start(startInfo);
+            return true;
+        }
+        catch
+        {
+            return false;
         }
     }
 

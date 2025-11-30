@@ -419,6 +419,7 @@ winget is treated specially:
 -   Cannot be installed via automation
 -   Cannot be uninstalled via automation (though removal script exists)
 -   UI shows informational message directing users to Windows Settings/Store
+-   **Missing winget?** Install or repair the Microsoft _App Installer_ package. The quickest path is opening `ms-windows-store://pdp/?productid=9NBLGGH4NNS1` (Store listing) and pressing **Get**. Offline or disconnected hosts can download the latest `Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle` plus its dependency packages from https://aka.ms/getwinget and install them with `Add-AppxPackage -Path .\<package>.msixbundle` from an elevated PowerShell prompt.
 
 ## Future Enhancements
 
@@ -429,4 +430,3 @@ Potential improvements:
 -   Health checks and diagnostics
 -   Automatic repair suggestions
 -   Installation history tracking
-

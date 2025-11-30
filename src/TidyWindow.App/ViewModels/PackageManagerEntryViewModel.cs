@@ -73,7 +73,11 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
 
     public bool ShowActionDescription => !string.IsNullOrWhiteSpace(ActionDescription);
 
-    private bool IsManagedByWindows => string.Equals(Identifier, "winget", StringComparison.OrdinalIgnoreCase);
+    internal bool IsWingetEntry => string.Equals(Identifier, "winget", StringComparison.OrdinalIgnoreCase);
+
+    private bool IsManagedByWindows => IsWingetEntry;
+
+    public bool ShowWingetRemediation => IsWingetEntry && !IsInstalled;
 
     public void UpdateFromInfo(PackageManagerInfo info)
     {
@@ -120,6 +124,7 @@ public sealed partial class PackageManagerEntryViewModel : ObservableObject
         OnPropertyChanged(nameof(UninstallLabel));
         OnPropertyChanged(nameof(ShowUninstall));
         OnPropertyChanged(nameof(CanUninstall));
+        OnPropertyChanged(nameof(ShowWingetRemediation));
     }
 
     private IReadOnlyList<PackageManagerNoteLine> BuildNoteLines()

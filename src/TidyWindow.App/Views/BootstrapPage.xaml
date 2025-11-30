@@ -415,6 +415,58 @@
                                                             </Style>
                                                         </Button.Style>
                                                     </Button>
+                                                    <Button Content="Open Microsoft Store"
+                                                            Command="{Binding DataContext.OpenWingetStoreCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            MinWidth="132"
+                                                            Margin="0,0,0,8"
+                                                            Visibility="{Binding ShowWingetRemediation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button"
+                                                                   BasedOn="{StaticResource BootstrapAccentButtonStyle}">
+                                                                <Setter Property="Padding"
+                                                                        Value="14,6"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                    <Button Content="Open download page"
+                                                            Command="{Binding DataContext.OpenWingetDownloadCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            MinWidth="132"
+                                                            Margin="0,0,0,8"
+                                                            Visibility="{Binding ShowWingetRemediation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button"
+                                                                   BasedOn="{StaticResource BootstrapAccentButtonStyle}">
+                                                                <Setter Property="Padding"
+                                                                        Value="14,6"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsBusy}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                                 Value="True">
+                                                                        <Setter Property="IsEnabled"
+                                                                                Value="False"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
                                                     <TextBlock Text="{Binding ActionDescription}"
                                                                TextWrapping="Wrap"
                                                                Foreground="#EAB308"
