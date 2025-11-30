@@ -1180,7 +1180,7 @@ function Invoke-ManagerUpdate {
                 @('install', '--id', $PackageId, '-e', '--version', $TargetVersion, '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--silent', '--force')
             }
             else {
-                @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity', '--silent')
+                @('upgrade', '--id', $PackageId, '-e', '--accept-package-agreements', '--accept-source-agreements', '--disable-interactivity')
             }
         }
         'choco' {

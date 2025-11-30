@@ -1009,6 +1009,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             .OrderBy(item => item.Manager, StringComparer.OrdinalIgnoreCase)
             .ThenBy(item => item.DisplayName, StringComparer.OrdinalIgnoreCase));
 
+        Automation.UpdateFromMaintenanceSnapshot(snapshot);
+
         EnsureManagerFilters();
         ApplyFilters();
 

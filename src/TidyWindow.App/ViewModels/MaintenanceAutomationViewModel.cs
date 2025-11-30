@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
@@ -21,6 +22,7 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
     private readonly IRelativeTimeTicker _relativeTimeTicker;
     private readonly ObservableCollection<MaintenanceAutomationPackageOptionViewModel> _options = new();
     private ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel>? _optionsView;
+    private readonly ListCollectionView _filteredOptions;
     private readonly ObservableCollection<MaintenanceAutomationIntervalOption> _intervalOptions;
     private readonly ReadOnlyObservableCollection<MaintenanceAutomationIntervalOption> _intervalOptionsView;
     private static readonly MaintenanceAutomationIntervalOption[] DefaultIntervalOptions =
@@ -49,8 +51,17 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _relativeTimeTicker = relativeTimeTicker ?? throw new ArgumentNullException(nameof(relativeTimeTicker));
 
-        _options.CollectionChanged += (_, _) => UpdateOptionState();
         _optionsView = new ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel>(_options);
+        _filteredOptions = new ListCollectionView(_options)
+        {
+            Filter = FilterPackageOption
+        };
+        _options.CollectionChanged += (_, _) =>
+        {
+            UpdateOptionState();
+            _filteredOptions.Refresh();
+            OnPropertyChanged(nameof(HasFilteredPackages));
+        };
 
         _intervalOptions = new ObservableCollection<MaintenanceAutomationIntervalOption>(DefaultIntervalOptions);
         _intervalOptionsView = new ReadOnlyObservableCollection<MaintenanceAutomationIntervalOption>(_intervalOptions);
@@ -61,6 +72,8 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
     }
 
     public ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel> PackageOptions => _optionsView ??= new ReadOnlyObservableCollection<MaintenanceAutomationPackageOptionViewModel>(_options);
+
+    public ICollectionView FilteredPackageOptions => _filteredOptions;
 
     public ReadOnlyObservableCollection<MaintenanceAutomationIntervalOption> IntervalOptions => _intervalOptionsView;
 
@@ -106,6 +119,11 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
 
     [ObservableProperty]
     private bool _hasInventory;
+
+    [ObservableProperty]
+    private string? _packageSearchText = string.Empty;
+
+    public bool HasFilteredPackages => !_filteredOptions.IsEmpty;
 
     public void EnsureInitialized()
     {
@@ -175,6 +193,12 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
     partial void OnHasPendingChangesChanged(bool value)
     {
         ApplyAutomationCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnPackageSearchTextChanged(string? value)
+    {
+        _filteredOptions.Refresh();
+        OnPropertyChanged(nameof(HasFilteredPackages));
     }
 
     partial void OnIsRefreshingChanged(bool value)
@@ -624,6 +648,46 @@ public sealed partial class MaintenanceAutomationViewModel : ViewModelBase, IDis
         {
             option.PropertyChanged -= OnOptionPropertyChanged;
         }
+    }
+
+    public void UpdateFromMaintenanceSnapshot(PackageInventorySnapshot snapshot)
+    {
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        if (WpfApplication.Current?.Dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(new Action(() => ApplyInventorySnapshot(snapshot)));
+        }
+        else
+        {
+            ApplyInventorySnapshot(snapshot);
+        }
+    }
+
+    private bool FilterPackageOption(object? candidate)
+    {
+        if (candidate is not MaintenanceAutomationPackageOptionViewModel option)
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(PackageSearchText))
+        {
+            return true;
+        }
+
+        var query = PackageSearchText?.Trim();
+        if (string.IsNullOrEmpty(query))
+        {
+            return true;
+        }
+
+        return option.DisplayName.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || option.PackageId.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || option.Manager.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 }
 
