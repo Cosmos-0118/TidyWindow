@@ -1023,16 +1023,98 @@
                                         Orientation="Horizontal"
                                         HorizontalAlignment="Right"
                                         VerticalAlignment="Center">
-                                <Button Content="Scan now"
-                                        Width="120"
+                                <Button Width="120"
                                         IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
                                         Margin="0,0,12,0"
-                                    Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                        Command="{Binding RefreshCommand}" />
-                                <Button Content="Refresh"
-                                        Margin="0,0,0,0"
-                                    Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding RefreshCommand}" />
+                                        Style="{StaticResource ProcessPrimaryButtonStyle}"
+                                        Command="{Binding RefreshCommand}">
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <Grid Width="18"
+                                              Height="18"
+                                              Margin="0,0,8,0"
+                                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                              RenderTransformOrigin="0.5,0.5">
+                                            <Grid.RenderTransform>
+                                                <RotateTransform />
+                                            </Grid.RenderTransform>
+                                            <Ellipse Width="16"
+                                                     Height="16"
+                                                     Stroke="#5EEAD4"
+                                                     StrokeThickness="2"
+                                                     StrokeDashArray="12 6"
+                                                     StrokeStartLineCap="Round"
+                                                     StrokeEndLineCap="Round"
+                                                     Opacity="0.9" />
+                                            <Grid.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0"
+                                                                             To="360"
+                                                                             Duration="0:0:1.1" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Grid.Triggers>
+                                        </Grid>
+                                        <Grid>
+                                            <TextBlock Text="Scan now"
+                                                       Foreground="#F8FAFC"
+                                                       Visibility="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                                            <TextBlock Text="Scanning..."
+                                                       Foreground="#F8FAFC"
+                                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Button>
+                                <Button Margin="0,0,0,0"
+                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
+                                        Command="{Binding RefreshCommand}">
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Center"
+                                                VerticalAlignment="Center">
+                                        <Grid Width="18"
+                                              Height="18"
+                                              Margin="0,0,8,0"
+                                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                              RenderTransformOrigin="0.5,0.5">
+                                            <Grid.RenderTransform>
+                                                <RotateTransform />
+                                            </Grid.RenderTransform>
+                                            <Ellipse Width="16"
+                                                     Height="16"
+                                                     Stroke="#5EEAD4"
+                                                     StrokeThickness="2"
+                                                     StrokeDashArray="12 6"
+                                                     StrokeStartLineCap="Round"
+                                                     StrokeEndLineCap="Round"
+                                                     Opacity="0.9" />
+                                            <Grid.Triggers>
+                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
+                                                                             From="0"
+                                                                             To="360"
+                                                                             Duration="0:0:1.1" />
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </EventTrigger>
+                                            </Grid.Triggers>
+                                        </Grid>
+                                        <Grid>
+                                            <TextBlock Text="Refresh"
+                                                       Foreground="#F8FAFC"
+                                                       Visibility="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                                            <TextBlock Text="Refreshing..."
+                                                       Foreground="#F8FAFC"
+                                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </Grid>
+                                    </StackPanel>
+                                </Button>
                             </StackPanel>
                         </Grid>
                     </Border>

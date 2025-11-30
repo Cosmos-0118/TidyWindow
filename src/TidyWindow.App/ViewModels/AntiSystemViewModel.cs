@@ -99,6 +99,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
             return;
         }
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             IsBusy = true;
@@ -117,6 +118,13 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
         finally
         {
+            var minimumDelay = TimeSpan.FromMilliseconds(1200);
+            var elapsed = stopwatch.Elapsed;
+            if (elapsed < minimumDelay)
+            {
+                await Task.Delay(minimumDelay - elapsed);
+            }
+
             IsBusy = false;
             _mainViewModel.SetStatusMessage("Ready");
         }
