@@ -243,10 +243,13 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
             return;
         }
 
+        var intelResult = await TryScanFileAsync(hit.FilePath);
         var success = await Task.Run(() => TerminateProcessesByPath(hit.FilePath));
-        hit.LastActionMessage = success
+
+        var baseMessage = success
             ? "Process terminated. Re-run scan to confirm."
             : "No running processes matched that file.";
+        hit.LastActionMessage = AppendIntelMessage(baseMessage, intelResult);
 
         if (!string.IsNullOrWhiteSpace(hit.FilePath))
         {
@@ -256,14 +259,90 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
                     hit.ProcessName,
                     hit.FilePath,
                     notes: success ? "Process terminated via Anti-System" : "Marked for quarantine",
-                    addedBy: Environment.UserName);
+                    addedBy: Environment.UserName,
+                    verdict: intelResult?.Verdict,
+                    verdictSource: intelResult?.Source,
+                    verdictDetails: intelResult?.Details,
+                    sha256: intelResult?.Sha256);
                 _stateStore.UpsertQuarantineEntry(entry);
+                LogQuarantineEntry(hit, entry, intelResult);
             }
             catch
             {
                 // Ignore persistence errors so the quarantine action result still surfaces to the user.
             }
         }
+    }
+
+    private async Task<ThreatIntelResult?> TryScanFileAsync(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return await _scanService.ScanFileAsync(filePath);
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", "Quarantine succeeded, but Defender scan failed.", new[] { ex.Message });
+            return null;
+        }
+    }
+
+    private static string AppendIntelMessage(string baseMessage, ThreatIntelResult? intelResult)
+    {
+        if (intelResult is null)
+        {
+            return baseMessage;
+        }
+
+        var intel = intelResult.Value;
+        var verdictLabel = intel.Verdict switch
+        {
+            ThreatIntelVerdict.KnownBad => " Defender flagged the file as malicious.",
+            ThreatIntelVerdict.KnownGood => " Defender marked the file as trusted.",
+            _ => " Defender had no opinion."
+        };
+
+        if (!string.IsNullOrWhiteSpace(intel.Source))
+        {
+            verdictLabel = verdictLabel.TrimEnd('.') + $" ({intel.Source}).";
+        }
+
+        return baseMessage + verdictLabel;
+    }
+
+    private void LogQuarantineEntry(AntiSystemHitViewModel hit, AntiSystemQuarantineEntry entry, ThreatIntelResult? intelResult)
+    {
+        var details = new List<string>
+        {
+            entry.FilePath,
+            entry.Notes ?? string.Empty
+        };
+
+        if (!string.IsNullOrWhiteSpace(entry.AddedBy))
+        {
+            details.Add($"Logged by {entry.AddedBy}");
+        }
+
+        if (intelResult is { } intel)
+        {
+            details.Add($"Verdict: {intel.Verdict} ({intel.Source ?? "Defender"})");
+            if (!string.IsNullOrWhiteSpace(intel.Details))
+            {
+                details.Add(intel.Details);
+            }
+
+            if (!string.IsNullOrWhiteSpace(intel.Sha256))
+            {
+                details.Add($"SHA-256: {intel.Sha256}");
+            }
+        }
+
+        _mainViewModel.LogActivityInformation("Anti-System", $"Captured quarantine record for {hit.ProcessName}.", details.Where(static d => !string.IsNullOrWhiteSpace(d)));
     }
 
     private string BuildSummary(AntiSystemDetectionResult result)

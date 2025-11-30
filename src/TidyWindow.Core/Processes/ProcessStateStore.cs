@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TidyWindow.Core.Processes.AntiSystem;
 
 namespace TidyWindow.Core.Processes;
 
@@ -15,7 +16,7 @@ public sealed class ProcessStateStore
 {
     private const string StateOverrideEnvironmentVariable = "TIDYWINDOW_PROCESS_STATE_PATH";
     private const string DefaultFileName = "uiforprocesses-state.json";
-    internal const int LatestSchemaVersion = 5;
+    internal const int LatestSchemaVersion = 6;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -510,7 +511,11 @@ public sealed class ProcessStateStore
                 model.FilePath,
                 model.Notes,
                 model.AddedBy,
-                model.QuarantinedAtUtc);
+                model.QuarantinedAtUtc,
+                model.Verdict,
+                model.VerdictSource,
+                model.VerdictDetails,
+                model.Sha256);
         }
         catch
         {
@@ -652,7 +657,11 @@ public sealed class ProcessStateStore
                         FilePath = entry.FilePath,
                         Notes = entry.Notes,
                         AddedBy = entry.AddedBy,
-                        QuarantinedAtUtc = entry.QuarantinedAtUtc
+                        QuarantinedAtUtc = entry.QuarantinedAtUtc,
+                        Verdict = entry.Verdict,
+                        VerdictSource = entry.VerdictSource,
+                        VerdictDetails = entry.VerdictDetails,
+                        Sha256 = entry.Sha256
                     })
                     .ToList(),
                 SuspiciousHits = snapshot.SuspiciousHits.Values
@@ -716,6 +725,14 @@ public sealed class ProcessStateStore
         public string? AddedBy { get; set; }
 
         public DateTimeOffset QuarantinedAtUtc { get; set; }
+
+        public ThreatIntelVerdict? Verdict { get; set; }
+
+        public string? VerdictSource { get; set; }
+
+        public string? VerdictDetails { get; set; }
+
+        public string? Sha256 { get; set; }
     }
 
     private sealed class SuspiciousProcessHitModel

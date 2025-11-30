@@ -429,6 +429,10 @@
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                           ScrollViewer.CanContentScroll="True"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingPanel.CacheLength="3"
+                                          VirtualizingPanel.CacheLengthUnit="Item"
                                           infra:ScrollHost.BubbleParentScroll="True">
                                     <ListView.Style>
                                         <Style TargetType="ListView">
@@ -442,10 +446,10 @@
                                     </ListView.Style>
                                     <ListView.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <ux:AdaptiveTilePanel MinColumnWidth="320"
-                                                                  MaxColumnWidth="420"
-                                                                  ColumnSpacing="18"
-                                                                  RowSpacing="18"/>
+                                            <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="320"
+                                                                             MaxColumnWidth="420"
+                                                                             ColumnSpacing="18"
+                                                                             RowSpacing="18"/>
                                         </ItemsPanelTemplate>
                                     </ListView.ItemsPanel>
                                     <ListView.ItemContainerStyle>

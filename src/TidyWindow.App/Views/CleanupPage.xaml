@@ -1076,12 +1076,12 @@
     </Page.Resources>
         <Grid UseLayoutRounding="True"
                     SnapsToDevicePixels="True">
-                <ScrollViewer x:Name="RootScrollViewer"
+                    <ScrollViewer x:Name="RootScrollViewer"
                       Margin="32"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       CanContentScroll="False"
-                      IsDeferredScrollingEnabled="True"
+                        IsDeferredScrollingEnabled="False"
                                             PanningMode="VerticalOnly"
                                             UseLayoutRounding="True"
                                             SnapsToDevicePixels="True">
@@ -1846,7 +1846,7 @@
                                                      ScrollViewer.VerticalScrollBarVisibility="Auto"
                                                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                      ScrollViewer.CanContentScroll="True"
-                                                     ScrollViewer.IsDeferredScrollingEnabled="True"
+                                                     ScrollViewer.IsDeferredScrollingEnabled="False"
                                                      VirtualizingPanel.IsVirtualizing="True"
                                                      VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                                                      VirtualizingPanel.IsContainerVirtualizable="True"

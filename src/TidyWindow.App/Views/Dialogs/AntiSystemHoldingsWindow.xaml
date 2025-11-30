@@ -12,23 +12,72 @@
         Foreground="#E2E8F0"
         WindowStartupLocation="CenterOwner">
     <Window.Resources>
-        <Style x:Key="HoldingsCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="#0F172A" />
-            <Setter Property="BorderBrush" Value="#1D2A44" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Padding" Value="20" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
+        <SolidColorBrush x:Key="ProcessHeadlineBrush" Color="#FDFEFE" />
+        <SolidColorBrush x:Key="ProcessBodyBrush" Color="#D5E0FF" />
+        <SolidColorBrush x:Key="ProcessMutedBrush" Color="#A9B8D4" />
+
+        <DropShadowEffect x:Key="ProcessCardShadowEffect"
+                          Color="#01060C"
+                          BlurRadius="26"
+                          ShadowDepth="0"
+                          Opacity="0.6" />
+
+        <Style x:Key="ProcessHeroTitleTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource ProcessHeadlineBrush}" />
         </Style>
 
-        <Style x:Key="HoldingsActionButtonStyle" TargetType="Button">
+        <Style x:Key="ProcessHeroBodyTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource ProcessBodyBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+
+        <Style x:Key="ProcessPrimaryButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#F8FAFC" />
-            <Setter Property="Background" Value="#1D4ED8" />
+            <Setter Property="Padding" Value="16,8" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Padding" Value="12,6" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#7C3AED" Offset="0" />
+                        <GradientStop Color="#2563EB" Offset="1" />
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}"
+                                Effect="{StaticResource ProcessCardShadowEffect}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.92" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ProcessSecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="Background" Value="#142033" />
+            <Setter Property="BorderBrush" Value="#253453" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -36,24 +85,58 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8">
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#2563EB" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1E40AF" />
-                            </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                                <Setter TargetName="Root" Property="Opacity" Value="0.45" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1C2D4A" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="ProcessDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource ProcessPrimaryButtonStyle}">
+            <Setter Property="Background" Value="#DC2626" />
+            <Setter Property="Effect" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#EF4444" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ProcessCardStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Background" Value="#0B1120" />
+            <Setter Property="BorderBrush" Value="#1D2A44" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Margin" Value="0,0,16,0" />
+            <Setter Property="Effect" Value="{StaticResource ProcessCardShadowEffect}" />
         </Style>
     </Window.Resources>
     <Grid Margin="24">
@@ -64,11 +147,10 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,16">
-            <TextBlock Text="Anti-System safe &amp; quarantine lists"
-                       FontSize="24"
-                       FontWeight="SemiBold" />
-            <TextBlock Text="Review trusted overrides and any executables you've quarantined without leaving the Processes view."
-                       Foreground="#94A3B8"
+            <TextBlock Text="Anti-System allow &amp; quarantine"
+                       Style="{StaticResource ProcessHeroTitleTextStyle}" />
+            <TextBlock Text="Review trusted overrides, tidy up stale entries, and keep the Processes workspace aligned with Defender verdicts."
+                       Style="{StaticResource ProcessHeroBodyTextStyle}"
                        Margin="0,4,0,0" />
         </StackPanel>
 
@@ -79,13 +161,12 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Style="{StaticResource HoldingsCardStyle}">
+            <Border Grid.Column="0" Style="{StaticResource ProcessCardStyle}" Margin="0,0,16,0">
                 <StackPanel>
                     <TextBlock Text="Whitelisted entries"
-                               FontSize="18"
-                               FontWeight="SemiBold" />
+                               Style="{StaticResource ProcessHeroTitleTextStyle}" />
                     <TextBlock Text="Directories, hashes, or process names Anti-System will ignore."
-                               Foreground="#94A3B8"
+                               Style="{StaticResource ProcessHeroBodyTextStyle}"
                                Margin="0,4,0,12" />
                     <ItemsControl ItemsSource="{Binding WhitelistEntries}">
                         <ItemsControl.ItemTemplate>
@@ -133,7 +214,7 @@
                                         <Button Content="Remove"
                                                 HorizontalAlignment="Right"
                                                 Margin="0,12,0,0"
-                                                Style="{StaticResource HoldingsActionButtonStyle}"
+                                                Style="{StaticResource ProcessDangerButtonStyle}"
                                                 Command="{Binding DataContext.RemoveWhitelistEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                 CommandParameter="{Binding}" />
                                     </StackPanel>
@@ -159,13 +240,12 @@
                 </StackPanel>
             </Border>
 
-            <Border Grid.Column="1" Margin="18,0,0,0" Style="{StaticResource HoldingsCardStyle}">
+            <Border Grid.Column="1" Style="{StaticResource ProcessCardStyle}" Margin="16,0,0,0">
                 <StackPanel>
                     <TextBlock Text="Quarantined executables"
-                               FontSize="18"
-                               FontWeight="SemiBold" />
+                               Style="{StaticResource ProcessHeroTitleTextStyle}" />
                     <TextBlock Text="Everything you've attempted to quarantine via Anti-System."
-                               Foreground="#94A3B8"
+                               Style="{StaticResource ProcessHeroBodyTextStyle}"
                                Margin="0,4,0,12" />
                     <ItemsControl ItemsSource="{Binding QuarantineEntries}">
                         <ItemsControl.ItemTemplate>
@@ -207,15 +287,61 @@
                                                 </Style>
                                             </TextBlock.Style>
                                         </TextBlock>
+                                        <StackPanel Margin="0,6,0,0">
+                                            <TextBlock Text="{Binding VerdictSummary}"
+                                                       Foreground="#FACC15"
+                                                       TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasVerdict}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding VerdictDetails}"
+                                                       Foreground="#94A3B8"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,2,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasVerdictDetails}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding Sha256, StringFormat=Hash: {0}}"
+                                                       Foreground="#94A3B8"
+                                                       FontSize="12"
+                                                       Margin="0,2,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasSha256}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding AddedBy, StringFormat=Logged by {0}}"
-                                                   Foreground="#64748B"
-                                                   Margin="0,6,0,0" />
+                                               Foreground="#64748B"
+                                               Margin="0,6,0,0" />
                                         <Button Content="Remove"
-                                                HorizontalAlignment="Right"
-                                                Margin="0,12,0,0"
-                                                Style="{StaticResource HoldingsActionButtonStyle}"
-                                                Command="{Binding DataContext.RemoveQuarantineEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                CommandParameter="{Binding}" />
+                                            HorizontalAlignment="Right"
+                                            Margin="0,12,0,0"
+                                            Style="{StaticResource ProcessDangerButtonStyle}"
+                                            Command="{Binding DataContext.RemoveQuarantineEntryCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            CommandParameter="{Binding}" />
                                     </StackPanel>
                                 </Border>
                             </DataTemplate>
@@ -242,13 +368,13 @@
         </ScrollViewer>
 
         <StackPanel Grid.Row="2"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right"
-                    Margin="0,16,0,0">
+                Orientation="Horizontal"
+                HorizontalAlignment="Right"
+                Margin="0,16,0,0">
             <Button Content="Close"
-                    Padding="18,8"
-                    MinWidth="120"
-                    Click="CloseButton_OnClick" />
+                MinWidth="140"
+                Style="{StaticResource ProcessSecondaryButtonStyle}"
+                Click="CloseButton_OnClick" />
         </StackPanel>
     </Grid>
 </Window>

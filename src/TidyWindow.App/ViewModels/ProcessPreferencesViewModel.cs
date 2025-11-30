@@ -341,7 +341,11 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
                 entry.FilePath,
                 entry.Notes,
                 entry.AddedBy,
-                entry.QuarantinedAtUtc))
+                entry.QuarantinedAtUtc,
+                entry.Verdict,
+                entry.VerdictSource,
+                entry.VerdictDetails,
+                entry.Sha256))
             .ToList();
 
         var dialogViewModel = new AntiSystemHoldingsDialogViewModel(

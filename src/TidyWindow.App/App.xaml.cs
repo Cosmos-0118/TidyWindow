@@ -133,6 +133,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<IThreatIntelProvider, MalwareHashBlocklist>();
                 services.AddSingleton<AntiSystemDetectionService>();
                 services.AddSingleton<AntiSystemScanService>();
+                services.AddSingleton<AntiSystemBackgroundScanner>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -183,6 +184,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<EssentialsAutomationScheduler>();
         _ = _host.Services.GetRequiredService<MaintenanceAutoUpdateScheduler>();
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
+        _ = _host.Services.GetRequiredService<AntiSystemBackgroundScanner>();
 
         var launchMinimized = e.Args?.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase)) == true;
         var startHidden = launchMinimized && preferences.Current.RunInBackground;

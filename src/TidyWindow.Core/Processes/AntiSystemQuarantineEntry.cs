@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using TidyWindow.Core.Processes.AntiSystem;
 
 namespace TidyWindow.Core.Processes;
 
@@ -14,7 +15,11 @@ public sealed record AntiSystemQuarantineEntry
         string filePath,
         string? notes,
         string? addedBy,
-        DateTimeOffset quarantinedAtUtc)
+        DateTimeOffset quarantinedAtUtc,
+        ThreatIntelVerdict? verdict,
+        string? verdictSource,
+        string? verdictDetails,
+        string? sha256)
     {
         if (string.IsNullOrWhiteSpace(processName))
         {
@@ -35,6 +40,10 @@ public sealed record AntiSystemQuarantineEntry
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         AddedBy = string.IsNullOrWhiteSpace(addedBy) ? null : addedBy.Trim();
         QuarantinedAtUtc = quarantinedAtUtc == default ? DateTimeOffset.UtcNow : quarantinedAtUtc;
+        Verdict = verdict;
+        VerdictSource = string.IsNullOrWhiteSpace(verdictSource) ? null : verdictSource.Trim();
+        VerdictDetails = string.IsNullOrWhiteSpace(verdictDetails) ? null : verdictDetails.Trim();
+        Sha256 = string.IsNullOrWhiteSpace(sha256) ? null : sha256.Trim();
     }
 
     public string Id { get; init; }
@@ -49,7 +58,24 @@ public sealed record AntiSystemQuarantineEntry
 
     public DateTimeOffset QuarantinedAtUtc { get; init; }
 
-    public static AntiSystemQuarantineEntry Create(string processName, string filePath, string? notes = null, string? addedBy = null, DateTimeOffset? quarantinedAtUtc = null)
+    public ThreatIntelVerdict? Verdict { get; init; }
+
+    public string? VerdictSource { get; init; }
+
+    public string? VerdictDetails { get; init; }
+
+    public string? Sha256 { get; init; }
+
+    public static AntiSystemQuarantineEntry Create(
+        string processName,
+        string filePath,
+        string? notes = null,
+        string? addedBy = null,
+        DateTimeOffset? quarantinedAtUtc = null,
+        ThreatIntelVerdict? verdict = null,
+        string? verdictSource = null,
+        string? verdictDetails = null,
+        string? sha256 = null)
     {
         return new AntiSystemQuarantineEntry(
             id: string.Empty,
@@ -57,7 +83,11 @@ public sealed record AntiSystemQuarantineEntry
             filePath,
             notes,
             addedBy,
-            quarantinedAtUtc ?? DateTimeOffset.UtcNow);
+            quarantinedAtUtc ?? DateTimeOffset.UtcNow,
+            verdict,
+            verdictSource,
+            verdictDetails,
+            sha256);
     }
 
     public AntiSystemQuarantineEntry Normalize()

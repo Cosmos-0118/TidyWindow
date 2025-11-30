@@ -8,6 +8,7 @@ using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.Core.Processes;
+using TidyWindow.Core.Processes.AntiSystem;
 
 namespace TidyWindow.App.ViewModels.Dialogs;
 
@@ -154,7 +155,11 @@ public sealed class AntiSystemQuarantineEntryViewModel
         string filePath,
         string? notes,
         string? addedBy,
-        DateTimeOffset quarantinedAtUtc)
+        DateTimeOffset quarantinedAtUtc,
+        ThreatIntelVerdict? verdict,
+        string? verdictSource,
+        string? verdictDetails,
+        string? sha256)
     {
         Id = id;
         ProcessName = string.IsNullOrWhiteSpace(processName) ? "Unknown" : processName.Trim();
@@ -162,6 +167,10 @@ public sealed class AntiSystemQuarantineEntryViewModel
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         AddedBy = string.IsNullOrWhiteSpace(addedBy) ? "TidyWindow" : addedBy.Trim();
         QuarantinedAtUtc = quarantinedAtUtc == default ? DateTimeOffset.UtcNow : quarantinedAtUtc;
+        Verdict = verdict;
+        VerdictSource = string.IsNullOrWhiteSpace(verdictSource) ? null : verdictSource.Trim();
+        VerdictDetails = string.IsNullOrWhiteSpace(verdictDetails) ? null : verdictDetails.Trim();
+        Sha256 = string.IsNullOrWhiteSpace(sha256) ? null : sha256.Trim();
     }
 
     public string Id { get; }
@@ -179,4 +188,40 @@ public sealed class AntiSystemQuarantineEntryViewModel
     public string FileName => Path.GetFileName(FilePath);
 
     public string QuarantinedAtDisplay => QuarantinedAtUtc.ToLocalTime().ToString("g");
+
+    public ThreatIntelVerdict? Verdict { get; }
+
+    public string? VerdictSource { get; }
+
+    public string? VerdictDetails { get; }
+
+    public string? Sha256 { get; }
+
+    public bool HasVerdict => Verdict is not null;
+
+    public bool HasVerdictDetails => !string.IsNullOrWhiteSpace(VerdictDetails);
+
+    public bool HasSha256 => !string.IsNullOrWhiteSpace(Sha256);
+
+    public string? VerdictSummary
+    {
+        get
+        {
+            if (Verdict is null)
+            {
+                return null;
+            }
+
+            var summary = Verdict switch
+            {
+                ThreatIntelVerdict.KnownBad => "Defender flagged this file as malicious",
+                ThreatIntelVerdict.KnownGood => "Defender marked this file as trusted",
+                _ => "Defender had no opinion about this file"
+            };
+
+            return VerdictSource is null
+                ? summary + "."
+                : $"{summary} ({VerdictSource}).";
+        }
+    }
 }
