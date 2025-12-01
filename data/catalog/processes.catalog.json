@@ -1305,6 +1305,66 @@
       "rationale": "required for many tools; do not disable. WMI",
       "isPattern": false,
       "order": 90
+    },
+    {
+      "identifier": "bcastdvruserservice_*",
+      "displayName": "BcastDVRUserService_*",
+      "categoryKey": "A",
+      "categoryName": "Xbox / Gaming",
+      "categoryDescription": "safe if you do not use Xbox/GamePass/Game Bar",
+      "risk": "Safe",
+      "recommendedAction": "AutoStop",
+      "rationale": "Game DVR/broadcast per-user instances; disable if you never use Xbox Game Bar capture/broadcasting.",
+      "isPattern": true,
+      "order": 91
+    },
+    {
+      "identifier": "captureservice",
+      "displayName": "CaptureService",
+      "categoryKey": "A",
+      "categoryName": "Xbox / Gaming",
+      "categoryDescription": "safe if you do not use Xbox/GamePass/Game Bar",
+      "risk": "Safe",
+      "recommendedAction": "AutoStop",
+      "rationale": "OneCore screen capture runtime backing Game Bar capture; safe to stop when screen recording overlays are disabled.",
+      "isPattern": false,
+      "order": 92
+    },
+    {
+      "identifier": "penservice",
+      "displayName": "PenService",
+      "categoryKey": "G",
+      "categoryName": "Ink / Touch / Tablet",
+      "categoryDescription": "safe if non-touch laptop",
+      "risk": "Safe",
+      "recommendedAction": "AutoStop",
+      "rationale": "Surface Pen tail-button command handler; disable on systems without pen hardware.",
+      "isPattern": false,
+      "order": 93
+    },
+    {
+      "identifier": "printworkflowusersvc_*",
+      "displayName": "PrintWorkflowUserSvc_*",
+      "categoryKey": "C",
+      "categoryName": "Printing / Fax",
+      "categoryDescription": "safe if no local printer / fax",
+      "risk": "Safe",
+      "recommendedAction": "AutoStop",
+      "rationale": "Per-user Print Workflow host used by Store/UWP print dialogs; disable if you never print from those apps.",
+      "isPattern": true,
+      "order": 94
+    },
+    {
+      "identifier": "p9rdrservice_*",
+      "displayName": "P9RdrService_*",
+      "categoryKey": "J",
+      "categoryName": "Misc optional items",
+      "categoryDescription": "safe in most home setups",
+      "risk": "Safe",
+      "recommendedAction": "AutoStop",
+      "rationale": "Plan 9 redirector created for Windows Subsystem for Linux file sharing; safe to stop if you never use WSL file redirection.",
+      "isPattern": true,
+      "order": 95
     }
   ]
 }

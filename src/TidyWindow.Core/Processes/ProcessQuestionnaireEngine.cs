@@ -270,7 +270,7 @@ public sealed class ProcessQuestionnaireEngine
             new QuestionnaireRule("usage.phone", "no", new[] { "E" }, Array.Empty<string>()),
             new QuestionnaireRule("usage.location", "no", new[] { "F" }, Array.Empty<string>()),
             new QuestionnaireRule("device.touch", "no", new[] { "G" }, Array.Empty<string>()),
-            new QuestionnaireRule("usage.developer", "no", new[] { "H" }, Array.Empty<string>()),
+            new QuestionnaireRule("usage.developer", "no", new[] { "H" }, new[] { "p9rdrservice_*" }),
             new QuestionnaireRule("usage.telemetrycore", "no", new[] { "D", "K" }, Array.Empty<string>()),
             new QuestionnaireRule("usage.telemetryadvanced", "no", Array.Empty<string>(), new[] { "bits", "iphlpsvc" }),
             new QuestionnaireRule("usage.performance", "no", new[] { "I" }, new[] { "sysmain" }),

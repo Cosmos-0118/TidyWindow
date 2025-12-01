@@ -62,10 +62,12 @@ public sealed class ProcessQuestionnaireEngineTests
             Assert.Contains("dosvc", result.RecommendedProcessIds);
             Assert.Contains(edgeTaskId, result.RecommendedProcessIds);
             Assert.Contains(rdsPatternId, result.RecommendedProcessIds);
+            Assert.Contains("p9rdrservice_*", result.RecommendedProcessIds);
 
             var preferences = store.GetPreferences();
             Assert.Contains(preferences, pref => pref.ProcessIdentifier == "dosvc");
             Assert.Contains(preferences, pref => pref.ProcessIdentifier == edgeTaskId);
+            Assert.Contains(preferences, pref => pref.ProcessIdentifier == "p9rdrservice_*");
         }
         finally
         {
@@ -149,6 +151,16 @@ iphlpsvc
             "categoryKey": "M",
             "categoryName": "Doc Section D",
             "categoryDescription": "Remote Desktop tasks",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop",
+            "isPattern": true
+        },
+        {
+            "identifier": "p9rdrservice_*",
+            "displayName": "P9RdrService_*",
+            "categoryKey": "J",
+            "categoryName": "Misc optional items",
+            "categoryDescription": "safe in most home setups",
             "risk": "Safe",
             "recommendedAction": "AutoStop",
             "isPattern": true
