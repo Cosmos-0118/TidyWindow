@@ -3,7 +3,7 @@ dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 
 # TidyWindow
 
-**Version 2.9.0 · Windows maintenance companion for developers**
+**Windows maintenance companion for developers**
 
 TidyWindow orchestrates system setup, cleanup, and repair flows from a single WPF shell. High-impact automations run through managed .NET services that call PowerShell 7 safely in the background, keeping the UI responsive while guaranteeing detailed telemetry.
 

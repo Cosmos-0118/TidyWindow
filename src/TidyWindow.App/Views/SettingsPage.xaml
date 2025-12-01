@@ -272,11 +272,11 @@
                                                                 <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
                                                         <StackPanel>
-                                                                <TextBlock Text="Surface system notifications"
+                                                                <TextBlock Text="PulseGuard notifications"
                                                                                    Foreground="#E2E8F0"
                                                                                    FontSize="14"
                                                                                    FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Allow PulseGuard to raise Windows toasts when you're away from the app."
+                                                                <TextBlock Text="Allow PulseGuard to raise Windows toasts and tray tips when you're away from the app."
                                                                                    Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                                                                    Margin="0,4,0,0"/>
                                                         </StackPanel>
@@ -303,7 +303,7 @@
                                                         <ToggleButton Grid.Column="1"
                                                                                   Style="{StaticResource SettingsToggleSwitchStyle}"
                                                                                   IsChecked="{Binding NotifyOnlyWhenInactive, Mode=TwoWay}"
-                                                                                  IsEnabled="{Binding NotificationsEnabled}"/>
+                                                                                  IsEnabled="{Binding CanAdjustPulseGuardNotifications}"/>
                                                 </Grid>
 
                                                 <Grid Margin="0,16,0,0">
