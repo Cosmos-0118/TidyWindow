@@ -1,35 +1,43 @@
-git clone https://github.com/Cosmos-0118/TidyWindow.git
-dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
-
 # TidyWindow
 
-**Windows maintenance companion for developers**
+**Windows maintenance companion for builders who care about safety, repeatability, and observability.**
 
-TidyWindow orchestrates system setup, cleanup, and repair flows from a single WPF shell. High-impact automations run through managed .NET services that call PowerShell 7 safely in the background, keeping the UI responsive while guaranteeing detailed telemetry.
+TidyWindow consolidates environment bootstrapping, cleanup, registry tuning, diagnostics, and automated repairs into a single WPF application. Every operation flows through managed .NET services that coordinate PowerShell 7 scripts, enforce guard rails, and emit structured activity logs so you always know what ran and how to roll it back.
 
-## Release Snapshot
+## Key Capabilities
 
--   **Latest release**: 2.9.0 (see GitHub Releases for installers and notes)
--   **Installer**: Inno Setup package generated from `installer/TidyWindowInstaller.iss`
--   **Supported OS**: Windows 10+ with .NET SDK 8.0 and PowerShell 7
+-   **Essentials repair center** (`docs/essentials.md`): Queue curated automations for networking, Defender, printing, and Windows Update issues. Each task supports dry-run previews, sequential execution, restore-point creation, and detailed transcripts.
+-   **Multi-phase cleanup** (`docs/cleanup.md`): Discover clutter with a fast preview, vet selections with risk signals and lock inspection, then delete via recycle-bin-first workflows or schedule recurring sweeps with conservative defaults.
+-   **Registry optimizer** (`docs/registry-optimizer.md`): Stage preset or custom tweaks with automatic JSON restore points, 30-second rollback countdowns, baseline tracking, and preset customization alerts.
+-   **Install & maintain software** (`docs/install-hub.md`, `docs/maintenance.md`): Drive winget, Scoop, and Chocolatey flows from a single queue, including automation to keep curated bundles current.
+-   **PathPilot & process intelligence** (`docs/pathpilot.md`, `docs/known-processes.md`): Manage PATH edits safely, monitor running processes, and flag anti-system behavior with remediation guidance.
+-   **PulseGuard observability** (`docs/activity-log.md`, `docs/settings.md`): Turn significant Activity Log events into actionable notifications, high-friction prompts, and searchable transcripts while respecting notification preferences.
 
-## What You Can Do
+## Safety Systems
 
--   **Bootstrap** developer environments with winget, Chocolatey, and Scoop helpers.
--   **Clean Up** disks using the multi-phase workflow documented in [`docs/cleanup.md`](docs/cleanup.md).
--   **Install & Maintain** curated software bundles (`docs/install-hub.md`) and keep packages current (`docs/maintenance.md`).
--   **Tune the Registry** safely with automatic restore points, rollback countdowns, and input validation (`docs/registry-optimizer.md`).
--   **Monitor Processes** via the Known Processes catalog and Anti-System scanner (`docs/known-processes.md`).
--   **Audit Activity** with searchable transcripts and PulseGuard notifications (`docs/activity-log.md`).
+-   **Restore-point enforcement**: Registry Optimizer, Essentials repairs, and other high-risk flows create restore points on demand and prune older snapshots to stay within disk budgets.
+-   **Cleanup guardrails**: Protected roots, skip-recent filters, recycle-bin preference, lock inspection, and permission-repair fallbacks prevent accidental data loss.
+-   **Sequential automation queues**: Essentials and Maintenance flows run one script at a time with cancellation hooks, deterministic logging, and retry policies.
+-   **PulseGuard notification gating**: Notifications, action alerts, and success digests respect user toggles (`CanAdjustPulseGuardNotifications`), window focus, and cooldown windows before surfacing prompts.
+-   **Activity Log + transcripts**: Every automation writes structured entries plus JSON/Markdown reports for audits, with direct "View log" actions in PulseGuard toasts.
+-   **PathPilot safeguards**: PATH mutations run through validation, diff previews, and rollback checkpoints before touching environment state.
 
-## Safety by Design
+## Architecture Snapshot
 
--   **Registry Optimizer** always creates JSON restore points, prompts for rollback, and prunes older snapshots so changes can be reverted instantly.
--   **Cleanup Suite** respects protected roots, prefers the recycle bin, inspects locking processes, and surfaces risk warnings before any deletion.
--   **Automation Queues** execute sequentially with full transcripts and Activity Log entries, so you can see exactly what ran.
--   **PulseGuard** turns noteworthy events into actionable toasts without spamming—controls live on the Settings page (`docs/settings.md`).
+-   **Frontend**: WPF (.NET 8) views with CommunityToolkit.Mvvm view models (`src/TidyWindow.App`).
+-   **Service layer**: C# services for cleanup, registry state, automation scheduling, PowerShell invocation, and tray presence (`src/TidyWindow.Core`, `src/TidyWindow.App/Services`).
+-   **Automation layer**: PowerShell 7 scripts in `automation/` for essentials, cleanup, registry, and diagnostics; YAML/JSON catalogs describe tweaks, presets, processes, and bundles.
+-   **Packaging**: Inno Setup installer (`installer/TidyWindowInstaller.iss`) plus self-contained release artifacts in GitHub Releases.
 
-## Quick Start
+## Getting Started
+
+### Prerequisites
+
+-   Windows 10 or later
+-   .NET SDK 8.0+
+-   PowerShell 7 installed and on PATH
+
+### Clone, build, and run
 
 ```powershell
 git clone https://github.com/Cosmos-0118/TidyWindow.git
@@ -41,31 +49,9 @@ dotnet build src/TidyWindow.sln -c Debug
 dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 ```
 
-See [`docs/getting-started.md`](docs/getting-started.md) for prerequisites, optional tooling, and troubleshooting tips.
+Refer to [`docs/getting-started.md`](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest signed installers are published with each GitHub Release (current release: **2.9.0**).
 
-## Documentation
-
--   [`docs/cleanup.md`](docs/cleanup.md) – Disk cleanup workflow and automation.
--   [`docs/essentials.md`](docs/essentials.md) – One-click repair library.
--   [`docs/deep-scan.md`](docs/deep-scan.md) – Diagnostics and classification heuristics.
--   [`docs/install-hub.md`](docs/install-hub.md) – Bundle installer UX.
--   [`docs/maintenance.md`](docs/maintenance.md) – Package maintenance cockpit.
--   [`docs/pathpilot.md`](docs/pathpilot.md) – Runtime PATH management.
--   [`docs/registry-optimizer.md`](docs/registry-optimizer.md) – Safe registry tweaks.
--   [`docs/known-processes.md`](docs/known-processes.md) – Process catalog & Anti-System scanner.
--   [`docs/activity-log.md`](docs/activity-log.md) – Observability and logging.
--   [`docs/settings.md`](docs/settings.md) – Preferences, PulseGuard, background mode.
--   [`docs/tech-stack.md`](docs/tech-stack.md) – Full technology overview.
-
-## Tech Stack Highlights
-
--   **WPF (.NET 8)** front-end with CommunityToolkit.Mvvm.
--   **C# services** for cleanup, installs, registry state, automation.
--   **PowerShell 7** scripts under `automation/` for OS integrations.
--   **YAML/JSON catalogs** describing bundles, process metadata, and reports.
--   **Inno Setup** installer for release packaging.
-
-## Testing & Quality
+## Testing & Verification
 
 ```powershell
 dotnet test tests/TidyWindow.Core.Tests/TidyWindow.Core.Tests.csproj
@@ -73,20 +59,30 @@ dotnet test tests/TidyWindow.Automation.Tests/TidyWindow.Automation.Tests.csproj
 dotnet test tests/TidyWindow.App.Tests/TidyWindow.App.Tests.csproj
 ```
 
--   Tools in `tools/` help validate catalog integrity and script behaviour (e.g., `test-process-catalog-parser.ps1`).
--   PulseGuard and Activity Log provide runtime verification for automation runs and failures.
+-   Tools in `tools/` validate catalog consistency (`check_duplicate_packages.py`, `suggest_catalog_fixes.py`) and PowerShell flows (`test-process-catalog-parser.ps1`).
+-   PulseGuard and the Activity Log offer runtime confirmation that long-running automations completed or surfaced actionable errors.
 
-## Contributing & Support
+## Documentation Map
 
--   Follow the guides in `docs/` when extending pages or automation flows.
--   Open issues with Activity Log snippets or cleanup reports for faster triage.
--   Track roadmap updates in `roadmap.md` and discussions in the repository.
+-   [`docs/cleanup.md`](docs/cleanup.md) – Disk cleanup workflow, risk model, and automation scheduler.
+-   [`docs/essentials.md`](docs/essentials.md) – Repair catalog, queue orchestration, and safety features.
+-   [`docs/deep-scan.md`](docs/deep-scan.md) – Diagnostics, heuristics, and anti-system scanners.
+-   [`docs/install-hub.md`](docs/install-hub.md) / [`docs/maintenance.md`](docs/maintenance.md) – Package installation & upkeep cockpit.
+-   [`docs/pathpilot.md`](docs/pathpilot.md) – PATH governance with diff previews and rollback plans.
+-   [`docs/registry-optimizer.md`](docs/registry-optimizer.md) – Restore-point-backed registry tuning.
+-   [`docs/known-processes.md`](docs/known-processes.md) – Process catalog, classifications, and Anti-System signals.
+-   [`docs/activity-log.md`](docs/activity-log.md) – Observability pipeline, transcripts, and PulseGuard integration.
+-   [`docs/settings.md`](docs/settings.md) – Preference system, PulseGuard toggles, and background presence.
+-   [`docs/tech-stack.md`](docs/tech-stack.md) – Full technology breakdown.
 
-## License
+## Support, Contributions, and Roadmap
 
-TidyWindow is distributed under the MIT License. See [`LICENSE`](LICENSE) for details.
+-   Follow the guidance in `docs/` when extending pages or automation flows to preserve safety guarantees.
+-   File issues with Activity Log snippets, cleanup reports, or automation transcripts for faster triage.
+-   Track future work in [`roadmap.md`](roadmap.md) and GitHub Discussions.
 
-## Credits
+## License & Credits
 
--   This project was developed with the assistance of GitHub Copilot.
--   Package management helpers integrate with winget (Microsoft), Scoop (ScoopInstaller), and Chocolatey (Chocolatey Software).
+TidyWindow ships under the MIT License (see [`LICENSE`](LICENSE)).
+
+The project is built with github copilot assistance alongside contributions from the Windows, PowerShell, winget, Scoop, and Chocolatey ecosystems.
