@@ -96,3 +96,64 @@ Key objectives:
 ---
 
 This polished design provides a modern, effective, and user-friendly way to extend Windows startup management inside your maintenance app while maintaining system stability and security.
+
+---
+
+## Implementation Steps
+
+1. **Inventory startup surfaces** – Enumerate registry Run/RunOnce keys, Startup folders, logon-triggered scheduled tasks, and auto-start services; normalize the payload into a single model (`StartupEntry` with Source, Path, Publisher, Risk, Status).
+2. **Score and classify entries** – Run signature validation + system-path heuristics, assign guard rails (Protected, Caution, Safe) and hide immutable Windows/security items from destructive actions.
+3. **Expose user controls** – Bind the unified list to a WPF observable collection with Enable/Disable toggles, “Delay launch” selector (30s/60s/120s/custom), and contextual warnings when touching anything above the Caution threshold.
+4. **Persist enable/disable actions** – Write registry/folder mutations through dedicated helpers, update scheduled-task state, and refresh the in-memory snapshot + Activity Log once the operation succeeds.
+5. **Implement delayed launch** – When a delay is chosen, disable the original entry and register an equivalent Task Scheduler job (logon trigger + `Delay` arguments) so the executable starts after the requested interval.
+6. **Provide safety + rollback** – Require elevation before destructive changes, create a lightweight JSON backup of the edited entry, and surface “Undo” for the last change to keep experimentation low-risk.
+7. **Test across OS variants** – Validate against Windows 10/11 (consumer + enterprise SKUs), different language packs, and accounts with/without administrative rights to ensure coverage of edge cases.
+
+### UI Card Design Reference (Copied from Known Processes Page)
+
+```xaml
+<Border Background="#0D1930"
+      BorderBrush="#1D2F52"
+      BorderThickness="1"
+      CornerRadius="14"
+      Padding="20"
+      Margin="0,6,0,0">
+   <Grid>
+      <Grid.ColumnDefinitions>
+         <ColumnDefinition Width="*" />
+         <ColumnDefinition Width="Auto" />
+      </Grid.ColumnDefinitions>
+      <StackPanel>
+         <TextBlock Text="Keep Windows services tidy by applying questionnaire-driven auto-stop recommendations."
+                  Style="{StaticResource ProcessHeroBodyTextStyle}" />
+         <TextBlock Text="Lean on curated cues to keep Xbox, Game Bar, and background helpers quiet when you do not need them."
+                  Margin="0,6,0,0"
+                  Style="{StaticResource ProcessHeroBodyTextStyle}"
+                  Foreground="{StaticResource ProcessMutedBrush}" />
+      </StackPanel>
+      <WrapPanel Grid.Column="1"
+               HorizontalAlignment="Right"
+               VerticalAlignment="Center"
+               Margin="16,0,0,0">
+         <Border Background="#102C4A"
+               BorderBrush="#1E3A5F"
+               BorderThickness="1"
+               CornerRadius="12"
+               Padding="12,4"
+               Margin="0,0,8,0">
+            <TextBlock Text="{Binding Summary}"
+                     Foreground="{StaticResource ProcessHeadlineBrush}"
+                     FontWeight="SemiBold" />
+         </Border>
+         <Border Background="#102C4A"
+               BorderBrush="#1E3A5F"
+               BorderThickness="1"
+               CornerRadius="12"
+               Padding="12,4">
+            <TextBlock Text="{Binding Categories.Count, StringFormat={}{0} catalog groups}"
+                     Foreground="{StaticResource ProcessBodyBrush}" />
+         </Border>
+      </WrapPanel>
+   </Grid>
+</Border>
+```

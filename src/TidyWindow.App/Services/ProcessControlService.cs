@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.ServiceProcess;
 using System.Threading;
 using System.Threading.Tasks;
@@ -67,16 +68,33 @@ public sealed class ProcessControlService
             return ProcessControlResult.CreateFailure("Service name was not provided.");
         }
 
+        var trimmedName = serviceName.Trim();
+
         try
         {
-            using var controller = new ServiceController(serviceName.Trim());
+            using var controller = new ServiceController(trimmedName);
             return action(controller);
+        }
+        catch (InvalidOperationException ex) when (IsServiceMissing(ex))
+        {
+            return ProcessControlResult.CreateSuccess($"{trimmedName} is not installed; skipping.");
         }
         catch (Exception ex)
         {
             var message = string.IsNullOrWhiteSpace(ex.Message) ? ex.GetType().Name : ex.Message;
             return ProcessControlResult.CreateFailure(message);
         }
+    }
+
+    private static bool IsServiceMissing(InvalidOperationException exception)
+    {
+        if (exception.InnerException is Win32Exception win32 && win32.NativeErrorCode == 1060)
+        {
+            return true;
+        }
+
+        return exception.Message?.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0
+            || exception.Message?.IndexOf("cannot open", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }
 
