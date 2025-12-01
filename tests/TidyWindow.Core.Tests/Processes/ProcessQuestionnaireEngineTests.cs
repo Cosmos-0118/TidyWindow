@@ -176,8 +176,18 @@ iphlpsvc
             ["usage.telemetrycore"] = "no",
             ["usage.telemetryadvanced"] = "no",
             ["usage.performance"] = "no",
-            ["usage.misc"] = "no",
-            ["usage.store"] = "no",
+            ["usage.edgeupdates"] = "no",
+            ["usage.cellular"] = "no",
+            ["usage.appreadiness"] = "no",
+            ["usage.remotedesktop"] = "no",
+            ["usage.cloudsync"] = "no",
+            ["usage.bluetooth"] = "no",
+            ["usage.hotspot"] = "no",
+            ["usage.storeapps"] = "no",
+            ["usage.sharedexperience"] = "no",
+            ["usage.searchindexing"] = "no",
+            ["usage.deliveryoptimization"] = "no",
+            ["usage.helloface"] = "no",
             ["usage.scheduledtasks"] = "no"
         };
     }
