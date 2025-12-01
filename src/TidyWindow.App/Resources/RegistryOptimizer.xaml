@@ -1,11 +1,29 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <SolidColorBrush x:Key="RegistryPrimaryBackgroundBrush"
-                     Color="#0F172A"/>
-    <SolidColorBrush x:Key="RegistrySecondaryBackgroundBrush"
-                     Color="#101D30"/>
-    <SolidColorBrush x:Key="RegistryCardBorderBrush"
-                     Color="#1E293B"/>
+        <SolidColorBrush x:Key="RegistryPrimaryBackgroundBrush"
+                                         Color="#0F172A"/>
+        <SolidColorBrush x:Key="RegistrySecondaryBackgroundBrush"
+                                         Color="#101D30"/>
+        <LinearGradientBrush x:Key="RegistryCardBackgroundBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#162842"
+                                          Offset="0"/>
+                <GradientStop Color="#101B30"
+                                          Offset="0.58"/>
+                <GradientStop Color="#0B1424"
+                                          Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="RegistryCardBorderBrush"
+                                                 StartPoint="0,0"
+                                                 EndPoint="0,1">
+                <GradientStop Color="#2D476B"
+                                          Offset="0"/>
+                <GradientStop Color="#1F334F"
+                                          Offset="0.55"/>
+                <GradientStop Color="#142036"
+                                          Offset="1"/>
+        </LinearGradientBrush>
     <SolidColorBrush x:Key="RegistryMutedBrush"
                      Color="#94A3B8"/>
     <SolidColorBrush x:Key="RegistryTitleBrush"
@@ -40,41 +58,74 @@
                      Color="#7C2D12"/>
     <SolidColorBrush x:Key="RegistryRiskInformationalBorderBrush"
                      Color="#243B5A"/>
-        <SolidColorBrush x:Key="RegistryRowBackgroundBrush"
-                                         Color="#0E1B2E"/>
-        <SolidColorBrush x:Key="RegistryRowHoverBrush"
-                                         Color="#142941"/>
-        <SolidColorBrush x:Key="RegistryRowSelectedBrush"
-                                         Color="#1B3454"/>
+        <LinearGradientBrush x:Key="RegistryRowBackgroundBrush"
+                             StartPoint="0,0"
+                             EndPoint="0,1">
+                <GradientStop Color="#14233A"
+                              Offset="0"/>
+                <GradientStop Color="#0F1B30"
+                              Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="RegistryRowHoverBrush"
+                             StartPoint="0,0"
+                             EndPoint="0,1">
+                <GradientStop Color="#1A3453"
+                              Offset="0"/>
+                <GradientStop Color="#122846"
+                              Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="RegistryRowSelectedBrush"
+                             StartPoint="0,0"
+                             EndPoint="0,1">
+                <GradientStop Color="#1F3F65"
+                              Offset="0"/>
+                <GradientStop Color="#153351"
+                              Offset="1"/>
+        </LinearGradientBrush>
         <SolidColorBrush x:Key="RegistryValueChipBrush"
                                          Color="#101C33"/>
         <SolidColorBrush x:Key="RegistryValueChipBorderBrush"
                                          Color="#1C2C44"/>
 
-        <DropShadowEffect x:Key="RegistryRowShadow"
-                                          Color="#050E1A"
-                                          BlurRadius="18"
+        <DropShadowEffect x:Key="RegistryCardShadow"
+                                          Color="#030712"
+                                          BlurRadius="20"
                                           ShadowDepth="0"
-                                          Opacity="0.32"/>
+                                          Opacity="0.45"/>
+        <DropShadowEffect x:Key="RegistryRowShadow"
+                                          Color="#020A16"
+                                          BlurRadius="12"
+                                          ShadowDepth="0"
+                                          Opacity="0.38"/>
 
-    <Style x:Key="RegistryCardStyle"
+    <Style x:Key="RegistryCardSurfaceStyle"
            TargetType="Border">
         <Setter Property="Background"
-                Value="#0F172A"/>
+                Value="{StaticResource RegistryCardBackgroundBrush}"/>
         <Setter Property="BorderBrush"
-                Value="#1E293B"/>
+                Value="{StaticResource RegistryCardBorderBrush}"/>
         <Setter Property="BorderThickness"
                 Value="1"/>
         <Setter Property="CornerRadius"
-                Value="12"/>
-        <Setter Property="Padding"
-                Value="20"/>
+                Value="14"/>
         <Setter Property="SnapsToDevicePixels"
                 Value="True"/>
         <Setter Property="UseLayoutRounding"
                 Value="True"/>
+        <Setter Property="ClipToBounds"
+                Value="True"/>
         <Setter Property="RenderOptions.BitmapScalingMode"
                 Value="HighQuality"/>
+        <Setter Property="RenderOptions.EdgeMode"
+                Value="Aliased"/>
+        <Setter Property="RenderOptions.ClearTypeHint"
+                Value="Enabled"/>
+        <Setter Property="TextOptions.TextFormattingMode"
+                Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode"
+                Value="ClearType"/>
+        <Setter Property="TextOptions.TextHintingMode"
+                Value="Fixed"/>
         <Setter Property="CacheMode">
             <Setter.Value>
                 <BitmapCache EnableClearType="True"/>
@@ -82,29 +133,26 @@
         </Setter>
     </Style>
 
+    <Style x:Key="RegistryCardStyle"
+           TargetType="Border"
+           BasedOn="{StaticResource RegistryCardSurfaceStyle}">
+        <Setter Property="Padding"
+                Value="20"/>
+        <Setter Property="Effect"
+                Value="{StaticResource RegistryCardShadow}"/>
+    </Style>
+
     <Style x:Key="RegistryToggleRowStyle"
-           TargetType="Border">
+           TargetType="Border"
+           BasedOn="{StaticResource RegistryCardSurfaceStyle}">
         <Setter Property="Background"
                 Value="{StaticResource RegistryRowBackgroundBrush}"/>
         <Setter Property="BorderBrush"
                 Value="#1E2F46"/>
-        <Setter Property="BorderThickness"
-                Value="1"/>
         <Setter Property="CornerRadius"
                 Value="16"/>
         <Setter Property="Padding"
                 Value="20"/>
-        <Setter Property="SnapsToDevicePixels"
-                Value="True"/>
-        <Setter Property="UseLayoutRounding"
-                Value="True"/>
-        <Setter Property="RenderOptions.BitmapScalingMode"
-                Value="HighQuality"/>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True"/>
-            </Setter.Value>
-        </Setter>
         <Setter Property="Effect"
                 Value="{StaticResource RegistryRowShadow}"/>
     </Style>

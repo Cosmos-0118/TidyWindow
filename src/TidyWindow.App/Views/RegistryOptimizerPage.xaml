@@ -802,10 +802,10 @@
                                         <Setter Property="Template">
                                             <Setter.Value>
                                                 <ControlTemplate TargetType="ListBoxItem">
-                                                    <Border x:Name="Container"
+                                                        <Border x:Name="Container"
+                                                            Style="{StaticResource RegistryCardSurfaceStyle}"
                                                             Background="#101D30"
                                                             BorderBrush="#1F2D44"
-                                                            BorderThickness="1"
                                                             CornerRadius="10"
                                                             Padding="14">
                                                         <ContentPresenter/>
