@@ -1,10 +1,10 @@
 {
-  "version": "3.4.2",
+  "version": "3.4.3",
   "channel": "stable",
-  "summary": "-fixed the parsing in settings version.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.4.2/TidyWindow-Setup-3.4.2.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.4.2",
-  "publishedAt": "2025-12-03T09:56:55Z",
-  "installerSizeBytes": 80896065,
-  "sha256": "e63126c35f2890eaab2ee3792b599b60901f960617478463529fef5befdcf540"
+  "summary": "1) fixed the issue in installhub page where it was getting cutoff issues.  2) fixed the close and reopen of the app.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.4.3/TidyWindow-Setup-3.4.3.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.4.3",
+  "publishedAt": "2025-12-03T10:08:43Z",
+  "installerSizeBytes": 80896547,
+  "sha256": "e4443b615f82f15d465b7efa66d133e3cef6ff6f69f2f66c2eeead4347e58467"
 }
