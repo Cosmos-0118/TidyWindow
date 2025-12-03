@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Settings page centralises global preferences for how TidyWindow behaves in the background: telemetry sharing, startup behaviour, tray presence, notifications, and the PulseGuard watchdog. Changes propagate immediately to supporting services (startup tasks, notification channels, privilege monitors) and are persisted via the `UserPreferencesService`.
+The Settings page centralises global preferences for how TidyWindow behaves in the background: telemetry sharing, startup behaviour, tray presence, notifications, PulseGuard, **and now the in-app update checker**. Changes propagate immediately to supporting services (startup tasks, notification channels, privilege monitors) and are persisted via the `UserPreferencesService`. Update checks read a lightweight JSON manifest hosted in `data/catalog/latest-release.json`, compare it to the local assembly version, and surface download/release-notes links without requiring a fresh installer every time.
 
 ## Purpose
 
@@ -37,6 +37,7 @@ The Settings page centralises global preferences for how TidyWindow behaves in t
 ┌────────────────────┬────────────────────────────┐
 │UserPreferencesService│ PrivilegeService         │
 │BackgroundPresenceService│ PulseGuardService     │
+│IUpdateService + UpdateService│ latest-release.json│
 └────────────────────┴────────────────────────────┘
 ```
 
@@ -51,6 +52,14 @@ The Settings page centralises global preferences for how TidyWindow behaves in t
 
     -   Persists preferences under `%AppData%/TidyWindow/preferences.json` and raises `PreferencesChanged` events.
 
+-   **`IUpdateService` / `UpdateService`** (`src/TidyWindow.App/Services/UpdateService.cs`)
+
+    -   Fetches `data/catalog/latest-release.json`, compares the manifest version against the local build, and exposes download/release-note URIs plus metadata for bindings within `SettingsViewModel`.
+
+-   **`data/catalog/latest-release.json`**
+
+    -   Static manifest published with the repo (and therefore accessible via `raw.githubusercontent.com`). Update the JSON whenever a new installer ships to change the release summary, download URL, hash, or channel label.
+
 -   **`BackgroundPresenceService`** & **`AppAutoStartService`**
 
     -   React to preference changes by registering/unregistering Windows startup entries and toggling tray presence.
@@ -61,6 +70,7 @@ The Settings page centralises global preferences for how TidyWindow behaves in t
 ## User Interface
 
 -   **Telemetry Card**: Toggle to opt into anonymised diagnostics, with copy explaining PulseGuard benefits.
+-   **Updates Card**: Shows the current build number, the latest manifest version, release summary, published timestamp, download/hash metadata, and a “Check now” button that calls `IUpdateService`. Hyperlinks jump to the GitHub release or installer when available.
 -   **Background Mode**: Enable/disable "Run in background" and "Launch at startup".
 -   **Notifications**:
     -   Master toggle for PulseGuard notifications plus "Only when inactive" filter.
@@ -79,11 +89,15 @@ The Settings page centralises global preferences for how TidyWindow behaves in t
     - Changing a toggle updates the backing field, logs a status message, and hands the value to `UserPreferencesService`.
     - Dependent properties (PulseGuard toggles) recalculate enabling states immediately.
 
-3. **Preference Broadcast**
+3. **Update Check**
+
+    - `SettingsViewModel` automatically issues one manifest check per session when the page first loads (and exposes a "Check now" command for manual refreshes). Results update the status copy, summary text, and download/release-note links, and `MainViewModel.LogActivityInformation` records the outcome.
+
+4. **Preference Broadcast**
 
     - Other services listen to `UserPreferencesService.PreferencesChanged` and adjust runtime behaviour (tray presence, notification channels, etc.).
 
-4. **External Changes**
+5. **External Changes**
     - If preferences are adjusted elsewhere (e.g., background automation), the event handler re-applies them through `ApplyPreferences` to keep the UI in sync.
 
 ## Best Practices
@@ -100,7 +114,8 @@ The Settings page centralises global preferences for how TidyWindow behaves in t
 1. **Guard Recursion**: Wrap preference applications with `_isApplyingPreferences` to prevent infinite loops.
 2. **Surface Feedback**: Every new preference should emit a clear status message when toggled.
 3. **Respect Dependencies**: When adding new PulseGuard knobs, ensure they disable gracefully when notifications are off.
-4. **Update Documentation**: If you introduce new preferences, update this page and README to keep feature descriptions accurate.
+4. **Update the Manifest**: Bump `data/catalog/latest-release.json` (version, summary, URLs, hash, size) whenever a new installer ships so the in-app update card points to the right payload.
+5. **Update Documentation**: If you introduce new preferences or update flows, refresh this page and README to keep feature descriptions accurate.
 
 ## Technical Notes
 
@@ -113,4 +128,3 @@ The Settings page centralises global preferences for how TidyWindow behaves in t
 -   Allow exporting/importing preference profiles.
 -   Integrate system dark-mode detection toggles.
 -   Provide direct shortcuts to change Windows notification settings.
-

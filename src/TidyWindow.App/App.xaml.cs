@@ -91,6 +91,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<IUserConfirmationService, UserConfirmationService>();
                 services.AddSingleton<BackgroundPresenceService>();
                 services.AddSingleton<PulseGuardService>();
+                services.AddSingleton<IUpdateService, UpdateService>();
+                services.AddSingleton<IUpdateInstallerService, UpdateInstallerService>();
                 services.AddSingleton<ISystemRestoreGuardService, SystemRestoreGuardService>();
                 services.AddSingleton<InstallQueueWorkObserver>();
                 services.AddSingleton<EssentialsQueueWorkObserver>();

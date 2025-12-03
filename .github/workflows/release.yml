@@ -16,6 +16,28 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v4
 
+            - name: Derive release version
+              shell: pwsh
+              run: |
+                  $refName = $env:GITHUB_REF_NAME
+                  if ([string]::IsNullOrWhiteSpace($refName)) {
+                    throw "GITHUB_REF_NAME is not available."
+                  }
+
+                  $candidate = $refName.Split('/')[-1]
+                  if ($candidate.StartsWith('v')) {
+                    $candidate = $candidate.Substring(1)
+                  }
+
+                  if ($candidate -match '(?<version>\d+(?:\.\d+){1,3})') {
+                    $version = $Matches.version
+                  } else {
+                    $version = $candidate
+                  }
+
+                  Write-Host "Using release version $version"
+                  Add-Content -Path $env:GITHUB_ENV -Value "RELEASE_VERSION=$version"
+
             - name: Install .NET SDK
               uses: actions/setup-dotnet@v4
               with:
@@ -27,18 +49,37 @@ jobs:
                   dotnet restore src/TidyWindow.App/TidyWindow.App.csproj --runtime win-x64 -p:PublishReadyToRun=true
 
             - name: Build solution
-              run: dotnet build src/TidyWindow.sln --configuration Release --no-restore
+              shell: pwsh
+              run: |
+                  if (-not $env:RELEASE_VERSION) {
+                    throw "RELEASE_VERSION is not set."
+                  }
+
+                  dotnet build src/TidyWindow.sln `
+                    --configuration Release `
+                    --no-restore `
+                    /p:Version=$env:RELEASE_VERSION `
+                    /p:FileVersion=$env:RELEASE_VERSION `
+                    /p:InformationalVersion=$env:RELEASE_VERSION
 
             - name: Publish self-contained package
-              run: >-
-                  dotnet publish src/TidyWindow.App/TidyWindow.App.csproj
-                  --configuration Release
-                  --runtime win-x64
-                  --self-contained true
-                  /p:PublishReadyToRun=true
-                  /p:DebugType=None
-                  /p:DebugSymbols=false
-                  --no-build
+              shell: pwsh
+              run: |
+                  if (-not $env:RELEASE_VERSION) {
+                    throw "RELEASE_VERSION is not set."
+                  }
+
+                  dotnet publish src/TidyWindow.App/TidyWindow.App.csproj `
+                    --configuration Release `
+                    --runtime win-x64 `
+                    --self-contained true `
+                    /p:PublishReadyToRun=true `
+                    /p:DebugType=None `
+                    /p:DebugSymbols=false `
+                    --no-build `
+                    /p:Version=$env:RELEASE_VERSION `
+                    /p:FileVersion=$env:RELEASE_VERSION `
+                    /p:InformationalVersion=$env:RELEASE_VERSION
 
             - name: Verify packaged automation assets
               shell: pwsh
@@ -83,7 +124,7 @@ jobs:
                   if (-not (Test-Path $publishDir)) {
                     throw "Publish directory not found: $publishDir"
                   }
-                  $versionTag = $env:GITHUB_REF.Replace('refs/tags/', '')
+                  $versionTag = $env:RELEASE_VERSION
                   $packageName = "TidyWindow-$versionTag-win-x64"
                   $staging = "artifacts"
                   New-Item -ItemType Directory -Force -Path $staging | Out-Null
@@ -102,8 +143,7 @@ jobs:
               shell: pwsh
               run: |
                   $publishDir = (Resolve-Path "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish").Path
-                  $version = $env:GITHUB_REF_NAME
-                  if ($version.StartsWith('v')) { $version = $version.Substring(1) }
+                  $version = $env:RELEASE_VERSION
                   $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
                   if (-not (Test-Path $iscc)) {
                     throw "ISCC.exe not found at $iscc"
@@ -129,4 +169,3 @@ jobs:
                   files: artifacts/*
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-

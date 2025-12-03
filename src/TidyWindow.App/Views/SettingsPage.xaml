@@ -116,6 +116,175 @@
                                                 BorderThickness="1"
                                                 Margin="0,0,0,16">
                                         <StackPanel>
+                                                <TextBlock Text="Updates"
+                                                                   Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
+                                                <TextBlock Text="Check for signed releases without reinstalling everything."
+                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                                                   Margin="0,6,0,16"/>
+
+                                                <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <StackPanel Margin="0,0,12,0">
+                                                                <TextBlock Text="Current version"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="12"/>
+                                                                <TextBlock Text="{Binding CurrentVersionDisplay}"
+                                                                                   Foreground="#F8FAFC"
+                                                                                   FontSize="16"
+                                                                                   FontWeight="SemiBold"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                                Margin="12,0">
+                                                                <TextBlock Text="Latest available"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="12"/>
+                                                                <TextBlock Text="{Binding LatestVersionDisplay}"
+                                                                                   Foreground="#F8FAFC"
+                                                                                   FontSize="16"
+                                                                                   FontWeight="SemiBold"/>
+                                                                <TextBlock Text="{Binding UpdateChannelDisplay}"
+                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                                                                   Margin="0,4,0,0"/>
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="2"
+                                                                                Margin="12,0,0,0">
+                                                                <TextBlock Text="Last checked"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="12"/>
+                                                                <TextBlock Text="{Binding LastUpdateCheckDisplay}"
+                                                                                   Foreground="#F8FAFC"
+                                                                                   FontSize="14"
+                                                                                   FontWeight="SemiBold"
+                                                                                   TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                </Grid>
+
+                                                <StackPanel>
+                                                        <StackPanel Orientation="Horizontal"
+                                                                        Margin="0,16,0,0"
+                                                                        VerticalAlignment="Center">
+                                                                <Button Content="{Binding CheckForUpdatesButtonLabel}"
+                                                                                Command="{Binding CheckForUpdatesCommand}"
+                                                                                Padding="18,8"
+                                                                                FontWeight="SemiBold"
+                                                                                Foreground="#F8FAFC"
+                                                                                Background="#7C3AED"
+                                                                                BorderBrush="#7C3AED"
+                                                                                Cursor="Hand"/>
+                                                                <Button Content="{Binding InstallUpdateButtonLabel}"
+                                                                                Command="{Binding InstallUpdateCommand}"
+                                                                                Padding="18,8"
+                                                                                FontWeight="SemiBold"
+                                                                                Foreground="#0F172A"
+                                                                                Background="#FACC15"
+                                                                                BorderBrush="#FACC15"
+                                                                                Cursor="Hand"
+                                                                                Margin="12,0,0,0"
+                                                                                Visibility="{Binding IsInstallUpdateVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                <TextBlock Text="{Binding UpdateAvailabilitySummary}"
+                                                                                   Foreground="#94A3B8"
+                                                                                   Margin="12,6,0,0"/>
+                                                        </StackPanel>
+                                                        <ProgressBar Height="4"
+                                                                         Margin="0,8,0,0"
+                                                                         IsIndeterminate="True"
+                                                                         Visibility="{Binding IsCheckingForUpdates, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        <StackPanel Margin="0,8,0,0"
+                                                                        Visibility="{Binding ShowInstallerProgress, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <ProgressBar Height="4"
+                                                                                 Maximum="100"
+                                                                                 Value="{Binding InstallerDownloadProgress, Mode=OneWay}"
+                                                                                 IsIndeterminate="{Binding IsInstallerProgressIndeterminate, Mode=OneWay}"/>
+                                                                <TextBlock Text="{Binding InstallerDownloadStatus}"
+                                                                                   Foreground="#94A3B8"
+                                                                                   Margin="0,4,0,0"/>
+                                                        </StackPanel>
+                                                </StackPanel>
+
+                                                <TextBlock Text="{Binding UpdateStatusMessage}"
+                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                                                   Margin="0,12,0,0"/>
+
+                                                <TextBlock Text="Release summary"
+                                                                   Foreground="#94A3B8"
+                                                                   FontSize="12"
+                                                                   Margin="0,16,0,4"/>
+                                                <TextBlock Text="{Binding LatestReleaseSummary}"
+                                                                   Foreground="#E2E8F0"
+                                                                   TextWrapping="Wrap"/>
+
+                                                <Grid Margin="0,16,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                                <TextBlock Text="Published"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="12"/>
+                                                                <TextBlock Text="{Binding LatestReleasePublishedDisplay}"
+                                                                                   Foreground="#F8FAFC"
+                                                                                   FontSize="14"
+                                                                                   FontWeight="SemiBold"/>
+                                                                <TextBlock Text="Installer size"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="12"
+                                                                                   Margin="0,12,0,0"/>
+                                                                <TextBlock Text="{Binding InstallerSizeDisplay}"
+                                                                                   Foreground="#F8FAFC"
+                                                                                   FontSize="14"
+                                                                                   FontWeight="SemiBold"/>
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1"
+                                                                                Margin="12,0,0,0">
+                                                                <TextBlock Text="Integrity"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="12"/>
+                                                                <TextBlock Text="{Binding LatestIntegrityDisplay}"
+                                                                                   Foreground="#F8FAFC"
+                                                                                   FontSize="13"
+                                                                                   TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                </Grid>
+
+                                                <StackPanel Margin="0,16,0,0"
+                                                                Visibility="{Binding HasReleaseNotesLink, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="Release notes"
+                                                                           Foreground="#94A3B8"
+                                                                           FontSize="12"/>
+                                                        <TextBlock Foreground="#F8FAFC">
+                                                                <Hyperlink NavigateUri="{Binding LatestReleaseNotesUri}"
+                                                                                   RequestNavigate="UpdateLink_RequestNavigate">Open on GitHub</Hyperlink>
+                                                        </TextBlock>
+                                                </StackPanel>
+
+                                                <StackPanel Margin="0,12,0,0"
+                                                                Visibility="{Binding HasDownloadLink, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <TextBlock Text="Download installer"
+                                                                           Foreground="#94A3B8"
+                                                                           FontSize="12"/>
+                                                        <TextBlock Foreground="#F8FAFC">
+                                                                <Hyperlink NavigateUri="{Binding LatestDownloadUri}"
+                                                                                   RequestNavigate="UpdateLink_RequestNavigate">Download</Hyperlink>
+                                                        </TextBlock>
+                                                </StackPanel>
+                                        </StackPanel>
+                                </Border>
+
+                                <Border Background="#0B1120"
+                                                Padding="24"
+                                                CornerRadius="16"
+                                                BorderBrush="#1D2A44"
+                                                BorderThickness="1"
+                                                Margin="0,0,0,16">
+                                        <StackPanel>
                                                 <TextBlock Text="Telemetry sharing"
                                                                    Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
                                                 <TextBlock Text="Opt in to share anonymized diagnostics so PulseGuard can spot regressions early."

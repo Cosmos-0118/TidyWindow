@@ -1,0 +1,110 @@
+name: Refresh release manifest
+
+on:
+    release:
+        types: [published]
+
+permissions:
+    contents: write
+
+jobs:
+    update-manifest:
+        name: Update latest-release.json
+        runs-on: windows-latest
+
+        steps:
+            - name: Check out repository
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
+            - name: Update manifest with release metadata
+              shell: pwsh
+              env:
+                  RELEASE_JSON: ${{ toJson(github.event.release) }}
+                  INSTALLER_PATTERN: TidyWindow-Setup-*.exe
+              run: |
+                  if (-not $env:RELEASE_JSON) {
+                    throw "Release payload not available."
+                  }
+
+                  $release = $env:RELEASE_JSON | ConvertFrom-Json
+                  if (-not $release) {
+                    throw "Unable to parse release payload."
+                  }
+
+                  $asset = $release.assets | Where-Object { $_.name -like $env:INSTALLER_PATTERN } | Select-Object -First 1
+                  if (-not $asset) {
+                    throw "No asset matching pattern '$env:INSTALLER_PATTERN' was found on the release."
+                  }
+
+                  $downloadPath = Join-Path $PWD $asset.name
+                  Write-Host "Downloading release asset $($asset.name) ..."
+                  try {
+                    $response = Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $downloadPath -PassThru -ErrorAction Stop
+                  }
+                  catch {
+                    throw "Failed to download release asset: $($_.Exception.Message)"
+                  }
+
+                  if (-not $response.StatusCode -or $response.StatusCode -lt 200 -or $response.StatusCode -ge 300) {
+                    throw "Asset download returned non-success status code: $($response.StatusCode)"
+                  }
+
+                  $installerFile = Get-Item $downloadPath
+                  $hash = Get-FileHash $downloadPath -Algorithm SHA256
+
+                  $summary = if ([string]::IsNullOrWhiteSpace($release.body)) {
+                    "See release notes for details."
+                  } else {
+                    ($release.body.Trim() -replace "\r", " " -replace "\n", " ")
+                  }
+
+                  if ($summary.Length -gt 220) {
+                    $summary = $summary.Substring(0, 217) + "..."
+                  }
+
+                  function Get-NormalizedVersion([string]$tagName) {
+                    if ([string]::IsNullOrWhiteSpace($tagName)) {
+                      return "0.0.0"
+                    }
+
+                    $candidate = $tagName.Split('/')[-1]
+                    $candidate = $candidate.TrimStart('v', 'V')
+
+                    if ($candidate -match '(?<version>\d+(?:\.\d+){1,3})') {
+                      return $Matches.version
+                    }
+
+                    return $candidate
+                  }
+
+                  $manifestPath = "data/catalog/latest-release.json"
+                  $manifestDirectory = Split-Path $manifestPath -Parent
+                  if (-not (Test-Path $manifestDirectory)) {
+                    New-Item -ItemType Directory -Path $manifestDirectory -Force | Out-Null
+                  }
+
+                  $manifest = [ordered]@{
+                    version = (Get-NormalizedVersion -tagName $release.tag_name)
+                    channel = "stable"
+                    summary = $summary
+                    downloadUrl = $asset.browser_download_url
+                    releaseNotesUrl = $release.html_url
+                    publishedAt = $release.published_at
+                    installerSizeBytes = $installerFile.Length
+                    sha256 = $hash.Hash.ToLowerInvariant()
+                  }
+
+                  $manifestJson = $manifest | ConvertTo-Json -Depth 4
+                  $manifestJson | Out-File -FilePath $manifestPath -Encoding utf8
+
+                  Write-Host "Updated $manifestPath with:" 
+                  Write-Host $manifestJson
+
+            - name: Commit manifest update
+              uses: stefanzweifel/git-auto-commit-action@v5
+              with:
+                  commit_message: "chore: refresh release manifest"
+                  file_pattern: data/catalog/latest-release.json
+                  branch: ${{ github.event.release.target_commitish }}
