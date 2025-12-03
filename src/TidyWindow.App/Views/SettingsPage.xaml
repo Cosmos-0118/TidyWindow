@@ -96,6 +96,118 @@
                         <Setter Property="TextWrapping"
                                         Value="Wrap"/>
                 </Style>
+
+                <LinearGradientBrush x:Key="SettingsCheckButtonBrush"
+                                      StartPoint="0,0"
+                                      EndPoint="1,1">
+                        <GradientStop Color="#7C3AED"
+                                      Offset="0"/>
+                        <GradientStop Color="#9333EA"
+                                      Offset="1"/>
+                </LinearGradientBrush>
+                <LinearGradientBrush x:Key="SettingsCheckButtonHoverBrush"
+                                      StartPoint="0,0"
+                                      EndPoint="1,1">
+                        <GradientStop Color="#A855F7"
+                                      Offset="0"/>
+                        <GradientStop Color="#C084FC"
+                                      Offset="1"/>
+                </LinearGradientBrush>
+                <LinearGradientBrush x:Key="SettingsInstallButtonBrush"
+                                      StartPoint="0,0"
+                                      EndPoint="1,1">
+                        <GradientStop Color="#F59E0B"
+                                      Offset="0"/>
+                        <GradientStop Color="#FBBF24"
+                                      Offset="1"/>
+                </LinearGradientBrush>
+                <LinearGradientBrush x:Key="SettingsInstallButtonHoverBrush"
+                                      StartPoint="0,0"
+                                      EndPoint="1,1">
+                        <GradientStop Color="#FBBF24"
+                                      Offset="0"/>
+                        <GradientStop Color="#FDE047"
+                                      Offset="1"/>
+                </LinearGradientBrush>
+                <DropShadowEffect x:Key="SettingsActionButtonGlowEffect"
+                                  Color="#020617"
+                                  BlurRadius="16"
+                                  ShadowDepth="0"
+                                  Opacity="0.55"/>
+                <Style x:Key="SettingsActionButtonStyle"
+                           TargetType="Button">
+                        <Setter Property="Padding"
+                                        Value="18,10"/>
+                        <Setter Property="FontWeight"
+                                        Value="SemiBold"/>
+                        <Setter Property="FontSize"
+                                        Value="14"/>
+                        <Setter Property="Cursor"
+                                        Value="Hand"/>
+                        <Setter Property="BorderThickness"
+                                        Value="0"/>
+                        <Setter Property="Foreground"
+                                        Value="#020617"/>
+                        <Setter Property="Tag"
+                                        Value="#7C3AED"/>
+                        <Setter Property="Template">
+                                <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                                <Border x:Name="ActionBorder"
+                                                                CornerRadius="12"
+                                                                Padding="{TemplateBinding Padding}"
+                                                                Effect="{StaticResource SettingsActionButtonGlowEffect}">
+                                                        <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                        <Setter Property="Opacity"
+                                                                                        Value="1"/>
+                                                                        <Setter Property="Background">
+                                                                                <Setter.Value>
+                                                                                        <Binding Path="Background"
+                                                                                                 RelativeSource="{RelativeSource TemplatedParent}"/>
+                                                                                </Setter.Value>
+                                                                        </Setter>
+                                                                        <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}"
+                                                                                             Value="True">
+                                                                                        <Setter Property="Background"
+                                                                                                        Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding IsEnabled, RelativeSource={RelativeSource TemplatedParent}}"
+                                                                                             Value="False">
+                                                                                        <Setter Property="Opacity"
+                                                                                                        Value="0.55"/>
+                                                                                </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                </Style>
+                                                        </Border.Style>
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center"/>
+                                                </Border>
+                                        </ControlTemplate>
+                                </Setter.Value>
+                        </Setter>
+                </Style>
+                <Style x:Key="SettingsCheckButtonStyle"
+                           TargetType="Button"
+                           BasedOn="{StaticResource SettingsActionButtonStyle}">
+                        <Setter Property="Background"
+                                        Value="{StaticResource SettingsCheckButtonBrush}"/>
+                        <Setter Property="Tag"
+                                        Value="{StaticResource SettingsCheckButtonHoverBrush}"/>
+                        <Setter Property="Foreground"
+                                        Value="#F8FAFC"/>
+                </Style>
+                <Style x:Key="SettingsInstallButtonStyle"
+                           TargetType="Button"
+                           BasedOn="{StaticResource SettingsActionButtonStyle}">
+                        <Setter Property="Background"
+                                        Value="{StaticResource SettingsInstallButtonBrush}"/>
+                        <Setter Property="Tag"
+                                        Value="{StaticResource SettingsInstallButtonHoverBrush}"/>
+                        <Setter Property="Foreground"
+                                        Value="#0F172A"/>
+                </Style>
         </Page.Resources>
 
         <ScrollViewer Margin="32"
@@ -172,21 +284,13 @@
                                                                         VerticalAlignment="Center">
                                                                 <Button Content="{Binding CheckForUpdatesButtonLabel}"
                                                                                 Command="{Binding CheckForUpdatesCommand}"
-                                                                                Padding="18,8"
-                                                                                FontWeight="SemiBold"
-                                                                                Foreground="#F8FAFC"
-                                                                                Background="#7C3AED"
-                                                                                BorderBrush="#7C3AED"
-                                                                                Cursor="Hand"/>
+                                                                                Style="{StaticResource SettingsCheckButtonStyle}"
+                                                                                IsEnabled="{Binding IsUpdateActionsEnabled}"/>
                                                                 <Button Content="{Binding InstallUpdateButtonLabel}"
                                                                                 Command="{Binding InstallUpdateCommand}"
-                                                                                Padding="18,8"
-                                                                                FontWeight="SemiBold"
-                                                                                Foreground="#0F172A"
-                                                                                Background="#FACC15"
-                                                                                BorderBrush="#FACC15"
-                                                                                Cursor="Hand"
+                                                                                Style="{StaticResource SettingsInstallButtonStyle}"
                                                                                 Margin="12,0,0,0"
+                                                                                IsEnabled="{Binding IsUpdateActionsEnabled}"
                                                                                 Visibility="{Binding IsInstallUpdateVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                                 <TextBlock Text="{Binding UpdateAvailabilitySummary}"
                                                                                    Foreground="#94A3B8"

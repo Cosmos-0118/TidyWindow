@@ -16,6 +16,7 @@ public sealed class SettingsViewModel : ViewModelBase
     private readonly IUpdateService _updateService;
     private readonly IUpdateInstallerService _updateInstallerService;
     private readonly ITrayService _trayService;
+    private readonly AppRestartService _restartService;
     private readonly string _currentVersion;
 
     private bool _telemetryEnabled;
@@ -43,13 +44,15 @@ public sealed class SettingsViewModel : ViewModelBase
         UserPreferencesService preferences,
         IUpdateService updateService,
         IUpdateInstallerService updateInstallerService,
-        ITrayService trayService)
+        ITrayService trayService,
+        AppRestartService restartService)
     {
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _updateService = updateService ?? throw new ArgumentNullException(nameof(updateService));
         _updateInstallerService = updateInstallerService ?? throw new ArgumentNullException(nameof(updateInstallerService));
         _trayService = trayService ?? throw new ArgumentNullException(nameof(trayService));
+        _restartService = restartService ?? throw new ArgumentNullException(nameof(restartService));
         _currentPrivilegeMode = privilegeService?.CurrentMode ?? PrivilegeMode.Administrator;
         _currentVersion = string.IsNullOrWhiteSpace(_updateService.CurrentVersion)
             ? "0.0.0"
@@ -487,7 +490,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 $"Installer launched at {result.InstallerPath}. Hash verified: {result.HashVerified}.");
 
             await Task.Delay(1500).ConfigureAwait(true);
-            TryShutdownForInstaller();
+            RestartAfterInstaller();
         }
         catch (OperationCanceledException)
         {
@@ -503,6 +506,23 @@ public sealed class SettingsViewModel : ViewModelBase
             IsInstallingUpdate = false;
             ResetInstallerProgress();
         }
+    }
+
+    private void RestartAfterInstaller()
+    {
+        try
+        {
+            if (_restartService.TryRestart(launchMinimized: true))
+            {
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _mainViewModel.LogActivityInformation("Updates", $"Automatic restart failed: {ex.Message}");
+        }
+
+        TryShutdownForInstaller();
     }
 
     private void TryShutdownForInstaller()
