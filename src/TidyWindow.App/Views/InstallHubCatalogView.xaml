@@ -449,13 +449,14 @@
                                             <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="320"
                                                                              MaxColumnWidth="420"
                                                                              ColumnSpacing="18"
-                                                                             RowSpacing="18"/>
+                                                                             RowSpacing="18"
+                                                                             Padding="0,0,18,18"/>
                                         </ItemsPanelTemplate>
                                     </ListView.ItemsPanel>
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
                                             <Setter Property="Padding" Value="0"/>
-                                            <Setter Property="Margin" Value="0,0,14,14"/>
+                                            <Setter Property="Margin" Value="0"/>
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
                                             <Setter Property="VerticalContentAlignment" Value="Stretch"/>
                                             <Setter Property="Focusable" Value="False"/>

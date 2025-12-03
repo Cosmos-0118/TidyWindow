@@ -195,8 +195,8 @@
                                                 </Button>
                                                 <Button Content="Browse catalog"
                                                         Margin="8,0,0,0"
-                                                        Command="{Binding DataContext.NavigatePivotCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                        CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Catalog}"
+                                                        Command="{Binding DataContext.ViewBundleDetailsCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                        CommandParameter="{Binding}"
                                                         Style="{StaticResource InstallSecondaryButtonStyle}"
                                                         MinWidth="110"/>
                                             </StackPanel>

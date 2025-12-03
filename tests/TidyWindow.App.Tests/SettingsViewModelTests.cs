@@ -82,15 +82,13 @@ public sealed class SettingsViewModelTests
         var privilegeService = new StubPrivilegeService();
         var preferences = CreatePreferences(out var cleanup);
         var trayService = new StubTrayService();
-        var restartService = new AppRestartService(activityLog, trayService);
         var viewModel = new SettingsViewModel(
             mainViewModel,
             privilegeService,
             preferences,
             updateService,
             new StubUpdateInstallerService(),
-            trayService,
-            restartService);
+            trayService);
 
         dispose = () =>
         {
