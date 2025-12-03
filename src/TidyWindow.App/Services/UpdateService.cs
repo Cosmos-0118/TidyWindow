@@ -116,17 +116,17 @@ public sealed class UpdateService : IUpdateService
         var informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         if (!string.IsNullOrWhiteSpace(informationalVersion))
         {
-            return informationalVersion.Trim();
+            return NormalizeVersion(informationalVersion);
         }
 
         var fileVersion = assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
         if (!string.IsNullOrWhiteSpace(fileVersion))
         {
-            return fileVersion.Trim();
+            return NormalizeVersion(fileVersion);
         }
 
-        var assemblyVersion = assembly.GetName().Version;
-        return assemblyVersion?.ToString() ?? "0.0.0";
+        var assemblyVersion = assembly.GetName().Version?.ToString();
+        return NormalizeVersion(assemblyVersion);
     }
 
     private static string NormalizeVersion(string? value)
@@ -140,6 +140,12 @@ public sealed class UpdateService : IUpdateService
         if (trimmed.StartsWith("v", StringComparison.OrdinalIgnoreCase))
         {
             trimmed = trimmed[1..];
+        }
+
+        var metadataSeparator = trimmed.IndexOf('+');
+        if (metadataSeparator >= 0)
+        {
+            trimmed = trimmed[..metadataSeparator];
         }
 
         return trimmed;
