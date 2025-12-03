@@ -23,6 +23,7 @@ jobs:
               env:
                   RELEASE_JSON: ${{ toJson(github.event.release) }}
                   INSTALLER_PATTERN: TidyWindow-Setup-*.exe
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   if (-not $env:RELEASE_JSON) {
                     throw "Release payload not available."
@@ -33,9 +34,65 @@ jobs:
                     throw "Unable to parse release payload."
                   }
 
-                  $asset = $release.assets | Where-Object { $_.name -like $env:INSTALLER_PATTERN } | Select-Object -First 1
+                  function Get-ReleaseFromApi {
+                    param(
+                      [Parameter(Mandatory = $true)]
+                      [long] $Id,
+                      [Parameter(Mandatory = $true)]
+                      [string] $Repository
+                    )
+
+                    if (-not $env:GITHUB_TOKEN) {
+                      return $null
+                    }
+
+                    $headers = @{ 
+                      Authorization = "Bearer $env:GITHUB_TOKEN";
+                      Accept = "application/vnd.github+json";
+                      "User-Agent" = "github-actions"
+                    }
+
+                    $uri = "https://api.github.com/repos/$Repository/releases/$Id"
+                    try {
+                      return Invoke-RestMethod -Method Get -Uri $uri -Headers $headers -ErrorAction Stop
+                    }
+                    catch {
+                      Write-Warning "Failed to refresh release metadata: $($_.Exception.Message)"
+                      return $null
+                    }
+                  }
+
+                  $repo = $env:GITHUB_REPOSITORY
+                  if ([string]::IsNullOrWhiteSpace($repo)) {
+                    throw "GITHUB_REPOSITORY was not provided."
+                  }
+
+                  $releaseId = $release.id
+                  $maxAttempts = 40
+                  $delaySeconds = 15
+                  $asset = $null
+
+                  for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+                    $asset = $release.assets | Where-Object { $_.name -like $env:INSTALLER_PATTERN } | Select-Object -First 1
+                    if ($asset) {
+                      break
+                    }
+
+                    if ($attempt -lt $maxAttempts) {
+                      Write-Host "Installer asset not yet available (attempt $attempt/$maxAttempts). Waiting $delaySeconds seconds before retrying..."
+                      Start-Sleep -Seconds $delaySeconds
+                      if ($attempt % 2 -eq 0) {
+                        $refreshed = Get-ReleaseFromApi -Id $releaseId -Repository $repo
+                        if ($refreshed) {
+                          $release = $refreshed
+                        }
+                      }
+                    }
+                  }
+
                   if (-not $asset) {
-                    throw "No asset matching pattern '$env:INSTALLER_PATTERN' was found on the release."
+                    $waited = $maxAttempts * $delaySeconds
+                    throw "No asset matching pattern '$env:INSTALLER_PATTERN' was found after waiting $waited seconds."
                   }
 
                   $downloadPath = Join-Path $PWD $asset.name

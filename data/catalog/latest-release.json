@@ -1,10 +1,10 @@
 {
-  "version": "3.3.0",
+  "version": "3.4.0",
   "channel": "stable",
-  "summary": "Fixes minor bugs and expands the built-in process catalog.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.3.0/TidyWindow-Setup-3.3.0.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.3.0",
-  "publishedAt": "2025-12-01T04:30:18Z",
-  "installerSizeBytes": 80862841,
-  "sha256": "1d14e9c50cea633042499f1319391f68c3d137fcf152293cf05d00f3b2413305"
+  "summary": "-added autoupdate. -we can autoupdate app from settings page.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.4.0/TidyWindow-Setup-3.4.0.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.4.0",
+  "publishedAt": "2025-12-03T09:38:33Z",
+  "installerSizeBytes": 80896219,
+  "sha256": "5230ed6d258aca9e138c505b6060bbe8b5acf444b618661d67ba46d63d5c36d2"
 }
