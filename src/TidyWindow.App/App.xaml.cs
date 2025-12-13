@@ -67,12 +67,19 @@ public partial class App : WpfApplication
 
         base.OnStartup(e);
 
-        var splash = new SplashScreenWindow();
-        splash.Show();
-        splash.UpdateStatus("Initializing system context...");
+        var launchMinimized = e.Args?.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase)) == true;
+        var showSplash = !launchMinimized;
 
-        await Task.Delay(200);
-        splash.UpdateStatus("Configuring cockpit services...");
+        SplashScreenWindow? splash = null;
+        if (showSplash)
+        {
+            splash = new SplashScreenWindow();
+            splash.Show();
+            splash.UpdateStatus("Initializing system context...");
+
+            await Task.Delay(200);
+            splash.UpdateStatus("Configuring cockpit services...");
+        }
 
         _host = Host.CreateDefaultBuilder()
             .ConfigureServices(services =>
@@ -172,10 +179,10 @@ public partial class App : WpfApplication
             })
             .Build();
 
-        splash.UpdateStatus("Starting background services...");
+        splash?.UpdateStatus("Starting background services...");
         await _host.StartAsync();
 
-        splash.UpdateStatus("Preparing interface...");
+        splash?.UpdateStatus("Preparing interface...");
 
         var preferences = _host.Services.GetRequiredService<UserPreferencesService>();
         var trayService = _host.Services.GetRequiredService<ITrayService>();
@@ -190,7 +197,6 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
         _ = _host.Services.GetRequiredService<AntiSystemBackgroundScanner>();
 
-        var launchMinimized = e.Args?.Any(arg => string.Equals(arg, "--minimized", StringComparison.OrdinalIgnoreCase)) == true;
         var startHidden = launchMinimized && preferences.Current.RunInBackground;
 
         var mainWindow = _host.Services.GetRequiredService<MainWindow>();
@@ -203,8 +209,11 @@ public partial class App : WpfApplication
             mainWindow.Activate();
         }
 
-        splash.UpdateStatus("Launching cockpit...");
-        await splash.CloseWithFadeAsync(TimeSpan.FromMilliseconds(1600));
+        if (splash is not null)
+        {
+            splash.UpdateStatus("Launching cockpit...");
+            await splash.CloseWithFadeAsync(TimeSpan.FromMilliseconds(1600));
+        }
 
         if (!startHidden)
         {
