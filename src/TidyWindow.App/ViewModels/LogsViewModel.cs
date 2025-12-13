@@ -40,6 +40,11 @@ public sealed partial class LogsViewModel : ViewModelBase, IDisposable
             ActivityLogLevel.Error
         };
 
+        if (_entries.Count > 0)
+        {
+            SelectedEntry = _entries[0];
+        }
+
         _logService.EntryAdded += OnEntryAdded;
         _searchRefreshDebounce = new UiDebounceDispatcher(TimeSpan.FromMilliseconds(110));
     }

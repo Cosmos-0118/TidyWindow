@@ -12,69 +12,38 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
 
-    <Style x:Key="LogsCardBorderStyle"
-           TargetType="Border">
-        <Setter Property="Background"
-            Value="#0F172A"/>
-        <Setter Property="BorderBrush"
-            Value="#1E293B"/>
-        <Setter Property="BorderThickness"
-            Value="1"/>
-        <Setter Property="CornerRadius"
-            Value="12"/>
-        <Setter Property="Padding"
-            Value="16"/>
-    </Style>
+        <Style x:Key="LogsCardBorderStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#1E293B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Padding" Value="16"/>
+        </Style>
 
-        <Style x:Key="LogsSecondaryButtonStyle"
-               TargetType="Button">
-            <Setter Property="Background"
-                    Value="#1E293B"/>
-            <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
-            <Setter Property="BorderBrush"
-                    Value="#334155"/>
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-        <Setter Property="Padding"
-            Value="10,5"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
+        <Style x:Key="LogsSecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                        <Border x:Name="Root" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsEnabled"
-                                     Value="False">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#0F172A"/>
-                                <Setter TargetName="Root"
-                                        Property="BorderBrush"
-                                        Value="#1E293B"/>
-                                <Setter Property="Foreground"
-                                        Value="#475569"/>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#0F172A"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
+                                <Setter Property="Foreground" Value="#475569"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#243048"/>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#243048"/>
                             </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#1A2436"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1A2436"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -82,8 +51,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="LogEntryCardStyle"
-               TargetType="Border">
+        <Style x:Key="LogEntryCardStyle" TargetType="Border">
             <Setter Property="Background" Value="#101C33"/>
             <Setter Property="BorderBrush" Value="#1E293B"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -91,21 +59,18 @@
             <Setter Property="Padding" Value="14"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
-                             Value="True">
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}" Value="True">
                     <Setter Property="Background" Value="#14253F"/>
                     <Setter Property="BorderBrush" Value="#2C4A76"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}"
-                             Value="True">
+                <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsSelected}" Value="True">
                     <Setter Property="Background" Value="#132844"/>
                     <Setter Property="BorderBrush" Value="#38BDF8"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="LogLevelChipStyle"
-               TargetType="Border">
+        <Style x:Key="LogLevelChipStyle" TargetType="Border">
             <Setter Property="Background" Value="#13243C"/>
             <Setter Property="BorderBrush" Value="#1E3A5F"/>
             <Setter Property="BorderThickness" Value="1"/>
@@ -114,56 +79,51 @@
             <Setter Property="Margin" Value="0,0,0,6"/>
             <Setter Property="TextElement.Foreground" Value="#38BDF8"/>
             <Style.Triggers>
-                <DataTrigger Binding="{Binding Level}"
-                             Value="{x:Static svc:ActivityLogLevel.Success}">
+                <DataTrigger Binding="{Binding Level}" Value="{x:Static svc:ActivityLogLevel.Success}">
                     <Setter Property="Background" Value="#103021"/>
                     <Setter Property="BorderBrush" Value="#1C5C34"/>
                     <Setter Property="TextElement.Foreground" Value="#34D399"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Level}"
-                             Value="{x:Static svc:ActivityLogLevel.Warning}">
+                <DataTrigger Binding="{Binding Level}" Value="{x:Static svc:ActivityLogLevel.Warning}">
                     <Setter Property="Background" Value="#2C220F"/>
                     <Setter Property="BorderBrush" Value="#A16207"/>
                     <Setter Property="TextElement.Foreground" Value="#F59E0B"/>
                 </DataTrigger>
-                <DataTrigger Binding="{Binding Level}"
-                             Value="{x:Static svc:ActivityLogLevel.Error}">
+                <DataTrigger Binding="{Binding Level}" Value="{x:Static svc:ActivityLogLevel.Error}">
                     <Setter Property="Background" Value="#301519"/>
                     <Setter Property="BorderBrush" Value="#B91C1C"/>
                     <Setter Property="TextElement.Foreground" Value="#F87171"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+
+        <Style x:Key="LogsInfoChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0F172A"/>
+            <Setter Property="BorderBrush" Value="#1E293B"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+            <Setter Property="TextElement.Foreground" Value="#CBD5E1"/>
+        </Style>
     </Page.Resources>
 
-    <ScrollViewer x:Name="RootScrollViewer"
-                  Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False"
-                  PanningMode="VerticalOnly">
-        <Grid MinWidth="720">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
-            </Grid.RowDefinitions>
+    <Grid Margin="32">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-            <controls:PageTitleBar Title="Activity logs"
-                                    Subtitle="Review automation output and key events"
-                                    IconGlyph="📒"
-                                    Margin="0,0,0,28"/>
+        <controls:PageTitleBar Title="Activity logs" Subtitle="Review automation output and key events" IconGlyph="📒" Margin="0,0,0,28"/>
 
-            <Grid Grid.Row="1"
-                  Margin="0,0,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="3*"
-                                      MinWidth="360"/>
-                    <ColumnDefinition Width="2*"
-                                      MinWidth="320"/>
-                </Grid.ColumnDefinitions>
+        <Grid Grid.Row="1" MinWidth="720">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="3*" MinWidth="360"/>
+                <ColumnDefinition Width="2*" MinWidth="320"/>
+            </Grid.ColumnDefinitions>
 
-                <StackPanel Grid.Column="0">
+            <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" CanContentScroll="False" PanningMode="VerticalOnly">
+                <StackPanel>
                     <Border Style="{StaticResource LogsCardBorderStyle}">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -171,70 +131,41 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0"
-                                        Margin="0,0,0,14">
-                                <TextBlock Text="Filters"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"/>
-                                <TextBlock Text="Search and narrow the activity stream"
-                                           FontSize="12"
-                                           Foreground="#64748B"/>
+                            <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                                <TextBlock Text="Filters" FontSize="16" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+                                <TextBlock Text="Search and narrow the activity stream" FontSize="12" Foreground="#64748B"/>
                             </StackPanel>
 
                             <WrapPanel Grid.Row="1">
-                                <StackPanel MinWidth="220"
-                                            Width="320"
-                                            Margin="0,0,16,12">
-                                    <TextBlock Text="Search text"
-                                               Foreground="#94A3B8"/>
-                                    <TextBox Margin="0,6,0,0"
-                                             MinWidth="200"
-                                             Style="{StaticResource App.TextBoxStyle}"
-                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
+                                <StackPanel MinWidth="220" Width="320" Margin="0,0,16,12">
+                                    <TextBlock Text="Search text" Foreground="#94A3B8"/>
+                                    <TextBox Margin="0,6,0,0" MinWidth="200" Style="{StaticResource App.TextBoxStyle}" Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                 </StackPanel>
 
-                                <StackPanel MinWidth="200"
-                                            Width="240"
-                                            Margin="0,0,16,12">
-                                    <TextBlock Text="Level"
-                                               Foreground="#94A3B8"/>
-                                    <ComboBox Margin="0,6,0,0"
-                                              ItemsSource="{Binding LevelFilterOptions}"
-                                              SelectedItem="{Binding SelectedLevel, Mode=TwoWay}"
-                                              Style="{StaticResource App.ComboBoxStyle}">
+                                <StackPanel MinWidth="200" Width="240" Margin="0,0,16,12">
+                                    <TextBlock Text="Level" Foreground="#94A3B8"/>
+                                    <ComboBox Margin="0,6,0,0" ItemsSource="{Binding LevelFilterOptions}" SelectedItem="{Binding SelectedLevel, Mode=TwoWay}" Style="{StaticResource App.ComboBoxStyle}">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate>
                                                 <TextBlock>
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
-                                                            <Setter Property="Text"
-                                                                    Value="All levels"/>
+                                                            <Setter Property="Text" Value="All levels"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding}"
-                                                                             Value="{x:Null}">
-                                                                    <Setter Property="Text"
-                                                                            Value="All levels"/>
+                                                                <DataTrigger Binding="{Binding}" Value="{x:Null}">
+                                                                    <Setter Property="Text" Value="All levels"/>
                                                                 </DataTrigger>
-                                                                <DataTrigger Binding="{Binding}"
-                                                                             Value="{x:Static svc:ActivityLogLevel.Information}">
-                                                                    <Setter Property="Text"
-                                                                            Value="Information"/>
+                                                                <DataTrigger Binding="{Binding}" Value="{x:Static svc:ActivityLogLevel.Information}">
+                                                                    <Setter Property="Text" Value="Information"/>
                                                                 </DataTrigger>
-                                                                <DataTrigger Binding="{Binding}"
-                                                                             Value="{x:Static svc:ActivityLogLevel.Success}">
-                                                                    <Setter Property="Text"
-                                                                            Value="Success"/>
+                                                                <DataTrigger Binding="{Binding}" Value="{x:Static svc:ActivityLogLevel.Success}">
+                                                                    <Setter Property="Text" Value="Success"/>
                                                                 </DataTrigger>
-                                                                <DataTrigger Binding="{Binding}"
-                                                                             Value="{x:Static svc:ActivityLogLevel.Warning}">
-                                                                    <Setter Property="Text"
-                                                                            Value="Warning"/>
+                                                                <DataTrigger Binding="{Binding}" Value="{x:Static svc:ActivityLogLevel.Warning}">
+                                                                    <Setter Property="Text" Value="Warning"/>
                                                                 </DataTrigger>
-                                                                <DataTrigger Binding="{Binding}"
-                                                                             Value="{x:Static svc:ActivityLogLevel.Error}">
-                                                                    <Setter Property="Text"
-                                                                            Value="Error"/>
+                                                                <DataTrigger Binding="{Binding}" Value="{x:Static svc:ActivityLogLevel.Error}">
+                                                                    <Setter Property="Text" Value="Error"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -245,22 +176,15 @@
                                     </ComboBox>
                                 </StackPanel>
 
-                                <StackPanel MinWidth="200"
-                                            Margin="0,0,0,12">
-                                    <TextBlock Text="Options"
-                                               Foreground="#94A3B8"/>
-                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                              Margin="0,6,0,0"
-                                              Content="Auto-select latest"
-                                              Foreground="#E2E8F0"
-                                              IsChecked="{Binding IsAutoSelectLatest, Mode=TwoWay}"/>
+                                <StackPanel MinWidth="200" Margin="0,0,0,12">
+                                    <TextBlock Text="Options" Foreground="#94A3B8"/>
+                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}" Margin="0,6,0,0" Content="Auto-select latest" Foreground="#E2E8F0" IsChecked="{Binding IsAutoSelectLatest, Mode=TwoWay}"/>
                                 </StackPanel>
                             </WrapPanel>
                         </Grid>
                     </Border>
 
-                    <Border Style="{StaticResource LogsCardBorderStyle}"
-                            Margin="0,20,0,0">
+                    <Border Style="{StaticResource LogsCardBorderStyle}" Margin="0,20,0,0">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
@@ -269,47 +193,18 @@
                             </Grid.RowDefinitions>
 
                             <StackPanel Grid.Row="0">
-                                <TextBlock Text="Activity stream"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"/>
-                                <TextBlock Text="Latest automation output and diagnostics"
-                                           FontSize="12"
-                                           Foreground="#64748B"/>
+                                <TextBlock Text="Activity stream" FontSize="16" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+                                <TextBlock Text="Latest automation output and diagnostics" FontSize="12" Foreground="#64748B"/>
                             </StackPanel>
 
-                            <StackPanel Grid.Row="1"
-                                        Orientation="Horizontal"
-                                        Margin="0,12,0,0">
-                                <TextBlock Text="{Binding Items.Count, ElementName=LogsListView, StringFormat={}{0} entries}"
-                                           Foreground="#94A3B8"
-                                           FontSize="12"/>
-                                <TextBlock Text="•"
-                                           Foreground="#334155"
-                                           FontSize="12"
-                                           Margin="10,0"/>
-                                <TextBlock Text="{Binding SelectedEntry.Source, TargetNullValue=Select a row to see details}"
-                                           Foreground="#64748B"
-                                           FontSize="12"
-                                           TextTrimming="CharacterEllipsis"
-                                           MaxWidth="240"/>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
+                                <TextBlock Text="{Binding Items.Count, ElementName=LogsListView, StringFormat={}{0} entries}" Foreground="#94A3B8" FontSize="12"/>
+                                <TextBlock Text="•" Foreground="#334155" FontSize="12" Margin="10,0"/>
+                                <TextBlock Text="{Binding SelectedEntry.Source, TargetNullValue=Select a row to see details}" Foreground="#64748B" FontSize="12" TextTrimming="CharacterEllipsis" MaxWidth="240"/>
                             </StackPanel>
 
-                            <Grid Grid.Row="2"
-                                  Margin="0,16,0,0">
-                                <ListView x:Name="LogsListView"
-                                          ItemsSource="{Binding EntriesView}"
-                                          SelectedItem="{Binding SelectedEntry, Mode=TwoWay}"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          Foreground="#F8FAFC"
-                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                          ScrollViewer.CanContentScroll="True"
-                                          VirtualizingPanel.IsVirtualizing="True"
-                                          VirtualizingPanel.VirtualizationMode="Recycling"
-                                          VirtualizingStackPanel.ScrollUnit="Pixel"
-                                          Loaded="LogsListView_Loaded">
+                            <Grid Grid.Row="2" Margin="0,16,0,0">
+                                <ListView x:Name="LogsListView" ItemsSource="{Binding EntriesView}" SelectedItem="{Binding SelectedEntry, Mode=TwoWay}" Background="Transparent" BorderThickness="0" Foreground="#F8FAFC" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="True" VirtualizingPanel.IsVirtualizing="True" VirtualizingPanel.VirtualizationMode="Recycling" VirtualizingStackPanel.ScrollUnit="Pixel">
                                     <ListView.ItemContainerStyle>
                                         <Style TargetType="ListViewItem">
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -319,8 +214,7 @@
                                             <Setter Property="Template">
                                                 <Setter.Value>
                                                     <ControlTemplate TargetType="ListViewItem">
-                                                        <Border Background="{TemplateBinding Background}"
-                                                                SnapsToDevicePixels="True">
+                                                        <Border Background="{TemplateBinding Background}" SnapsToDevicePixels="True">
                                                             <ContentPresenter/>
                                                         </Border>
                                                     </ControlTemplate>
@@ -338,40 +232,16 @@
                                                     </Grid.ColumnDefinitions>
 
                                                     <StackPanel>
-                                                        <TextBlock Text="{Binding TimestampDisplay}"
-                                                                   FontSize="13"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="#F8FAFC"/>
-                                                        <TextBlock Text="{Binding Source}"
-                                                                   FontSize="11"
-                                                                   Foreground="#94A3B8"
-                                                                   Margin="0,4,0,0"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   ToolTip="{Binding Source}"/>
-                                                        <TextBlock Text="{Binding Message}"
-                                                                   FontSize="13"
-                                                                   Foreground="#E2E8F0"
-                                                                   Margin="0,6,0,0"
-                                                                   TextWrapping="Wrap"
-                                                                   ToolTip="{Binding Message}"/>
+                                                        <TextBlock Text="{Binding TimestampDisplay}" FontSize="13" FontWeight="SemiBold" Foreground="#F8FAFC"/>
+                                                        <TextBlock Text="{Binding Source}" FontSize="11" Foreground="#94A3B8" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" ToolTip="{Binding Source}"/>
+                                                        <TextBlock Text="{Binding Message}" FontSize="13" Foreground="#E2E8F0" Margin="0,6,0,0" TextWrapping="Wrap" ToolTip="{Binding Message}"/>
                                                     </StackPanel>
 
-                                                    <StackPanel Grid.Column="1"
-                                                                HorizontalAlignment="Right"
-                                                                VerticalAlignment="Top">
+                                                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
                                                         <Border Style="{StaticResource LogLevelChipStyle}">
-                                                            <TextBlock Text="{Binding LevelDisplay}"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold"
-                                                                       HorizontalAlignment="Center"
-                                                                       TextAlignment="Center"/>
+                                                            <TextBlock Text="{Binding LevelDisplay}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center"/>
                                                         </Border>
-                                                        <Button Content="Copy"
-                                                                Command="{Binding DataContext.CopyEntryCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                                CommandParameter="{Binding}"
-                                                                MinWidth="84"
-                                                                Margin="0,4,0,0"
-                                                                Style="{StaticResource LogsSecondaryButtonStyle}"/>
+                                                        <Button Content="Copy" Command="{Binding DataContext.CopyEntryCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" MinWidth="84" Margin="0,4,0,0" Style="{StaticResource LogsSecondaryButtonStyle}"/>
                                                     </StackPanel>
                                                 </Grid>
                                             </Border>
@@ -379,20 +249,13 @@
                                     </ListView.ItemTemplate>
                                 </ListView>
 
-                                <TextBlock Text="No log entries yet. Run an operation or adjust filters."
-                                           Foreground="#64748B"
-                                           FontSize="13"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center">
+                                <TextBlock Text="No log entries yet. Run an operation or adjust filters." Foreground="#64748B" FontSize="13" HorizontalAlignment="Center" VerticalAlignment="Center">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility"
-                                                    Value="Collapsed"/>
+                                            <Setter Property="Visibility" Value="Collapsed"/>
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding Items.Count, ElementName=LogsListView}"
-                                                             Value="0">
-                                                    <Setter Property="Visibility"
-                                                            Value="Visible"/>
+                                                <DataTrigger Binding="{Binding Items.Count, ElementName=LogsListView}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible"/>
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -402,167 +265,106 @@
                         </Grid>
                     </Border>
                 </StackPanel>
+            </ScrollViewer>
 
-                <StackPanel Grid.Column="1"
-                            Margin="16,0,0,0">
-                    <Border Style="{StaticResource LogsCardBorderStyle}">
-                        <Grid>
+            <ScrollViewer Grid.Column="1" Margin="16,0,0,0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" PanningMode="VerticalOnly" CanContentScroll="False">
+                <Border Style="{StaticResource LogsCardBorderStyle}">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                            <TextBlock Text="Entry details" FontSize="16" FontWeight="SemiBold" Foreground="#E2E8F0"/>
+                            <TextBlock Text="Inspect full log messages and copy to clipboard" FontSize="12" Foreground="#64748B"/>
+                        </StackPanel>
+
+                        <Grid Grid.Row="1">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <StackPanel Grid.Row="0">
-                                <TextBlock Text="Entry details"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"/>
-                                <TextBlock Text="Inspect full log messages and copy to clipboard"
-                                           FontSize="12"
-                                           Foreground="#64748B"/>
+                            <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                                <TextBlock Text="Summary" Foreground="#94A3B8" Margin="0,0,0,6"/>
+                                <WrapPanel ItemHeight="32" ItemWidth="Auto" Margin="0,0,0,0">
+                                    <Border Style="{StaticResource LogLevelChipStyle}" VerticalAlignment="Center" Margin="0,0,8,8">
+                                        <TextBlock Text="{Binding SelectedEntry.LevelDisplay, TargetNullValue=—}" FontSize="11" FontWeight="SemiBold" HorizontalAlignment="Center" TextAlignment="Center"/>
+                                    </Border>
+                                    <Border Style="{StaticResource LogsInfoChipStyle}" VerticalAlignment="Center" Margin="0,0,8,8">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Source" Foreground="#94A3B8" FontSize="11"/>
+                                            <TextBlock Text="{Binding SelectedEntry.Source, TargetNullValue=Select a log entry}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Width="160" Margin="6,0,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Style="{StaticResource LogsInfoChipStyle}" VerticalAlignment="Center" Margin="0,0,8,8">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Time" Foreground="#94A3B8" FontSize="11"/>
+                                            <TextBlock Text="{Binding SelectedEntry.TimestampDisplay, TargetNullValue=—}" FontSize="12" Margin="6,0,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+                                </WrapPanel>
                             </StackPanel>
 
-                            <Border Grid.Row="1"
-                                    Margin="0,16,0,0"
-                                    Background="#0A1628"
-                                    CornerRadius="10"
-                                    Padding="16">
-                                <Grid>
-                                    <ContentControl Content="{Binding SelectedEntry}">
-                                        <ContentControl.Style>
-                                            <Style TargetType="ContentControl">
-                                                <Setter Property="Visibility"
-                                                        Value="Visible"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedEntry}"
-                                                                 Value="{x:Null}">
-                                                        <Setter Property="Visibility"
-                                                                Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ContentControl.Style>
-                                        <ContentControl.ContentTemplate>
-                                            <DataTemplate>
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal"
-                                                                VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding TimestampDisplay}"
-                                                                   Foreground="#94A3B8"
-                                                                   FontSize="12"
-                                                                   Margin="0,0,12,0"/>
-                                                        <Border Background="#1E293B"
-                                                                CornerRadius="6"
-                                                                Padding="8,3"
-                                                                Margin="0,0,12,0">
-                                                            <TextBlock Text="{Binding LevelDisplay}"
-                                                                       FontWeight="SemiBold">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Foreground"
-                                                                                Value="#38BDF8"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding Level}"
-                                                                                         Value="{x:Static svc:ActivityLogLevel.Success}">
-                                                                                <Setter Property="Foreground"
-                                                                                        Value="#22C55E"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding Level}"
-                                                                                         Value="{x:Static svc:ActivityLogLevel.Warning}">
-                                                                                <Setter Property="Foreground"
-                                                                                        Value="#F59E0B"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding Level}"
-                                                                                         Value="{x:Static svc:ActivityLogLevel.Error}">
-                                                                                <Setter Property="Foreground"
-                                                                                        Value="#F87171"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                        </Border>
-                                                        <TextBlock Text="{Binding Source}"
-                                                                   Foreground="#E2E8F0"
-                                                                   FontSize="13"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   ToolTip="{Binding Source}"/>
-                                                    </StackPanel>
+                            <StackPanel Grid.Row="1" Margin="0,0,0,18">
+                                <TextBlock Text="Message" Foreground="#94A3B8"/>
+                                <TextBox Margin="0,6,0,0"
+                                         Style="{StaticResource App.TextBoxStyle}"
+                                         Text="{Binding SelectedEntry.Message, TargetNullValue=Select a log entry, Mode=OneWay}"
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         IsReadOnly="True"
+                                         Padding="10"
+                                         MinHeight="140"/>
+                            </StackPanel>
 
-                                                    <TextBlock Text="{Binding Message}"
-                                                               Margin="0,12,0,0"
-                                                               Foreground="#F8FAFC"
-                                                               FontSize="14"
-                                                               TextWrapping="Wrap"/>
+                            <StackPanel Grid.Row="2" Margin="0,0,0,16">
+                                <TextBlock Text="Details" Foreground="#94A3B8"/>
+                                <Border BorderBrush="#1E293B" BorderThickness="1" CornerRadius="10" Background="#0B1626" Margin="0,6,0,0" Padding="12">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" MinHeight="140">
+                                        <ItemsControl ItemsSource="{Binding SelectedEntry.Details}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding}" Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                            <ItemsControl.Style>
+                                                <Style TargetType="ItemsControl">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding SelectedEntry.HasDetails}" Value="False">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </ItemsControl.Style>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                                <TextBlock Text="No details" Foreground="#64748B" Margin="0,6,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedEntry.HasDetails}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
 
-                                                    <ItemsControl ItemsSource="{Binding Details}"
-                                                                  Margin="0,14,0,0">
-                                                        <ItemsControl.Style>
-                                                            <Style TargetType="ItemsControl">
-                                                                <Setter Property="Visibility"
-                                                                        Value="Visible"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Details.Count}"
-                                                                                 Value="0">
-                                                                        <Setter Property="Visibility"
-                                                                                Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </ItemsControl.Style>
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Border Background="#071021"
-                                                                        CornerRadius="6"
-                                                                        Padding="10"
-                                                                        Margin="0,0,0,8">
-                                                                    <TextBlock Text="{Binding}"
-                                                                               FontFamily="Consolas"
-                                                                               FontSize="12"
-                                                                               Foreground="#CBD5F5"
-                                                                               TextWrapping="Wrap"/>
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-
-                                                    <Button Content="Copy entry"
-                                                            Margin="0,16,0,0"
-                                                            HorizontalAlignment="Left"
-                                                            Command="{Binding DataContext.CopyEntryCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                            CommandParameter="{Binding}"
-                                                            Style="{StaticResource LogsSecondaryButtonStyle}"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ContentControl.ContentTemplate>
-                                    </ContentControl>
-
-                                    <StackPanel HorizontalAlignment="Center"
-                                                VerticalAlignment="Center">
-                                        <StackPanel.Style>
-                                            <Style TargetType="StackPanel">
-                                                <Setter Property="Visibility"
-                                                        Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding SelectedEntry}"
-                                                                 Value="{x:Null}">
-                                                        <Setter Property="Visibility"
-                                                                Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </StackPanel.Style>
-                                        <TextBlock Text="Select a log entry to see details"
-                                                   Foreground="#64748B"
-                                                   FontSize="13"
-                                                   TextAlignment="Center"/>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
+                            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,6,0,0">
+                                <Button Content="Copy details" Command="{Binding CopyEntryCommand}" CommandParameter="{Binding SelectedEntry}" Style="{StaticResource LogsSecondaryButtonStyle}" MinWidth="140" IsEnabled="{Binding SelectedEntry}"/>
+                            </StackPanel>
                         </Grid>
-                    </Border>
-                </StackPanel>
-            </Grid>
+                    </Grid>
+                </Border>
+            </ScrollViewer>
         </Grid>
-    </ScrollViewer>
+    </Grid>
 </Page>
