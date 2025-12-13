@@ -1,10 +1,10 @@
 {
-  "version": "3.4.3",
+  "version": "3.5.0",
   "channel": "stable",
-  "summary": "1) fixed the issue in installhub page where it was getting cutoff issues.  2) fixed the close and reopen of the app.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.4.3/TidyWindow-Setup-3.4.3.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.4.3",
-  "publishedAt": "2025-12-03T10:08:43Z",
-  "installerSizeBytes": 80896547,
-  "sha256": "e4443b615f82f15d465b7efa66d133e3cef6ff6f69f2f66c2eeead4347e58467"
+  "summary": "-fixed a few bugs.  -improved ui of LOGS page.  -fixed the appsplash on startup.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.5.0/TidyWindow-Setup-3.5.0.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.5.0",
+  "publishedAt": "2025-12-13T07:23:16Z",
+  "installerSizeBytes": 80944241,
+  "sha256": "4973f76fa52396457967c83c6749a6f1d93b5708be5f4f15778584c6ec7d1ef7"
 }
