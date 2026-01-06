@@ -6,12 +6,12 @@ using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Processes;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 using Xunit;
 
 namespace TidyWindow.App.Tests;
 
-public sealed class AntiSystemBackgroundScannerTests
+public sealed class ThreatWatchBackgroundScannerTests
 {
     [Fact]
     public async Task LogsSuccessWhenScanIsClear()
@@ -29,10 +29,10 @@ public sealed class AntiSystemBackgroundScannerTests
 
             await scanInvoked.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
-            var entry = await scope.WaitForAntiSystemEntryAsync(TimeSpan.FromSeconds(1));
+            var entry = await scope.WaitForThreatWatchEntryAsync(TimeSpan.FromSeconds(1));
             Assert.NotNull(entry);
             Assert.Equal(ActivityLogLevel.Success, entry.Level);
-            Assert.Equal("Anti-System", entry.Source);
+            Assert.Equal("Threat Watch", entry.Source);
             Assert.Equal("Background scan is clear.", entry.Message);
         });
     }
@@ -54,10 +54,10 @@ public sealed class AntiSystemBackgroundScannerTests
 
             await scanInvoked.Task.WaitAsync(TimeSpan.FromSeconds(1));
 
-            var entry = await scope.WaitForAntiSystemEntryAsync(TimeSpan.FromSeconds(1));
+            var entry = await scope.WaitForThreatWatchEntryAsync(TimeSpan.FromSeconds(1));
             Assert.NotNull(entry);
             Assert.Equal(ActivityLogLevel.Error, entry.Level);
-            Assert.Equal("Anti-System", entry.Source);
+            Assert.Equal("Threat Watch", entry.Source);
             Assert.Contains("flagged 1 suspicious process", entry.Message, StringComparison.OrdinalIgnoreCase);
         });
     }
@@ -120,14 +120,14 @@ public sealed class AntiSystemBackgroundScannerTests
 
         public UserPreferencesService Preferences { get; }
 
-        public AntiSystemBackgroundScanner CreateScanner(
-            Func<CancellationToken, Task<AntiSystemDetectionResult>> scanInvoker,
+        public ThreatWatchBackgroundScanner CreateScanner(
+            Func<CancellationToken, Task<ThreatWatchDetectionResult>> scanInvoker,
             TimeSpan? initialDelayOverride = null,
             TimeSpan? intervalOverride = null)
         {
             var initialDelay = initialDelayOverride ?? TimeSpan.FromMilliseconds(10);
             var interval = intervalOverride ?? TimeSpan.FromMilliseconds(50);
-            return new AntiSystemBackgroundScanner(
+            return new ThreatWatchBackgroundScanner(
                 scanService: null,
                 activityLog: ActivityLog,
                 preferences: Preferences,
@@ -136,9 +136,9 @@ public sealed class AntiSystemBackgroundScannerTests
                 scanInvokerOverride: scanInvoker);
         }
 
-        public AntiSystemDetectionResult CreateResult(IReadOnlyList<SuspiciousProcessHit> hits)
+        public ThreatWatchDetectionResult CreateResult(IReadOnlyList<SuspiciousProcessHit> hits)
         {
-            return new AntiSystemDetectionResult(
+            return new ThreatWatchDetectionResult(
                 Hits: hits,
                 TotalProcesses: hits.Count,
                 TrustedProcessCount: 0,
@@ -175,13 +175,13 @@ public sealed class AntiSystemBackgroundScannerTests
             }
         }
 
-        public Task<ActivityLogEntry> WaitForAntiSystemEntryAsync(TimeSpan timeout)
+        public Task<ActivityLogEntry> WaitForThreatWatchEntryAsync(TimeSpan timeout)
         {
             var signal = new TaskCompletionSource<ActivityLogEntry>(TaskCreationOptions.RunContinuationsAsynchronously);
 
             void Handler(object? sender, ActivityLogEventArgs args)
             {
-                if (!string.Equals(args.Entry.Source, "Anti-System", StringComparison.OrdinalIgnoreCase))
+                if (!string.Equals(args.Entry.Source, "Threat Watch", StringComparison.OrdinalIgnoreCase))
                 {
                     return;
                 }

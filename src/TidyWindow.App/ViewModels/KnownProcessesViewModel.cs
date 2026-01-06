@@ -27,7 +27,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         IUserConfirmationService confirmationService,
         MainViewModel mainViewModel,
         ProcessPreferencesViewModel processPreferencesViewModel,
-        AntiSystemViewModel antiSystemViewModel)
+        ThreatWatchViewModel antiSystemViewModel)
     {
         _catalogParser = catalogParser ?? throw new ArgumentNullException(nameof(catalogParser));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
@@ -35,7 +35,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         Preferences = processPreferencesViewModel ?? throw new ArgumentNullException(nameof(processPreferencesViewModel));
-        AntiSystem = antiSystemViewModel ?? throw new ArgumentNullException(nameof(antiSystemViewModel));
+        ThreatWatch = antiSystemViewModel ?? throw new ArgumentNullException(nameof(antiSystemViewModel));
         Categories = new ObservableCollection<KnownProcessCategoryViewModel>();
     }
 
@@ -43,7 +43,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
 
     public ProcessPreferencesViewModel Preferences { get; }
 
-    public AntiSystemViewModel AntiSystem { get; }
+    public ThreatWatchViewModel ThreatWatch { get; }
 
     [ObservableProperty]
     private bool _isBusy;
@@ -65,7 +65,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         }
 
         _ = RefreshAsync();
-        AntiSystem.EnsureInitialized();
+        ThreatWatch.EnsureInitialized();
         _isInitialized = true;
     }
 
@@ -110,7 +110,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
             UpdateSummary();
 
             await Preferences.RefreshProcessPreferencesAsync();
-            await AntiSystem.RefreshAsync();
+            await ThreatWatch.RefreshAsync();
         }
         catch (Exception ex)
         {
@@ -135,9 +135,9 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
     private async Task SwitchSection(KnownProcessViewSection section)
     {
         ActiveSection = section;
-        if (section == KnownProcessViewSection.AntiSystem)
+        if (section == KnownProcessViewSection.ThreatWatch)
         {
-            AntiSystem.EnsureInitialized();
+            ThreatWatch.EnsureInitialized();
         }
 
         if (section == KnownProcessViewSection.Settings)
@@ -315,7 +315,7 @@ public enum KnownProcessViewSection
 {
     Catalog,
     Settings,
-    AntiSystem
+    ThreatWatch
 }
 
 public sealed partial class KnownProcessCategoryViewModel : ObservableObject

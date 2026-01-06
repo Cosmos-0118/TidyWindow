@@ -7,12 +7,12 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TidyWindow.Core.Processes.AntiSystem;
+namespace TidyWindow.Core.Processes.ThreatWatch;
 
 /// <summary>
-/// Implements the four-layer Anti-System detection pipeline.
+/// Implements the four-layer Threat Watch detection pipeline.
 /// </summary>
-public sealed class AntiSystemDetectionService
+public sealed class ThreatWatchDetectionService
 {
     private static readonly HashSet<string> CriticalProcesses = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -45,7 +45,7 @@ public sealed class AntiSystemDetectionService
     private readonly string? _userProfileRoot;
     private readonly string? _downloadsRoot;
 
-    public AntiSystemDetectionService(ProcessStateStore stateStore, IEnumerable<IThreatIntelProvider>? threatIntelProviders = null)
+    public ThreatWatchDetectionService(ProcessStateStore stateStore, IEnumerable<IThreatIntelProvider>? threatIntelProviders = null)
     {
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _threatIntelProviders = threatIntelProviders?.Where(static provider => provider is not null).ToArray() ?? Array.Empty<IThreatIntelProvider>();
@@ -58,7 +58,7 @@ public sealed class AntiSystemDetectionService
             : NormalizeDirectory(Path.Combine(_userProfileRoot, "Downloads"));
     }
 
-    public async Task<AntiSystemDetectionResult> RunScanAsync(AntiSystemDetectionRequest request, CancellationToken cancellationToken = default)
+    public async Task<ThreatWatchDetectionResult> RunScanAsync(ThreatWatchDetectionRequest request, CancellationToken cancellationToken = default)
     {
         if (request is null)
         {
@@ -145,7 +145,7 @@ public sealed class AntiSystemDetectionService
                 ruleMatches.ConvertAll(static match => match.RuleId),
                 DateTimeOffset.UtcNow,
                 intelResult.Sha256 ?? sha256,
-                "AntiSystemDetection:Process",
+                "ThreatWatchDetection:Process",
                 BuildNotes(process, intelResult));
 
             hits.Add(hit);
@@ -160,7 +160,7 @@ public sealed class AntiSystemDetectionService
             EvaluateStartupLayer(request, whitelist, hits, ref whitelistCount);
         }
 
-        return new AntiSystemDetectionResult(
+        return new ThreatWatchDetectionResult(
             hits,
             request.Processes.Count,
             trustedCount,
@@ -189,7 +189,7 @@ public sealed class AntiSystemDetectionService
         return QueryThreatIntelAsync(providers, normalizedPath, sha256, cancellationToken);
     }
 
-    private void EvaluateStartupLayer(AntiSystemDetectionRequest request, IReadOnlyCollection<AntiSystemWhitelistEntry> whitelist, List<SuspiciousProcessHit> hits, ref int whitelistCount)
+    private void EvaluateStartupLayer(ThreatWatchDetectionRequest request, IReadOnlyCollection<ThreatWatchWhitelistEntry> whitelist, List<SuspiciousProcessHit> hits, ref int whitelistCount)
     {
         foreach (var entry in request.StartupEntries)
         {
@@ -233,7 +233,7 @@ public sealed class AntiSystemDetectionService
                 matches.ConvertAll(static match => match.RuleId),
                 DateTimeOffset.UtcNow,
                 hash: null,
-                source: "AntiSystemDetection:Startup",
+                source: "ThreatWatchDetection:Startup",
                 entry.Description ?? entry.Source);
 
             hits.Add(hit);
@@ -486,7 +486,7 @@ public sealed class AntiSystemDetectionService
         return true;
     }
 
-    private static bool MatchesWhitelist(IReadOnlyCollection<AntiSystemWhitelistEntry> entries, string? filePath, string? sha256, string? processName, out AntiSystemWhitelistEntry? match)
+    private static bool MatchesWhitelist(IReadOnlyCollection<ThreatWatchWhitelistEntry> entries, string? filePath, string? sha256, string? processName, out ThreatWatchWhitelistEntry? match)
     {
         if (entries is null || entries.Count == 0)
         {

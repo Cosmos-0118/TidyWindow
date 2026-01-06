@@ -19,7 +19,7 @@ using TidyWindow.Core.Diagnostics;
 using TidyWindow.Core.Install;
 using TidyWindow.Core.Maintenance;
 using TidyWindow.Core.Processes;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 using TidyWindow.Core.PathPilot;
 using TidyWindow.Core.Uninstall;
 
@@ -142,9 +142,9 @@ public partial class App : WpfApplication
                 services.AddSingleton<ProcessAutoStopEnforcer>();
                 services.AddSingleton<IThreatIntelProvider, WindowsDefenderThreatIntelProvider>();
                 services.AddSingleton<IThreatIntelProvider, MalwareHashBlocklist>();
-                services.AddSingleton<AntiSystemDetectionService>();
-                services.AddSingleton<AntiSystemScanService>();
-                services.AddSingleton<AntiSystemBackgroundScanner>();
+                services.AddSingleton<ThreatWatchDetectionService>();
+                services.AddSingleton<ThreatWatchScanService>();
+                services.AddSingleton<ThreatWatchBackgroundScanner>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -161,7 +161,7 @@ public partial class App : WpfApplication
                 services.AddTransient<RegistryOptimizerViewModel>();
                 services.AddTransient<PathPilotViewModel>();
                 services.AddTransient<KnownProcessesViewModel>();
-                services.AddTransient<AntiSystemViewModel>();
+                services.AddTransient<ThreatWatchViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -195,7 +195,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<EssentialsAutomationScheduler>();
         _ = _host.Services.GetRequiredService<MaintenanceAutoUpdateScheduler>();
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
-        _ = _host.Services.GetRequiredService<AntiSystemBackgroundScanner>();
+        _ = _host.Services.GetRequiredService<ThreatWatchBackgroundScanner>();
 
         var startHidden = launchMinimized && preferences.Current.RunInBackground;
 

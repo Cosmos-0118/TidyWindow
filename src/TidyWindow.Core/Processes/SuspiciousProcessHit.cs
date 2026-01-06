@@ -6,7 +6,7 @@ using System.Linq;
 namespace TidyWindow.Core.Processes;
 
 /// <summary>
-/// Represents a single detection emitted by the Anti-System service.
+/// Represents a single detection emitted by the Threat Watch service.
 /// </summary>
 public sealed record SuspiciousProcessHit
 {

@@ -1,15 +1,15 @@
 using System;
 using System.IO;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 
 namespace TidyWindow.Core.Processes;
 
 /// <summary>
-/// Represents a persisted quarantine record captured by Anti-System actions.
+/// Represents a persisted quarantine record captured by Threat Watch actions.
 /// </summary>
-public sealed record AntiSystemQuarantineEntry
+public sealed record ThreatWatchQuarantineEntry
 {
-    public AntiSystemQuarantineEntry(
+    public ThreatWatchQuarantineEntry(
         string id,
         string processName,
         string filePath,
@@ -66,7 +66,7 @@ public sealed record AntiSystemQuarantineEntry
 
     public string? Sha256 { get; init; }
 
-    public static AntiSystemQuarantineEntry Create(
+    public static ThreatWatchQuarantineEntry Create(
         string processName,
         string filePath,
         string? notes = null,
@@ -77,7 +77,7 @@ public sealed record AntiSystemQuarantineEntry
         string? verdictDetails = null,
         string? sha256 = null)
     {
-        return new AntiSystemQuarantineEntry(
+        return new ThreatWatchQuarantineEntry(
             id: string.Empty,
             processName,
             filePath,
@@ -90,7 +90,7 @@ public sealed record AntiSystemQuarantineEntry
             sha256);
     }
 
-    public AntiSystemQuarantineEntry Normalize()
+    public ThreatWatchQuarantineEntry Normalize()
     {
         var normalizedPath = NormalizePath(FilePath);
         var normalizedTimestamp = QuarantinedAtUtc == default ? DateTimeOffset.UtcNow : QuarantinedAtUtc;

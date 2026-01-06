@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Security.Cryptography;
 
-namespace TidyWindow.Core.Processes.AntiSystem;
+namespace TidyWindow.Core.Processes.ThreatWatch;
 
 internal static class FileHashing
 {

@@ -33,7 +33,7 @@ public enum ProcessPreferenceSource
 }
 
 /// <summary>
-/// Discrete suspicion levels surfaced in the Anti-System tab.
+/// Discrete suspicion levels surfaced in the Threat Watch tab.
 /// </summary>
 public enum SuspicionLevel
 {

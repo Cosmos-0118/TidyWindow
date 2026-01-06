@@ -4,13 +4,13 @@ using System.IO;
 namespace TidyWindow.Core.Processes;
 
 /// <summary>
-/// Represents a persisted trust override so Anti-System ignores known safe processes or hashes.
+/// Represents a persisted trust override so Threat Watch ignores known safe processes or hashes.
 /// </summary>
-public sealed record AntiSystemWhitelistEntry
+public sealed record ThreatWatchWhitelistEntry
 {
-    public AntiSystemWhitelistEntry(
+    public ThreatWatchWhitelistEntry(
         string id,
-        AntiSystemWhitelistEntryKind kind,
+        ThreatWatchWhitelistEntryKind kind,
         string value,
         string? notes,
         string? addedBy,
@@ -33,7 +33,7 @@ public sealed record AntiSystemWhitelistEntry
 
     public string Id { get; init; }
 
-    public AntiSystemWhitelistEntryKind Kind { get; init; }
+    public ThreatWatchWhitelistEntryKind Kind { get; init; }
 
     public string Value { get; init; }
 
@@ -43,40 +43,40 @@ public sealed record AntiSystemWhitelistEntry
 
     public DateTimeOffset AddedAtUtc { get; init; }
 
-    public static AntiSystemWhitelistEntry CreateDirectory(string directoryPath, string? notes = null, string? addedBy = null, DateTimeOffset? addedAtUtc = null)
+    public static ThreatWatchWhitelistEntry CreateDirectory(string directoryPath, string? notes = null, string? addedBy = null, DateTimeOffset? addedAtUtc = null)
     {
-        return new AntiSystemWhitelistEntry(
+        return new ThreatWatchWhitelistEntry(
             id: string.Empty,
-            AntiSystemWhitelistEntryKind.Directory,
+            ThreatWatchWhitelistEntryKind.Directory,
             directoryPath,
             notes,
             addedBy,
             addedAtUtc ?? DateTimeOffset.UtcNow);
     }
 
-    public static AntiSystemWhitelistEntry CreateProcess(string processName, string? notes = null, string? addedBy = null, DateTimeOffset? addedAtUtc = null)
+    public static ThreatWatchWhitelistEntry CreateProcess(string processName, string? notes = null, string? addedBy = null, DateTimeOffset? addedAtUtc = null)
     {
-        return new AntiSystemWhitelistEntry(
+        return new ThreatWatchWhitelistEntry(
             id: string.Empty,
-            AntiSystemWhitelistEntryKind.ProcessName,
+            ThreatWatchWhitelistEntryKind.ProcessName,
             processName,
             notes,
             addedBy,
             addedAtUtc ?? DateTimeOffset.UtcNow);
     }
 
-    public static AntiSystemWhitelistEntry CreateHash(string sha256, string? notes = null, string? addedBy = null, DateTimeOffset? addedAtUtc = null)
+    public static ThreatWatchWhitelistEntry CreateHash(string sha256, string? notes = null, string? addedBy = null, DateTimeOffset? addedAtUtc = null)
     {
-        return new AntiSystemWhitelistEntry(
+        return new ThreatWatchWhitelistEntry(
             id: string.Empty,
-            AntiSystemWhitelistEntryKind.FileHash,
+            ThreatWatchWhitelistEntryKind.FileHash,
             sha256,
             notes,
             addedBy,
             addedAtUtc ?? DateTimeOffset.UtcNow);
     }
 
-    public AntiSystemWhitelistEntry Normalize()
+    public ThreatWatchWhitelistEntry Normalize()
     {
         var normalizedValue = NormalizeValue(Kind, Value);
         var normalizedId = CreateIdentifier(Kind, normalizedValue);
@@ -94,14 +94,14 @@ public sealed record AntiSystemWhitelistEntry
     {
         return Kind switch
         {
-            AntiSystemWhitelistEntryKind.Directory => MatchesDirectory(filePath),
-            AntiSystemWhitelistEntryKind.FileHash => MatchesHash(sha256),
-            AntiSystemWhitelistEntryKind.ProcessName => MatchesProcess(processName),
+            ThreatWatchWhitelistEntryKind.Directory => MatchesDirectory(filePath),
+            ThreatWatchWhitelistEntryKind.FileHash => MatchesHash(sha256),
+            ThreatWatchWhitelistEntryKind.ProcessName => MatchesProcess(processName),
             _ => false
         };
     }
 
-    public static string CreateIdentifier(AntiSystemWhitelistEntryKind kind, string normalizedValue)
+    public static string CreateIdentifier(ThreatWatchWhitelistEntryKind kind, string normalizedValue)
     {
         var prefix = kind.ToString().ToLowerInvariant();
         return string.IsNullOrWhiteSpace(normalizedValue)
@@ -109,7 +109,7 @@ public sealed record AntiSystemWhitelistEntry
             : $"{prefix}:{normalizedValue}";
     }
 
-    public static string NormalizeValue(AntiSystemWhitelistEntryKind kind, string rawValue)
+    public static string NormalizeValue(ThreatWatchWhitelistEntryKind kind, string rawValue)
     {
         if (string.IsNullOrWhiteSpace(rawValue))
         {
@@ -118,9 +118,9 @@ public sealed record AntiSystemWhitelistEntry
 
         return kind switch
         {
-            AntiSystemWhitelistEntryKind.Directory => NormalizeDirectory(rawValue),
-            AntiSystemWhitelistEntryKind.FileHash => rawValue.Trim().ToLowerInvariant(),
-            AntiSystemWhitelistEntryKind.ProcessName => rawValue.Trim().ToLowerInvariant(),
+            ThreatWatchWhitelistEntryKind.Directory => NormalizeDirectory(rawValue),
+            ThreatWatchWhitelistEntryKind.FileHash => rawValue.Trim().ToLowerInvariant(),
+            ThreatWatchWhitelistEntryKind.ProcessName => rawValue.Trim().ToLowerInvariant(),
             _ => rawValue.Trim()
         };
     }
@@ -187,7 +187,7 @@ public sealed record AntiSystemWhitelistEntry
     }
 }
 
-public enum AntiSystemWhitelistEntryKind
+public enum ThreatWatchWhitelistEntryKind
 {
     Directory = 0,
     FileHash = 1,

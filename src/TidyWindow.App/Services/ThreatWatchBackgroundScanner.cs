@@ -5,20 +5,20 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using TidyWindow.Core.Processes;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 
 namespace TidyWindow.App.Services;
 
 /// <summary>
-/// Runs Anti-System scans on a gentle cadence so PulseGuard can surface alerts even when the UI is hidden.
+/// Runs Threat Watch scans on a gentle cadence so PulseGuard can surface alerts even when the UI is hidden.
 /// </summary>
-public sealed class AntiSystemBackgroundScanner : IDisposable
+public sealed class ThreatWatchBackgroundScanner : IDisposable
 {
     private static readonly TimeSpan DefaultInitialDelay = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan DefaultScanInterval = TimeSpan.FromMinutes(45);
 
-    private readonly AntiSystemScanService? _scanService;
-    private readonly Func<CancellationToken, Task<AntiSystemDetectionResult>> _scanInvoker;
+    private readonly ThreatWatchScanService? _scanService;
+    private readonly Func<CancellationToken, Task<ThreatWatchDetectionResult>> _scanInvoker;
     private readonly ActivityLogService _activityLog;
     private readonly UserPreferencesService _preferences;
     private readonly TimeSpan _initialDelay;
@@ -30,18 +30,18 @@ public sealed class AntiSystemBackgroundScanner : IDisposable
     private int _scanInFlight;
     private bool _disposed;
 
-    public AntiSystemBackgroundScanner(AntiSystemScanService scanService, ActivityLogService activityLog, UserPreferencesService preferences)
+    public ThreatWatchBackgroundScanner(ThreatWatchScanService scanService, ActivityLogService activityLog, UserPreferencesService preferences)
         : this(scanService, activityLog, preferences, null, null, null)
     {
     }
 
-    internal AntiSystemBackgroundScanner(
-        AntiSystemScanService? scanService,
+    internal ThreatWatchBackgroundScanner(
+        ThreatWatchScanService? scanService,
         ActivityLogService activityLog,
         UserPreferencesService preferences,
         TimeSpan? initialDelayOverride,
         TimeSpan? scanIntervalOverride,
-        Func<CancellationToken, Task<AntiSystemDetectionResult>>? scanInvokerOverride)
+        Func<CancellationToken, Task<ThreatWatchDetectionResult>>? scanInvokerOverride)
     {
         if (scanService is null && scanInvokerOverride is null)
         {
@@ -189,7 +189,7 @@ public sealed class AntiSystemBackgroundScanner : IDisposable
         }
         catch (Exception ex)
         {
-            _activityLog.LogError("Anti-System", $"Background scan failed: {ex.Message}", new[] { ex.ToString() });
+            _activityLog.LogError("Threat Watch", $"Background scan failed: {ex.Message}", new[] { ex.ToString() });
         }
         finally
         {
@@ -197,7 +197,7 @@ public sealed class AntiSystemBackgroundScanner : IDisposable
         }
     }
 
-    private void PublishResult(AntiSystemDetectionResult result)
+    private void PublishResult(ThreatWatchDetectionResult result)
     {
         if (result is null)
         {
@@ -206,23 +206,23 @@ public sealed class AntiSystemBackgroundScanner : IDisposable
 
         if (result.Hits.Count == 0)
         {
-            _activityLog.LogSuccess("Anti-System", "Background scan is clear.");
+            _activityLog.LogSuccess("Threat Watch", "Background scan is clear.");
             return;
         }
 
         var hasCritical = result.Hits.Any(static hit => hit.Level == SuspicionLevel.Red);
         var summary = result.Hits.Count == 1
-            ? "Anti-System flagged 1 suspicious process while running quietly in the tray."
-            : $"Anti-System flagged {result.Hits.Count} suspicious processes while running quietly in the tray.";
+            ? "Threat Watch flagged 1 suspicious process while running quietly in the tray."
+            : $"Threat Watch flagged {result.Hits.Count} suspicious processes while running quietly in the tray.";
         var details = BuildHitDetails(result.Hits, 6);
 
         if (hasCritical)
         {
-            _activityLog.LogError("Anti-System", summary, details);
+            _activityLog.LogError("Threat Watch", summary, details);
         }
         else
         {
-            _activityLog.LogWarning("Anti-System", summary, details);
+            _activityLog.LogWarning("Threat Watch", summary, details);
         }
     }
 

@@ -8,43 +8,43 @@ using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.Core.Processes;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 
 namespace TidyWindow.App.ViewModels.Dialogs;
 
-public sealed partial class AntiSystemHoldingsDialogViewModel : ObservableObject
+public sealed partial class ThreatWatchHoldingsDialogViewModel : ObservableObject
 {
     private readonly ProcessStateStore _stateStore;
     private readonly MainViewModel _mainViewModel;
     private readonly IUserConfirmationService _confirmationService;
 
-    public AntiSystemHoldingsDialogViewModel(
+    public ThreatWatchHoldingsDialogViewModel(
         ProcessStateStore stateStore,
         MainViewModel mainViewModel,
         IUserConfirmationService confirmationService,
-        IEnumerable<AntiSystemWhitelistEntryViewModel>? whitelist,
-        IEnumerable<AntiSystemQuarantineEntryViewModel>? quarantine)
+        IEnumerable<ThreatWatchWhitelistEntryViewModel>? whitelist,
+        IEnumerable<ThreatWatchQuarantineEntryViewModel>? quarantine)
     {
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
-        WhitelistEntries = new ObservableCollection<AntiSystemWhitelistEntryViewModel>(whitelist ?? Enumerable.Empty<AntiSystemWhitelistEntryViewModel>());
-        QuarantineEntries = new ObservableCollection<AntiSystemQuarantineEntryViewModel>(quarantine ?? Enumerable.Empty<AntiSystemQuarantineEntryViewModel>());
+        WhitelistEntries = new ObservableCollection<ThreatWatchWhitelistEntryViewModel>(whitelist ?? Enumerable.Empty<ThreatWatchWhitelistEntryViewModel>());
+        QuarantineEntries = new ObservableCollection<ThreatWatchQuarantineEntryViewModel>(quarantine ?? Enumerable.Empty<ThreatWatchQuarantineEntryViewModel>());
 
         WhitelistEntries.CollectionChanged += (_, __) => OnPropertyChanged(nameof(HasWhitelistEntries));
         QuarantineEntries.CollectionChanged += (_, __) => OnPropertyChanged(nameof(HasQuarantineEntries));
     }
 
-    public ObservableCollection<AntiSystemWhitelistEntryViewModel> WhitelistEntries { get; }
+    public ObservableCollection<ThreatWatchWhitelistEntryViewModel> WhitelistEntries { get; }
 
-    public ObservableCollection<AntiSystemQuarantineEntryViewModel> QuarantineEntries { get; }
+    public ObservableCollection<ThreatWatchQuarantineEntryViewModel> QuarantineEntries { get; }
 
     public bool HasWhitelistEntries => WhitelistEntries.Count > 0;
 
     public bool HasQuarantineEntries => QuarantineEntries.Count > 0;
 
     [RelayCommand]
-    private void RemoveWhitelistEntry(AntiSystemWhitelistEntryViewModel? entry)
+    private void RemoveWhitelistEntry(ThreatWatchWhitelistEntryViewModel? entry)
     {
         if (entry is null)
         {
@@ -61,21 +61,21 @@ public sealed partial class AntiSystemHoldingsDialogViewModel : ObservableObject
             if (_stateStore.RemoveWhitelistEntry(entry.Id))
             {
                 WhitelistEntries.Remove(entry);
-                _mainViewModel.LogActivityInformation("Anti-System", $"Removed whitelist entry for {entry.Value}.");
+                _mainViewModel.LogActivityInformation("Threat Watch", $"Removed whitelist entry for {entry.Value}.");
             }
             else
             {
-                _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", "Whitelist entry could not be removed.", new[] { entry.Value });
+                _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Threat Watch", "Whitelist entry could not be removed.", new[] { entry.Value });
             }
         }
         catch (Exception ex)
         {
-            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Anti-System", "Failed to remove whitelist entry.", new[] { ex.Message });
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Threat Watch", "Failed to remove whitelist entry.", new[] { ex.Message });
         }
     }
 
     [RelayCommand]
-    private void RemoveQuarantineEntry(AntiSystemQuarantineEntryViewModel? entry)
+    private void RemoveQuarantineEntry(ThreatWatchQuarantineEntryViewModel? entry)
     {
         if (entry is null)
         {
@@ -92,25 +92,25 @@ public sealed partial class AntiSystemHoldingsDialogViewModel : ObservableObject
             if (_stateStore.RemoveQuarantineEntry(entry.Id))
             {
                 QuarantineEntries.Remove(entry);
-                _mainViewModel.LogActivityInformation("Anti-System", $"Removed quarantine record for {entry.ProcessName}.");
+                _mainViewModel.LogActivityInformation("Threat Watch", $"Removed quarantine record for {entry.ProcessName}.");
             }
             else
             {
-                _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", "Quarantine record could not be removed.", new[] { entry.ProcessName });
+                _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Threat Watch", "Quarantine record could not be removed.", new[] { entry.ProcessName });
             }
         }
         catch (Exception ex)
         {
-            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Anti-System", "Failed to remove quarantine record.", new[] { ex.Message });
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Threat Watch", "Failed to remove quarantine record.", new[] { ex.Message });
         }
     }
 }
 
-public sealed class AntiSystemWhitelistEntryViewModel
+public sealed class ThreatWatchWhitelistEntryViewModel
 {
-    public AntiSystemWhitelistEntryViewModel(
+    public ThreatWatchWhitelistEntryViewModel(
         string id,
-        AntiSystemWhitelistEntryKind kind,
+        ThreatWatchWhitelistEntryKind kind,
         string value,
         string? notes,
         string? addedBy,
@@ -126,7 +126,7 @@ public sealed class AntiSystemWhitelistEntryViewModel
 
     public string Id { get; }
 
-    public AntiSystemWhitelistEntryKind Kind { get; }
+    public ThreatWatchWhitelistEntryKind Kind { get; }
 
     public string Value { get; }
 
@@ -138,18 +138,18 @@ public sealed class AntiSystemWhitelistEntryViewModel
 
     public string KindLabel => Kind switch
     {
-        AntiSystemWhitelistEntryKind.Directory => "Directory",
-        AntiSystemWhitelistEntryKind.FileHash => "File hash",
-        AntiSystemWhitelistEntryKind.ProcessName => "Process name",
+        ThreatWatchWhitelistEntryKind.Directory => "Directory",
+        ThreatWatchWhitelistEntryKind.FileHash => "File hash",
+        ThreatWatchWhitelistEntryKind.ProcessName => "Process name",
         _ => Kind.ToString()
     };
 
     public string AddedAtDisplay => AddedAtUtc.ToLocalTime().ToString("g");
 }
 
-public sealed class AntiSystemQuarantineEntryViewModel
+public sealed class ThreatWatchQuarantineEntryViewModel
 {
-    public AntiSystemQuarantineEntryViewModel(
+    public ThreatWatchQuarantineEntryViewModel(
         string id,
         string processName,
         string filePath,

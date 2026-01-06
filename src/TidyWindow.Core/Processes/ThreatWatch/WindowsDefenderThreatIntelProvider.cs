@@ -5,7 +5,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TidyWindow.Core.Processes.AntiSystem;
+namespace TidyWindow.Core.Processes.ThreatWatch;
 
 /// <summary>
 /// Invokes MpCmdRun.exe to obtain a quick Defender verdict before falling back to remote services.

@@ -1,9 +1,9 @@
 using System;
 
-namespace TidyWindow.Core.Processes.AntiSystem;
+namespace TidyWindow.Core.Processes.ThreatWatch;
 
 /// <summary>
-/// Represents an auto-start artifact evaluated by Anti-System.
+/// Represents an auto-start artifact evaluated by Threat Watch.
 /// </summary>
 public sealed record StartupEntrySnapshot
 {

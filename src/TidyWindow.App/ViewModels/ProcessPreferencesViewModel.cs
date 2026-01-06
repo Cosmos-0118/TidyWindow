@@ -321,11 +321,11 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void ShowAntiSystemHoldings()
+    private void ShowThreatWatchHoldings()
     {
         var whitelist = _processStateStore.GetWhitelistEntries()
             .OrderByDescending(static entry => entry.AddedAtUtc)
-            .Select(static entry => new AntiSystemWhitelistEntryViewModel(
+            .Select(static entry => new ThreatWatchWhitelistEntryViewModel(
                 entry.Id,
                 entry.Kind,
                 entry.Value,
@@ -335,7 +335,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
             .ToList();
 
         var quarantine = _processStateStore.GetQuarantineEntries()
-            .Select(static entry => new AntiSystemQuarantineEntryViewModel(
+            .Select(static entry => new ThreatWatchQuarantineEntryViewModel(
                 entry.Id,
                 entry.ProcessName,
                 entry.FilePath,
@@ -348,13 +348,13 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
                 entry.Sha256))
             .ToList();
 
-        var dialogViewModel = new AntiSystemHoldingsDialogViewModel(
+        var dialogViewModel = new ThreatWatchHoldingsDialogViewModel(
             _processStateStore,
             _mainViewModel,
             _confirmationService,
             whitelist,
             quarantine);
-        var window = new AntiSystemHoldingsWindow(dialogViewModel)
+        var window = new ThreatWatchHoldingsWindow(dialogViewModel)
         {
             Owner = WpfApplication.Current?.MainWindow,
             WindowStartupLocation = WpfApplication.Current?.MainWindow is null

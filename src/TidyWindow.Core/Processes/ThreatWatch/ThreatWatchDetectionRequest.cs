@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
-namespace TidyWindow.Core.Processes.AntiSystem;
+namespace TidyWindow.Core.Processes.ThreatWatch;
 
 /// <summary>
 /// Configures a detection run, including the processes and startup entries to inspect.
 /// </summary>
-public sealed class AntiSystemDetectionRequest
+public sealed class ThreatWatchDetectionRequest
 {
-    public AntiSystemDetectionRequest(
+    public ThreatWatchDetectionRequest(
         IEnumerable<RunningProcessSnapshot> processes,
         IEnumerable<StartupEntrySnapshot>? startupEntries = null,
         bool includeBehaviorRules = true,

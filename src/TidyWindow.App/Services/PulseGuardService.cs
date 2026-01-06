@@ -330,7 +330,7 @@ public sealed class PulseGuardService : IDisposable
             return true;
         }
 
-        if (IsAntiSystemPassiveScanEntry(entry))
+        if (IsThreatWatchPassiveScanEntry(entry))
         {
             return true;
         }
@@ -384,9 +384,9 @@ public sealed class PulseGuardService : IDisposable
         return false;
     }
 
-    private static bool IsAntiSystemPassiveScanEntry(ActivityLogEntry entry)
+    private static bool IsThreatWatchPassiveScanEntry(ActivityLogEntry entry)
     {
-        if (!string.Equals(entry.Source, "Anti-System", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(entry.Source, "Threat Watch", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }

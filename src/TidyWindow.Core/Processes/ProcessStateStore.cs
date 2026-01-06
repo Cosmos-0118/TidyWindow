@@ -5,7 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 
 namespace TidyWindow.Core.Processes;
 
@@ -119,7 +119,7 @@ public sealed class ProcessStateStore
         }
     }
 
-    public IReadOnlyCollection<AntiSystemWhitelistEntry> GetWhitelistEntries()
+    public IReadOnlyCollection<ThreatWatchWhitelistEntry> GetWhitelistEntries()
     {
         lock (_syncRoot)
         {
@@ -127,7 +127,7 @@ public sealed class ProcessStateStore
         }
     }
 
-    public void UpsertWhitelistEntry(AntiSystemWhitelistEntry entry)
+    public void UpsertWhitelistEntry(ThreatWatchWhitelistEntry entry)
     {
         if (entry is null)
         {
@@ -176,7 +176,7 @@ public sealed class ProcessStateStore
         }
     }
 
-    public IReadOnlyCollection<AntiSystemQuarantineEntry> GetQuarantineEntries()
+    public IReadOnlyCollection<ThreatWatchQuarantineEntry> GetQuarantineEntries()
     {
         lock (_syncRoot)
         {
@@ -186,7 +186,7 @@ public sealed class ProcessStateStore
         }
     }
 
-    public void UpsertQuarantineEntry(AntiSystemQuarantineEntry entry)
+    public void UpsertQuarantineEntry(ThreatWatchQuarantineEntry entry)
     {
         if (entry is null)
         {
@@ -235,7 +235,7 @@ public sealed class ProcessStateStore
         }
     }
 
-    public bool TryMatchWhitelist(string? filePath, string? sha256, string? processName, out AntiSystemWhitelistEntry? entry)
+    public bool TryMatchWhitelist(string? filePath, string? sha256, string? processName, out ThreatWatchWhitelistEntry? entry)
     {
         lock (_syncRoot)
         {
@@ -415,19 +415,19 @@ public sealed class ProcessStateStore
                     .ToImmutableDictionary(static hit => hit.Id, StringComparer.OrdinalIgnoreCase);
 
             var whitelistEntries = model.WhitelistEntries is null
-                ? ImmutableDictionary.Create<string, AntiSystemWhitelistEntry>(StringComparer.OrdinalIgnoreCase)
+                ? ImmutableDictionary.Create<string, ThreatWatchWhitelistEntry>(StringComparer.OrdinalIgnoreCase)
                 : model.WhitelistEntries
                     .Select(ToWhitelistEntry)
                     .Where(static entry => entry is not null)
-                    .Cast<AntiSystemWhitelistEntry>()
+                    .Cast<ThreatWatchWhitelistEntry>()
                     .ToImmutableDictionary(static entry => entry.Id, StringComparer.OrdinalIgnoreCase);
 
             var quarantineEntries = model.QuarantineEntries is null
-                ? ImmutableDictionary.Create<string, AntiSystemQuarantineEntry>(StringComparer.OrdinalIgnoreCase)
+                ? ImmutableDictionary.Create<string, ThreatWatchQuarantineEntry>(StringComparer.OrdinalIgnoreCase)
                 : model.QuarantineEntries
                     .Select(ToQuarantineEntry)
                     .Where(static entry => entry is not null)
-                    .Cast<AntiSystemQuarantineEntry>()
+                    .Cast<ThreatWatchQuarantineEntry>()
                     .ToImmutableDictionary(static entry => entry.Id, StringComparer.OrdinalIgnoreCase);
 
             var questionnaire = ToQuestionnaireSnapshot(model.Questionnaire);
@@ -473,7 +473,7 @@ public sealed class ProcessStateStore
         return new ProcessPreference(model.ProcessId, model.Action, model.Source, updatedAt, model.Notes);
     }
 
-    private static AntiSystemWhitelistEntry? ToWhitelistEntry(AntiSystemWhitelistEntryModel? model)
+    private static ThreatWatchWhitelistEntry? ToWhitelistEntry(ThreatWatchWhitelistEntryModel? model)
     {
         if (model is null || string.IsNullOrWhiteSpace(model.Value))
         {
@@ -482,7 +482,7 @@ public sealed class ProcessStateStore
 
         try
         {
-            return new AntiSystemWhitelistEntry(
+            return new ThreatWatchWhitelistEntry(
                 model.Id ?? string.Empty,
                 model.Kind,
                 model.Value,
@@ -496,7 +496,7 @@ public sealed class ProcessStateStore
         }
     }
 
-    private static AntiSystemQuarantineEntry? ToQuarantineEntry(AntiSystemQuarantineEntryModel? model)
+    private static ThreatWatchQuarantineEntry? ToQuarantineEntry(ThreatWatchQuarantineEntryModel? model)
     {
         if (model is null || string.IsNullOrWhiteSpace(model.ProcessName) || string.IsNullOrWhiteSpace(model.FilePath))
         {
@@ -505,7 +505,7 @@ public sealed class ProcessStateStore
 
         try
         {
-            return new AntiSystemQuarantineEntry(
+            return new ThreatWatchQuarantineEntry(
                 model.Id ?? string.Empty,
                 model.ProcessName,
                 model.FilePath,
@@ -614,9 +614,9 @@ public sealed class ProcessStateStore
 
         public List<SuspiciousProcessHitModel>? SuspiciousHits { get; set; }
 
-        public List<AntiSystemWhitelistEntryModel>? WhitelistEntries { get; set; }
+        public List<ThreatWatchWhitelistEntryModel>? WhitelistEntries { get; set; }
 
-        public List<AntiSystemQuarantineEntryModel>? QuarantineEntries { get; set; }
+        public List<ThreatWatchQuarantineEntryModel>? QuarantineEntries { get; set; }
 
         public ProcessQuestionnaireModel? Questionnaire { get; set; }
 
@@ -639,7 +639,7 @@ public sealed class ProcessStateStore
                     })
                     .ToList(),
                 WhitelistEntries = snapshot.WhitelistEntries.Values
-                    .Select(static entry => new AntiSystemWhitelistEntryModel
+                    .Select(static entry => new ThreatWatchWhitelistEntryModel
                     {
                         Id = entry.Id,
                         Kind = entry.Kind,
@@ -650,7 +650,7 @@ public sealed class ProcessStateStore
                     })
                     .ToList(),
                 QuarantineEntries = snapshot.QuarantineEntries.Values
-                    .Select(static entry => new AntiSystemQuarantineEntryModel
+                    .Select(static entry => new ThreatWatchQuarantineEntryModel
                     {
                         Id = entry.Id,
                         ProcessName = entry.ProcessName,
@@ -697,11 +697,11 @@ public sealed class ProcessStateStore
         public string? Notes { get; set; }
     }
 
-    private sealed class AntiSystemWhitelistEntryModel
+    private sealed class ThreatWatchWhitelistEntryModel
     {
         public string? Id { get; set; }
 
-        public AntiSystemWhitelistEntryKind Kind { get; set; }
+        public ThreatWatchWhitelistEntryKind Kind { get; set; }
 
         public string? Value { get; set; }
 
@@ -712,7 +712,7 @@ public sealed class ProcessStateStore
         public DateTimeOffset AddedAtUtc { get; set; }
     }
 
-    private sealed class AntiSystemQuarantineEntryModel
+    private sealed class ThreatWatchQuarantineEntryModel
     {
         public string? Id { get; set; }
 
@@ -806,8 +806,8 @@ public sealed record ProcessStateSnapshot(
     IImmutableDictionary<string, SuspiciousProcessHit> SuspiciousHits,
     ProcessQuestionnaireSnapshot Questionnaire,
     ProcessAutomationSettings Automation,
-    IImmutableDictionary<string, AntiSystemWhitelistEntry> WhitelistEntries,
-    IImmutableDictionary<string, AntiSystemQuarantineEntry> QuarantineEntries)
+    IImmutableDictionary<string, ThreatWatchWhitelistEntry> WhitelistEntries,
+    IImmutableDictionary<string, ThreatWatchQuarantineEntry> QuarantineEntries)
 {
     public static ProcessStateSnapshot CreateEmpty(int schemaVersion)
     {
@@ -818,8 +818,8 @@ public sealed record ProcessStateSnapshot(
             ImmutableDictionary.Create<string, SuspiciousProcessHit>(StringComparer.OrdinalIgnoreCase),
             ProcessQuestionnaireSnapshot.Empty,
             ProcessAutomationSettings.Default,
-            ImmutableDictionary.Create<string, AntiSystemWhitelistEntry>(StringComparer.OrdinalIgnoreCase),
-            ImmutableDictionary.Create<string, AntiSystemQuarantineEntry>(StringComparer.OrdinalIgnoreCase));
+            ImmutableDictionary.Create<string, ThreatWatchWhitelistEntry>(StringComparer.OrdinalIgnoreCase),
+            ImmutableDictionary.Create<string, ThreatWatchQuarantineEntry>(StringComparer.OrdinalIgnoreCase));
     }
 }
 

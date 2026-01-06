@@ -67,13 +67,13 @@ public sealed class PulseGuardServiceTests
     }
 
     [Fact]
-    public async Task AntiSystemScanClearDoesNotNotify()
+    public async Task ThreatWatchScanClearDoesNotNotify()
     {
         await WpfTestHelper.RunAsync(async () =>
         {
             using var scope = new PulseGuardTestScope();
 
-            scope.ActivityLog.LogSuccess("Anti-System", "Background scan is clear.");
+            scope.ActivityLog.LogSuccess("Threat Watch", "Background scan is clear.");
 
             await Assert.ThrowsAsync<TimeoutException>(() => scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromMilliseconds(200)));
         });

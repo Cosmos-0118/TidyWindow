@@ -7,7 +7,7 @@ using TidyWindow.Core.Processes;
 namespace TidyWindow.App.Converters;
 
 /// <summary>
-/// Maps <see cref="SuspicionLevel"/> values to semantic brushes for the Anti-System tab.
+/// Maps <see cref="SuspicionLevel"/> values to semantic brushes for the Threat Watch tab.
 /// </summary>
 public sealed class SuspicionLevelToBrushConverter : IValueConverter
 {

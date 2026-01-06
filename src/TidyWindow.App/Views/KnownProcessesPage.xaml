@@ -44,11 +44,11 @@
         <SolidColorBrush x:Key="ProcessSourceBadgeBrush" Color="#10253E" />
         <SolidColorBrush x:Key="ProcessSourceBadgeForegroundBrush" Color="#7DD3FC" />
         <SolidColorBrush x:Key="ProcessDangerActionHoverBrush" Color="#EF4444" />
-        <SolidColorBrush x:Key="AntiSystemCardBaseBrush" Color="#0F172A" />
-        <SolidColorBrush x:Key="AntiSystemCriticalBrush" Color="#2B0D16" />
-        <SolidColorBrush x:Key="AntiSystemElevatedBrush" Color="#1F1724" />
-        <SolidColorBrush x:Key="AntiSystemWatchBrush" Color="#101E2B" />
-        <SolidColorBrush x:Key="AntiSystemCardBorderBrush" Color="#1F2A44" />
+        <SolidColorBrush x:Key="ThreatWatchCardBaseBrush" Color="#0F172A" />
+        <SolidColorBrush x:Key="ThreatWatchCriticalBrush" Color="#2B0D16" />
+        <SolidColorBrush x:Key="ThreatWatchElevatedBrush" Color="#1F1724" />
+        <SolidColorBrush x:Key="ThreatWatchWatchBrush" Color="#101E2B" />
+        <SolidColorBrush x:Key="ThreatWatchCardBorderBrush" Color="#1F2A44" />
 
         <DropShadowEffect x:Key="ProcessGlowShadowEffect"
                           Color="#030712"
@@ -237,11 +237,11 @@
             <Setter Property="Margin" Value="0,4,8,0" />
         </Style>
 
-        <Style x:Key="AntiSystemCardStyle" TargetType="Border">
+        <Style x:Key="ThreatWatchCardStyle" TargetType="Border">
             <Setter Property="CornerRadius" Value="18" />
             <Setter Property="Padding" Value="20" />
-            <Setter Property="Background" Value="{StaticResource AntiSystemCardBaseBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource AntiSystemCardBorderBrush}" />
+            <Setter Property="Background" Value="{StaticResource ThreatWatchCardBaseBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource ThreatWatchCardBorderBrush}" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Margin" Value="0,0,0,16" />
             <Setter Property="Effect" Value="{StaticResource ProcessCardShadowEffect}" />
@@ -250,18 +250,18 @@
             <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Level}" Value="{x:Static core:SuspicionLevel.Red}">
-                    <Setter Property="Background" Value="{StaticResource AntiSystemCriticalBrush}" />
+                    <Setter Property="Background" Value="{StaticResource ThreatWatchCriticalBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Level}" Value="{x:Static core:SuspicionLevel.Orange}">
-                    <Setter Property="Background" Value="{StaticResource AntiSystemElevatedBrush}" />
+                    <Setter Property="Background" Value="{StaticResource ThreatWatchElevatedBrush}" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Level}" Value="{x:Static core:SuspicionLevel.Yellow}">
-                    <Setter Property="Background" Value="{StaticResource AntiSystemWatchBrush}" />
+                    <Setter Property="Background" Value="{StaticResource ThreatWatchWatchBrush}" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="AntiSystemInfoChipStyle" TargetType="Border">
+        <Style x:Key="ThreatWatchInfoChipStyle" TargetType="Border">
             <Setter Property="Background" Value="#132740" />
             <Setter Property="BorderBrush" Value="#1F3B63" />
             <Setter Property="BorderThickness" Value="1" />
@@ -270,7 +270,7 @@
             <Setter Property="Margin" Value="0,0,10,10" />
         </Style>
 
-        <Style x:Key="AntiSystemActionButtonStyle" TargetType="Button">
+        <Style x:Key="ThreatWatchActionButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#F8FAFC" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Padding" Value="20,12" />
@@ -306,7 +306,7 @@
             </Setter>
         </Style>
 
-        <Style x:Key="AntiSystemDangerButtonStyle"
+        <Style x:Key="ThreatWatchDangerButtonStyle"
                TargetType="Button"
                BasedOn="{StaticResource ProcessDangerButtonStyle}">
             <Setter Property="Padding" Value="20,12" />
@@ -480,7 +480,7 @@
                                     BorderThickness="1"
                                     CornerRadius="12"
                                     Padding="12,4">
-                                <TextBlock Text="{Binding Categories.Count, StringFormat={}{0} catalog groups}"
+                                <TextBlock Text="{Binding Categories.Count, StringFormat={}{0} process groups}"
                                            Foreground="{StaticResource ProcessBodyBrush}" />
                             </Border>
                         </WrapPanel>
@@ -490,21 +490,21 @@
         </controls:PageTitleBar>
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,16">
-            <ToggleButton Content="Recommendations"
+            <ToggleButton Content="Known processes"
                           Style="{StaticResource ProcessNavToggleStyle}"
                           Command="{Binding SwitchSectionCommand}"
                           CommandParameter="{x:Static viewModels:KnownProcessViewSection.Catalog}"
                           IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Catalog, Mode=OneWay}" />
-            <ToggleButton Content="Settings"
+            <ToggleButton Content="Process controls"
                           Style="{StaticResource ProcessNavToggleStyle}"
                           Command="{Binding SwitchSectionCommand}"
                           CommandParameter="{x:Static viewModels:KnownProcessViewSection.Settings}"
                           IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Settings, Mode=OneWay}" />
-            <ToggleButton Content="Anti-System"
+            <ToggleButton Content="Threat Watch"
                           Style="{StaticResource ProcessNavToggleStyle}"
                           Command="{Binding SwitchSectionCommand}"
-                          CommandParameter="{x:Static viewModels:KnownProcessViewSection.AntiSystem}"
-                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=AntiSystem, Mode=OneWay}" />
+                          CommandParameter="{x:Static viewModels:KnownProcessViewSection.ThreatWatch}"
+                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=ThreatWatch, Mode=OneWay}" />
         </StackPanel>
 
         <Border Grid.Row="2"
@@ -530,7 +530,7 @@
             </Border.Style>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <ProgressBar Width="160" IsIndeterminate="True" Height="6" />
-                <TextBlock Text="Loading catalog..."
+                <TextBlock Text="Loading known processes..."
                            Margin="12,0,0,0"
                            VerticalAlignment="Center"
                            Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
@@ -705,12 +705,12 @@
                             </Style.Triggers>
                         </Style>
                     </StackPanel.Style>
-                    <TextBlock Text="No recommendations yet."
+                    <TextBlock Text="No known processes yet."
                                FontSize="20"
                                FontWeight="SemiBold"
                                Foreground="{StaticResource ProcessHeadlineBrush}"
                                HorizontalAlignment="Center" />
-                    <TextBlock Text="Run the questionnaire or refresh the catalog to populate this tab."
+                    <TextBlock Text="Run the questionnaire or refresh the known process list to populate this tab."
                                Margin="0,8,0,0"
                                HorizontalAlignment="Center"
                                Foreground="{StaticResource ProcessMutedBrush}" />
@@ -741,7 +741,7 @@
                         <StackPanel>
                             <TextBlock Text="Process automation controls"
                                        Style="{StaticResource SettingsSectionHeaderTextStyle}" />
-                            <TextBlock Text="Keep questionnaire guidance handy and jump to the most important adjustments without scrolling through every catalog card."
+                            <TextBlock Text="Keep questionnaire guidance handy and jump to the most important adjustments without scrolling through every process card."
                                        Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                        Margin="0,6,0,16" />
                             <StackPanel>
@@ -756,7 +756,7 @@
                                            Margin="0,4,0,0" />
                             </StackPanel>
                             <WrapPanel Margin="0,16,0,0" HorizontalAlignment="Left">
-                                <Button Content="Refresh catalog"
+                                <Button Content="Refresh processes"
                                         Margin="0,0,12,12"
                                         Style="{StaticResource ProcessSecondaryButtonStyle}"
                                         Command="{Binding RefreshProcessPreferencesCommand}" />
@@ -771,7 +771,7 @@
                                 <Button Content="Manage allow &amp; quarantine"
                                         Margin="0,0,0,12"
                                         Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding ShowAntiSystemHoldingsCommand}" />
+                                        Command="{Binding ShowThreatWatchHoldingsCommand}" />
                             </WrapPanel>
                         </StackPanel>
                     </Border>
@@ -956,7 +956,7 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="Catalog segments will appear as soon as the recommendations load."
+                            <TextBlock Text="Process segments will appear as soon as the known processes load."
                                        Margin="0,12,0,0">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock" BasedOn="{StaticResource SettingsSectionSubtitleTextStyle}">
@@ -976,20 +976,20 @@
 
             <ScrollViewer Grid.Row="0"
                           VerticalScrollBarVisibility="Auto"
-                          DataContext="{Binding AntiSystem}">
+                          DataContext="{Binding ThreatWatch}">
                 <ScrollViewer.Style>
                     <Style TargetType="ScrollViewer">
                         <Setter Property="Visibility" Value="Collapsed" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding DataContext.ActiveSection, RelativeSource={RelativeSource AncestorType=Grid}}"
-                                         Value="{x:Static viewModels:KnownProcessViewSection.AntiSystem}">
+                                         Value="{x:Static viewModels:KnownProcessViewSection.ThreatWatch}">
                                 <Setter Property="Visibility" Value="Visible" />
                             </DataTrigger>
                         </Style.Triggers>
                     </Style>
                 </ScrollViewer.Style>
                 <StackPanel>
-                    <controls:PageTitleBar Title="Anti-System Watch"
+                    <controls:PageTitleBar Title="Threat Watch Watch"
                                            Subtitle="Surface and quarantine suspicious activity before it spreads."
                                            IconGlyph="🛡️"
                                            Margin="0,0,0,24" />
@@ -1159,7 +1159,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Style="{StaticResource AntiSystemCardStyle}">
+                                <Border Style="{StaticResource ThreatWatchCardStyle}">
                                     <Grid>
                                         <Grid.RowDefinitions>
                                             <RowDefinition />
@@ -1190,7 +1190,7 @@
                                                        Margin="0,10,0,0"
                                                        TextWrapping="Wrap" />
                                             <WrapPanel Margin="0,12,0,0">
-                                                <Border Style="{StaticResource AntiSystemInfoChipStyle}">
+                                                <Border Style="{StaticResource ThreatWatchInfoChipStyle}">
                                                     <StackPanel>
                                                         <TextBlock Text="Source"
                                                                    Foreground="#94A3B8"
@@ -1242,25 +1242,25 @@
                                                 <Button Content="Whitelist"
                                                         Margin="0,0,12,0"
                                                         Background="#2563EB"
-                                                        Style="{StaticResource AntiSystemActionButtonStyle}"
+                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
                                                         Command="{Binding WhitelistCommand}" />
                                                 <Button Content="Scan file"
                                                         Margin="0,0,12,0"
                                                         Background="#7C3AED"
-                                                        Style="{StaticResource AntiSystemActionButtonStyle}"
+                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
                                                         Command="{Binding ScanFileCommand}" />
                                                 <Button Content="Open location"
                                                         Margin="0,0,12,0"
                                                         Background="#0EA5E9"
-                                                        Style="{StaticResource AntiSystemActionButtonStyle}"
+                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
                                                         Command="{Binding OpenLocationCommand}" />
                                                 <Button Content="Ignore"
                                                         Margin="0,0,12,0"
                                                         Background="#334155"
-                                                        Style="{StaticResource AntiSystemActionButtonStyle}"
+                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
                                                         Command="{Binding IgnoreCommand}" />
                                                 <Button Content="Quarantine"
-                                                    Style="{StaticResource AntiSystemDangerButtonStyle}"
+                                                    Style="{StaticResource ThreatWatchDangerButtonStyle}"
                                                         Command="{Binding QuarantineCommand}" />
                                             </StackPanel>
                                             <TextBlock Text="{Binding LastActionMessage}"

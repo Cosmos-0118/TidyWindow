@@ -100,7 +100,7 @@ public sealed class ProcessStateStoreTests
         try
         {
             var store = new ProcessStateStore(path);
-            var entry = AntiSystemWhitelistEntry.CreateDirectory("C:/Tools", notes: "Dev Tools");
+            var entry = ThreatWatchWhitelistEntry.CreateDirectory("C:/Tools", notes: "Dev Tools");
 
             store.UpsertWhitelistEntry(entry);
 

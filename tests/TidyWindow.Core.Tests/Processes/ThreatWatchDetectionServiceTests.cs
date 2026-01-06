@@ -4,12 +4,12 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Processes;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 using Xunit;
 
 namespace TidyWindow.Core.Tests.Processes;
 
-public sealed class AntiSystemDetectionServiceTests
+public sealed class ThreatWatchDetectionServiceTests
 {
     [Fact]
     public async Task FlagsCriticalProcessOutsideSystemDirectory()
@@ -18,7 +18,7 @@ public sealed class AntiSystemDetectionServiceTests
         try
         {
             var store = new ProcessStateStore(statePath);
-            var service = new AntiSystemDetectionService(store);
+            var service = new ThreatWatchDetectionService(store);
             var process = new RunningProcessSnapshot(
                 100,
                 "lsass.exe",
@@ -30,7 +30,7 @@ public sealed class AntiSystemDetectionServiceTests
                 grandParentProcessName: null,
                 startedAtUtc: DateTimeOffset.UtcNow,
                 isElevated: true);
-            var request = new AntiSystemDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
+            var request = new ThreatWatchDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
 
             var result = await service.RunScanAsync(request);
 
@@ -50,7 +50,7 @@ public sealed class AntiSystemDetectionServiceTests
         try
         {
             var store = new ProcessStateStore(statePath);
-            var service = new AntiSystemDetectionService(store);
+            var service = new ThreatWatchDetectionService(store);
             var trustedRoot = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             if (string.IsNullOrWhiteSpace(trustedRoot))
             {
@@ -68,7 +68,7 @@ public sealed class AntiSystemDetectionServiceTests
                 grandParentProcessName: null,
                 startedAtUtc: DateTimeOffset.UtcNow,
                 isElevated: false);
-            var request = new AntiSystemDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
+            var request = new ThreatWatchDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
 
             var result = await service.RunScanAsync(request);
 
@@ -87,8 +87,8 @@ public sealed class AntiSystemDetectionServiceTests
         try
         {
             var store = new ProcessStateStore(statePath);
-            store.UpsertWhitelistEntry(AntiSystemWhitelistEntry.CreateDirectory("C:/Lab"));
-            var service = new AntiSystemDetectionService(store);
+            store.UpsertWhitelistEntry(ThreatWatchWhitelistEntry.CreateDirectory("C:/Lab"));
+            var service = new ThreatWatchDetectionService(store);
             var process = new RunningProcessSnapshot(
                 300,
                 "svchost.exe",
@@ -100,7 +100,7 @@ public sealed class AntiSystemDetectionServiceTests
                 grandParentProcessName: null,
                 startedAtUtc: DateTimeOffset.UtcNow,
                 isElevated: false);
-            var request = new AntiSystemDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
+            var request = new ThreatWatchDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
 
             var result = await service.RunScanAsync(request);
 
@@ -120,7 +120,7 @@ public sealed class AntiSystemDetectionServiceTests
         try
         {
             var store = new ProcessStateStore(statePath);
-            var service = new AntiSystemDetectionService(store);
+            var service = new ThreatWatchDetectionService(store);
             File.WriteAllText(tempExe, "demo");
             var process = new RunningProcessSnapshot(
                 400,
@@ -133,7 +133,7 @@ public sealed class AntiSystemDetectionServiceTests
                 grandParentProcessName: null,
                 startedAtUtc: DateTimeOffset.UtcNow,
                 isElevated: false);
-            var request = new AntiSystemDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
+            var request = new ThreatWatchDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.Disabled);
 
             var result = await service.RunScanAsync(request);
 
@@ -158,7 +158,7 @@ public sealed class AntiSystemDetectionServiceTests
             var hash = ComputeSha256(samplePath);
             var store = new ProcessStateStore(statePath);
             var provider = new StubThreatIntelProvider(hash);
-            var service = new AntiSystemDetectionService(store, new[] { provider });
+            var service = new ThreatWatchDetectionService(store, new[] { provider });
             var process = new RunningProcessSnapshot(
                 500,
                 "bad.exe",
@@ -170,7 +170,7 @@ public sealed class AntiSystemDetectionServiceTests
                 grandParentProcessName: null,
                 startedAtUtc: DateTimeOffset.UtcNow,
                 isElevated: false);
-            var request = new AntiSystemDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.LocalOnly);
+            var request = new ThreatWatchDetectionRequest(new[] { process }, threatIntelMode: ThreatIntelMode.LocalOnly);
 
             var result = await service.RunScanAsync(request);
 
@@ -191,7 +191,7 @@ public sealed class AntiSystemDetectionServiceTests
         try
         {
             var store = new ProcessStateStore(statePath);
-            var service = new AntiSystemDetectionService(store);
+            var service = new ThreatWatchDetectionService(store);
             var startup = new StartupEntrySnapshot(
                 "run!temp",
                 "temp.exe",
@@ -200,12 +200,12 @@ public sealed class AntiSystemDetectionServiceTests
                 arguments: null,
                 source: "HKCU\\Run",
                 description: "Temp autorun");
-            var request = new AntiSystemDetectionRequest(Array.Empty<RunningProcessSnapshot>(), new[] { startup }, threatIntelMode: ThreatIntelMode.Disabled);
+            var request = new ThreatWatchDetectionRequest(Array.Empty<RunningProcessSnapshot>(), new[] { startup }, threatIntelMode: ThreatIntelMode.Disabled);
 
             var result = await service.RunScanAsync(request);
 
             Assert.Single(result.Hits);
-            Assert.Equal("AntiSystemDetection:Startup", result.Hits[0].Source);
+            Assert.Equal("ThreatWatchDetection:Startup", result.Hits[0].Source);
         }
         finally
         {
@@ -215,7 +215,7 @@ public sealed class AntiSystemDetectionServiceTests
 
     private static string CreateTempPath()
     {
-        return Path.Combine(Path.GetTempPath(), $"TidyWindow_AntiSystem_{Guid.NewGuid():N}.json");
+        return Path.Combine(Path.GetTempPath(), $"TidyWindow_ThreatWatch_{Guid.NewGuid():N}.json");
     }
 
     private static void DeleteIfExists(string path)

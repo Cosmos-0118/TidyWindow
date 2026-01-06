@@ -6,27 +6,27 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Win32;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 
 namespace TidyWindow.App.Services;
 
 /// <summary>
-/// Collects runtime context (running processes + startup entries) and executes Anti-System scans.
+/// Collects runtime context (running processes + startup entries) and executes Threat Watch scans.
 /// </summary>
-public sealed class AntiSystemScanService
+public sealed class ThreatWatchScanService
 {
-    private readonly AntiSystemDetectionService _detectionService;
+    private readonly ThreatWatchDetectionService _detectionService;
 
-    public AntiSystemScanService(AntiSystemDetectionService detectionService)
+    public ThreatWatchScanService(ThreatWatchDetectionService detectionService)
     {
         _detectionService = detectionService ?? throw new ArgumentNullException(nameof(detectionService));
     }
 
-    public Task<AntiSystemDetectionResult> RunScanAsync(CancellationToken cancellationToken = default)
+    public Task<ThreatWatchDetectionResult> RunScanAsync(CancellationToken cancellationToken = default)
     {
         var processes = SnapshotProcesses();
         var startupEntries = SnapshotStartupEntries();
-        var request = new AntiSystemDetectionRequest(processes, startupEntries);
+        var request = new ThreatWatchDetectionRequest(processes, startupEntries);
         return _detectionService.RunScanAsync(request, cancellationToken);
     }
 

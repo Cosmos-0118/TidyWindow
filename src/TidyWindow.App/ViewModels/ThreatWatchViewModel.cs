@@ -11,20 +11,20 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Processes;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 
 namespace TidyWindow.App.ViewModels;
 
-public sealed partial class AntiSystemViewModel : ViewModelBase
+public sealed partial class ThreatWatchViewModel : ViewModelBase
 {
-    private readonly AntiSystemScanService _scanService;
+    private readonly ThreatWatchScanService _scanService;
     private readonly ProcessStateStore _stateStore;
     private readonly IUserConfirmationService _confirmationService;
     private readonly MainViewModel _mainViewModel;
     private bool _isInitialized;
 
-    public AntiSystemViewModel(
-        AntiSystemScanService scanService,
+    public ThreatWatchViewModel(
+        ThreatWatchScanService scanService,
         ProcessStateStore stateStore,
         IUserConfirmationService confirmationService,
         MainViewModel mainViewModel)
@@ -34,22 +34,22 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
 
-        SeverityGroups = new ObservableCollection<AntiSystemSeverityGroupViewModel>(
+        SeverityGroups = new ObservableCollection<ThreatWatchSeverityGroupViewModel>(
             new[]
             {
-                new AntiSystemSeverityGroupViewModel(SuspicionLevel.Red, "Critical", "Immediate action recommended"),
-                new AntiSystemSeverityGroupViewModel(SuspicionLevel.Orange, "Elevated", "Review and confirm intent"),
-                new AntiSystemSeverityGroupViewModel(SuspicionLevel.Yellow, "Watch", "Likely safe but worth triage")
+                new ThreatWatchSeverityGroupViewModel(SuspicionLevel.Red, "Critical", "Immediate action recommended"),
+                new ThreatWatchSeverityGroupViewModel(SuspicionLevel.Orange, "Elevated", "Review and confirm intent"),
+                new ThreatWatchSeverityGroupViewModel(SuspicionLevel.Yellow, "Watch", "Likely safe but worth triage")
             });
 
-        Hits = new ObservableCollection<AntiSystemHitViewModel>();
+        Hits = new ObservableCollection<ThreatWatchHitViewModel>();
         HitsView = CollectionViewSource.GetDefaultView(Hits);
         HitsView.Filter = FilterHit;
     }
 
-    public ObservableCollection<AntiSystemSeverityGroupViewModel> SeverityGroups { get; }
+    public ObservableCollection<ThreatWatchSeverityGroupViewModel> SeverityGroups { get; }
 
-    public ObservableCollection<AntiSystemHitViewModel> Hits { get; }
+    public ObservableCollection<ThreatWatchHitViewModel> Hits { get; }
 
     public ICollectionView HitsView { get; }
 
@@ -60,7 +60,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
     private bool _hasHits;
 
     [ObservableProperty]
-    private string _summary = "Preparing Anti-System telemetry...";
+    private string _summary = "Preparing Threat Watch telemetry...";
 
     [ObservableProperty]
     private DateTimeOffset? _lastScanCompletedAt;
@@ -113,8 +113,8 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            Summary = "Anti-System scan failed.";
-            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Anti-System", "Scan failed.", new[] { ex.Message });
+            Summary = "Threat Watch scan failed.";
+            _mainViewModel.LogActivity(ActivityLogLevel.Error, "Threat Watch", "Scan failed.", new[] { ex.Message });
         }
         finally
         {
@@ -130,7 +130,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
     }
 
-    internal Task WhitelistAsync(AntiSystemHitViewModel? hit)
+    internal Task WhitelistAsync(ThreatWatchHitViewModel? hit)
     {
         if (hit is null)
         {
@@ -142,10 +142,10 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
             var directory = Path.GetDirectoryName(hit.FilePath);
             if (!string.IsNullOrWhiteSpace(directory))
             {
-                _stateStore.UpsertWhitelistEntry(AntiSystemWhitelistEntry.CreateDirectory(directory, notes: $"Whitelisted {hit.ProcessName}"));
+                _stateStore.UpsertWhitelistEntry(ThreatWatchWhitelistEntry.CreateDirectory(directory, notes: $"Whitelisted {hit.ProcessName}"));
             }
 
-            _stateStore.UpsertWhitelistEntry(AntiSystemWhitelistEntry.CreateProcess(hit.ProcessName, notes: "Whitelisted via Anti-System"));
+            _stateStore.UpsertWhitelistEntry(ThreatWatchWhitelistEntry.CreateProcess(hit.ProcessName, notes: "Whitelisted via Threat Watch"));
             _stateStore.RemoveSuspiciousHit(hit.Id);
             RemoveHit(hit);
             hit.LastActionMessage = "Whitelisted. Future scans will ignore this entry.";
@@ -158,7 +158,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         return Task.CompletedTask;
     }
 
-    internal async Task IgnoreAsync(AntiSystemHitViewModel? hit)
+    internal async Task IgnoreAsync(ThreatWatchHitViewModel? hit)
     {
         if (hit is null)
         {
@@ -170,7 +170,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         hit.LastActionMessage = "Marked as resolved.";
     }
 
-    internal async Task ScanFileAsync(AntiSystemHitViewModel? hit)
+    internal async Task ScanFileAsync(ThreatWatchHitViewModel? hit)
     {
         if (hit is null)
         {
@@ -205,7 +205,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
     }
 
-    internal void OpenLocation(AntiSystemHitViewModel? hit)
+    internal void OpenLocation(ThreatWatchHitViewModel? hit)
     {
         if (hit is null)
         {
@@ -230,7 +230,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
     }
 
-    internal async Task QuarantineAsync(AntiSystemHitViewModel? hit)
+    internal async Task QuarantineAsync(ThreatWatchHitViewModel? hit)
     {
         if (hit is null)
         {
@@ -255,10 +255,10 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         {
             try
             {
-                var entry = AntiSystemQuarantineEntry.Create(
+                var entry = ThreatWatchQuarantineEntry.Create(
                     hit.ProcessName,
                     hit.FilePath,
-                    notes: success ? "Process terminated via Anti-System" : "Marked for quarantine",
+                    notes: success ? "Process terminated via Threat Watch" : "Marked for quarantine",
                     addedBy: Environment.UserName,
                     verdict: intelResult?.Verdict,
                     verdictSource: intelResult?.Source,
@@ -287,7 +287,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", "Quarantine succeeded, but Defender scan failed.", new[] { ex.Message });
+            _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Threat Watch", "Quarantine succeeded, but Defender scan failed.", new[] { ex.Message });
             return null;
         }
     }
@@ -315,7 +315,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         return baseMessage + verdictLabel;
     }
 
-    private void LogQuarantineEntry(AntiSystemHitViewModel hit, AntiSystemQuarantineEntry entry, ThreatIntelResult? intelResult)
+    private void LogQuarantineEntry(ThreatWatchHitViewModel hit, ThreatWatchQuarantineEntry entry, ThreatIntelResult? intelResult)
     {
         var details = new List<string>
         {
@@ -342,10 +342,10 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
             }
         }
 
-        _mainViewModel.LogActivityInformation("Anti-System", $"Captured quarantine record for {hit.ProcessName}.", details.Where(static d => !string.IsNullOrWhiteSpace(d)));
+        _mainViewModel.LogActivityInformation("Threat Watch", $"Captured quarantine record for {hit.ProcessName}.", details.Where(static d => !string.IsNullOrWhiteSpace(d)));
     }
 
-    private string BuildSummary(AntiSystemDetectionResult result)
+    private string BuildSummary(ThreatWatchDetectionResult result)
     {
         if (result.Hits.Count == 0)
         {
@@ -360,19 +360,19 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         return $"Critical: {critical} · Elevated: {elevated} · Watch: {watch}";
     }
 
-    private void LogScanOutcome(AntiSystemDetectionResult result)
+    private void LogScanOutcome(ThreatWatchDetectionResult result)
     {
         if (result.Hits.Count == 0)
         {
-            _mainViewModel.LogActivityInformation("Anti-System", "No suspicious activity detected.");
+            _mainViewModel.LogActivityInformation("Threat Watch", "No suspicious activity detected.");
             return;
         }
 
         var detailLines = BuildHitDetails(result.Hits, 12);
         var message = result.Hits.Count == 1
-            ? "Anti-System flagged 1 suspicious process."
-            : $"Anti-System flagged {result.Hits.Count} suspicious processes.";
-        _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Anti-System", message, detailLines);
+            ? "Threat Watch flagged 1 suspicious process."
+            : $"Threat Watch flagged {result.Hits.Count} suspicious processes.";
+        _mainViewModel.LogActivity(ActivityLogLevel.Warning, "Threat Watch", message, detailLines);
     }
 
     private static IEnumerable<string> BuildHitDetails(IEnumerable<SuspiciousProcessHit> hits, int max)
@@ -421,7 +421,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
                 continue;
             }
 
-            var vm = new AntiSystemHitViewModel(this, hit);
+            var vm = new ThreatWatchHitViewModel(this, hit);
             targetGroup.Hits.Add(vm);
             Hits.Add(vm);
         }
@@ -430,7 +430,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
         HitsView.Refresh();
     }
 
-    private void RemoveHit(AntiSystemHitViewModel hit)
+    private void RemoveHit(ThreatWatchHitViewModel hit)
     {
         var group = SeverityGroups.FirstOrDefault(g => g.Level == hit.Level);
         if (group is null)
@@ -488,7 +488,7 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
 
     private bool FilterHit(object? obj)
     {
-        if (obj is not AntiSystemHitViewModel hit)
+        if (obj is not ThreatWatchHitViewModel hit)
         {
             return false;
         }
@@ -517,14 +517,14 @@ public sealed partial class AntiSystemViewModel : ViewModelBase
     }
 }
 
-public sealed partial class AntiSystemSeverityGroupViewModel : ObservableObject
+public sealed partial class ThreatWatchSeverityGroupViewModel : ObservableObject
 {
-    public AntiSystemSeverityGroupViewModel(SuspicionLevel level, string title, string description)
+    public ThreatWatchSeverityGroupViewModel(SuspicionLevel level, string title, string description)
     {
         Level = level;
         Title = title;
         Description = description;
-        Hits = new ObservableCollection<AntiSystemHitViewModel>();
+        Hits = new ObservableCollection<ThreatWatchHitViewModel>();
         _isExpanded = level != SuspicionLevel.Yellow;
     }
 
@@ -534,17 +534,17 @@ public sealed partial class AntiSystemSeverityGroupViewModel : ObservableObject
 
     public string Description { get; }
 
-    public ObservableCollection<AntiSystemHitViewModel> Hits { get; }
+    public ObservableCollection<ThreatWatchHitViewModel> Hits { get; }
 
     [ObservableProperty]
     private bool _isExpanded;
 }
 
-public sealed partial class AntiSystemHitViewModel : ObservableObject
+public sealed partial class ThreatWatchHitViewModel : ObservableObject
 {
-    private readonly AntiSystemViewModel _owner;
+    private readonly ThreatWatchViewModel _owner;
 
-    public AntiSystemHitViewModel(AntiSystemViewModel owner, SuspiciousProcessHit hit)
+    public ThreatWatchHitViewModel(ThreatWatchViewModel owner, SuspiciousProcessHit hit)
     {
         _owner = owner;
         Hit = hit;
@@ -562,7 +562,7 @@ public sealed partial class AntiSystemHitViewModel : ObservableObject
 
     public string DirectoryPath => Path.GetDirectoryName(Hit.FilePath) ?? string.Empty;
 
-    public string Source => string.IsNullOrWhiteSpace(Hit.Source) ? "Anti-System" : Hit.Source;
+    public string Source => string.IsNullOrWhiteSpace(Hit.Source) ? "Threat Watch" : Hit.Source;
 
     public string ObservedAt => Hit.ObservedAtUtc.ToLocalTime().ToString("g");
 

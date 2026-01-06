@@ -3,9 +3,9 @@ using TidyWindow.App.ViewModels.Dialogs;
 
 namespace TidyWindow.App.Views.Dialogs;
 
-public partial class AntiSystemHoldingsWindow : Window
+public partial class ThreatWatchHoldingsWindow : Window
 {
-    public AntiSystemHoldingsWindow(AntiSystemHoldingsDialogViewModel viewModel)
+    public ThreatWatchHoldingsWindow(ThreatWatchHoldingsDialogViewModel viewModel)
     {
         InitializeComponent();
         DataContext = viewModel;

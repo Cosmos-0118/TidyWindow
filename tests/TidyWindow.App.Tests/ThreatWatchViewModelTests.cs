@@ -8,12 +8,12 @@ using Microsoft.Extensions.DependencyInjection;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.Core.Processes;
-using TidyWindow.Core.Processes.AntiSystem;
+using TidyWindow.Core.Processes.ThreatWatch;
 using Xunit;
 
 namespace TidyWindow.App.Tests;
 
-public sealed class AntiSystemViewModelTests
+public sealed class ThreatWatchViewModelTests
 {
     [Fact]
     public async Task QuarantineAsync_PersistsDefenderVerdict()
@@ -28,15 +28,15 @@ public sealed class AntiSystemViewModelTests
         {
             var stateStore = new ProcessStateStore();
             var provider = new TestThreatIntelProvider();
-            var detectionService = new AntiSystemDetectionService(stateStore, new[] { provider });
-            var scanService = new AntiSystemScanService(detectionService);
+            var detectionService = new ThreatWatchDetectionService(stateStore, new[] { provider });
+            var scanService = new ThreatWatchScanService(detectionService);
             var confirmationService = new AlwaysConfirmService();
 
             var services = new ServiceCollection().BuildServiceProvider();
             var activityLog = new ActivityLogService();
             var navigationService = new NavigationService(services, activityLog, new SmartPageCache());
             var mainViewModel = new MainViewModel(navigationService, activityLog);
-            var viewModel = new AntiSystemViewModel(scanService, stateStore, confirmationService, mainViewModel);
+            var viewModel = new ThreatWatchViewModel(scanService, stateStore, confirmationService, mainViewModel);
 
             var tempFile = Path.Combine(tempRoot, "suspicious.exe");
             await File.WriteAllTextAsync(tempFile, "malware payload");
@@ -53,7 +53,7 @@ public sealed class AntiSystemViewModelTests
                 source: "tests",
                 notes: null);
 
-            var hitViewModel = new AntiSystemHitViewModel(viewModel, hit);
+            var hitViewModel = new ThreatWatchHitViewModel(viewModel, hit);
             await viewModel.QuarantineAsync(hitViewModel);
 
             var entry = stateStore.GetQuarantineEntries().Single();

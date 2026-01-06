@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 
-namespace TidyWindow.Core.Processes.AntiSystem;
+namespace TidyWindow.Core.Processes.ThreatWatch;
 
 /// <summary>
 /// Summary of a detection pass including surfaced hits and aggregate stats.
 /// </summary>
-public sealed record AntiSystemDetectionResult(
+public sealed record ThreatWatchDetectionResult(
     IReadOnlyList<SuspiciousProcessHit> Hits,
     int TotalProcesses,
     int TrustedProcessCount,

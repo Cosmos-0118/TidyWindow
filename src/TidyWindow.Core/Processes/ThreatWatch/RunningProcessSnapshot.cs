@@ -1,9 +1,9 @@
 using System;
 
-namespace TidyWindow.Core.Processes.AntiSystem;
+namespace TidyWindow.Core.Processes.ThreatWatch;
 
 /// <summary>
-/// Lightweight immutable view of a running process used by the Anti-System detection pipeline.
+/// Lightweight immutable view of a running process used by the Threat Watch detection pipeline.
 /// </summary>
 public sealed record RunningProcessSnapshot
 {
