@@ -10,7 +10,7 @@
             xmlns:ux="clr-namespace:TidyWindow.App.Controls"
     mc:Ignorable="d"
     Title="Package maintenance"
-    Background="Transparent"
+    Background="{DynamicResource PageBackdropBrush}"
     FontFamily="Segoe UI Variable Text"
     TextOptions.TextFormattingMode="Display"
     TextOptions.TextRenderingMode="ClearType"
@@ -24,6 +24,33 @@
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
         <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
         <converters:AlternationIndexToBrushConverter x:Key="MaintenanceAlternationBrushConverter"/>
+
+        <LinearGradientBrush x:Key="PageBackdropBrush"
+                             StartPoint="0,0"
+                             EndPoint="0.7,1">
+            <GradientStop Color="#050914" Offset="0"/>
+            <GradientStop Color="#080F1F" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="SurfaceBaseBrush" Color="#050B18"/>
+        <SolidColorBrush x:Key="SurfaceCardBrush" Color="#0E1729"/>
+        <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#121E35"/>
+        <SolidColorBrush x:Key="SurfaceMutedBrush" Color="#16233E"/>
+        <SolidColorBrush x:Key="BorderSubtleBrush" Color="#1F2C45"/>
+        <SolidColorBrush x:Key="BorderStrongBrush" Color="#263551"/>
+        <SolidColorBrush x:Key="TextPrimaryBrush" Color="#F8FAFC"/>
+        <SolidColorBrush x:Key="TextSecondaryBrush" Color="#C7D2FE"/>
+        <SolidColorBrush x:Key="TextMutedBrush" Color="#8CA0C6"/>
+        <SolidColorBrush x:Key="AccentPrimaryBrush" Color="#8B5CF6"/>
+        <SolidColorBrush x:Key="AccentPrimaryHoverBrush" Color="#7C3AED"/>
+        <SolidColorBrush x:Key="AccentPrimaryPressedBrush" Color="#5B21B6"/>
+        <SolidColorBrush x:Key="AccentInfoBrush" Color="#38BDF8"/>
+        <SolidColorBrush x:Key="AccentSuccessBrush" Color="#34D399"/>
+        <SolidColorBrush x:Key="AccentWarningBrush" Color="#FBBF24"/>
+        <SolidColorBrush x:Key="AccentDangerBrush" Color="#F87171"/>
+        <SolidColorBrush x:Key="ChipNeutralBrush" Color="#1E293B"/>
+        <SolidColorBrush x:Key="ChipNeutralBorderBrush" Color="#2F3F5B"/>
+        <SolidColorBrush x:Key="ChipAccentBrush" Color="#312E81"/>
+        <SolidColorBrush x:Key="ChipAccentBorderBrush" Color="#4338CA"/>
     <converters:StringLengthToFontSizeConverter x:Key="PackageNameFontSizeConverter"
                             LargeSize="15"
                             MediumSize="13"
@@ -36,18 +63,20 @@
 
         <Style x:Key="AccentButtonStyle"
                TargetType="Button">
-            <Setter Property="Background"
-                    Value="#7C3AED"/>
-            <Setter Property="Foreground"
-                    Value="#F8FAFC"/>
-            <Setter Property="BorderBrush"
-                    Value="Transparent"/>
-            <Setter Property="BorderThickness"
-                    Value="0"/>
-            <Setter Property="Padding"
-                    Value="14,6"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#8B5CF6" Offset="0"/>
+                        <GradientStop Color="#7C3AED" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -55,31 +84,21 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="10"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#6D28D9"/>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentPrimaryHoverBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#5B21B6"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentPrimaryPressedBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsEnabled"
-                                     Value="False">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#312E81"/>
-                                <Setter Property="Foreground"
-                                        Value="#94A3B8"/>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -89,18 +108,13 @@
 
         <Style x:Key="SecondaryButtonStyle"
                TargetType="Button">
-            <Setter Property="Background"
-                    Value="#1E293B"/>
-            <Setter Property="Foreground"
-                    Value="#E2E8F0"/>
-            <Setter Property="BorderBrush"
-                    Value="#334155"/>
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-            <Setter Property="Padding"
-                    Value="12,6"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceMutedBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -108,34 +122,21 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
+                                CornerRadius="10"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#243048"/>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#1A2436"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceCardBrush}"/>
                             </Trigger>
-                            <Trigger Property="IsEnabled"
-                                     Value="False">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#111827"/>
-                                <Setter TargetName="Root"
-                                        Property="BorderBrush"
-                                        Value="#1E293B"/>
-                                <Setter Property="Foreground"
-                                        Value="#475569"/>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -145,18 +146,13 @@
 
         <Style x:Key="DangerButtonStyle"
                TargetType="Button">
-            <Setter Property="Background"
-                    Value="#DC2626"/>
-            <Setter Property="Foreground"
-                    Value="#F8FAFC"/>
-            <Setter Property="BorderBrush"
-                    Value="#B91C1C"/>
-            <Setter Property="BorderThickness"
-                    Value="0"/>
-            <Setter Property="Padding"
-                    Value="14,6"/>
-            <Setter Property="Cursor"
-                    Value="Hand"/>
+            <Setter Property="Background" Value="#F75573"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderBrush" Value="#D53F5C"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="16,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -164,31 +160,21 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="8"
+                                CornerRadius="10"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#B91C1C"/>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#F43F5E"/>
                             </Trigger>
-                            <Trigger Property="IsPressed"
-                                     Value="True">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#991B1B"/>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#BE123C"/>
                             </Trigger>
-                            <Trigger Property="IsEnabled"
-                                     Value="False">
-                                <Setter TargetName="Root"
-                                        Property="Background"
-                                        Value="#7F1D1D"/>
-                                <Setter Property="Foreground"
-                                        Value="#FCA5A5"/>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.45"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -199,10 +185,10 @@
         <Style x:Key="VersionSelectorButtonStyle"
                TargetType="Button"
                BasedOn="{StaticResource SecondaryButtonStyle}">
-            <Setter Property="Background" Value="#1C2541"/>
-            <Setter Property="BorderBrush" Value="#4C1D95"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentPrimaryBrush}"/>
             <Setter Property="BorderThickness" Value="1.5"/>
-            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="Padding" Value="18,12"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -211,7 +197,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="14"
+                                CornerRadius="18"
                                 Padding="{TemplateBinding Padding}"
                                 SnapsToDevicePixels="True">
                             <ContentPresenter HorizontalAlignment="Stretch"
@@ -219,15 +205,15 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="SelectorRoot" Property="Background" Value="#252F5B"/>
-                                <Setter TargetName="SelectorRoot" Property="BorderBrush" Value="#7C3AED"/>
+                                <Setter TargetName="SelectorRoot" Property="Background" Value="{StaticResource SurfaceMutedBrush}"/>
+                                <Setter TargetName="SelectorRoot" Property="BorderBrush" Value="{StaticResource AccentPrimaryHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="SelectorRoot" Property="Background" Value="#1B2140"/>
-                                <Setter TargetName="SelectorRoot" Property="BorderBrush" Value="#5B21B6"/>
+                                <Setter TargetName="SelectorRoot" Property="Background" Value="{StaticResource SurfaceCardBrush}"/>
+                                <Setter TargetName="SelectorRoot" Property="BorderBrush" Value="{StaticResource AccentPrimaryPressedBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="SelectorRoot" Property="Opacity" Value="0.6"/>
+                                <Setter TargetName="SelectorRoot" Property="Opacity" Value="0.55"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -237,11 +223,11 @@
 
         <Style x:Key="VersionChipButtonStyle"
                TargetType="Button">
-            <Setter Property="Background" Value="#1E293B"/>
-            <Setter Property="Foreground" Value="#E2E8F0"/>
-            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Background" Value="{StaticResource ChipNeutralBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Padding" Value="12,6"/>
             <Setter Property="FontSize" Value="12"/>
-            <Setter Property="BorderBrush" Value="#334155"/>
+            <Setter Property="BorderBrush" Value="{StaticResource ChipNeutralBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -251,20 +237,20 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="16"
+                                CornerRadius="18"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="ChipRoot" Property="Background" Value="#2C3C55"/>
+                                <Setter TargetName="ChipRoot" Property="Background" Value="{StaticResource SurfaceMutedBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="ChipRoot" Property="Background" Value="#3B4D6D"/>
+                                <Setter TargetName="ChipRoot" Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="ChipRoot" Property="Opacity" Value="0.5"/>
+                                <Setter TargetName="ChipRoot" Property="Opacity" Value="0.35"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -281,82 +267,76 @@
 
         <Style x:Key="MaintenanceNavToggleStyle"
                TargetType="ToggleButton">
-            <Setter Property="Foreground"
-                Value="#E2E8F0"/>
-            <Setter Property="Background"
-                Value="#1E293B"/>
-            <Setter Property="Padding"
-                Value="18,8"/>
-            <Setter Property="Margin"
-                Value="0,0,12,0"/>
-            <Setter Property="FontWeight"
-                Value="SemiBold"/>
-            <Setter Property="Cursor"
-                Value="Hand"/>
-            <Setter Property="BorderThickness"
-                Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceMutedBrush}"/>
+            <Setter Property="Padding" Value="20,9"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Template">
-            <Setter.Value>
-                <ControlTemplate TargetType="ToggleButton">
-                <Border x:Name="Root"
-                    Background="{TemplateBinding Background}"
-                    CornerRadius="10"
-                    Padding="{TemplateBinding Padding}">
-                    <ContentPresenter HorizontalAlignment="Center"
-                              VerticalAlignment="Center"/>
-                </Border>
-                <ControlTemplate.Triggers>
-                    <Trigger Property="IsMouseOver"
-                         Value="True">
-                    <Setter TargetName="Root"
-                        Property="Background"
-                        Value="#263147"/>
-                    </Trigger>
-                    <Trigger Property="IsChecked"
-                         Value="True">
-                    <Setter TargetName="Root"
-                        Property="Background"
-                        Value="#7C3AED"/>
-                    <Setter Property="Foreground"
-                        Value="#F8FAFC"/>
-                    </Trigger>
-                    <Trigger Property="IsEnabled"
-                         Value="False">
-                    <Setter TargetName="Root"
-                        Property="Opacity"
-                        Value="0.6"/>
-                    </Trigger>
-                </ControlTemplate.Triggers>
-                </ControlTemplate>
-            </Setter.Value>
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="18"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource AccentPrimaryBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
             </Setter>
         </Style>
 
         <Style x:Key="CardBorderStyle"
                TargetType="Border">
-            <Setter Property="Background"
-                    Value="#111827"/>
-            <Setter Property="BorderBrush"
-                    Value="#1E293B"/>
-            <Setter Property="BorderThickness"
-                    Value="1"/>
-            <Setter Property="CornerRadius"
-                    Value="12"/>
-            <Setter Property="Padding"
-                    Value="20"/>
-            <Setter Property="SnapsToDevicePixels"
-                    Value="True"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceCardBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Effect">
+            <Setter.Value>
+                <DropShadowEffect Color="#90000000"
+                          BlurRadius="18"
+                          ShadowDepth="0"
+                          Opacity="0.35"/>
+            </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MaintenanceFilterCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceRaisedBrush}"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
         </Style>
 
         <Style x:Key="AutomationSectionHeaderTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="FontSize" Value="18"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
         </Style>
 
         <Style x:Key="AutomationSectionSubtitleTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
             <Setter Property="FontSize" Value="12"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
@@ -408,7 +388,7 @@
         <Style x:Key="MaintenanceCardListItemStyle"
                TargetType="ListViewItem">
             <Setter Property="Padding"
-                    Value="22"/>
+                Value="24"/>
             <Setter Property="Margin"
                     Value="0,12"/>
             <Setter Property="HorizontalContentAlignment"
@@ -419,10 +399,10 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="ListViewItem">
                         <Border x:Name="Container"
-                                Background="#0B1628"
+                                Background="{StaticResource SurfaceRaisedBrush}"
                                 BorderBrush="{Binding RelativeSource={RelativeSource TemplatedParent}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource MaintenanceAlternationBrushConverter}}"
-                                BorderThickness="2"
-                                CornerRadius="18"
+                                BorderThickness="1.2"
+                                CornerRadius="20"
                                 Padding="{TemplateBinding Padding}"
                                 Opacity="0.95"
                                 SnapsToDevicePixels="True">
@@ -433,8 +413,8 @@
                             <Trigger Property="IsMouseOver"
                                      Value="True">
                                 <Setter TargetName="Container"
-                                        Property="BorderBrush"
-                                        Value="#38BDF8"/>
+                                    Property="BorderBrush"
+                                    Value="{StaticResource AccentInfoBrush}"/>
                                 <Setter TargetName="Container"
                                         Property="Opacity"
                                         Value="1"/>
@@ -442,8 +422,8 @@
                             <Trigger Property="IsSelected"
                                      Value="True">
                                 <Setter TargetName="Container"
-                                        Property="BorderBrush"
-                                        Value="#7C3AED"/>
+                                    Property="BorderBrush"
+                                    Value="{StaticResource AccentPrimaryBrush}"/>
                                 <Setter TargetName="Container"
                                         Property="Opacity"
                                         Value="1"/>
@@ -478,63 +458,41 @@
         </Style>
 
         <Style x:Key="MaintenanceInfoChipStyle" TargetType="Border">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="#10243F" Offset="0"/>
-                        <GradientStop Color="#0B1B30" Offset="1"/>
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush" Value="#1F2F4A"/>
+            <Setter Property="Background" Value="{StaticResource ChipNeutralBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource ChipNeutralBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="CornerRadius" Value="12"/>
-            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="12,5"/>
             <Setter Property="Margin" Value="0,6,6,0"/>
         </Style>
 
         <Style x:Key="MaintenanceAccentChipStyle"
                TargetType="Border"
                BasedOn="{StaticResource MaintenanceInfoChipStyle}">
-            <Setter Property="Background" Value="#1D4ED8"/>
-            <Setter Property="BorderBrush" Value="#2563EB"/>
+            <Setter Property="Background" Value="{StaticResource ChipAccentBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource ChipAccentBorderBrush}"/>
         </Style>
 
         <Style x:Key="MaintenanceAlertChipStyle"
                TargetType="Border"
                BasedOn="{StaticResource MaintenanceInfoChipStyle}">
-            <Setter Property="Background" Value="#331924"/>
-            <Setter Property="BorderBrush" Value="#F87171"/>
+            <Setter Property="Background" Value="#331927"/>
+            <Setter Property="BorderBrush" Value="{StaticResource AccentDangerBrush}"/>
         </Style>
 
         <Style x:Key="MaintenancePackageTitleBadgeStyle"
                TargetType="Border">
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="#1F2A3D" Offset="0"/>
-                        <GradientStop Color="#111C2D" Offset="1"/>
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="BorderBrush" Value="#273246"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceMutedBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderSubtleBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="18"/>
             <Setter Property="Padding" Value="16,10,18,12"/>
             <Setter Property="Margin" Value="0,0,0,12"/>
-            <Setter Property="Effect">
-                <Setter.Value>
-                    <DropShadowEffect Color="#A0101420"
-                                       BlurRadius="14"
-                                       ShadowDepth="2"
-                                       Opacity="0.65"/>
-                </Setter.Value>
-            </Setter>
         </Style>
 
         <Style x:Key="MaintenancePackageTitleTextStyle"
                TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
             <Setter Property="TextTrimming" Value="None"/>
@@ -902,7 +860,7 @@
                                                                              HorizontalAlignment="Stretch"
                                                                              VerticalAlignment="Stretch"
                                                                              IsHitTestVisible="True"/>
-                                                        <Border Background="#0B1628"
+                                                        <Border Background="{StaticResource SurfaceRaisedBrush}"
                                                                         BorderBrush="#1E293B"
                                                                         BorderThickness="1"
                                                                         CornerRadius="20"
@@ -924,7 +882,7 @@
                                 <StackPanel>
                                 <DockPanel>
                                     <TextBlock Text="Select a version"
-                                               Foreground="#E2E8F0"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
                                                FontSize="14"
                                                FontWeight="SemiBold"
                                                DockPanel.Dock="Left"/>
@@ -944,7 +902,7 @@
                                     </StackPanel>
                                 </DockPanel>
                                 <TextBlock Text="Pick from discovered releases, or type a custom version if you need a specific build."
-                                           Foreground="#94A3B8"
+                                           Foreground="{StaticResource TextMutedBrush}"
                                            FontSize="11"
                                            Margin="0,4,0,10"
                                            TextWrapping="Wrap"/>
@@ -969,7 +927,7 @@
                                     </ItemsControl>
                                 </ScrollViewer>
                                 <TextBlock Text="{Binding VersionLookupError}"
-                                           Foreground="#F87171"
+                                           Foreground="{StaticResource AccentDangerBrush}"
                                            FontSize="11"
                                            Margin="0,6,0,0"
                                            TextWrapping="Wrap">
@@ -988,7 +946,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <TextBlock Text="No published versions were returned for this package."
-                                           Foreground="#94A3B8"
+                                           Foreground="{StaticResource TextMutedBrush}"
                                            FontSize="11"
                                            Margin="0,6,0,0"
                                            TextWrapping="Wrap">
@@ -1010,7 +968,7 @@
                                 </TextBlock>
                                 <StackPanel Margin="0,12,0,0">
                                     <TextBlock Text="Custom version"
-                                               Foreground="#CBD5F5"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
                                                FontSize="11"/>
                                     <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                                              Margin="0,4,0,0"
@@ -1272,7 +1230,7 @@
                         </StackPanel>
                         <TextBlock x:Name="HeaderLastRefreshedText"
                                    Text="{Binding LastRefreshedDisplay}"
-                                   Foreground="#64748B"
+                                   Foreground="{StaticResource TextMutedBrush}"
                                    FontSize="12"
                                    Margin="0,6,0,0"
                                    HorizontalAlignment="Right"
@@ -1339,11 +1297,11 @@
                                                 Grid.Row="0"
                                                 Margin="0,0,0,16">
                                         <TextBlock Text="Package filters"
-                                                   Foreground="#E2E8F0"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
                                                    FontSize="16"
                                                    FontWeight="SemiBold"/>
                                         <TextBlock Text="Search packages, filter by manager, and queue updates faster."
-                                                   Foreground="#64748B"
+                                                   Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
@@ -1353,47 +1311,55 @@
                                                          ColumnSpacing="24"
                                                          RowSpacing="18"
                                                          Padding="0,4,0,4">
-                                        <StackPanel>
-                                            <TextBlock Text="Keyword"
-                                                       Foreground="#94A3B8"
-                                                       FontSize="11"
-                                                       Margin="0,0,0,6"/>
-                                            <TextBox MinWidth="240"
-                                                     Style="{StaticResource App.TextBoxStyle}"
-                                                     ToolTip="Filter by package name, identifier, manager, or tag"
-                                                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <TextBlock Text="Manager"
-                                                       Foreground="#94A3B8"
-                                                       FontSize="11"
-                                                       Margin="0,0,0,6"/>
-                                            <ComboBox MinWidth="220"
-                                                      ItemsSource="{Binding ManagerFilters}"
-                                                      SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
-                                                      Style="{StaticResource App.ComboBoxStyle}"/>
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <TextBlock Text="Scope"
-                                                       Foreground="#94A3B8"
-                                                       FontSize="11"
-                                                       Margin="0,0,0,6"/>
-                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                      Content="Updates only"
-                                                      IsChecked="{Binding UpdatesOnly, Mode=TwoWay}"
-                                                      Foreground="#F8FAFC"/>
-                                        </StackPanel>
-                                        <StackPanel>
-                                            <TextBlock Text="Bulk actions"
-                                                       Foreground="#94A3B8"
-                                                       FontSize="11"
-                                                       Margin="0,0,0,6"/>
-                                            <Button Content="Queue selected"
-                                                    MinWidth="200"
-                                                    Height="42"
-                                                    Command="{Binding QueueSelectedUpdatesCommand}"
-                                                    Style="{StaticResource AccentButtonStyle}"/>
-                                        </StackPanel>
+                                        <Border Style="{StaticResource MaintenanceFilterCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Text="Keyword"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           Margin="0,0,0,8"/>
+                                                <TextBox MinWidth="240"
+                                                         Style="{StaticResource App.TextBoxStyle}"
+                                                         ToolTip="Filter by package name, identifier, manager, or tag"
+                                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource MaintenanceFilterCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Text="Manager"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           Margin="0,0,0,8"/>
+                                                <ComboBox MinWidth="220"
+                                                          ItemsSource="{Binding ManagerFilters}"
+                                                          SelectedItem="{Binding SelectedManager, Mode=TwoWay}"
+                                                          Style="{StaticResource App.ComboBoxStyle}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource MaintenanceFilterCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Text="Scope"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           Margin="0,0,0,8"/>
+                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                          Content="Updates only"
+                                                          IsChecked="{Binding UpdatesOnly, Mode=TwoWay}"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <Border Style="{StaticResource MaintenanceFilterCardStyle}">
+                                            <StackPanel>
+                                                <TextBlock Text="Bulk actions"
+                                                           Foreground="{StaticResource TextMutedBrush}"
+                                                           FontSize="11"
+                                                           Margin="0,0,0,8"/>
+                                                <Button Content="Queue selected"
+                                                        MinWidth="200"
+                                                        Height="44"
+                                                        Command="{Binding QueueSelectedUpdatesCommand}"
+                                                        Style="{StaticResource AccentButtonStyle}"/>
+                                            </StackPanel>
+                                        </Border>
                                     </ux:AdaptiveTilePanel>
 
                                 </Grid>
@@ -1416,11 +1382,11 @@
 
                                         <StackPanel Grid.Column="0">
                                             <TextBlock Text="Installed packages"
-                                                       Foreground="#E2E8F0"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
                                                        FontSize="16"
                                                        FontWeight="SemiBold"/>
                                             <TextBlock Text="Review installed packages, then queue updates or removals right here."
-                                                       Foreground="#64748B"
+                                                       Foreground="{StaticResource TextMutedBrush}"
                                                        FontSize="12"
                                                        TextWrapping="Wrap"/>
                                         </StackPanel>
@@ -1467,11 +1433,11 @@
                                             </ItemsControl.Style>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border Background="#312E81"
-                                                            BorderBrush="#4338CA"
+                                                        <Border Background="{StaticResource SurfaceRaisedBrush}"
+                                                            BorderBrush="{StaticResource AccentPrimaryBrush}"
                                                             BorderThickness="1"
-                                                            CornerRadius="8"
-                                                            Padding="12"
+                                                            CornerRadius="14"
+                                                            Padding="14"
                                                             Margin="0,0,0,10">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
@@ -1479,12 +1445,12 @@
                                                                 <ColumnDefinition Width="*"/>
                                                             </Grid.ColumnDefinitions>
                                                             <TextBlock Text="⚠"
-                                                                       FontSize="14"
+                                                                       FontSize="16"
                                                                        Margin="0,0,10,0"
                                                                        Grid.Column="0"
                                                                        VerticalAlignment="Top"/>
                                                             <TextBlock Text="{Binding}"
-                                                                       Foreground="#E2E8F0"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"
                                                                        TextWrapping="Wrap"
                                                                        Grid.Column="1"/>
                                                         </Grid>
@@ -1548,51 +1514,39 @@
                                                         </Grid.RowDefinitions>
 
                                                         <Grid Grid.Row="0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                            </Grid.ColumnDefinitions>
-
-                                                            <StackPanel Orientation="Horizontal"
-                                                                        VerticalAlignment="Top">
-                                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                                          IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                          Margin="0,4,12,0"/>
-                                                                <Border Width="52"
-                                                                        Height="52"
-                                                                        Background="#132032"
-                                                                        CornerRadius="18"
-                                                                        Margin="0,0,12,0"
-                                                                        VerticalAlignment="Top">
-                                                                    <TextBlock Text="{Binding DisplayInitial}"
-                                                                               FontWeight="SemiBold"
-                                                                               FontSize="18"
-                                                                               Foreground="#F8FAFC"
-                                                                               HorizontalAlignment="Center"
-                                                                               VerticalAlignment="Center"/>
-                                                                </Border>
-                                                            </StackPanel>
-
-                                                            <StackPanel Grid.Column="1"
-                                                                        VerticalAlignment="Top">
+                                                            <StackPanel VerticalAlignment="Top">
                                                                 <Border Style="{StaticResource MaintenancePackageTitleBadgeStyle}">
-                                                                    <TextBlock Style="{StaticResource MaintenancePackageTitleTextStyle}"
-                                                                               Text="{Binding DisplayName}"
-                                                                               FontSize="{Binding DisplayName, Converter={StaticResource PackageNameFontSizeConverter}, ConverterParameter=compact}"/>
+                                                                    <Grid VerticalAlignment="Center">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <CheckBox Grid.Column="0"
+                                                                                  Style="{StaticResource App.CheckBoxStyle}"
+                                                                                  IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                                  Margin="0,0,16,0"
+                                                                                  VerticalAlignment="Center"/>
+                                                                        <TextBlock Grid.Column="1"
+                                                                                   Style="{StaticResource MaintenancePackageTitleTextStyle}"
+                                                                                   Text="{Binding DisplayName}"
+                                                                                   FontSize="20"
+                                                                                   HorizontalAlignment="Center"
+                                                                                   TextAlignment="Center"
+                                                                                   VerticalAlignment="Center"/>
+                                                                        <Border Grid.Column="2"
+                                                                                Style="{StaticResource MaintenanceAlertChipStyle}"
+                                                                                Margin="16,0,0,0"
+                                                                                Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                            <TextBlock Text="Update available"
+                                                                                       Foreground="{StaticResource AccentWarningBrush}"
+                                                                                       FontSize="11"
+                                                                                       FontWeight="SemiBold"/>
+                                                                        </Border>
+                                                                    </Grid>
                                                                 </Border>
-                                                                <TextBlock Text="{Binding ManagerLine}"
-                                                                           Foreground="#94A3B8"
-                                                                           FontSize="12"
-                                                                           Margin="0,0,0,2"
-                                                                           TextWrapping="Wrap"/>
-                                                                <TextBlock Text="{Binding SourceLine}"
-                                                                           Foreground="#64748B"
-                                                                           FontSize="11"
-                                                                           Margin="0,0,0,8"
-                                                                           TextWrapping="Wrap"
-                                                                           Visibility="{Binding HasSource, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                                                                <WrapPanel Margin="0,4,0,0">
+                                                                <WrapPanel Margin="0,6,0,0">
                                                                     <Border Margin="0,0,8,0">
                                                                         <Border.Style>
                                                                             <Style TargetType="Border"
@@ -1609,14 +1563,7 @@
                                                                             </Style>
                                                                         </Border.Style>
                                                                         <TextBlock Text="{Binding QueueStatus}"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="11"
-                                                                                   FontWeight="SemiBold"/>
-                                                                    </Border>
-                                                                    <Border Style="{StaticResource MaintenanceAlertChipStyle}"
-                                                                            Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                        <TextBlock Text="Update available"
-                                                                                   Foreground="#FCD34D"
+                                                                                   Foreground="{StaticResource TextPrimaryBrush}"
                                                                                    FontSize="11"
                                                                                    FontWeight="SemiBold"/>
                                                                     </Border>
@@ -1626,19 +1573,19 @@
 
                                                         <StackPanel Grid.Row="1"
                                                                     Margin="0,12,0,0">
-                                                            <Border Background="#101A2F"
-                                                                    BorderBrush="#172338"
+                                                            <Border Background="{StaticResource SurfaceMutedBrush}"
+                                                                    BorderBrush="{StaticResource BorderSubtleBrush}"
                                                                     BorderThickness="1"
-                                                                    CornerRadius="12"
-                                                                    Padding="12">
+                                                                    CornerRadius="14"
+                                                                    Padding="14">
                                                                 <StackPanel>
                                                                     <TextBlock Text="{Binding VersionHeadline}"
-                                                                               Foreground="#F8FAFC"
+                                                                               Foreground="{StaticResource TextPrimaryBrush}"
                                                                                FontSize="13"
                                                                                FontWeight="SemiBold"
                                                                                TextWrapping="Wrap"/>
                                                                     <TextBlock Text="{Binding VersionDetails}"
-                                                                               Foreground="#94A3B8"
+                                                                               Foreground="{StaticResource TextMutedBrush}"
                                                                                FontSize="11"
                                                                                Margin="0,4,0,0"
                                                                                TextWrapping="Wrap"/>
@@ -1649,7 +1596,7 @@
                                                         <StackPanel Grid.Row="2"
                                                                 Margin="0,12,0,0">
                                                             <TextBlock Text="{Binding Summary}"
-                                                                       Foreground="#94A3B8"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
                                                                        FontSize="12"
                                                                        TextWrapping="Wrap">
                                                                 <TextBlock.Style>
@@ -1681,7 +1628,7 @@
                                                                     <DataTemplate>
                                                                         <Border Style="{StaticResource MaintenanceInfoChipStyle}">
                                                                             <TextBlock Text="{Binding}"
-                                                                                       Foreground="#E2E8F0"
+                                                                                       Foreground="{StaticResource TextPrimaryBrush}"
                                                                                        FontSize="11"/>
                                                                         </Border>
                                                                     </DataTemplate>
@@ -1694,7 +1641,7 @@
                                                                                                                                         Margin="0,16,0,0"
                                                                                                                                         MinWidth="220">
                                                                 <TextBlock Text="Target version (optional)"
-                                                                           Foreground="#CBD5F5"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
                                                                            FontSize="11"/>
                                                                 <Button x:Name="ListTargetVersionSelector"
                                                                         Style="{StaticResource VersionSelectorButtonStyle}"
@@ -1707,17 +1654,17 @@
                                                                                     DockPanel.Dock="Left"
                                                                                     Margin="0,0,12,0">
                                                                             <TextBlock Text="{Binding TargetVersionLabel}"
-                                                                                       Foreground="#F8FAFC"
+                                                                                       Foreground="{StaticResource TextPrimaryBrush}"
                                                                                        FontSize="13"
                                                                                        FontWeight="SemiBold"/>
                                                                             <TextBlock Text="Tap to choose a release"
-                                                                                       Foreground="#A5B4FC"
+                                                                                       Foreground="{StaticResource TextMutedBrush}"
                                                                                        FontSize="10"/>
                                                                         </StackPanel>
                                                                         <Border Width="30"
                                                                                 Height="30"
                                                                                 CornerRadius="15"
-                                                                                Background="#312E81"
+                                                                                Background="{StaticResource AccentPrimaryBrush}"
                                                                                 HorizontalAlignment="Right"
                                                                                 VerticalAlignment="Center"
                                                                                 SnapsToDevicePixels="True">
@@ -1751,7 +1698,7 @@
                                                                                    HorizontalAlignment="Stretch"
                                                                                    VerticalAlignment="Stretch"
                                                                                    IsHitTestVisible="True"/>
-                                                                        <Border Background="#0B1628"
+                                                                        <Border Background="{StaticResource SurfaceRaisedBrush}"
                                                                                 BorderBrush="#1E293B"
                                                                                 BorderThickness="1"
                                                                                 CornerRadius="20"
@@ -1772,7 +1719,7 @@
                                                                             </Border.Effect>
                                                                             <StackPanel>
                                                                                 <TextBlock Text="Select a version"
-                                                                                           Foreground="#E2E8F0"
+                                                                                           Foreground="{StaticResource TextPrimaryBrush}"
                                                                                            FontSize="14"
                                                                                            FontWeight="SemiBold"/>
                                                                                 <StackPanel Orientation="Horizontal"
@@ -1804,7 +1751,7 @@
                                                                                     </Button>
                                                                                 </StackPanel>
                                                                                 <TextBlock Text="Pick a discovered release or enter a custom version below."
-                                                                                           Foreground="#94A3B8"
+                                                                                           Foreground="{StaticResource TextMutedBrush}"
                                                                                            FontSize="11"
                                                                                            TextWrapping="Wrap"/>
                                                                                 <ProgressBar IsIndeterminate="True"
@@ -1829,7 +1776,7 @@
                                                                                     </ItemsControl>
                                                                                 </ScrollViewer>
                                                                                 <TextBlock Text="{Binding VersionLookupError}"
-                                                                                           Foreground="#F87171"
+                                                                                           Foreground="{StaticResource AccentDangerBrush}"
                                                                                            FontSize="11"
                                                                                            Margin="0,8,0,0"
                                                                                            TextWrapping="Wrap">
@@ -1848,7 +1795,7 @@
                                                                                     </TextBlock.Style>
                                                                                 </TextBlock>
                                                                                 <TextBlock Text="No published versions were returned for this package."
-                                                                                           Foreground="#94A3B8"
+                                                                                           Foreground="{StaticResource TextMutedBrush}"
                                                                                            FontSize="11"
                                                                                            Margin="0,4,0,0"
                                                                                            TextWrapping="Wrap">
@@ -1870,7 +1817,7 @@
                                                                                 </TextBlock>
                                                                                 <StackPanel Margin="0,12,0,0">
                                                                                     <TextBlock Text="Custom version"
-                                                                                               Foreground="#CBD5F5"
+                                                                                               Foreground="{StaticResource TextSecondaryBrush}"
                                                                                                FontSize="11"/>
                                                                                     <TextBox Text="{Binding TargetVersion, UpdateSourceTrigger=PropertyChanged, Delay=120}"
                                                                                              Margin="0,4,0,0"
@@ -1897,34 +1844,24 @@
                                                                     </Grid>
                                                                 </Popup>
                                                             <TextBlock Text="Leave blank to install the latest available version."
-                                                                       Foreground="#475569"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
                                                                        FontSize="10"
                                                                        Margin="0,6,0,0"
                                                                        TextWrapping="Wrap"/>
                                                         </StackPanel>
 
-                                                        <Grid Grid.Row="4"
-                                                              Margin="0,20,0,0">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <Grid.RowDefinitions>
-                                                                <RowDefinition Height="Auto"/>
-                                                                <RowDefinition Height="Auto"/>
-                                                            </Grid.RowDefinitions>
-
-                                                            <Button Grid.Row="0"
-                                                                    Grid.Column="0"
-                                                                    Content="Queue update"
+                                                        <ux:AdaptiveTilePanel Grid.Row="4"
+                                                                             Margin="0,20,0,0"
+                                                                             MinColumnWidth="180"
+                                                                             ColumnSpacing="12"
+                                                                             RowSpacing="12">
+                                                            <Button Content="Queue update"
                                                                     Command="{Binding DataContext.QueueUpdateCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                     CommandParameter="{Binding}">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource AccentButtonStyle}">
                                                                         <Setter Property="Height" Value="44"/>
-                                                                        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                                                                        <Setter Property="Margin" Value="0,0,12,12"/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding CanUpdate}" Value="False">
                                                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -1936,17 +1873,13 @@
                                                                     </Style>
                                                                 </Button.Style>
                                                             </Button>
-                                                            <Button Grid.Row="0"
-                                                                    Grid.Column="1"
-                                                                    Content="Remove"
+                                                            <Button Content="Remove"
                                                                     Command="{Binding DataContext.RemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                     CommandParameter="{Binding}">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource SecondaryButtonStyle}">
                                                                         <Setter Property="Height" Value="44"/>
-                                                                        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                                                                        <Setter Property="Margin" Value="12,0,0,12"/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding CanRemove}" Value="False">
                                                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -1958,17 +1891,13 @@
                                                                     </Style>
                                                                 </Button.Style>
                                                             </Button>
-                                                                <Button Grid.Row="1"
-                                                                    Grid.Column="0"
-                                                                    Content="Force cleanup"
+                                                            <Button Content="Force cleanup"
                                                                     Command="{Binding DataContext.ForceRemoveCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                     CommandParameter="{Binding}">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource DangerButtonStyle}">
                                                                         <Setter Property="Height" Value="44"/>
-                                                                        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                                                                        <Setter Property="Margin" Value="0,12,12,0"/>
                                                                         <Style.Triggers>
                                                                             <DataTrigger Binding="{Binding CanForceRemove}" Value="False">
                                                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -1980,28 +1909,24 @@
                                                                     </Style>
                                                                 </Button.Style>
                                                             </Button>
-                                                                <Button Grid.Row="1"
-                                                                    Grid.Column="1"
-                                                                    Content="Details"
+                                                            <Button Content="Details"
                                                                     Command="{Binding DataContext.ShowPackageDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                     CommandParameter="{Binding}">
                                                                 <Button.Style>
                                                                     <Style TargetType="Button"
                                                                            BasedOn="{StaticResource SecondaryButtonStyle}">
                                                                         <Setter Property="Height" Value="44"/>
-                                                                        <Setter Property="HorizontalAlignment" Value="Stretch"/>
-                                                                        <Setter Property="Margin" Value="12,12,0,0"/>
                                                                     </Style>
                                                                 </Button.Style>
                                                             </Button>
-                                                        </Grid>
+                                                        </ux:AdaptiveTilePanel>
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListView.ItemTemplate>
                                         </ListView>
 
                                         <TextBlock Text="No packages match your filter."
-                                                   Foreground="#64748B"
+                                                   Foreground="{StaticResource TextMutedBrush}"
                                                    HorizontalAlignment="Center"
                                                    VerticalAlignment="Center"
                                                    FontSize="13">
@@ -2024,10 +1949,10 @@
                                     <DockPanel Grid.Row="3"
                                                Margin="0,16,0,0">
                                         <TextBlock Text="{Binding LastRefreshedDisplay}"
-                                                   Foreground="#64748B"
+                                                   Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="12"/>
                                         <TextBlock Text="{Binding SummaryText}"
-                                                   Foreground="#E2E8F0"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
                                                    FontSize="12"
                                                    Margin="16,0,0,0"/>
                                     </DockPanel>
@@ -2064,11 +1989,11 @@
 
                                     <StackPanel Grid.Row="0">
                                         <TextBlock Text="Maintenance queue"
-                                                   Foreground="#E2E8F0"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
                                                    FontSize="16"
                                                    FontWeight="SemiBold"/>
                                         <TextBlock Text="Monitor pending operations, retry failures, and review history"
-                                                   Foreground="#64748B"
+                                                   Foreground="{StaticResource TextMutedBrush}"
                                                    FontSize="12"
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
@@ -2191,7 +2116,7 @@
                             </Border>
 
                             <TextBlock Text="No maintenance operations queued yet. Queue an update or removal to get started."
-                                       Foreground="#64748B"
+                                       Foreground="{StaticResource TextMutedBrush}"
                                        FontSize="12"
                                        HorizontalAlignment="Center">
                                 <TextBlock.Style>
@@ -2235,36 +2160,36 @@
                                                    Style="{StaticResource AutomationSectionSubtitleTextStyle}"
                                                    Margin="0,6,0,0"/>
                                         <WrapPanel Margin="0,16,0,0">
-                                            <Border Background="#0B1628"
+                                            <Border Background="{StaticResource SurfaceRaisedBrush}"
                                                     BorderBrush="#1E293B"
                                                     BorderThickness="1"
                                                     CornerRadius="10"
                                                     Padding="10,6"
                                                     Margin="0,0,12,12">
                                                 <TextBlock Text="{Binding InventorySummary}"
-                                                           Foreground="#E2E8F0"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
-                                            <Border Background="#0B1628"
+                                            <Border Background="{StaticResource SurfaceRaisedBrush}"
                                                     BorderBrush="#1E293B"
                                                     BorderThickness="1"
                                                     CornerRadius="10"
                                                     Padding="10,6"
                                                     Margin="0,0,12,12">
                                                 <TextBlock Text="{Binding SelectionSummary}"
-                                                           Foreground="#E2E8F0"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
-                                            <Border Background="#0B1628"
+                                            <Border Background="{StaticResource SurfaceRaisedBrush}"
                                                     BorderBrush="#1E293B"
                                                     BorderThickness="1"
                                                     CornerRadius="10"
                                                     Padding="10,6"
                                                     Margin="0,0,12,12">
                                                 <TextBlock Text="{Binding LastRunSummary}"
-                                                           Foreground="#E2E8F0"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
@@ -2310,13 +2235,15 @@
                                                   Style="{StaticResource App.CheckBoxStyle}"
                                                   IsChecked="{Binding UpdateAllPackages, Mode=TwoWay}"
                                                   Foreground="#F8FAFC"/>
-                                        <Border Background="#312E81"
-                                                CornerRadius="8"
-                                                Padding="10,6"
+                                        <Border Background="{StaticResource ChipAccentBrush}"
+                                                BorderBrush="{StaticResource ChipAccentBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="12,6"
                                                 Margin="0,12,0,0"
                                                 Visibility="{Binding HasPendingChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <TextBlock Text="You have unapplied automation changes."
-                                                       Foreground="#C084FC"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
                                                        FontWeight="SemiBold"/>
                                         </Border>
                                         <StackPanel Orientation="Horizontal" Margin="0,20,0,0">
@@ -2341,7 +2268,7 @@
                                                     Padding="10,2"
                                                     Margin="12,0,0,0">
                                                 <TextBlock Text="{Binding PackageOptions.Count, StringFormat={}{0} packages}"
-                                                           Foreground="#93C5FD"
+                                                           Foreground="{StaticResource AccentInfoBrush}"
                                                            FontSize="12"
                                                            FontWeight="SemiBold"/>
                                             </Border>
@@ -2352,7 +2279,7 @@
 
                                         <StackPanel Orientation="Vertical" Margin="0,0,0,12">
                                             <TextBlock Text="Search packages"
-                                                       Foreground="#94A3B8"
+                                                       Foreground="{StaticResource TextMutedBrush}"
                                                        FontSize="11"
                                                        Margin="0,0,0,6"/>
                                             <TextBox MinWidth="280"
@@ -2361,7 +2288,7 @@
                                                      Text="{Binding PackageSearchText, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
                                         </StackPanel>
 
-                                        <Border Background="#0B1628"
+                                        <Border Background="{StaticResource SurfaceRaisedBrush}"
                                                 CornerRadius="10"
                                                 Padding="12"
                                                 Margin="0,0,0,12"
@@ -2384,7 +2311,7 @@
                                             </ItemsControl.ItemsPanel>
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate DataType="{x:Type viewModels:MaintenanceAutomationPackageOptionViewModel}">
-                                                    <Border Background="#0B1628"
+                                                    <Border Background="{StaticResource SurfaceRaisedBrush}"
                                                             BorderBrush="#1E293B"
                                                             BorderThickness="1"
                                                             CornerRadius="14"
@@ -2432,11 +2359,11 @@
                                                                     <TextBlock.Style>
                                                                         <Style TargetType="TextBlock">
                                                                             <Setter Property="Text" Value="Off"/>
-                                                                            <Setter Property="Foreground" Value="#94A3B8"/>
+                                                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
                                                                             <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding IsSelected}" Value="True">
                                                                                     <Setter Property="Text" Value="Auto-update"/>
-                                                                                    <Setter Property="Foreground" Value="#34D399"/>
+                                                                                    <Setter Property="Foreground" Value="{StaticResource AccentSuccessBrush}"/>
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
@@ -2499,8 +2426,8 @@
             <Border MaxWidth="720"
                     Margin="32"
                     Padding="24"
-                    Background="#0F172A"
-                    BorderBrush="#1E293B"
+                                        Background="{StaticResource SurfaceCardBrush}"
+                                        BorderBrush="{StaticResource BorderSubtleBrush}"
                     BorderThickness="1"
                     CornerRadius="18"
                     HorizontalAlignment="Center"
@@ -2544,10 +2471,10 @@
                                 <TextBlock Text="{Binding SelectedPackage.DisplayName, TargetNullValue=Package details}"
                                            FontSize="18"
                                            FontWeight="SemiBold"
-                                           Foreground="#F8FAFC"/>
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
                                 <TextBlock Text="{Binding SelectedPackage.ManagerDisplay}"
                                            FontSize="12"
-                                           Foreground="#94A3B8"/>
+                                           Foreground="{StaticResource TextMutedBrush}"/>
                             </StackPanel>
                         </StackPanel>
                         <Button Content="Close"
@@ -2582,7 +2509,7 @@
                         </ScrollViewer>
 
                         <TextBlock Text="Select a package to view its full details."
-                                   Foreground="#94A3B8"
+                                   Foreground="{StaticResource TextMutedBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    FontSize="13">
@@ -2613,8 +2540,8 @@
             <Border MaxWidth="760"
                     Margin="32"
                     Padding="24"
-                    Background="#0F172A"
-                    BorderBrush="#1E293B"
+                                        Background="{StaticResource SurfaceCardBrush}"
+                                        BorderBrush="{StaticResource BorderSubtleBrush}"
                     BorderThickness="1"
                     CornerRadius="18"
                     HorizontalAlignment="Center"
@@ -2631,10 +2558,10 @@
                             <TextBlock Text="{Binding SelectedOperation.PackageDisplay, TargetNullValue=Operation details}"
                                        FontSize="18"
                                        FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"/>
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
                             <TextBlock Text="{Binding SelectedOperation.StatusDisplay}"
                                        FontSize="12"
-                                       Foreground="#94A3B8"/>
+                                       Foreground="{StaticResource TextMutedBrush}"/>
                         </StackPanel>
                         <Button Content="Close"
                                 Command="{Binding CloseOperationDetailsCommand}"
@@ -2668,7 +2595,7 @@
                         </ScrollViewer>
 
                         <TextBlock Text="Select a completed operation to inspect its transcript."
-                                   Foreground="#94A3B8"
+                                   Foreground="{StaticResource TextMutedBrush}"
                                    HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
                                    FontSize="13">
