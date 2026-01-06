@@ -1,10 +1,10 @@
 {
-  "version": "3.6.0",
+  "version": "3.6.1",
   "channel": "stable",
-  "summary": "-fixed minor ui bugs.  -added new feature startup apps manager.  -changed installhub page catalog layout.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.0/TidyWindow-Setup-3.6.0.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.0",
-  "publishedAt": "2026-01-06T12:19:57Z",
-  "installerSizeBytes": 81314272,
-  "sha256": "6d8b2ccecf51bf92be98b3bd53877ad829d22f2a16d2662d08e48172738ba78d"
+  "summary": "-fixed  bugs where startup didn't disable properly.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.1/TidyWindow-Setup-3.6.1.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.1",
+  "publishedAt": "2026-01-06T13:17:07Z",
+  "installerSizeBytes": 81316581,
+  "sha256": "a2242f37043a878b38c34d13aa4f6123ed0fbe2a5ecca2e95e2bc4ee93c56dd0"
 }
