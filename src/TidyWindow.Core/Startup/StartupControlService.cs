@@ -72,7 +72,8 @@ public sealed class StartupControlService
                 return new StartupToggleResult(true, item with { IsEnabled = false }, null, null);
             }
 
-            if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", valueName, enabled: false, out var approvedError))
+            var approvedSubKey = GetStartupApprovedSubKey(item);
+            if (!TrySetStartupApprovedState(root, approvedSubKey, valueName, enabled: false, out var approvedError))
             {
                 return new StartupToggleResult(false, item, null, approvedError);
             }
@@ -126,7 +127,8 @@ public sealed class StartupControlService
                 return new StartupToggleResult(false, item, backup, "Failed to open registry key.");
             }
 
-            if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", valueName, enabled: true, out var approvedError))
+            var approvedSubKey = GetStartupApprovedSubKey(item);
+            if (!TrySetStartupApprovedState(root, approvedSubKey, valueName, enabled: true, out var approvedError))
             {
                 return new StartupToggleResult(false, item, backup, approvedError);
             }
@@ -505,6 +507,19 @@ public sealed class StartupControlService
         }
 
         return Registry.CurrentUser;
+    }
+
+    private static string GetStartupApprovedSubKey(StartupItem item)
+    {
+        var baseName = item.SourceKind == StartupItemSourceKind.RunOnce ? "RunOnce" : "Run";
+        var subKey = $"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\{baseName}";
+
+        if (!string.IsNullOrWhiteSpace(item.EntryLocation) && item.EntryLocation.Contains("Wow6432Node", StringComparison.OrdinalIgnoreCase))
+        {
+            subKey += "32";
+        }
+
+        return subKey;
     }
 
     private static bool TrySetStartupApprovedState(RegistryKey root, string subKey, string entryName, bool enabled, out string? error)

@@ -62,18 +62,20 @@ public sealed class StartupInventoryService
 
         if (options.IncludeRunKeys)
         {
-            EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKCU Run", isMachineScope: false, items, warnings, cancellationToken);
-            EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKLM Run", isMachineScope: true, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKCU Run", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKLM Run", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKLM Run (32-bit)", isMachineScope: true, preferWow: true, items, warnings, cancellationToken);
         }
 
         if (options.IncludeRunOnce)
         {
-            EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKCU RunOnce", isMachineScope: false, items, warnings, cancellationToken);
-            EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKLM RunOnce", isMachineScope: true, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKCU RunOnce", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKLM RunOnce", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKLM RunOnce (32-bit)", isMachineScope: true, preferWow: true, items, warnings, cancellationToken);
         }
     }
 
-    private static void EnumerateRunKey(RegistryKey root, string subKey, StartupItemSourceKind kind, string sourceTag, bool isMachineScope, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    private static void EnumerateRunKey(RegistryKey root, string subKey, StartupItemSourceKind kind, string sourceTag, bool isMachineScope, bool preferWow, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
     {
         using var key = root.OpenSubKey(subKey, writable: false);
         if (key is null)
@@ -100,7 +102,11 @@ public sealed class StartupInventoryService
             var metadata = InspectFile(exe);
             var name = string.IsNullOrWhiteSpace(valueName) ? Path.GetFileName(exe) ?? sourceTag : valueName;
             var id = $"run:{sourceTag}:{valueName}";
-            var approved = ResolveStartupApproved(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", valueName);
+            var approved = ResolveStartupApproved(root, kind == StartupItemSourceKind.RunOnce
+                ? "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\RunOnce"
+                : "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run",
+                valueName,
+                preferWow);
             var isEnabled = approved ?? true;
             items.Add(new StartupItem(
                 id,
@@ -361,8 +367,15 @@ public sealed class StartupInventoryService
             : $"{executablePath} {arguments}";
     }
 
-    private static bool? ResolveStartupApproved(RegistryKey root, string baseSubKey, string entryName)
+    private static bool? ResolveStartupApproved(RegistryKey root, string baseSubKey, string entryName, bool preferWow = false)
     {
+        // Task Manager stores disable/enable state under StartupApproved Run/Run32 (and RunOnce/RunOnce32 for 32-bit apps on 64-bit OS).
+        if (preferWow)
+        {
+            return GetStartupApprovedState(root, baseSubKey + "32", entryName)
+                   ?? GetStartupApprovedState(root, baseSubKey, entryName);
+        }
+
         return GetStartupApprovedState(root, baseSubKey, entryName)
                ?? GetStartupApprovedState(root, baseSubKey + "32", entryName);
     }
