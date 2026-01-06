@@ -171,33 +171,26 @@
 
                                 <Grid Grid.Row="0"
                                       Margin="0,0,0,14">
-                                    <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
                                     <StackPanel>
-                                     <TextBlock Text="Queue timeline"
-                                         FontSize="16"
-                                         FontWeight="SemiBold"
-                                         Foreground="{StaticResource InstallTextPrimaryBrush}"/>
-                                     <TextBlock Text="Latest operations appear first. Use filters above to clear or retry."
-                                          Foreground="{StaticResource InstallTextMutedBrush}"
-                                          FontSize="12"
-                                          TextWrapping="Wrap"/>
-                                    </StackPanel>
-
-                                    <StackPanel Grid.Column="1"
-                                        Orientation="Horizontal"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Top">
-                                    <Button Content="Retry failed"
-                                        Command="{Binding RetryFailedCommand}"
-                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
-                                    <Button Content="Clear completed"
-                                        Margin="10,0,0,0"
-                                        Command="{Binding ClearCompletedCommand}"
-                                        Style="{StaticResource InstallSecondaryButtonStyle}"/>
+                                        <TextBlock Text="Queue timeline"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource InstallTextPrimaryBrush}"/>
+                                        <TextBlock Text="Latest operations appear first. Use filters above to clear or retry."
+                                                   Foreground="{StaticResource InstallTextMutedBrush}"
+                                                   FontSize="12"
+                                                   TextWrapping="Wrap"/>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,16,0,0"
+                                                    HorizontalAlignment="Left">
+                                            <Button Content="Retry failed"
+                                                    Command="{Binding RetryFailedCommand}"
+                                                    Style="{StaticResource InstallRetryButtonStyle}"/>
+                                            <Button Content="Clear completed"
+                                                    Margin="12,0,0,0"
+                                                    Command="{Binding ClearCompletedCommand}"
+                                                    Style="{StaticResource InstallClearButtonStyle}"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
 

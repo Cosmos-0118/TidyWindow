@@ -13,6 +13,12 @@
     <SolidColorBrush x:Key="InstallSecondaryButtonBrush" Color="#172238"/>
     <SolidColorBrush x:Key="InstallSecondaryButtonHoverBrush" Color="#1E2D46"/>
     <SolidColorBrush x:Key="InstallSecondaryButtonPressedBrush" Color="#10182A"/>
+    <SolidColorBrush x:Key="InstallRetryButtonBrush" Color="#FF6B87"/>
+    <SolidColorBrush x:Key="InstallRetryButtonHoverBrush" Color="#FF7A97"/>
+    <SolidColorBrush x:Key="InstallRetryButtonPressedBrush" Color="#E25471"/>
+    <SolidColorBrush x:Key="InstallClearButtonBrush" Color="#14B8A6"/>
+    <SolidColorBrush x:Key="InstallClearButtonHoverBrush" Color="#1FD1BB"/>
+    <SolidColorBrush x:Key="InstallClearButtonPressedBrush" Color="#0F9A87"/>
     <SolidColorBrush x:Key="InstallTextPrimaryBrush" Color="#F8FAFC"/>
     <SolidColorBrush x:Key="InstallTextInverseBrush" Color="#E2E8F0"/>
     <SolidColorBrush x:Key="InstallTextSecondaryBrush" Color="#CBD5F5"/>
@@ -76,6 +82,94 @@
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Background" Value="#2E4F66"/>
                             <Setter Property="Foreground" Value="#9FB9CC"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallRetryButtonStyle"
+           TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource InstallRetryButtonBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource InstallTextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="14,7"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#FF97AF"
+                                              BlurRadius="18"
+                                              ShadowDepth="0"
+                                              Opacity="0.35"/>
+                        </Border.Effect>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallRetryButtonHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallRetryButtonPressedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="#8E4A5C"/>
+                            <Setter Property="Foreground" Value="#FBD3DC"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="InstallClearButtonStyle"
+           TargetType="Button">
+        <Setter Property="Background" Value="{StaticResource InstallClearButtonBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource InstallTextPrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="14,7"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#2BD7BB"
+                                              BlurRadius="18"
+                                              ShadowDepth="0"
+                                              Opacity="0.35"/>
+                        </Border.Effect>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallClearButtonHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource InstallClearButtonPressedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Background" Value="#0B5649"/>
+                            <Setter Property="Foreground" Value="#B2EFE3"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
