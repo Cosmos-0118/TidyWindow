@@ -165,7 +165,7 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 [x] Step 12.3: Design `Views/StartupControllerPage.xaml` using the Processes-page layout (hero strip + filter/search + card/list hybrid) with clear source badges, risk hints, and trust indicators.
 [x] Step 12.4: Implement “delay launch” for user-scope entries we own (defer runs via scheduled tasks with post-boot offsets); avoid delaying system services and warn when apps self-heal their entries.
 [x] Step 12.5: Add telemetry/insights: startup impact estimates, last modified, unsigned flags, and a before/after counter of disabled items; include quick filters (safe to disable, unsigned, heavy impact).
-[ ] Step 12.6: Document guardrails and rollback paths in `docs/startup-controller.md`, covering backups, elevation prompts, and how to restore defaults if vendors re-add entries.
+[x] Step 12.6: Document guardrails and rollback paths in `docs/startup-controller.md`, covering backups, elevation prompts, and how to restore defaults if vendors re-add entries.
 
 ## Driver Updates Experience (retired)
 
