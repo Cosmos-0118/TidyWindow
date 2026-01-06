@@ -175,20 +175,23 @@
                                 </StackPanel.Style>
 
                 <StackPanel x:Name="TitleRowPanel"
-                        Orientation="Horizontal"
-                        VerticalAlignment="Center">
-                                    <TextBlock Text="{Binding Title, ElementName=RootControl}"
+                    Orientation="Horizontal"
+                    VerticalAlignment="Center">
+                            <TextBlock Text="{Binding Title, ElementName=RootControl}"
                                                FontSize="20"
                                                FontWeight="SemiBold"
-                                               Foreground="{StaticResource TitleForegroundBrush}"
+                                   Foreground="{StaticResource TitleForegroundBrush}"
+                                   VerticalAlignment="Center"
                                                TextTrimming="CharacterEllipsis"/>
                                     <Border x:Name="BadgeHost"
                                             Style="{StaticResource TitleBarBadgeStyle}"
-                                            BorderBrush="{Binding AccentBrush, ElementName=RootControl}">
+                                BorderBrush="{Binding AccentBrush, ElementName=RootControl}"
+                                VerticalAlignment="Center">
                                         <TextBlock Text="{Binding BadgeText, ElementName=RootControl}"
                                                    FontSize="11"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#E2E8F0"/>
+                                   Foreground="#E2E8F0"
+                                   VerticalAlignment="Center"/>
                                     </Border>
                                 </StackPanel>
 
