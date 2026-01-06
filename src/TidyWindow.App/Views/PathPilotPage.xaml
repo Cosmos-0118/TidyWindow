@@ -255,6 +255,55 @@
             </Setter>
         </Style>
 
+        <Style x:Key="PathPilotInfoToggleStyle"
+               TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="#93C5FD"/>
+            <Setter Property="BorderBrush" Value="#1E3A8A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="#0A1A33"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="Margin" Value="0,16,0,0"/>
+            <Setter Property="HorizontalAlignment" Value="Left"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Tag" Value="More info"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <StackPanel>
+                            <Border x:Name="Header"
+                                    CornerRadius="10"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    Padding="{TemplateBinding Padding}">
+                                <TextBlock Text="{TemplateBinding Tag}"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           FontWeight="SemiBold"
+                                           HorizontalAlignment="Center"/>
+                            </Border>
+                            <ContentPresenter x:Name="DetailPresenter"
+                                              Margin="0,12,0,0"
+                                              Visibility="Collapsed"/>
+                        </StackPanel>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Header" Property="Background" Value="#12264A"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="#E0E7FF"/>
+                                <Setter Property="Tag" Value="Hide details"/>
+                                <Setter TargetName="Header" Property="Background" Value="#1E3A8A"/>
+                                <Setter TargetName="DetailPresenter" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Header" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="PathPilotDialogShellStyle" TargetType="Border">
             <Setter Property="Background" Value="#0C172C"/>
             <Setter Property="BorderBrush" Value="#253552"/>
@@ -705,34 +754,51 @@
                                 <TextBlock Text="PathPilot keeps runtimes predictable"
                                            Style="{StaticResource PathPilotHeroTitleTextStyle}"
                                            FontSize="22"/>
-                                <TextBlock Text="Discover every Python, Node.js, .NET, and PowerShell footprint, inspect the current PATH winner, and promote installs only after PathPilot snapshots HKLM."
+                                <TextBlock Text="Scan installed Python, Node.js, .NET, and PowerShell runtimes, see who currently wins PATH, and switch with one click."
                                            Margin="0,8,0,0"
                                            Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
-                                <StackPanel Margin="0,14,0,0">
-                                    <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="🧭"
-                                                   FontSize="16"
-                                                   Margin="0,0,8,0"/>
-                                        <TextBlock Text="Visualize PATH resolution order so duplicate or shadowed runtimes surface instantly."
-                                                   Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal"
-                                                Margin="0,10,0,0">
-                                        <TextBlock Text="🧪"
-                                                   FontSize="16"
-                                                   Margin="0,0,8,0"/>
-                                        <TextBlock Text="Inventory pulls from registry probes, path globs, and directories without touching your installs."
-                                                   Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal"
-                                                Margin="0,10,0,0">
-                                        <TextBlock Text="🛡️"
-                                                   FontSize="16"
-                                                   Margin="0,0,8,0"/>
-                                        <TextBlock Text="Switching creates a machine-scope PATH backup, logs the promoted directory, and keeps other entries untouched."
-                                                   Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
-                                    </StackPanel>
-                                </StackPanel>
+                                <TextBlock Text="Changes are system-wide, so PathPilot always snapshots HKLM before it moves anything."
+                                           Margin="0,4,0,0"
+                                           Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
+                                <ToggleButton Style="{StaticResource PathPilotInfoToggleStyle}">
+                                    <Border Padding="16"
+                                            CornerRadius="12"
+                                            Background="#0F2038"
+                                            BorderBrush="#1D2F4D"
+                                            BorderThickness="1"
+                                            SnapsToDevicePixels="True">
+                                        <StackPanel>
+                                        <TextBlock Text="What the advanced view covers"
+                                                   Foreground="#E0E7FF"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"/>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,10,0,0">
+                                            <TextBlock Text="🧭"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0"/>
+                                            <TextBlock Text="Visualize the full PATH resolution order so duplicate or shadowed runtimes surface instantly."
+                                                       Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,10,0,0">
+                                            <TextBlock Text="🧪"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0"/>
+                                            <TextBlock Text="Inventory blends registry probes, path globs, and directory scans without mutating your installs."
+                                                       Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal"
+                                                    Margin="0,10,0,0">
+                                            <TextBlock Text="🛡️"
+                                                       FontSize="16"
+                                                       Margin="0,0,8,0"/>
+                                            <TextBlock Text="Switching creates a machine-scope PATH backup, logs the promoted directory, and preserves every other entry."
+                                                       Style="{StaticResource PathPilotHeroBodyTextStyle}"/>
+                                        </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </ToggleButton>
                             </StackPanel>
                         </Border>
                         <Border Margin="0,4,0,0"
