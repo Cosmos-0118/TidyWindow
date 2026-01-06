@@ -27,7 +27,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         IUserConfirmationService confirmationService,
         MainViewModel mainViewModel,
         ProcessPreferencesViewModel processPreferencesViewModel,
-        ThreatWatchViewModel antiSystemViewModel)
+        ThreatWatchViewModel threatWatchViewModel)
     {
         _catalogParser = catalogParser ?? throw new ArgumentNullException(nameof(catalogParser));
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
@@ -35,7 +35,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         Preferences = processPreferencesViewModel ?? throw new ArgumentNullException(nameof(processPreferencesViewModel));
-        ThreatWatch = antiSystemViewModel ?? throw new ArgumentNullException(nameof(antiSystemViewModel));
+        ThreatWatch = threatWatchViewModel ?? throw new ArgumentNullException(nameof(threatWatchViewModel));
         Categories = new ObservableCollection<KnownProcessCategoryViewModel>();
     }
 

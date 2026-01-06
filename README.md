@@ -10,7 +10,7 @@ TidyWindow consolidates environment bootstrapping, cleanup, registry tuning, dia
 -   **Multi-phase cleanup** (`docs/cleanup.md`): Discover clutter with a fast preview, vet selections with risk signals and lock inspection, then delete via recycle-bin-first workflows or schedule recurring sweeps with conservative defaults.
 -   **Registry optimizer** (`docs/registry-optimizer.md`): Stage preset or custom tweaks with automatic JSON restore points, 30-second rollback countdowns, baseline tracking, and preset customization alerts.
 -   **Install & maintain software** (`docs/install-hub.md`, `docs/maintenance.md`): Drive winget, Scoop, and Chocolatey flows from a single queue, including automation to keep curated bundles current.
--   **PathPilot & process intelligence** (`docs/pathpilot.md`, `docs/known-processes.md`): Manage PATH edits safely, monitor running processes, and flag threat watch behavior with remediation guidance.
+-   **PathPilot & process intelligence** (`docs/pathpilot.md`, `docs/known-processes.md`): Manage PATH edits safely, monitor running processes, and escalate Threat Watch findings with remediation guidance.
 -   **PulseGuard observability** (`docs/activity-log.md`, `docs/settings.md`): Turn significant Activity Log events into actionable notifications, high-friction prompts, and searchable transcripts while respecting notification preferences.
 
 ## Safety Systems
@@ -66,7 +66,7 @@ dotnet test tests/TidyWindow.App.Tests/TidyWindow.App.Tests.csproj
 
 -   [`docs/cleanup.md`](docs/cleanup.md) – Disk cleanup workflow, risk model, and automation scheduler.
 -   [`docs/essentials.md`](docs/essentials.md) – Repair catalog, queue orchestration, and safety features.
--   [`docs/deep-scan.md`](docs/deep-scan.md) – Diagnostics, heuristics, and threat watch scanners.
+-   [`docs/deep-scan.md`](docs/deep-scan.md) – Diagnostics, heuristics, and Threat Watch scanners.
 -   [`docs/install-hub.md`](docs/install-hub.md) / [`docs/maintenance.md`](docs/maintenance.md) – Package installation & upkeep cockpit.
 -   [`docs/pathpilot.md`](docs/pathpilot.md) – PATH governance with diff previews and rollback plans.
 -   [`docs/registry-optimizer.md`](docs/registry-optimizer.md) – Restore-point-backed registry tuning.
