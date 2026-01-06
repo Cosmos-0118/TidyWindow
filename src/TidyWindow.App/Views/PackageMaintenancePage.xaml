@@ -507,6 +507,41 @@
             <Setter Property="BorderBrush" Value="#F87171"/>
         </Style>
 
+        <Style x:Key="MaintenancePackageTitleBadgeStyle"
+               TargetType="Border">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#1F2A3D" Offset="0"/>
+                        <GradientStop Color="#111C2D" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#273246"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="18"/>
+            <Setter Property="Padding" Value="16,10,18,12"/>
+            <Setter Property="Margin" Value="0,0,0,12"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#A0101420"
+                                       BlurRadius="14"
+                                       ShadowDepth="2"
+                                       Opacity="0.65"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="MaintenancePackageTitleTextStyle"
+               TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#F8FAFC"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="TextTrimming" Value="None"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        </Style>
+
         <DataTemplate x:Key="OperationDetailsTemplate"
                       DataType="{x:Type viewModels:PackageMaintenanceOperationViewModel}">
             <StackPanel>
@@ -1361,41 +1396,6 @@
                                         </StackPanel>
                                     </ux:AdaptiveTilePanel>
 
-                                    <StackPanel Grid.Row="2"
-                                                Margin="0,16,0,0">
-                                        <TextBlock Text="Keyboard shortcuts"
-                                                   Foreground="#94A3B8"
-                                                   FontSize="11"
-                                                   Margin="0,0,0,6"/>
-                                        <ux:AdaptiveTilePanel MinColumnWidth="150"
-                                                             ColumnSpacing="16"
-                                                             RowSpacing="10">
-                                            <Border Background="#101A2A"
-                                                    CornerRadius="6"
-                                                    Padding="10,4">
-                                                <TextBlock Text="Q → Queue update"
-                                                           Foreground="#CBD5F5"
-                                                           FontSize="11"
-                                                           TextAlignment="Center"/>
-                                            </Border>
-                                            <Border Background="#101A2A"
-                                                    CornerRadius="6"
-                                                    Padding="10,4">
-                                                <TextBlock Text="R → Remove"
-                                                           Foreground="#CBD5F5"
-                                                           FontSize="11"
-                                                           TextAlignment="Center"/>
-                                            </Border>
-                                            <Border Background="#101A2A"
-                                                    CornerRadius="6"
-                                                    Padding="10,4">
-                                                <TextBlock Text="F → Force cleanup"
-                                                           Foreground="#CBD5F5"
-                                                           FontSize="11"
-                                                           TextAlignment="Center"/>
-                                            </Border>
-                                        </ux:AdaptiveTilePanel>
-                                    </StackPanel>
                                 </Grid>
                             </Border>
 
@@ -1575,18 +1575,24 @@
 
                                                             <StackPanel Grid.Column="1"
                                                                         VerticalAlignment="Top">
-                                                                <TextBlock Text="{Binding DisplayName}"
-                                                                           FontWeight="SemiBold"
-                                                                           FontSize="{Binding DisplayName, Converter={StaticResource PackageNameFontSizeConverter}, ConverterParameter=compact}"
-                                                                           Foreground="#F8FAFC"
-                                                                           TextWrapping="Wrap"
-                                                                           TextTrimming="CharacterEllipsis"/>
-                                                                <TextBlock Text="{Binding ManagerDisplay}"
+                                                                <Border Style="{StaticResource MaintenancePackageTitleBadgeStyle}">
+                                                                    <TextBlock Style="{StaticResource MaintenancePackageTitleTextStyle}"
+                                                                               Text="{Binding DisplayName}"
+                                                                               FontSize="{Binding DisplayName, Converter={StaticResource PackageNameFontSizeConverter}, ConverterParameter=compact}"/>
+                                                                </Border>
+                                                                <TextBlock Text="{Binding ManagerLine}"
                                                                            Foreground="#94A3B8"
                                                                            FontSize="12"
-                                                                           Margin="0,4,0,8"/>
+                                                                           Margin="0,0,0,2"
+                                                                           TextWrapping="Wrap"/>
+                                                                <TextBlock Text="{Binding SourceLine}"
+                                                                           Foreground="#64748B"
+                                                                           FontSize="11"
+                                                                           Margin="0,0,0,8"
+                                                                           TextWrapping="Wrap"
+                                                                           Visibility="{Binding HasSource, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
-                                                                <WrapPanel>
+                                                                <WrapPanel Margin="0,4,0,0">
                                                                     <Border Margin="0,0,8,0">
                                                                         <Border.Style>
                                                                             <Style TargetType="Border"
@@ -1618,64 +1624,27 @@
                                                             </StackPanel>
                                                         </Grid>
 
-                                                        <WrapPanel Grid.Row="1"
-                                                                   Margin="0,12,0,0">
-                                                            <Border Style="{StaticResource MaintenanceInfoChipStyle}"
-                                                                    BorderBrush="#0EA5E9">
-                                                                <Border.Background>
-                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                                        <GradientStop Color="#062C3E" Offset="0"/>
-                                                                        <GradientStop Color="#0B4B5E" Offset="1"/>
-                                                                    </LinearGradientBrush>
-                                                                </Border.Background>
-                                                                <TextBlock Foreground="#E2E8F0"
-                                                                           FontSize="11"
-                                                                           FontWeight="SemiBold"
-                                                                           Text="{Binding ManagerDisplay, StringFormat=Manager · {0}}"/>
+                                                        <StackPanel Grid.Row="1"
+                                                                    Margin="0,12,0,0">
+                                                            <Border Background="#101A2F"
+                                                                    BorderBrush="#172338"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="12"
+                                                                    Padding="12">
+                                                                <StackPanel>
+                                                                    <TextBlock Text="{Binding VersionHeadline}"
+                                                                               Foreground="#F8FAFC"
+                                                                               FontSize="13"
+                                                                               FontWeight="SemiBold"
+                                                                               TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="{Binding VersionDetails}"
+                                                                               Foreground="#94A3B8"
+                                                                               FontSize="11"
+                                                                               Margin="0,4,0,0"
+                                                                               TextWrapping="Wrap"/>
+                                                                </StackPanel>
                                                             </Border>
-                                                            <Border>
-                                                                <Border.Style>
-                                                                    <Style TargetType="Border"
-                                                                           BasedOn="{StaticResource MaintenanceInfoChipStyle}">
-                                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                                            <Setter Property="BorderBrush" Value="#F97316"/>
-                                                                            <Setter Property="Background">
-                                                                                <Setter.Value>
-                                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                                                        <GradientStop Color="#3A1B00" Offset="0"/>
-                                                                                        <GradientStop Color="#5A2F00" Offset="1"/>
-                                                                                    </LinearGradientBrush>
-                                                                                </Setter.Value>
-                                                                            </Setter>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Source}" Value="">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding Source}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </Border.Style>
-                                                                <TextBlock Foreground="#E2E8F0"
-                                                                           FontSize="11"
-                                                                           FontWeight="SemiBold"
-                                                                           Text="{Binding Source, StringFormat=Source · {0}}"/>
-                                                            </Border>
-                                                            <Border Style="{StaticResource MaintenanceInfoChipStyle}"
-                                                                    BorderBrush="#8B5CF6">
-                                                                <Border.Background>
-                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                                        <GradientStop Color="#271047" Offset="0"/>
-                                                                        <GradientStop Color="#3B1A6A" Offset="1"/>
-                                                                    </LinearGradientBrush>
-                                                                </Border.Background>
-                                                                <TextBlock Foreground="#E2E8F0"
-                                                                           FontSize="11"
-                                                                           FontWeight="SemiBold"
-                                                                           Text="{Binding VersionDisplay, StringFormat=Version · {0}}"/>
-                                                            </Border>
-                                                        </WrapPanel>
+                                                        </StackPanel>
 
                                                         <StackPanel Grid.Row="2"
                                                                 Margin="0,12,0,0">

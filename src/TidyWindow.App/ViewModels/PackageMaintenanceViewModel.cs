@@ -2430,6 +2430,10 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
 
     public string ManagerDisplay { get; }
 
+    public string ManagerLine => string.IsNullOrWhiteSpace(PackageIdentifier)
+        ? ManagerDisplay
+        : string.Format(CultureInfo.InvariantCulture, "{0} • {1}", ManagerDisplay, PackageIdentifier);
+
     public string PackageIdentifier
     {
         get => _packageIdentifier;
@@ -2440,6 +2444,7 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
                 OnPropertyChanged(nameof(CanRemove));
                 OnPropertyChanged(nameof(CanForceRemove));
                 OnPropertyChanged(nameof(CanUpdate));
+                OnPropertyChanged(nameof(ManagerLine));
             }
         }
     }
@@ -2457,6 +2462,9 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     }
 
     public string DisplayInitial => TryGetInitial(DisplayName);
+
+    public bool HasKnownInstalledVersion => !string.IsNullOrWhiteSpace(InstalledVersion)
+                                            && !InstalledVersion.Equals("Unknown", StringComparison.OrdinalIgnoreCase);
 
     public string InstalledVersion
     {
@@ -2499,8 +2507,21 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     public string Source
     {
         get => _source;
-        private set => SetProperty(ref _source, string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim());
+        private set
+        {
+            if (SetProperty(ref _source, string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim()))
+            {
+                OnPropertyChanged(nameof(HasSource));
+                OnPropertyChanged(nameof(SourceLine));
+            }
+        }
     }
+
+    public bool HasSource => !string.IsNullOrWhiteSpace(Source);
+
+    public string? SourceLine => string.IsNullOrWhiteSpace(Source)
+        ? null
+        : string.Format(CultureInfo.InvariantCulture, "Source · {0}", Source);
 
     public string? Summary
     {
@@ -2566,6 +2587,59 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     public string VersionDisplay => HasUpdate && !string.IsNullOrWhiteSpace(AvailableVersion)
         ? $"{InstalledVersion} → {AvailableVersion}"
         : InstalledVersion;
+
+    public string VersionHeadline
+    {
+        get
+        {
+            if (HasUpdate && !string.IsNullOrWhiteSpace(AvailableVersion))
+            {
+                return string.Format(CultureInfo.InvariantCulture, "Update available → {0}", AvailableVersion);
+            }
+
+            if (HasUpdate)
+            {
+                return "Update available";
+            }
+
+            if (HasKnownInstalledVersion)
+            {
+                return string.Format(CultureInfo.InvariantCulture, "Installed {0}", InstalledVersion);
+            }
+
+            return "Installed version unknown";
+        }
+    }
+
+    public string VersionDetails
+    {
+        get
+        {
+            if (HasUpdate && HasKnownInstalledVersion)
+            {
+                var target = string.IsNullOrWhiteSpace(AvailableVersion) ? "latest release" : AvailableVersion;
+                return string.Format(CultureInfo.InvariantCulture, "Currently on {0}. Queue to move to {1}.", InstalledVersion, target);
+            }
+
+            if (HasUpdate)
+            {
+                var target = string.IsNullOrWhiteSpace(AvailableVersion) ? "a newer release" : AvailableVersion;
+                return string.Format(CultureInfo.InvariantCulture, "Catalog reports {0}. Queue the update to stay current.", target);
+            }
+
+            if (!HasKnownInstalledVersion)
+            {
+                return "We'll show the installed version as soon as the manager reports it.";
+            }
+
+            if (!string.IsNullOrWhiteSpace(AvailableVersion))
+            {
+                return string.Format(CultureInfo.InvariantCulture, "Latest catalog version {0}.", AvailableVersion);
+            }
+
+            return "No pending updates detected.";
+        }
+    }
 
     public bool IsSuppressed
     {
@@ -2806,6 +2880,9 @@ public sealed partial class PackageMaintenanceItemViewModel : ObservableObject
     {
         OnPropertyChanged(nameof(VersionDisplay));
         OnPropertyChanged(nameof(CanUpdate));
+        OnPropertyChanged(nameof(VersionHeadline));
+        OnPropertyChanged(nameof(VersionDetails));
+        OnPropertyChanged(nameof(HasKnownInstalledVersion));
     }
 
     private static string? NormalizeVersionText(string? value)

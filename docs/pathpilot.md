@@ -174,6 +174,11 @@ PATH modifications are minimal and targeted:
 -   **Last Refreshed**: Timestamp of last inventory scan
 -   **Action Buttons**: "Scan runtimes", "Export JSON", "Export Markdown"
 
+**Explainer Banner**:
+
+-   Card directly under the header that spells out PathPilot's core promise and three safety highlights (visualize PATH order, discovery is read-only, switching always snapshots HKLM).
+-   Gives new users immediate context before they dig into stats or cards.
+
 **Statistics Cards**:
 
 -   **Total Runtimes**: Count of detected runtimes
@@ -677,4 +682,3 @@ Potential improvements:
 -   PATH entry cleanup (removing invalid entries)
 -   Runtime installation tracking
 -   Integration with package managers for version management
-
