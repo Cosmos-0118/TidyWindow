@@ -17,7 +17,7 @@
         <SolidColorBrush x:Key="InventoryLoaderWarningBrush" Color="#FDE047"/>
         <SolidColorBrush x:Key="InventoryLoaderBodyBrush" Color="#C7D2FE"/>
 
-        <Storyboard x:Key="InventorySpinnerStoryboard" RepeatBehavior="Forever">
+        <Storyboard x:Key="InventorySpinnerStoryboard" RepeatBehavior="Forever" Timeline.DesiredFrameRate="30">
             <DoubleAnimation Storyboard.TargetName="InventoryRingRotate"
                              Storyboard.TargetProperty="Angle"
                              From="0"

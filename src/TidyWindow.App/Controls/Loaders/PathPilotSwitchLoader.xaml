@@ -31,7 +31,7 @@
                           Opacity="0.6"/>
         <SineEase x:Key="SwitchLoaderEase" EasingMode="EaseInOut"/>
 
-        <Storyboard x:Key="SwitchLoaderStoryboard" RepeatBehavior="Forever">
+        <Storyboard x:Key="SwitchLoaderStoryboard" RepeatBehavior="Forever" Timeline.DesiredFrameRate="30">
             <DoubleAnimation Storyboard.TargetName="SwitchOuterHexRotate"
                              Storyboard.TargetProperty="Angle"
                              From="0"

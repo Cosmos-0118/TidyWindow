@@ -50,7 +50,7 @@ dotnet build src/TidyWindow.sln -c Debug
 dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 ```
 
-Refer to [`docs/getting-started.md`](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest signed installers are published with each GitHub Release (current release: **3.6.0**). Inside the app, open **Settings ▸ Updates** to query the hosted manifest (`data/catalog/latest-release.json`) and jump straight to the newest installer or release notes without downloading a fresh build manually.
+Refer to [`docs/getting-started.md`](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest signed installers are published with each GitHub Release (current release: **3.6.2**). Inside the app, open **Settings ▸ Updates** to query the hosted manifest (`data/catalog/latest-release.json`) and jump straight to the newest installer or release notes without downloading a fresh build manually.
 
 ## Testing & Verification
 
