@@ -11,6 +11,7 @@ TidyWindow consolidates environment bootstrapping, cleanup, registry tuning, dia
 -   **Registry optimizer** (`docs/registry-optimizer.md`): Stage preset or custom tweaks with automatic JSON restore points, 30-second rollback countdowns, baseline tracking, and preset customization alerts.
 -   **Install & maintain software** (`docs/install-hub.md`, `docs/maintenance.md`): Drive winget, Scoop, and Chocolatey flows from a single queue, including automation to keep curated bundles current.
 -   **PathPilot & process intelligence** (`docs/pathpilot.md`, `docs/known-processes.md`): Manage PATH edits safely, monitor running processes, and escalate Threat Watch findings with remediation guidance.
+-   **Startup controller** (`docs/startup-controller.md`): Inventory Run/RunOnce, Startup folders, logon tasks, and services with Task-Manager-accurate enabled/disabled states, reversible backups, delay actions, and safety guardrails.
 -   **PulseGuard observability** (`docs/activity-log.md`, `docs/settings.md`): Turn significant Activity Log events into actionable notifications, high-friction prompts, and searchable transcripts while respecting notification preferences.
 
 ## Safety Systems
@@ -49,7 +50,7 @@ dotnet build src/TidyWindow.sln -c Debug
 dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 ```
 
-Refer to [`docs/getting-started.md`](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest signed installers are published with each GitHub Release (current release: **3.3.0**). Inside the app, open **Settings ▸ Updates** to query the hosted manifest (`data/catalog/latest-release.json`) and jump straight to the newest installer or release notes without downloading a fresh build manually.
+Refer to [`docs/getting-started.md`](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest signed installers are published with each GitHub Release (current release: **3.6.0**). Inside the app, open **Settings ▸ Updates** to query the hosted manifest (`data/catalog/latest-release.json`) and jump straight to the newest installer or release notes without downloading a fresh build manually.
 
 ## Testing & Verification
 
@@ -70,6 +71,7 @@ dotnet test tests/TidyWindow.App.Tests/TidyWindow.App.Tests.csproj
 -   [`docs/install-hub.md`](docs/install-hub.md) / [`docs/maintenance.md`](docs/maintenance.md) – Package installation & upkeep cockpit.
 -   [`docs/pathpilot.md`](docs/pathpilot.md) – PATH governance with diff previews and rollback plans.
 -   [`docs/registry-optimizer.md`](docs/registry-optimizer.md) – Restore-point-backed registry tuning.
+-   [`docs/startup-controller.md`](docs/startup-controller.md) – Startup sources, toggles, delays, backups, guardrails, and rollback guidance.
 -   [`docs/known-processes.md`](docs/known-processes.md) – Process catalog, classifications, and Threat Watch signals.
 -   [`docs/activity-log.md`](docs/activity-log.md) – Observability pipeline, transcripts, and PulseGuard integration.
 -   [`docs/settings.md`](docs/settings.md) – Preference system, PulseGuard toggles, and background presence.
