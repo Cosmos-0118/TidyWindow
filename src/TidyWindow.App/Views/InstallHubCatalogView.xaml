@@ -348,7 +348,7 @@
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
@@ -420,7 +420,9 @@
 
                                 <ItemsControl x:Name="CatalogItemsRepeater"
                                               ItemsSource="{Binding CatalogPagePackages}"
-                                              Foreground="{StaticResource InstallTextPrimaryBrush}">
+                                              Foreground="{StaticResource InstallTextPrimaryBrush}"
+                                              Loaded="OnCatalogItemsLoaded"
+                                              SizeChanged="OnCatalogItemsSizeChanged">
                                     <ItemsControl.Style>
                                         <Style TargetType="ItemsControl">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -449,7 +451,6 @@
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto"/>
                                                             <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
                                                         <CheckBox Grid.Column="0"
                                                                   Style="{StaticResource App.CheckBoxStyle}"
@@ -468,13 +469,6 @@
                                                                        Margin="0,4,0,0"
                                                                        TextWrapping="Wrap"/>
                                                         </StackPanel>
-                                                        <Button Grid.Column="2"
-                                                                Content="Queue"
-                                                                Command="{Binding DataContext.QueuePackageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                CommandParameter="{Binding}"
-                                                                Style="{StaticResource InstallAccentButtonStyle}"
-                                                                MinWidth="120"
-                                                                IsEnabled="{Binding IsQueued, Converter={StaticResource InverseBooleanConverter}}"/>
                                                     </Grid>
 
                                                     <WrapPanel Margin="0,12,0,0">
@@ -560,6 +554,15 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
+
+                                                    <Button Content="Queue"
+                                                            Margin="0,18,0,0"
+                                                            HorizontalAlignment="Stretch"
+                                                            MinHeight="40"
+                                                            Command="{Binding DataContext.QueuePackageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Style="{StaticResource InstallAccentButtonStyle}"
+                                                            IsEnabled="{Binding IsQueued, Converter={StaticResource InverseBooleanConverter}}"/>
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
