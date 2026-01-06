@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Infrastructure;
@@ -58,6 +59,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         Bundles = new ObservableCollection<InstallBundleItemViewModel>();
         Packages = new ObservableCollection<InstallPackageItemViewModel>();
+        CatalogPagePackages = new ObservableCollection<InstallPackageItemViewModel>();
         Operations = new ObservableCollection<InstallOperationItemViewModel>();
 
         foreach (var snapshot in _installQueue.GetSnapshot())
@@ -87,6 +89,8 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     public ObservableCollection<InstallBundleItemViewModel> Bundles { get; }
 
     public ObservableCollection<InstallPackageItemViewModel> Packages { get; }
+
+    public ObservableCollection<InstallPackageItemViewModel> CatalogPagePackages { get; }
 
     public ObservableCollection<InstallOperationItemViewModel> Operations { get; }
 
@@ -125,6 +129,38 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _isQueueOperationDetailsVisible;
+
+    [ObservableProperty]
+    private int _catalogPageSize = DetermineDefaultCatalogPageSize();
+
+    [ObservableProperty]
+    private int _catalogCurrentPage = 1;
+
+    [ObservableProperty]
+    private int _catalogTotalPages = 1;
+
+    public string CatalogPageSummary
+    {
+        get
+        {
+            var total = Packages.Count;
+            if (total == 0)
+            {
+                return "No packages match the current filters.";
+            }
+
+            var startIndex = ((CatalogCurrentPage - 1) * CatalogPageSize) + 1;
+            if (startIndex > total)
+            {
+                startIndex = total;
+            }
+
+            var endIndex = Math.Min(total, startIndex + CatalogPageSize - 1);
+            return $"Showing {startIndex}-{endIndex} of {total} package(s) · Page {CatalogCurrentPage} / {CatalogTotalPages}";
+        }
+    }
+
+    public bool HasMultipleCatalogPages => CatalogTotalPages > 1;
 
     partial void OnCurrentPivotChanged(CurrentInstallHubPivot value)
     {
@@ -310,6 +346,17 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         {
             IsQueueOperationDetailsVisible = false;
         }
+    }
+
+    partial void OnCatalogPageSizeChanged(int oldValue, int newValue)
+    {
+        if (newValue < 1)
+        {
+            CatalogPageSize = 1;
+            return;
+        }
+
+        UpdateCatalogPagination(resetPage: false);
     }
 
     [RelayCommand]
@@ -560,6 +607,40 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
     }
 
+    [RelayCommand(CanExecute = nameof(CanGoToPreviousCatalogPage))]
+    private void PreviousCatalogPage()
+    {
+        if (CatalogCurrentPage <= 1)
+        {
+            return;
+        }
+
+        CatalogCurrentPage--;
+        RenderCatalogPage();
+    }
+
+    private bool CanGoToPreviousCatalogPage()
+    {
+        return CatalogCurrentPage > 1;
+    }
+
+    [RelayCommand(CanExecute = nameof(CanGoToNextCatalogPage))]
+    private void NextCatalogPage()
+    {
+        if (CatalogCurrentPage >= CatalogTotalPages)
+        {
+            return;
+        }
+
+        CatalogCurrentPage++;
+        RenderCatalogPage();
+    }
+
+    private bool CanGoToNextCatalogPage()
+    {
+        return CatalogCurrentPage < CatalogTotalPages;
+    }
+
     [RelayCommand]
     private void NavigatePivot(CurrentInstallHubPivot pivot)
     {
@@ -734,6 +815,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             .ToList();
 
         SynchronizeCollection(Packages, ordered);
+        UpdateCatalogPagination(resetPage: true);
         UpdatePackageQueueStates();
     }
 
@@ -771,6 +853,45 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
                 target.Add(vm);
             }
         }
+    }
+
+    private void UpdateCatalogPagination(bool resetPage)
+    {
+        var pageSize = Math.Max(1, CatalogPageSize);
+
+        if (resetPage || CatalogCurrentPage < 1)
+        {
+            CatalogCurrentPage = 1;
+        }
+
+        var totalPackages = Packages.Count;
+        var totalPages = Math.Max(1, (int)Math.Ceiling(totalPackages / (double)pageSize));
+        if (CatalogCurrentPage > totalPages)
+        {
+            CatalogCurrentPage = totalPages;
+        }
+
+        CatalogTotalPages = totalPages;
+        OnPropertyChanged(nameof(HasMultipleCatalogPages));
+
+        RenderCatalogPage();
+    }
+
+    private void RenderCatalogPage()
+    {
+        var pageSize = Math.Max(1, CatalogPageSize);
+        var startIndex = (CatalogCurrentPage - 1) * pageSize;
+        if (startIndex < 0)
+        {
+            startIndex = 0;
+        }
+
+        var slice = Packages.Skip(startIndex).Take(pageSize).ToList();
+        SynchronizeCollection(CatalogPagePackages, slice);
+
+        OnPropertyChanged(nameof(CatalogPageSummary));
+        PreviousCatalogPageCommand?.NotifyCanExecuteChanged();
+        NextCatalogPageCommand?.NotifyCanExecuteChanged();
     }
 
     private void OnInstallQueueChanged(object? sender, InstallQueueChangedEventArgs e)
@@ -1043,6 +1164,19 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             CurrentInstallHubPivot.Queue => "Review queue and install history",
             _ => "Curate developer bundles"
         };
+    }
+
+    private static int DetermineDefaultCatalogPageSize()
+    {
+        var workArea = SystemParameters.WorkArea;
+        var width = Math.Max(720d, workArea.Width);
+        var height = Math.Max(640d, workArea.Height);
+
+        var estimatedColumns = Math.Max(1, (int)Math.Floor((width - 200) / 340));
+        var estimatedRows = Math.Max(2, (int)Math.Floor((height - 320) / 260));
+        var pageSize = estimatedColumns * estimatedRows;
+
+        return Math.Clamp(pageSize, 6, 24);
     }
 }
 

@@ -6,7 +6,6 @@
              xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
              xmlns:sys="clr-namespace:System;assembly=mscorlib"
              xmlns:ux="clr-namespace:TidyWindow.App.Controls"
-             xmlns:infra="clr-namespace:TidyWindow.App.Infrastructure"
              mc:Ignorable="d"
              Background="Transparent"
              UseLayoutRounding="True"
@@ -37,13 +36,11 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-    <Grid>
-        <ScrollViewer Margin="32,0,32,24"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled"
-                      PanningMode="VerticalOnly">
-            <Grid MaxWidth="1180"
-                  HorizontalAlignment="Center">
+        <Grid x:Name="CatalogHost"
+            Margin="32,0,32,24"
+            SizeChanged="OnCatalogHostSizeChanged">
+          <Grid MaxWidth="1180"
+              HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -338,8 +335,8 @@
                     </Grid>
                 </Border>
 
-                <Grid x:Name="CatalogLayoutGrid"
-                      Grid.Row="1">
+                    <Grid x:Name="CatalogLayoutGrid"
+                        Grid.Row="1">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
@@ -351,8 +348,9 @@
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                                <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
                             <Grid Grid.Row="0"
@@ -420,22 +418,11 @@
                                     </ItemsControl.Style>
                                 </ItemsControl>
 
-                                <ListView x:Name="CatalogListView"
-                                          ItemsSource="{Binding Packages}"
-                                          Background="Transparent"
-                                          BorderThickness="0"
-                                          Padding="0"
-                                          Foreground="{StaticResource InstallTextPrimaryBrush}"
-                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                          ScrollViewer.CanContentScroll="True"
-                                          VirtualizingPanel.IsVirtualizing="True"
-                                          VirtualizingPanel.VirtualizationMode="Recycling"
-                                          VirtualizingPanel.CacheLength="3"
-                                          VirtualizingPanel.CacheLengthUnit="Item"
-                                          infra:ScrollHost.BubbleParentScroll="True">
-                                    <ListView.Style>
-                                        <Style TargetType="ListView">
+                                <ItemsControl x:Name="CatalogItemsRepeater"
+                                              ItemsSource="{Binding CatalogPagePackages}"
+                                              Foreground="{StaticResource InstallTextPrimaryBrush}">
+                                    <ItemsControl.Style>
+                                        <Style TargetType="ItemsControl">
                                             <Setter Property="Visibility" Value="Visible"/>
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding IsLoading}" Value="True">
@@ -443,28 +430,19 @@
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
-                                    </ListView.Style>
-                                    <ListView.ItemsPanel>
+                                    </ItemsControl.Style>
+                                    <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="320"
-                                                                             MaxColumnWidth="420"
-                                                                             ColumnSpacing="18"
-                                                                             RowSpacing="18"
-                                                                             Padding="0,0,18,18"/>
+                                            <ux:AdaptiveTilePanel MinColumnWidth="320"
+                                                                  MaxColumnWidth="420"
+                                                                  ColumnSpacing="18"
+                                                                  RowSpacing="18"
+                                                                  Padding="0,0,18,18"/>
                                         </ItemsPanelTemplate>
-                                    </ListView.ItemsPanel>
-                                    <ListView.ItemContainerStyle>
-                                        <Style TargetType="ListViewItem">
-                                            <Setter Property="Padding" Value="0"/>
-                                            <Setter Property="Margin" Value="0"/>
-                                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-                                            <Setter Property="Focusable" Value="False"/>
-                                        </Style>
-                                    </ListView.ItemContainerStyle>
-                                    <ListView.ItemTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                                <Border Style="{StaticResource InstallInteractiveCardBorderStyle}"
+                                            <Border Style="{StaticResource InstallInteractiveCardBorderStyle}"
                                                     Padding="20">
                                                 <StackPanel>
                                                     <Grid>
@@ -492,40 +470,40 @@
                                                         </StackPanel>
                                                         <Button Grid.Column="2"
                                                                 Content="Queue"
-                                                                Command="{Binding DataContext.QueuePackageCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                Command="{Binding DataContext.QueuePackageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                 CommandParameter="{Binding}"
                                                                 Style="{StaticResource InstallAccentButtonStyle}"
-                                                                MinWidth="96"
+                                                                MinWidth="120"
                                                                 IsEnabled="{Binding IsQueued, Converter={StaticResource InverseBooleanConverter}}"/>
                                                     </Grid>
 
                                                     <WrapPanel Margin="0,12,0,0">
                                                         <Border Style="{StaticResource InstallBadgeStyle}">
                                                             <TextBlock Text="{Binding ManagerLabel}"
-                                                                 Foreground="{StaticResource InstallTextAccentBrush}"
+                                                                       Foreground="{StaticResource InstallTextAccentBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
                                                         </Border>
                                                         <Border Style="{StaticResource InstallBadgeStyle}"
-                                                             Background="{StaticResource InstallBadgeDarkBackgroundBrush}"
+                                                                Background="{StaticResource InstallBadgeDarkBackgroundBrush}"
                                                                 Visibility="{Binding RequiresAdmin, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                             <TextBlock Text="Admin"
-                                                                 Foreground="{StaticResource InstallTextWarningStrongBrush}"
+                                                                       Foreground="{StaticResource InstallTextWarningStrongBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
                                                         </Border>
                                                         <Border Style="{StaticResource InstallBadgeStyle}"
-                                                             Background="{StaticResource InstallBadgeAltBackgroundBrush}"
+                                                                Background="{StaticResource InstallBadgeAltBackgroundBrush}"
                                                                 Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                             <TextBlock Text="Queued"
-                                                                 Foreground="{StaticResource InstallTextSuccessBrush}"
+                                                                       Foreground="{StaticResource InstallTextSuccessBrush}"
                                                                        FontSize="11"
                                                                        FontWeight="SemiBold"/>
                                                         </Border>
                                                     </WrapPanel>
 
                                                     <TextBlock Text="{Binding Summary}"
-                                                            Foreground="{StaticResource InstallTextMutedBrush}"
+                                                               Foreground="{StaticResource InstallTextMutedBrush}"
                                                                FontSize="12"
                                                                TextWrapping="Wrap"
                                                                Margin="0,10,0,0">
@@ -585,11 +563,54 @@
                                                 </StackPanel>
                                             </Border>
                                         </DataTemplate>
-                                    </ListView.ItemTemplate>
-                                </ListView>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
                             </Grid>
 
-                            <TextBlock Grid.Row="2"
+                            <Grid Grid.Row="2"
+                                  Margin="0,18,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{Binding CatalogPageSummary}"
+                                               Foreground="{StaticResource InstallTextMutedBrush}"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                    <TextBlock Text="Page size auto-adjusts to your screen for predictable navigation."
+                                               Foreground="{StaticResource InstallTextCaptionBrush}"
+                                               FontSize="11"
+                                               Margin="0,6,0,0"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="1"
+                                            Orientation="Horizontal"
+                                            Margin="12,0,0,0"
+                                            HorizontalAlignment="Right">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasMultipleCatalogPages}" Value="False">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                    <Button Content="Previous"
+                                            Command="{Binding PreviousCatalogPageCommand}"
+                                            Style="{StaticResource InstallSecondaryButtonStyle}"
+                                            MinWidth="110"
+                                            Margin="0,0,8,0"/>
+                                    <Button Content="Next"
+                                            Command="{Binding NextCatalogPageCommand}"
+                                            Style="{StaticResource InstallAccentButtonStyle}"
+                                            MinWidth="110"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Grid.Row="3"
                                        Text="No packages match your filters."
                                        Foreground="{StaticResource InstallTextCaptionBrush}"
                                        FontSize="12"
@@ -610,7 +631,6 @@
                         </Grid>
                     </Border>
                 </Grid>
-            </Grid>
-        </ScrollViewer>
+        </Grid>
     </Grid>
 </UserControl>

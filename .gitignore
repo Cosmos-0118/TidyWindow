@@ -7,6 +7,6 @@ data/cache/registry/
 *.userprefs
 *.DS_Store
 Thumbs.db
-
+makeitperfect.txt
 .fake
 .venv
