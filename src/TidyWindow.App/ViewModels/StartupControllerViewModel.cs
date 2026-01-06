@@ -37,6 +37,9 @@ public sealed partial class StartupEntryItemViewModel : ObservableObject
     private string source = string.Empty;
 
     [ObservableProperty]
+    private string userContext = string.Empty;
+
+    [ObservableProperty]
     private string lastModifiedDisplay = string.Empty;
 
     [ObservableProperty]
@@ -49,7 +52,12 @@ public sealed partial class StartupEntryItemViewModel : ObservableObject
         Name = item.Name;
         Publisher = item.Publisher;
         Impact = item.Impact;
-        Source = item.SourceTag;
+        Source = string.IsNullOrWhiteSpace(item.SourceTag)
+            ? item.SourceKind.ToString()
+            : item.SourceTag;
+        UserContext = string.IsNullOrWhiteSpace(item.UserContext)
+            ? "User"
+            : item.UserContext;
         LastModifiedDisplay = FormatLastModified(item.LastModifiedUtc);
         CanDelay = ComputeCanDelay(item);
     }
@@ -94,6 +102,9 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     [ObservableProperty]
     private int disabledVisibleCount;
+
+    [ObservableProperty]
+    private int enabledVisibleCount;
 
     [ObservableProperty]
     private int unsignedVisibleCount;

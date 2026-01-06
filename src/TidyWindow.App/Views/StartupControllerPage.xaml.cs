@@ -25,6 +25,8 @@ public partial class StartupControllerPage : Page
     private bool _filterSafe;
     private bool _filterUnsigned;
     private bool _filterHighImpact;
+    private bool _showEnabled = true;
+    private bool _showDisabled = true;
     private string _search = string.Empty;
 
     public StartupControllerPage(StartupControllerViewModel viewModel)
@@ -99,18 +101,26 @@ public partial class StartupControllerPage : Page
             return; // Ignore early filter events during construction.
         }
 
-        _includeRun = RunFilter.IsChecked == true;
-        _includeStartup = StartupFilter.IsChecked == true;
-        _includeTasks = TasksFilter.IsChecked == true;
-        _includeServices = ServicesFilter.IsChecked == true;
-        _filterSafe = SafeFilter.IsChecked == true;
-        _filterUnsigned = UnsignedFilter.IsChecked == true;
-        _filterHighImpact = HighImpactFilter.IsChecked == true;
+        SyncFilterToggles();
         RefreshView();
+    }
+
+    private void SyncFilterToggles()
+    {
+        _includeRun = RunFilter?.IsChecked == true;
+        _includeStartup = StartupFilter?.IsChecked == true;
+        _includeTasks = TasksFilter?.IsChecked == true;
+        _includeServices = ServicesFilter?.IsChecked == true;
+        _filterSafe = SafeFilter?.IsChecked == true;
+        _filterUnsigned = UnsignedFilter?.IsChecked == true;
+        _filterHighImpact = HighImpactFilter?.IsChecked == true;
+        _showEnabled = ShowEnabledFilter?.IsChecked != false; // default true
+        _showDisabled = ShowDisabledFilter?.IsChecked != false; // default true
     }
 
     private void RefreshView()
     {
+        SyncFilterToggles();
         _entriesView.View?.Refresh();
         UpdateCounters();
     }
@@ -139,6 +149,7 @@ public partial class StartupControllerPage : Page
         {
             _viewModel.VisibleCount = 0;
             _viewModel.DisabledVisibleCount = 0;
+            _viewModel.EnabledVisibleCount = 0;
             _viewModel.UnsignedVisibleCount = 0;
             _viewModel.HighImpactVisibleCount = 0;
             return;
@@ -147,6 +158,7 @@ public partial class StartupControllerPage : Page
         var items = view.Cast<StartupEntryItemViewModel>().ToList();
         _viewModel.VisibleCount = items.Count;
         _viewModel.DisabledVisibleCount = items.Count(item => !item.IsEnabled);
+        _viewModel.EnabledVisibleCount = items.Count(item => item.IsEnabled);
         _viewModel.UnsignedVisibleCount = items.Count(item => item.Item.SignatureStatus == StartupSignatureStatus.Unsigned);
         _viewModel.HighImpactVisibleCount = items.Count(item => item.Impact == StartupImpact.High);
     }
@@ -181,8 +193,16 @@ public partial class StartupControllerPage : Page
 
     private void OnEntryPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (string.Equals(e.PropertyName, nameof(StartupEntryItemViewModel.IsEnabled), StringComparison.Ordinal)
-            || string.Equals(e.PropertyName, nameof(StartupEntryItemViewModel.IsBusy), StringComparison.Ordinal))
+        var isEnabledChange = string.Equals(e.PropertyName, nameof(StartupEntryItemViewModel.IsEnabled), StringComparison.Ordinal);
+        var isBusyChange = string.Equals(e.PropertyName, nameof(StartupEntryItemViewModel.IsBusy), StringComparison.Ordinal);
+
+        if (isEnabledChange)
+        {
+            RefreshView(); // Re-apply filters when enable/disable toggled.
+            return;
+        }
+
+        if (isBusyChange)
         {
             UpdateCounters();
         }
@@ -231,6 +251,18 @@ public partial class StartupControllerPage : Page
                 e.Accepted = false;
                 return;
             }
+        }
+
+        if (!_showEnabled && entry.IsEnabled)
+        {
+            e.Accepted = false;
+            return;
+        }
+
+        if (!_showDisabled && !entry.IsEnabled)
+        {
+            e.Accepted = false;
+            return;
         }
 
         if (string.IsNullOrWhiteSpace(_search))

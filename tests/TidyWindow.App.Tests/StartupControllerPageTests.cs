@@ -109,6 +109,8 @@ public sealed class StartupControllerPageTests
         SetField(page, "_filterSafe", false);
         SetField(page, "_filterUnsigned", false);
         SetField(page, "_filterHighImpact", false);
+        SetField(page, "_showEnabled", true);
+        SetField(page, "_showDisabled", true);
         SetField(page, "_search", string.Empty);
     }
 

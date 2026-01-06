@@ -100,6 +100,8 @@ public sealed class StartupInventoryService
             var metadata = InspectFile(exe);
             var name = string.IsNullOrWhiteSpace(valueName) ? Path.GetFileName(exe) ?? sourceTag : valueName;
             var id = $"run:{sourceTag}:{valueName}";
+            var approved = ResolveStartupApproved(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", valueName);
+            var isEnabled = approved ?? true;
             items.Add(new StartupItem(
                 id,
                 name,
@@ -108,7 +110,7 @@ public sealed class StartupInventoryService
                 sourceTag,
                 args,
                 raw,
-                true,
+                isEnabled,
                 $"{GetRootName(root)}\\{subKey}",
                 metadata.Publisher,
                 metadata.SignatureStatus,
@@ -170,6 +172,8 @@ public sealed class StartupInventoryService
             var metadata = InspectFile(executable);
             var id = $"startup:{sourceTag}:{Path.GetFileName(file)}";
             var name = Path.GetFileName(executable);
+            var approved = ResolveStartupApproved(isMachineScope ? Registry.LocalMachine : Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", Path.GetFileName(file));
+            var isEnabled = approved ?? true;
             items.Add(new StartupItem(
                 id,
                 string.IsNullOrWhiteSpace(name) ? sourceTag : name!,
@@ -178,7 +182,7 @@ public sealed class StartupInventoryService
                 sourceTag,
                 arguments,
                 rawCommand,
-                true,
+                isEnabled,
                 folderPath,
                 metadata.Publisher,
                 metadata.SignatureStatus,
@@ -355,6 +359,41 @@ public sealed class StartupInventoryService
         return executablePath.Contains(' ', StringComparison.Ordinal)
             ? $"\"{executablePath}\" {arguments}"
             : $"{executablePath} {arguments}";
+    }
+
+    private static bool? ResolveStartupApproved(RegistryKey root, string baseSubKey, string entryName)
+    {
+        return GetStartupApprovedState(root, baseSubKey, entryName)
+               ?? GetStartupApprovedState(root, baseSubKey + "32", entryName);
+    }
+
+    private static bool? GetStartupApprovedState(RegistryKey root, string subKey, string entryName)
+    {
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: false);
+            if (key is null)
+            {
+                return null;
+            }
+
+            var data = key.GetValue(entryName) as byte[];
+            if (data is null || data.Length == 0)
+            {
+                return null;
+            }
+
+            return data[0] switch
+            {
+                2 => true,
+                3 => false,
+                _ => null
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string GetRootName(RegistryKey key)

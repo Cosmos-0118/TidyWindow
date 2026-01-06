@@ -183,14 +183,29 @@
                               Filter="OnEntriesFilter" />
     </Page.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled">
-        <Grid Margin="24">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+    <Grid>
+        <Grid x:Name="ContentHost">
+            <Grid.Style>
+                <Style TargetType="Grid">
+                    <Setter Property="Opacity" Value="1" />
+                    <Setter Property="IsHitTestVisible" Value="True" />
+                    <Style.Triggers>
+                        <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter Property="IsHitTestVisible" Value="False" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Grid.Style>
+
+            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <Grid Margin="24">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
 
             <Border Grid.Row="0"
                     Background="{StaticResource StartupHeroBrush}"
@@ -221,6 +236,12 @@
                                     <TextBlock Margin="6,0,0,0" Text="{Binding DisabledVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
                                     <TextBlock Margin="6,0,0,0" Text="/" Foreground="#334155" />
                                     <TextBlock Margin="6,0,0,0" Text="{Binding BaselineDisabledCount}" Foreground="#C7D2FE" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PrimaryChipStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Enabled" Foreground="#34D399" FontWeight="SemiBold" />
+                                    <TextBlock Margin="6,0,0,0" Text="{Binding EnabledVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource PrimaryChipStyle}">
@@ -301,6 +322,18 @@
                               Style="{StaticResource FilterToggleStyle}"
                               Checked="OnFilterChanged"
                               Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="ShowEnabledFilter"
+                              Content="Show enabled"
+                              Style="{StaticResource FilterToggleStyle}"
+                              IsChecked="True"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="ShowDisabledFilter"
+                              Content="Show disabled"
+                              Style="{StaticResource FilterToggleStyle}"
+                              IsChecked="True"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
             </StackPanel>
 
             <ItemsControl Grid.Row="2"
@@ -336,7 +369,7 @@
                                                 BorderThickness="1"
                                                 CornerRadius="8"
                                                 Padding="8,4">
-                                            <TextBlock Text="{Binding Item.UserContext}" Foreground="#C7D2FE" FontSize="11" />
+                                            <TextBlock Text="{Binding UserContext}" Foreground="#C7D2FE" FontSize="11" />
                                         </Border>
                                     </StackPanel>
                                     <TextBlock Margin="0,6,0,0"
@@ -363,8 +396,12 @@
                                         <Border Margin="0,0,6,6" Background="#10243A" Padding="8,4" CornerRadius="8" BorderBrush="#1E3A5F" BorderThickness="1">
                                             <TextBlock Text="{Binding Item.EntryLocation}" Foreground="#E0F2FE" FontSize="11" />
                                         </Border>
+                                        <Border Margin="0,0,6,6" Background="#142E2B" Padding="8,4" CornerRadius="8" BorderBrush="#1E4A3F" BorderThickness="1"
+                                                Visibility="{Binding IsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock Text="Enabled" Foreground="#34D399" FontSize="11" />
+                                        </Border>
                                         <Border Margin="0,0,6,6" Background="#1F1D2B" Padding="8,4" CornerRadius="8" BorderBrush="#2E2943" BorderThickness="1"
-                                            Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                                Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                             <TextBlock Text="Disabled" Foreground="#FACC15" FontSize="11" />
                                         </Border>
                                     </WrapPanel>
@@ -395,5 +432,43 @@
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
         </Grid>
-    </ScrollViewer>
+            </ScrollViewer>
+        </Grid>
+
+        <Grid x:Name="BusyOverlay"
+              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+              Background="#BF0B1224">
+            <Grid.RowDefinitions>
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="#0E1D33"
+                    Padding="24"
+                    CornerRadius="14"
+                    BorderBrush="#1F2E46"
+                    BorderThickness="1">
+                <StackPanel>
+                    <ProgressBar Width="220"
+                                 Height="8"
+                                 IsIndeterminate="True"
+                                 Foreground="#38BDF8"
+                                 Background="#102A43"
+                                 BorderBrush="#1F2E46"
+                                 BorderThickness="1" />
+                    <TextBlock Margin="0,10,0,0"
+                               Text="Refreshing startup inventory..."
+                               Foreground="#E5E7EB"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Margin="0,4,0,0"
+                               Text="Filtering and toggles are temporarily paused"
+                               Foreground="#9CA3AF"
+                               FontSize="11"
+                               HorizontalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
 </Page>
