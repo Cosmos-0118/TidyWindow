@@ -33,6 +33,7 @@ public sealed class StartupControlService
             StartupItemSourceKind.StartupFolder => SystemTasks.Task.FromResult(DisableStartupFile(item)),
             StartupItemSourceKind.ScheduledTask => SystemTasks.Task.FromResult(DisableScheduledTask(item)),
             StartupItemSourceKind.Service => SystemTasks.Task.FromResult(DisableService(item)),
+            StartupItemSourceKind.PackagedTask => SystemTasks.Task.FromResult(DisablePackagedTask(item)),
             _ => SystemTasks.Task.FromResult(new StartupToggleResult(false, item, null, "Unsupported startup source."))
         };
     }
@@ -46,8 +47,89 @@ public sealed class StartupControlService
             StartupItemSourceKind.StartupFolder => SystemTasks.Task.FromResult(EnableStartupFile(item)),
             StartupItemSourceKind.ScheduledTask => SystemTasks.Task.FromResult(EnableScheduledTask(item)),
             StartupItemSourceKind.Service => SystemTasks.Task.FromResult(EnableService(item)),
+            StartupItemSourceKind.PackagedTask => SystemTasks.Task.FromResult(EnablePackagedTask(item)),
             _ => SystemTasks.Task.FromResult(new StartupToggleResult(false, item, null, "Unsupported startup source."))
         };
+    }
+
+    private StartupToggleResult DisablePackagedTask(StartupItem item)
+    {
+        if (!TryParsePackagedTask(item, out var packageFamilyName, out var taskId))
+        {
+            return new StartupToggleResult(false, item, null, "Packaged startup task identity missing.");
+        }
+
+        var registryPath = GetPackagedTaskRegistryPath(packageFamilyName, taskId);
+
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(registryPath, writable: true) ?? Registry.CurrentUser.CreateSubKey(registryPath, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, null, "Registry path for packaged task not found.");
+            }
+
+            var previousState = Convert.ToInt32(key.GetValue("State", 2), CultureInfo.InvariantCulture);
+            key.SetValue("State", 1, RegistryValueKind.DWord);
+
+            var backup = new StartupEntryBackup(
+                item.Id,
+                item.SourceKind,
+                "HKCU",
+                registryPath,
+                "State",
+                previousState.ToString(CultureInfo.InvariantCulture),
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+
+            _backupStore.Save(backup);
+            return new StartupToggleResult(true, item with { IsEnabled = false }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, null, ex.Message);
+        }
+    }
+
+    private StartupToggleResult EnablePackagedTask(StartupItem item)
+    {
+        if (!TryParsePackagedTask(item, out var packageFamilyName, out var taskId))
+        {
+            return new StartupToggleResult(false, item, null, "Packaged startup task identity missing.");
+        }
+
+        var registryPath = GetPackagedTaskRegistryPath(packageFamilyName, taskId);
+        var backup = _backupStore.Get(item.Id);
+        var targetState = backup?.RegistryValueData;
+        var desiredState = int.TryParse(targetState, out var parsedState) ? parsedState : 2;
+
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(registryPath, writable: true) ?? Registry.CurrentUser.CreateSubKey(registryPath, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, backup, "Registry path for packaged task not found.");
+            }
+
+            key.SetValue("State", desiredState, RegistryValueKind.DWord);
+
+            if (backup is not null)
+            {
+                _backupStore.Remove(item.Id);
+            }
+
+            return new StartupToggleResult(true, item with { IsEnabled = IsEnabledStartupState(desiredState) }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, backup, ex.Message);
+        }
     }
 
     private StartupToggleResult DisableRunEntry(StartupItem item)
@@ -474,6 +556,25 @@ public sealed class StartupControlService
         return string.Empty;
     }
 
+    private static bool TryParsePackagedTask(StartupItem item, out string packageFamilyName, out string taskId)
+    {
+        packageFamilyName = string.Empty;
+        taskId = string.Empty;
+
+        if (!string.IsNullOrWhiteSpace(item.Id) && item.Id.StartsWith("appx:", StringComparison.OrdinalIgnoreCase))
+        {
+            var payload = item.Id[5..];
+            var separator = payload.IndexOf('!');
+            if (separator > 0 && separator + 1 < payload.Length)
+            {
+                packageFamilyName = payload[..separator];
+                taskId = payload[(separator + 1)..];
+            }
+        }
+
+        return !string.IsNullOrWhiteSpace(packageFamilyName) && !string.IsNullOrWhiteSpace(taskId);
+    }
+
     private static string BuildCommand(string executablePath, string? arguments)
     {
         if (string.IsNullOrWhiteSpace(arguments))
@@ -484,6 +585,16 @@ public sealed class StartupControlService
         return executablePath.Contains(' ', StringComparison.Ordinal)
             ? $"\"{executablePath}\" {arguments}"
             : $"{executablePath} {arguments}";
+    }
+
+    private static string GetPackagedTaskRegistryPath(string packageFamilyName, string taskId)
+    {
+        return $"Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\SystemAppData\\{packageFamilyName}\\{taskId}";
+    }
+
+    private static bool IsEnabledStartupState(int state)
+    {
+        return state is 2 or 4 or 5;
     }
 
     private static string SanitizeFileName(string id)

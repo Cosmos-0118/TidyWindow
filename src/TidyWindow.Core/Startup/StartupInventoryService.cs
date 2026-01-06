@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Xml.Linq;
 using Microsoft.Win32;
 using Microsoft.Win32.TaskScheduler;
 using TaskSchedulerTask = Microsoft.Win32.TaskScheduler.Task;
@@ -30,6 +31,7 @@ public sealed class StartupInventoryService
         ExecuteSafe(() => EnumerateStartupFolders(effectiveOptions, items, warnings, cancellationToken), warnings, "Startup folders");
         ExecuteSafe(() => EnumerateLogonTasks(effectiveOptions, items, warnings, cancellationToken), warnings, "Logon tasks");
         ExecuteSafe(() => EnumerateAutostartServices(effectiveOptions, items, warnings, cancellationToken), warnings, "Autostart services");
+        ExecuteSafe(() => EnumeratePackagedStartupTasks(effectiveOptions, items, warnings, cancellationToken), warnings, "Packaged startup tasks");
 
         AppendDelayWarnings(items, warnings);
 
@@ -325,6 +327,67 @@ public sealed class StartupInventoryService
         }
     }
 
+    private static void EnumeratePackagedStartupTasks(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludePackagedApps)
+        {
+            return;
+        }
+
+        using var systemAppDataRoot = Registry.CurrentUser.OpenSubKey(@"Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\SystemAppData", writable: false);
+        if (systemAppDataRoot is null)
+        {
+            return;
+        }
+
+        foreach (var familyName in systemAppDataRoot.GetSubKeyNames())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                if (!TryResolvePackageInfo(familyName, out var packageRoot, out var packageDisplayName))
+                {
+                    continue;
+                }
+
+                var tasks = ParsePackagedStartupTasks(packageRoot, packageDisplayName);
+                foreach (var task in tasks)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var state = GetPackagedStartupState(familyName, task.TaskId);
+                    var isEnabled = state is null ? task.EnabledByManifest : IsEnabledStartupState(state.Value);
+                    var metadata = InspectFile(task.ExecutablePath);
+                    var id = $"appx:{familyName}!{task.TaskId}";
+                    var name = string.IsNullOrWhiteSpace(task.DisplayName) ? (packageDisplayName ?? task.TaskId) : task.DisplayName!;
+                    var location = $"HKCU\\Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\SystemAppData\\{familyName}\\{task.TaskId}";
+
+                    items.Add(new StartupItem(
+                        id,
+                        name,
+                        task.ExecutablePath,
+                        StartupItemSourceKind.PackagedTask,
+                        "Packaged Startup Task",
+                        task.Arguments,
+                        BuildExecCommand(task.ExecutablePath, task.Arguments),
+                        isEnabled,
+                        location,
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        ClassifyImpact(StartupItemSourceKind.PackagedTask, isMachineScope: false, isDelayed: false, metadata.FileSizeBytes),
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        "CurrentUser"));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Packaged startup task scan failed for {familyName}: {ex.Message}");
+            }
+        }
+    }
+
     private static void AppendDelayWarnings(IReadOnlyCollection<StartupItem> items, List<string> warnings)
     {
         try
@@ -352,6 +415,178 @@ public sealed class StartupInventoryService
         catch
         {
             // Non-fatal: warnings are advisory.
+        }
+    }
+
+    private static bool TryResolvePackageInfo(string packageFamilyName, out string packageRoot, out string? packageDisplayName)
+    {
+        packageRoot = string.Empty;
+        packageDisplayName = null;
+
+        var packagesRoot = Registry.ClassesRoot.OpenSubKey("Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages", writable: false);
+        if (packagesRoot is null)
+        {
+            return false;
+        }
+
+        var (familyName, publisherId) = SplitPackageFamilyName(packageFamilyName);
+        if (string.IsNullOrWhiteSpace(familyName) || string.IsNullOrWhiteSpace(publisherId))
+        {
+            return false;
+        }
+
+        string? selectedKeyName = null;
+        Version? selectedVersion = null;
+
+        foreach (var candidate in packagesRoot.GetSubKeyNames())
+        {
+            if (!candidate.StartsWith(familyName + "_", StringComparison.OrdinalIgnoreCase) || !candidate.EndsWith("__" + publisherId, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var versionText = ExtractVersion(candidate, familyName.Length + 1);
+            if (versionText is null || !Version.TryParse(versionText, out var version))
+            {
+                continue;
+            }
+
+            if (selectedVersion is null || version > selectedVersion)
+            {
+                selectedVersion = version;
+                selectedKeyName = candidate;
+            }
+        }
+
+        if (selectedKeyName is null)
+        {
+            return false;
+        }
+
+        using var packageKey = packagesRoot.OpenSubKey(selectedKeyName, writable: false);
+        if (packageKey is null)
+        {
+            return false;
+        }
+
+        packageRoot = packageKey.GetValue("PackageRootFolder")?.ToString() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(packageRoot) || !Directory.Exists(packageRoot))
+        {
+            return false;
+        }
+
+        packageDisplayName = packageKey.GetValue("DisplayName")?.ToString();
+        return true;
+    }
+
+    private static IReadOnlyList<PackagedStartupTaskDefinition> ParsePackagedStartupTasks(string packageRoot, string? packageDisplayName)
+    {
+        var manifestPath = Path.Combine(packageRoot, "AppxManifest.xml");
+        if (!File.Exists(manifestPath))
+        {
+            return Array.Empty<PackagedStartupTaskDefinition>();
+        }
+
+        try
+        {
+            var document = XDocument.Load(manifestPath, LoadOptions.None);
+            var tasks = new List<PackagedStartupTaskDefinition>();
+
+            foreach (var extension in document.Descendants().Where(static e => string.Equals(e.Name.LocalName, "Extension", StringComparison.OrdinalIgnoreCase)))
+            {
+                var category = extension.Attribute("Category")?.Value;
+                if (!string.Equals(category, "windows.startupTask", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var executableRaw = extension.Attribute("Executable")?.Value;
+                if (string.IsNullOrWhiteSpace(executableRaw))
+                {
+                    continue;
+                }
+
+                var normalizedExecutable = NormalizePackagedPath(packageRoot, executableRaw);
+                var arguments = extension.Attribute("Parameters")?.Value;
+
+                foreach (var startupTask in extension.Elements().Where(static e => string.Equals(e.Name.LocalName, "StartupTask", StringComparison.OrdinalIgnoreCase)))
+                {
+                    var taskId = startupTask.Attribute("TaskId")?.Value;
+                    if (string.IsNullOrWhiteSpace(taskId))
+                    {
+                        continue;
+                    }
+
+                    var displayName = startupTask.Attribute("DisplayName")?.Value ?? packageDisplayName;
+                    var enabledText = startupTask.Attribute("Enabled")?.Value;
+                    var enabledByManifest = string.IsNullOrWhiteSpace(enabledText) || enabledText.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+                    tasks.Add(new PackagedStartupTaskDefinition(taskId, displayName, normalizedExecutable, string.IsNullOrWhiteSpace(arguments) ? null : arguments, enabledByManifest));
+                }
+            }
+
+            return tasks;
+        }
+        catch
+        {
+            return Array.Empty<PackagedStartupTaskDefinition>();
+        }
+    }
+
+    private static int? GetPackagedStartupState(string packageFamilyName, string taskId)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey($"Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\SystemAppData\\{packageFamilyName}\\{taskId}", writable: false);
+            var raw = key?.GetValue("State");
+            return raw is null ? null : Convert.ToInt32(raw);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool IsEnabledStartupState(int state)
+    {
+        return state is 2 or 4 or 5;
+    }
+
+    private static (string FamilyName, string PublisherId) SplitPackageFamilyName(string packageFamilyName)
+    {
+        var separatorIndex = packageFamilyName.LastIndexOf('_');
+        if (separatorIndex < 1 || separatorIndex + 1 >= packageFamilyName.Length)
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        return (packageFamilyName[..separatorIndex], packageFamilyName[(separatorIndex + 1)..]);
+    }
+
+    private static string? ExtractVersion(string packageFullName, int startIndex)
+    {
+        if (startIndex >= packageFullName.Length)
+        {
+            return null;
+        }
+
+        var remainder = packageFullName[startIndex..];
+        var stopIndex = remainder.IndexOf('_');
+        return stopIndex <= 0 ? null : remainder[..stopIndex];
+    }
+
+    private static string NormalizePackagedPath(string packageRoot, string executableRelativePath)
+    {
+        var candidate = executableRelativePath.Replace('/', Path.DirectorySeparatorChar);
+        var combined = Path.IsPathRooted(candidate) ? candidate : Path.Combine(packageRoot, candidate);
+
+        try
+        {
+            return Path.GetFullPath(combined);
+        }
+        catch
+        {
+            return combined;
         }
     }
 
@@ -537,6 +772,9 @@ public sealed class StartupInventoryService
             case StartupItemSourceKind.StartupFolder:
                 impact = StartupImpact.Low;
                 break;
+            case StartupItemSourceKind.PackagedTask:
+                impact = StartupImpact.Low;
+                break;
         }
 
         if (fileSizeBytes is { } size)
@@ -630,6 +868,8 @@ public sealed class StartupInventoryService
     }
 
     private sealed record FileSignature(string? Publisher, StartupSignatureStatus Status);
+
+    private sealed record PackagedStartupTaskDefinition(string TaskId, string? DisplayName, string ExecutablePath, string? Arguments, bool EnabledByManifest);
 
     private sealed record FileMetadata(string? Publisher, StartupSignatureStatus SignatureStatus, long? FileSizeBytes, DateTimeOffset? LastWriteTimeUtc)
     {

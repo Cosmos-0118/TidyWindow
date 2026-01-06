@@ -10,7 +10,8 @@ public enum StartupItemSourceKind
     RunOnce = 2,
     StartupFolder = 3,
     ScheduledTask = 4,
-    Service = 5
+    Service = 5,
+    PackagedTask = 6
 }
 
 public enum StartupSignatureStatus
@@ -42,6 +43,8 @@ public sealed record StartupInventoryOptions
     public bool IncludeScheduledTasks { get; init; } = true;
 
     public bool IncludeServices { get; init; } = true;
+
+    public bool IncludePackagedApps { get; init; } = true;
 
     /// <summary>
     /// When false, disabled tasks/services are filtered out.
