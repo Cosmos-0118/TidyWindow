@@ -156,6 +156,17 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 [x] Step 11.5: Document operator guidance in `docs/automation.md` and add automated tests validating inventory parsing + switch safeguards.
 [x] Step 11.6: Build an Essentials-style responsive UI surface (`Views/PathPilotPage.xaml` + card controls) reusing the hero strip, card stack, and detail drawer patterns for clarity on both desktop and narrow layouts.
 
+## Startup Controller
+
+> Full-control startup surface that mirrors the Processes page layout patterns while surfacing every startup source (Run keys, Startup folders, scheduled tasks, services) with admin-level actions.
+
+[x] Step 12.1: Inventory startup sources into a unified model (HKCU/HKLM Run/RunOnce, Startup folders, Task Scheduler logon tasks, autostart services) with publisher/signing info, impact score, and source tagging.
+[x] Step 12.2: Add view models + service layer to toggle enable/disable per entry with reversible backups (export original state) and activity-log breadcrumbs; keep HKLM writes gated by admin context (app already runs elevated by default).
+[x] Step 12.3: Design `Views/StartupControllerPage.xaml` using the Processes-page layout (hero strip + filter/search + card/list hybrid) with clear source badges, risk hints, and trust indicators.
+[x] Step 12.4: Implement “delay launch” for user-scope entries we own (defer runs via scheduled tasks with post-boot offsets); avoid delaying system services and warn when apps self-heal their entries.
+[x] Step 12.5: Add telemetry/insights: startup impact estimates, last modified, unsigned flags, and a before/after counter of disabled items; include quick filters (safe to disable, unsigned, heavy impact).
+[ ] Step 12.6: Document guardrails and rollback paths in `docs/startup-controller.md`, covering backups, elevation prompts, and how to restore defaults if vendors re-add entries.
+
 ## Driver Updates Experience (retired)
 
 > Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.

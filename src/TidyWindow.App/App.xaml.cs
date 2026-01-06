@@ -21,6 +21,7 @@ using TidyWindow.Core.Maintenance;
 using TidyWindow.Core.Processes;
 using TidyWindow.Core.Processes.ThreatWatch;
 using TidyWindow.Core.PathPilot;
+using TidyWindow.Core.Startup;
 using TidyWindow.Core.Uninstall;
 
 namespace TidyWindow.App;
@@ -143,6 +144,9 @@ public partial class App : WpfApplication
                 services.AddSingleton<IThreatIntelProvider, WindowsDefenderThreatIntelProvider>();
                 services.AddSingleton<IThreatIntelProvider, MalwareHashBlocklist>();
                 services.AddSingleton<ThreatWatchDetectionService>();
+                services.AddSingleton<StartupInventoryService>();
+                services.AddSingleton<StartupControlService>();
+                services.AddSingleton<StartupDelayService>();
                 services.AddSingleton<ThreatWatchScanService>();
                 services.AddSingleton<ThreatWatchBackgroundScanner>();
 
@@ -162,6 +166,7 @@ public partial class App : WpfApplication
                 services.AddTransient<PathPilotViewModel>();
                 services.AddTransient<KnownProcessesViewModel>();
                 services.AddTransient<ThreatWatchViewModel>();
+                services.AddTransient<StartupControllerViewModel>();
 
                 services.AddTransient<BootstrapPage>();
                 services.AddTransient<CleanupPage>();
@@ -174,6 +179,7 @@ public partial class App : WpfApplication
                 services.AddTransient<RegistryOptimizerPage>();
                 services.AddTransient<PathPilotPage>();
                 services.AddTransient<KnownProcessesPage>();
+                services.AddTransient<StartupControllerPage>();
 
                 services.AddSingleton<MainWindow>();
             })

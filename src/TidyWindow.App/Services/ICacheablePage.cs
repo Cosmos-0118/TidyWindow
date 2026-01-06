@@ -28,6 +28,7 @@ public static class PageCacheRegistry
         { typeof(EssentialsPage), PageCachePolicy.KeepAlive },
         { typeof(InstallHubPage), PageCachePolicy.KeepAlive },
         { typeof(KnownProcessesPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
+        { typeof(StartupControllerPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
         { typeof(LogsPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
         { typeof(PackageMaintenancePage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(25)) },
         { typeof(PathPilotPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(25)) },

@@ -1,0 +1,399 @@
+<Page x:Class="TidyWindow.App.Views.StartupControllerPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+      xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+      mc:Ignorable="d"
+      Title="Startup Controller"
+      Background="Transparent"
+      UseLayoutRounding="True"
+      SnapsToDevicePixels="True"
+      TextOptions.TextFormattingMode="Display"
+      TextOptions.TextRenderingMode="ClearType"
+      TextOptions.TextHintingMode="Fixed"
+      RenderOptions.BitmapScalingMode="HighQuality">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+
+        <LinearGradientBrush x:Key="StartupHeroBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#0A1F36" Offset="0" />
+            <GradientStop Color="#0F2F4A" Offset="0.5" />
+            <GradientStop Color="#0B3B4D" Offset="1" />
+        </LinearGradientBrush>
+
+        <SolidColorBrush x:Key="StartupHeroTitleBrush" Color="#F5F7FF" />
+        <SolidColorBrush x:Key="StartupHeroBodyBrush" Color="#C6D4EE" />
+        <SolidColorBrush x:Key="StartupMutedBrush" Color="#9CA3AF" />
+        <SolidColorBrush x:Key="StartupCardBrush" Color="#0C1424" />
+        <SolidColorBrush x:Key="StartupCardBorderBrush" Color="#1B2538" />
+        <SolidColorBrush x:Key="StartupBadgeBrush" Color="#103347" />
+        <SolidColorBrush x:Key="StartupBadgeForegroundBrush" Color="#7DD3FC" />
+        <SolidColorBrush x:Key="StartupWarningBadgeBrush" Color="#3B1D22" />
+        <SolidColorBrush x:Key="StartupWarningForegroundBrush" Color="#FBBF24" />
+        <SolidColorBrush x:Key="StartupSafeBrush" Color="#10B981" />
+        <SolidColorBrush x:Key="StartupDangerBrush" Color="#EF4444" />
+
+        <Style x:Key="HeroTitleTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource StartupHeroTitleBrush}" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        </Style>
+
+        <Style x:Key="HeroBodyTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource StartupHeroBodyBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        </Style>
+
+        <Style x:Key="PrimaryChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0E1D33" />
+            <Setter Property="BorderBrush" Value="#1D3B58" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+        </Style>
+
+        <Style x:Key="FilterToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="#DDE7FF" />
+            <Setter Property="Background" Value="#0F1C2F" />
+            <Setter Property="BorderBrush" Value="#1F2E46" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12,8" />
+            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#134E4A" />
+                                <Setter Property="Foreground" Value="#ECFDF3" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#22C55E" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#07111D" />
+            <Setter Property="Padding" Value="16,9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#34D399" Offset="0" />
+                                    <GradientStop Color="#22C55E" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="1.01" ScaleY="1.01" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="OutlineButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#E2E8F0" />
+            <Setter Property="Background" Value="#0E1A2C" />
+            <Setter Property="BorderBrush" Value="#1F2E46" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="StartupCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource StartupCardBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource StartupCardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="UseLayoutRounding" Value="True" />
+        </Style>
+
+        <CollectionViewSource x:Key="StartupEntriesView"
+                              Source="{Binding Entries}"
+                              Filter="OnEntriesFilter" />
+    </Page.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <Grid Margin="24">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="{StaticResource StartupHeroBrush}"
+                    Padding="20"
+                    CornerRadius="16"
+                    BorderThickness="1"
+                    BorderBrush="#12314A">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock Text="Startup controller" Style="{StaticResource HeroTitleTextStyle}" />
+                        <TextBlock Margin="0,6,0,0" Text="Review everything that launches at logon and toggle entries with safety nets and backups." Style="{StaticResource HeroBodyTextStyle}" />
+                        <WrapPanel Margin="0,4,0,0">
+                            <Border Style="{StaticResource PrimaryChipStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Visible" Foreground="#A5F3FC" FontWeight="SemiBold" />
+                                    <TextBlock Margin="6,0,0,0" Text="entries" Foreground="#A5F3FC" />
+                                    <TextBlock Margin="6,0,0,0" Text="•" Foreground="#334155" />
+                                    <TextBlock Margin="6,0,0,0" Text="{Binding VisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PrimaryChipStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Disabled" Foreground="#FACC15" FontWeight="SemiBold" />
+                                    <TextBlock Margin="6,0,0,0" Text="{Binding DisabledVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                    <TextBlock Margin="6,0,0,0" Text="/" Foreground="#334155" />
+                                    <TextBlock Margin="6,0,0,0" Text="{Binding BaselineDisabledCount}" Foreground="#C7D2FE" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PrimaryChipStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Unsigned" Foreground="#F97316" FontWeight="SemiBold" />
+                                    <TextBlock Margin="6,0,0,0" Text="{Binding UnsignedVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource PrimaryChipStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="High impact" Foreground="#FACC15" FontWeight="SemiBold" />
+                                    <TextBlock Margin="6,0,0,0" Text="{Binding HighImpactVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
+                        <Button Content="Refresh"
+                            Style="{StaticResource OutlineButtonStyle}"
+                            Command="{Binding RefreshCommand}" />
+                        <Button Margin="10,0,0,0"
+                            Content="Apply toggles"
+                            Style="{StaticResource PrimaryButtonStyle}"
+                            Command="{Binding RefreshCommand}"
+                            ToolTip="Re-run inventory before applying more changes" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,16,0,12" VerticalAlignment="Center">
+                <TextBox Width="260"
+                         x:Name="SearchBox"
+                         Margin="0,0,12,0"
+                         Padding="12,8"
+                         Background="#0E1C30"
+                         BorderBrush="#1F2E46"
+                         BorderThickness="1"
+                         Foreground="#E5E7EB"
+                         CaretBrush="#38BDF8"
+                         TextChanged="OnSearchTextChanged"
+                         ToolTip="Search name, publisher, or path" />
+                <ToggleButton x:Name="RunFilter"
+                              Content="Run keys"
+                              Style="{StaticResource FilterToggleStyle}"
+                              IsChecked="True"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="StartupFilter"
+                              Content="Startup folder"
+                              Style="{StaticResource FilterToggleStyle}"
+                              IsChecked="True"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="TasksFilter"
+                              Content="Logon tasks"
+                              Style="{StaticResource FilterToggleStyle}"
+                              IsChecked="True"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="ServicesFilter"
+                              Content="Services"
+                              Style="{StaticResource FilterToggleStyle}"
+                              IsChecked="True"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="SafeFilter"
+                              Content="Safe to disable"
+                              Style="{StaticResource FilterToggleStyle}"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="UnsignedFilter"
+                              Content="Unsigned"
+                              Style="{StaticResource FilterToggleStyle}"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+                <ToggleButton x:Name="HighImpactFilter"
+                              Content="High impact"
+                              Style="{StaticResource FilterToggleStyle}"
+                              Checked="OnFilterChanged"
+                              Unchecked="OnFilterChanged" />
+            </StackPanel>
+
+            <ItemsControl Grid.Row="2"
+                          x:Name="EntriesItemsControl"
+                          ItemsSource="{Binding Source={StaticResource StartupEntriesView}}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate DataType="{x:Type viewModels:StartupEntryItemViewModel}">
+                        <Border Style="{StaticResource StartupCardStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="#E5E7EB" />
+                                        <Border Margin="8,0,0,0"
+                                                Background="{StaticResource StartupBadgeBrush}"
+                                                BorderBrush="#1F3B55"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="8,4">
+                                            <TextBlock Text="{Binding Source}" Foreground="{StaticResource StartupBadgeForegroundBrush}" FontSize="11" FontWeight="SemiBold" />
+                                        </Border>
+                                        <Border Margin="8,0,0,0"
+                                                Background="{StaticResource StartupBadgeBrush}"
+                                                BorderBrush="#1F3B55"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="8,4">
+                                            <TextBlock Text="{Binding Item.UserContext}" Foreground="#C7D2FE" FontSize="11" />
+                                        </Border>
+                                    </StackPanel>
+                                    <TextBlock Margin="0,6,0,0"
+                                               Text="{Binding Publisher}"
+                                               Foreground="#C7D2FE"
+                                               FontSize="12" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding Item.ExecutablePath}"
+                                               Foreground="{StaticResource StartupMutedBrush}"
+                                               FontSize="11"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Margin="0,4,0,0"
+                                               Text="{Binding LastModifiedDisplay}"
+                                               Foreground="#94A3B8"
+                                               FontSize="11" />
+
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Border Margin="0,0,6,6" Background="#102A43" Padding="8,4" CornerRadius="8" BorderBrush="#1E3A5F" BorderThickness="1">
+                                            <TextBlock Text="{Binding Item.SignatureStatus}" Foreground="#7DD3FC" FontSize="11" />
+                                        </Border>
+                                        <Border Margin="0,0,6,6" Background="#13233A" Padding="8,4" CornerRadius="8" BorderBrush="#233553" BorderThickness="1">
+                                            <TextBlock Text="{Binding Impact}" Foreground="#C084FC" FontSize="11" />
+                                        </Border>
+                                        <Border Margin="0,0,6,6" Background="#10243A" Padding="8,4" CornerRadius="8" BorderBrush="#1E3A5F" BorderThickness="1">
+                                            <TextBlock Text="{Binding Item.EntryLocation}" Foreground="#E0F2FE" FontSize="11" />
+                                        </Border>
+                                        <Border Margin="0,0,6,6" Background="#1F1D2B" Padding="8,4" CornerRadius="8" BorderBrush="#2E2943" BorderThickness="1"
+                                            Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                            <TextBlock Text="Disabled" Foreground="#FACC15" FontSize="11" />
+                                        </Border>
+                                    </WrapPanel>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Button Content="Delay 45s"
+                                        Margin="0,0,0,8"
+                                        Style="{StaticResource OutlineButtonStyle}"
+                                        Command="{Binding DataContext.DelayCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip="Defers this user-scope entry to a delayed logon task"
+                                        IsEnabled="{Binding CanDelay}" />
+                                    <Button Content="Toggle"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                            CommandParameter="{Binding}"
+                                            IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                                    <ProgressBar Height="6"
+                                                 Width="140"
+                                                 IsIndeterminate="True"
+                                         Margin="0,8,0,0"
+                                         Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </Grid>
+    </ScrollViewer>
+</Page>
