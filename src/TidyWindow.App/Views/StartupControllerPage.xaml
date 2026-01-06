@@ -259,15 +259,20 @@
                         </WrapPanel>
                     </StackPanel>
                         <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
-                        <Button Content="Refresh"
-                            Style="{StaticResource OutlineButtonStyle}"
-                            Command="{Binding RefreshCommand}" />
-                        <Button Margin="10,0,0,0"
-                            Content="Apply toggles"
-                            Style="{StaticResource PrimaryButtonStyle}"
-                            Command="{Binding RefreshCommand}"
-                            ToolTip="Re-run inventory before applying more changes" />
-                    </StackPanel>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,0,10,0">
+                                <ProgressBar Width="90" Height="8" IsIndeterminate="True" Foreground="#38BDF8" Background="#0E1C30" BorderBrush="#1F2E46" />
+                                <TextBlock Text="Working..." Margin="8,0,0,0" Foreground="#E5E7EB" FontSize="12" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button Content="Refresh"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Command="{Binding RefreshCommand}"
+                                    Margin="0,0,10,0" />
+                            <Button
+                                Content="Apply toggles"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Command="{Binding RefreshCommand}"
+                                ToolTip="Re-run inventory before applying more changes" />
+                        </StackPanel>
                 </Grid>
             </Border>
 

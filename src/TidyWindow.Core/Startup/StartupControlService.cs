@@ -72,6 +72,11 @@ public sealed class StartupControlService
                 return new StartupToggleResult(true, item with { IsEnabled = false }, null, null);
             }
 
+            if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", valueName, enabled: false, out var approvedError))
+            {
+                return new StartupToggleResult(false, item, null, approvedError);
+            }
+
             var backup = new StartupEntryBackup(
                 item.Id,
                 item.SourceKind,
@@ -121,6 +126,11 @@ public sealed class StartupControlService
                 return new StartupToggleResult(false, item, backup, "Failed to open registry key.");
             }
 
+            if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", valueName, enabled: true, out var approvedError))
+            {
+                return new StartupToggleResult(false, item, backup, approvedError);
+            }
+
             key.SetValue(valueName, data);
             if (backup is not null)
             {
@@ -147,6 +157,16 @@ public sealed class StartupControlService
             if (!File.Exists(item.ExecutablePath))
             {
                 return new StartupToggleResult(true, item with { IsEnabled = false }, null, null);
+            }
+
+            var entryName = Path.GetFileName(item.RawCommand ?? item.ExecutablePath);
+            var root = ResolveStartupFolderRoot(item.EntryLocation);
+            if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
+            {
+                if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: false, out var approvedError))
+                {
+                    return new StartupToggleResult(false, item, null, approvedError);
+                }
             }
 
             var backupDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TidyWindow", "StartupBackups", "files");
@@ -200,6 +220,16 @@ public sealed class StartupControlService
             if (File.Exists(backup.FileBackupPath))
             {
                 File.Move(backup.FileBackupPath, backup.FileOriginalPath, overwrite: true);
+            }
+
+            var entryName = Path.GetFileName(backup.FileOriginalPath);
+            var root = ResolveStartupFolderRoot(item.EntryLocation ?? backup.RegistrySubKey);
+            if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
+            {
+                if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: true, out var approvedError))
+                {
+                    return new StartupToggleResult(false, item, backup, approvedError);
+                }
             }
 
             _backupStore.Remove(item.Id);
@@ -459,6 +489,46 @@ public sealed class StartupControlService
         var invalid = Path.GetInvalidFileNameChars();
         var cleaned = new string(id.Select(ch => invalid.Contains(ch) ? '_' : ch).ToArray());
         return string.IsNullOrWhiteSpace(cleaned) ? "startup" : cleaned;
+    }
+
+    private static RegistryKey? ResolveStartupFolderRoot(string? entryLocation)
+    {
+        if (string.IsNullOrWhiteSpace(entryLocation))
+        {
+            return null;
+        }
+
+        var commonStartup = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+        if (!string.IsNullOrWhiteSpace(commonStartup) && entryLocation.StartsWith(commonStartup, StringComparison.OrdinalIgnoreCase))
+        {
+            return Registry.LocalMachine;
+        }
+
+        return Registry.CurrentUser;
+    }
+
+    private static bool TrySetStartupApprovedState(RegistryKey root, string subKey, string entryName, bool enabled, out string? error)
+    {
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true) ?? root.CreateSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                error = "Failed to open StartupApproved registry key.";
+                return false;
+            }
+
+            var data = new byte[12];
+            data[0] = enabled ? (byte)2 : (byte)3;
+            key.SetValue(entryName, data, RegistryValueKind.Binary);
+            error = null;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
     }
 
     private static void EnsureElevated()
