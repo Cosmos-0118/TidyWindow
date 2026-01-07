@@ -1,10 +1,10 @@
 {
-  "version": "3.6.3",
+  "version": "3.6.4",
   "channel": "stable",
-  "summary": "-now user gets prompted while installing an update.  -now we remove the installed installer after installing the update.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.3/TidyWindow-Setup-3.6.3.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.3",
-  "publishedAt": "2026-01-07T05:51:21Z",
-  "installerSizeBytes": 81329743,
-  "sha256": "6d06277fe05a7c7b9cb921608bed3ab6ff2f8a24f7ddce02dc54cf7e6543aac1"
+  "summary": "-created cache disposal, so now while in system tray the memory usage is ~30MB.  -reworked ui of maintenance page.  -changed layout of some functions to pagination.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.4/TidyWindow-Setup-3.6.4.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.4",
+  "publishedAt": "2026-01-07T08:30:04Z",
+  "installerSizeBytes": 81337441,
+  "sha256": "24b82b221cc9790b6e2c99c99abe5f4ac13234248fe7d4b2ae3fd28a1da502d0"
 }
