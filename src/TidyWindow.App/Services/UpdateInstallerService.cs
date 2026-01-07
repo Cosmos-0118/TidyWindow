@@ -2,10 +2,13 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using MessageBox = System.Windows.MessageBox;
 
 namespace TidyWindow.App.Services;
 
@@ -65,6 +68,7 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
     {
         var targetDirectory = Path.Combine(Path.GetTempPath(), "TidyWindow", "Updates");
         Directory.CreateDirectory(targetDirectory);
+        CleanupOldInstallers(targetDirectory, keepPath: null);
         var fileName = BuildInstallerFileName(update);
         var filePath = Path.Combine(targetDirectory, fileName);
 
@@ -138,15 +142,37 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
 
     private void LaunchInstaller(string installerPath)
     {
+        var prompt = $"The update installer was downloaded to:\n{installerPath}\n\nRun it now?";
+        var choice = MessageBox.Show(prompt, "Run TidyWindow installer", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
+        if (choice != MessageBoxResult.Yes)
+        {
+            _activityLog.LogInformation("Updates", "Installer download completed but launch was cancelled by the user.");
+            return;
+        }
+
         var startInfo = new ProcessStartInfo(installerPath)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(installerPath) ?? Environment.CurrentDirectory,
-            Arguments = "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+            Arguments = string.Empty
         };
 
         Process.Start(startInfo);
-        _activityLog.LogInformation("Updates", "Installer launched. TidyWindow will close so the update can finish.");
+        _activityLog.LogInformation("Updates", "Installer launched with user confirmation. TidyWindow will close so the update can finish.");
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+                TryDeleteInstaller(installerPath);
+                CleanupOldInstallers(Path.GetDirectoryName(installerPath) ?? string.Empty, keepPath: null);
+            }
+            catch
+            {
+                // Best-effort cleanup.
+            }
+        });
     }
 
     private void ThrowIfDisposed()
@@ -154,6 +180,59 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
         if (_disposed)
         {
             throw new ObjectDisposedException(nameof(UpdateInstallerService));
+        }
+    }
+
+    private static void CleanupOldInstallers(string directory, string? keepPath)
+    {
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        foreach (var file in Directory.EnumerateFiles(directory, "TidyWindow-Setup-*.exe", SearchOption.TopDirectoryOnly))
+        {
+            if (!string.IsNullOrWhiteSpace(keepPath) && string.Equals(file, keepPath, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            TryDeleteInstaller(file);
+        }
+
+        if (!Directory.EnumerateFileSystemEntries(directory).Any())
+        {
+            TryDeleteDirectory(directory);
+        }
+    }
+
+    private static void TryDeleteInstaller(string path)
+    {
+        try
+        {
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch
+        {
+            // Ignore failures; best-effort cleanup.
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch
+        {
+            // Ignore failures; best-effort cleanup.
         }
     }
 }

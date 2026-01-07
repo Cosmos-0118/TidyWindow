@@ -468,7 +468,7 @@ public sealed class SettingsViewModel : ViewModelBase
         try
         {
             IsInstallingUpdate = true;
-            UpdateStatusMessage = "Downloading update package...";
+            UpdateStatusMessage = "Downloading the update to a temp folder; you'll be asked before it runs.";
             ResetInstallerProgress();
 
             var progress = new Progress<UpdateDownloadProgress>(p =>
