@@ -68,7 +68,7 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
     {
         var targetDirectory = Path.Combine(Path.GetTempPath(), "TidyWindow", "Updates");
         Directory.CreateDirectory(targetDirectory);
-        CleanupOldInstallers(targetDirectory, keepPath: null);
+        CleanupOldInstallers(targetDirectory, keepPath: null, removeEmptyDirectory: false);
         var fileName = BuildInstallerFileName(update);
         var filePath = Path.Combine(targetDirectory, fileName);
 
@@ -166,7 +166,7 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
             {
                 await Task.Delay(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
                 TryDeleteInstaller(installerPath);
-                CleanupOldInstallers(Path.GetDirectoryName(installerPath) ?? string.Empty, keepPath: null);
+                CleanupOldInstallers(Path.GetDirectoryName(installerPath) ?? string.Empty, keepPath: null, removeEmptyDirectory: true);
             }
             catch
             {
@@ -183,7 +183,7 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
         }
     }
 
-    private static void CleanupOldInstallers(string directory, string? keepPath)
+    private static void CleanupOldInstallers(string directory, string? keepPath, bool removeEmptyDirectory)
     {
         if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
         {
@@ -200,7 +200,7 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
             TryDeleteInstaller(file);
         }
 
-        if (!Directory.EnumerateFileSystemEntries(directory).Any())
+        if (removeEmptyDirectory && !Directory.EnumerateFileSystemEntries(directory).Any())
         {
             TryDeleteDirectory(directory);
         }
