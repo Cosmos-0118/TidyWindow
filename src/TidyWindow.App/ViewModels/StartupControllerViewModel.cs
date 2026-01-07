@@ -168,7 +168,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         }
 
         _currentPage--;
-        RefreshPagedEntries();
+        RefreshPagedEntries(raisePageChanged: true);
     }
 
     [RelayCommand]
@@ -180,7 +180,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         }
 
         _currentPage++;
-        RefreshPagedEntries();
+        RefreshPagedEntries(raisePageChanged: true);
     }
 
     private bool CanToggle(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy;
@@ -303,7 +303,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             ResetToFirstPage();
         }
 
-        RefreshPagedEntries();
+        RefreshPagedEntries(raisePageChanged: resetPage);
         RefreshVisibleCounters();
     }
 
@@ -312,7 +312,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         UpdateCounters(_filteredEntries);
     }
 
-    private void RefreshPagedEntries()
+    private void RefreshPagedEntries(bool raisePageChanged)
     {
         var totalPages = TotalPages;
         if (_currentPage > totalPages)
@@ -333,7 +333,11 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         }
 
         RaisePagingProperties();
-        PageChanged?.Invoke(this, EventArgs.Empty);
+
+        if (raisePageChanged)
+        {
+            PageChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     private void UpdateCounters(IReadOnlyList<StartupEntryItemViewModel> items)

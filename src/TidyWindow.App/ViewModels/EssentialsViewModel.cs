@@ -6,6 +6,7 @@ using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Windows.Media;
+using WindowsClipboard = System.Windows.Clipboard;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Maintenance;
 using WpfApplication = System.Windows.Application;
@@ -139,11 +140,26 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string _restoreGuardSecondaryActionLabel = "Later";
 
+    [ObservableProperty]
+    private bool _isOutputDialogVisible;
+
+    [ObservableProperty]
+    private EssentialsOperationItemViewModel? _outputDialogOperation;
+
+    public string OutputDialogTitle => OutputDialogOperation is null
+        ? "Operation output"
+        : $"{OutputDialogOperation.TaskName} output";
+
     public string RunDialogPrimaryButtonLabel => IsAutomationConfigurationMode ? "Set" : "Queue run";
 
     partial void OnIsAutomationConfigurationModeChanged(bool value)
     {
         OnPropertyChanged(nameof(RunDialogPrimaryButtonLabel));
+    }
+
+    partial void OnOutputDialogOperationChanged(EssentialsOperationItemViewModel? oldValue, EssentialsOperationItemViewModel? newValue)
+    {
+        OnPropertyChanged(nameof(OutputDialogTitle));
     }
 
     partial void OnSelectedOperationChanged(EssentialsOperationItemViewModel? oldValue, EssentialsOperationItemViewModel? newValue)
@@ -330,6 +346,51 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
+    private void ShowOperationOutput(EssentialsOperationItemViewModel? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+
+        OutputDialogOperation = operation;
+        IsOutputDialogVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseOutputDialog()
+    {
+        IsOutputDialogVisible = false;
+        OutputDialogOperation = null;
+    }
+
+    [RelayCommand]
+    private void CopyOperationOutput()
+    {
+        if (OutputDialogOperation is null)
+        {
+            return;
+        }
+
+        var lines = OutputDialogOperation.DisplayLines;
+        if (lines is null || lines.Count == 0)
+        {
+            _mainViewModel.SetStatusMessage("No output to copy yet.");
+            return;
+        }
+
+        try
+        {
+            WindowsClipboard.SetText(string.Join(Environment.NewLine, lines));
+            _mainViewModel.SetStatusMessage("Output copied to clipboard.");
+        }
+        catch
+        {
+            _mainViewModel.SetStatusMessage("Unable to access clipboard.");
+        }
+    }
+
+    [RelayCommand]
     private void ClearCompleted()
     {
         var removed = _queue.ClearCompleted();
@@ -346,6 +407,11 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
                 Operations.Remove(vm);
                 _operationLookup.Remove(snapshot.Id);
             }
+        }
+
+        if (OutputDialogOperation is not null && removed.Any(snapshot => snapshot.Id == OutputDialogOperation.Id))
+        {
+            CloseOutputDialog();
         }
 
         UpdateTaskSummaries();
@@ -1039,9 +1105,6 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
     private ImmutableArray<string> _errors = ImmutableArray<string>.Empty;
 
     [ObservableProperty]
-    private bool _isOutputVisible;
-
-    [ObservableProperty]
     private bool _isCancellationRequested;
 
     public string AttemptLabel { get; private set; } = string.Empty;
@@ -1099,12 +1162,6 @@ public sealed partial class EssentialsOperationItemViewModel : ObservableObject
             EssentialsQueueStatus.Cancelled => "Cancelled",
             _ => snapshot.Status.ToString()
         };
-    }
-
-    [RelayCommand]
-    private void ToggleOutput()
-    {
-        IsOutputVisible = !IsOutputVisible;
     }
 
     partial void OnOutputChanged(ImmutableArray<string> oldValue, ImmutableArray<string> newValue)

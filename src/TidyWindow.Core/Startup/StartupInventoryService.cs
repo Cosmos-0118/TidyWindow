@@ -500,15 +500,6 @@ public sealed class StartupInventoryService
                     continue;
                 }
 
-                var executableRaw = extension.Attribute("Executable")?.Value;
-                if (string.IsNullOrWhiteSpace(executableRaw))
-                {
-                    continue;
-                }
-
-                var normalizedExecutable = NormalizePackagedPath(packageRoot, executableRaw);
-                var arguments = extension.Attribute("Parameters")?.Value;
-
                 foreach (var startupTask in extension.Elements().Where(static e => string.Equals(e.Name.LocalName, "StartupTask", StringComparison.OrdinalIgnoreCase)))
                 {
                     var taskId = startupTask.Attribute("TaskId")?.Value;
@@ -516,6 +507,15 @@ public sealed class StartupInventoryService
                     {
                         continue;
                     }
+
+                    var executableRaw = startupTask.Attribute("Executable")?.Value ?? extension.Attribute("Executable")?.Value;
+                    if (string.IsNullOrWhiteSpace(executableRaw))
+                    {
+                        continue;
+                    }
+
+                    var normalizedExecutable = NormalizePackagedPath(packageRoot, executableRaw);
+                    var arguments = startupTask.Attribute("Parameters")?.Value ?? extension.Attribute("Parameters")?.Value;
 
                     var displayName = startupTask.Attribute("DisplayName")?.Value ?? packageDisplayName;
                     var enabledText = startupTask.Attribute("Enabled")?.Value;

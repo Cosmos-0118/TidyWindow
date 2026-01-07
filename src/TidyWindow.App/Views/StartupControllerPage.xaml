@@ -495,6 +495,19 @@
             </Grid>
         </Grid>
 
+                <Grid Background="#E60B1629"
+                            Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+                            Panel.ZIndex="10">
+                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <ProgressBar Width="160" Height="10" IsIndeterminate="True" Foreground="#38BDF8" Background="#0E1C30" BorderBrush="#1F2E46" />
+                                <TextBlock Text="Loading startup apps..."
+                                                     Margin="0,10,0,0"
+                                                     Foreground="#E5E7EB"
+                                                     FontSize="13"
+                                                     HorizontalAlignment="Center" />
+                        </StackPanel>
+                </Grid>
+
         <!-- Floating pager overlay for navigation without shrinking content -->
         <Border HorizontalAlignment="Right"
             VerticalAlignment="Bottom"
@@ -535,40 +548,5 @@
             </StackPanel>
         </Border>
 
-        <Grid x:Name="BusyOverlay"
-              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-              Background="#BF0B1224">
-            <Grid.RowDefinitions>
-                <RowDefinition />
-            </Grid.RowDefinitions>
-            <Border HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Background="#0E1D33"
-                    Padding="24"
-                    CornerRadius="14"
-                    BorderBrush="#1F2E46"
-                    BorderThickness="1">
-                <StackPanel>
-                    <ProgressBar Width="220"
-                                 Height="8"
-                                 IsIndeterminate="True"
-                                 Foreground="#38BDF8"
-                                 Background="#102A43"
-                                 BorderBrush="#1F2E46"
-                                 BorderThickness="1" />
-                    <TextBlock Margin="0,10,0,0"
-                               Text="Refreshing startup inventory..."
-                               Foreground="#E5E7EB"
-                               FontSize="13"
-                               FontWeight="SemiBold"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Margin="0,4,0,0"
-                               Text="Filtering and toggles are temporarily paused"
-                               Foreground="#9CA3AF"
-                               FontSize="11"
-                               HorizontalAlignment="Center" />
-                </StackPanel>
-            </Border>
-        </Grid>
     </Grid>
 </Page>
