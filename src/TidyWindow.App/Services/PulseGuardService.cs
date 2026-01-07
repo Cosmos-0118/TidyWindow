@@ -194,6 +194,11 @@ public sealed class PulseGuardService : IDisposable
             return false;
         }
 
+        if (!window.IsVisible || window.WindowState == WindowState.Minimized)
+        {
+            return false; // Treat hidden/minimized as inactive so notifications still fire.
+        }
+
         if (window.IsActive || window.IsKeyboardFocusWithin)
         {
             return true;

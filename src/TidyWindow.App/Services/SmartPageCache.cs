@@ -117,6 +117,24 @@ public sealed class SmartPageCache : IDisposable
         }
     }
 
+    public void ClearAll()
+    {
+        lock (_syncRoot)
+        {
+            if (_entries.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var entry in _entries.Values)
+            {
+                entry.Dispose();
+            }
+
+            _entries.Clear();
+        }
+    }
+
     public void Dispose()
     {
         lock (_syncRoot)

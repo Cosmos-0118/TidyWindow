@@ -116,6 +116,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private int baselineDisabledCount;
 
     private const int DefaultDelaySeconds = 45;
+    private static readonly TimeSpan MinimumBusyDuration = TimeSpan.FromMilliseconds(1000);
 
     public StartupControllerViewModel(StartupInventoryService inventory, StartupControlService control, StartupDelayService delay, ActivityLogService activityLog)
     {
@@ -145,16 +146,24 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     private async Task RefreshAsync()
     {
+        var busyStartedAt = DateTime.UtcNow;
         IsBusy = true;
         try
         {
-            var snapshot = await _inventory.GetInventoryAsync().ConfigureAwait(false);
+            await Task.Yield(); // Let the UI paint the busy indicator before heavy work begins.
+
+            var snapshot = await _inventory.GetInventoryAsync();
             var mapped = snapshot.Items.Select(startup => new StartupEntryItemViewModel(startup)).ToList();
             Entries = new ObservableCollection<StartupEntryItemViewModel>(mapped);
             BaselineDisabledCount = mapped.Count(item => !item.IsEnabled);
         }
         finally
         {
+            var remaining = MinimumBusyDuration - (DateTime.UtcNow - busyStartedAt);
+            if (remaining > TimeSpan.Zero)
+            {
+                await Task.Delay(remaining); // Keep the busy overlay visible long enough to read.
+            }
             IsBusy = false;
         }
     }
@@ -172,11 +181,11 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             StartupToggleResult result;
             if (item.IsEnabled)
             {
-                result = await _control.DisableAsync(item.Item).ConfigureAwait(false);
+                result = await _control.DisableAsync(item.Item);
             }
             else
             {
-                result = await _control.EnableAsync(item.Item).ConfigureAwait(false);
+                result = await _control.EnableAsync(item.Item);
             }
 
             if (result.Succeeded)
@@ -212,11 +221,11 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         try
         {
             var delaySeconds = DefaultDelaySeconds;
-            var result = await _delay.DelayAsync(item.Item, TimeSpan.FromSeconds(delaySeconds)).ConfigureAwait(false);
+            var result = await _delay.DelayAsync(item.Item, TimeSpan.FromSeconds(delaySeconds));
             if (result.Succeeded)
             {
                 _activityLog.LogSuccess("StartupController", $"Delayed {item.Name} by {delaySeconds}s", new object?[] { result.ReplacementTaskPath });
-                await RefreshAsync().ConfigureAwait(false);
+                await RefreshAsync();
             }
             else
             {

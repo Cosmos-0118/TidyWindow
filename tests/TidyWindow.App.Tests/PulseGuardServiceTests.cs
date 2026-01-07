@@ -79,6 +79,37 @@ public sealed class PulseGuardServiceTests
         });
     }
 
+    [Fact]
+    public async Task MinimizedWindowStillAllowsNotificationsWhenNotifyOnlyWhenInactive()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            EnsureApplication();
+
+            using var scope = new PulseGuardTestScope();
+            var window = new System.Windows.Window
+            {
+                WindowState = System.Windows.WindowState.Minimized
+            };
+
+            System.Windows.Application.Current!.MainWindow = window;
+
+            scope.Preferences.SetNotifyOnlyWhenInactive(true);
+
+            scope.ActivityLog.LogSuccess("Cleanup", "Background cleanup completed.");
+
+            await scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromSeconds(2));
+        });
+    }
+
+    private static void EnsureApplication()
+    {
+        if (System.Windows.Application.Current is null)
+        {
+            new System.Windows.Application();
+        }
+    }
+
     private sealed class PulseGuardTestScope : IDisposable
     {
         private readonly string? _previousLocalAppData;

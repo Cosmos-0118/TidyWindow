@@ -33,6 +33,11 @@ public sealed class NavigationService
 
     public bool IsInitialized => _frame is not null;
 
+    public void ClearCache()
+    {
+        _pageCache.ClearAll();
+    }
+
     public void Initialize(Frame frame)
     {
         if (_frame is not null)

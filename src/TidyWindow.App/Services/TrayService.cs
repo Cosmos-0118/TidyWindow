@@ -15,6 +15,8 @@ public sealed class TrayService : ITrayService
     private readonly UserPreferencesService _preferencesService;
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
+    private readonly IAutomationWorkTracker _workTracker;
+    private readonly SmartPageCache _pageCache;
 
     private NotifyIcon? _notifyIcon;
     private Window? _window;
@@ -24,12 +26,14 @@ public sealed class TrayService : ITrayService
     private ToolStripMenuItem? _notificationsMenuItem;
     private bool _disposed;
 
-    public TrayService(NavigationService navigationService, UserPreferencesService preferencesService, ActivityLogService activityLog, MainViewModel mainViewModel)
+    public TrayService(NavigationService navigationService, UserPreferencesService preferencesService, ActivityLogService activityLog, MainViewModel mainViewModel, SmartPageCache pageCache, IAutomationWorkTracker workTracker)
     {
         _navigationService = navigationService ?? throw new ArgumentNullException(nameof(navigationService));
         _preferencesService = preferencesService ?? throw new ArgumentNullException(nameof(preferencesService));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
+        _pageCache = pageCache ?? throw new ArgumentNullException(nameof(pageCache));
+        _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
 
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.AddHandler(_preferencesService, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
     }
@@ -107,6 +111,12 @@ public sealed class TrayService : ITrayService
             }
 
             _window.Hide();
+
+            // Trim cached pages once the window is hidden if no automation is active.
+            if (!_workTracker.HasActiveWork)
+            {
+                _pageCache.ClearAll();
+            }
 
             if (showHint)
             {

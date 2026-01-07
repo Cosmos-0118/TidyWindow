@@ -1,5 +1,8 @@
 ﻿using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,6 +10,7 @@ using System.Windows.Input;
 using System.Windows.Media.Animation;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
+using TidyWindow.App.Views;
 
 namespace TidyWindow.App;
 
@@ -22,6 +26,8 @@ public partial class MainWindow : Window
     private readonly PulseGuardService _pulseGuard;
     private readonly IAutomationWorkTracker _workTracker;
     private System.Windows.Navigation.NavigationService? _frameNavigationService;
+    private bool _contentDetached;
+    private CancellationTokenSource? _idleTrimCts;
     private bool _initialNavigationCompleted;
     private bool _autoCloseArmed;
 
@@ -88,7 +94,18 @@ public partial class MainWindow : Window
 
         if (WindowState == WindowState.Minimized && _preferences.Current.RunInBackground)
         {
+            if (!_workTracker.HasActiveWork)
+            {
+                DetachContentForBackground();
+            }
+
+            ScheduleIdleTrimIfSafe();
             _trayService.HideToTray(showHint: true);
+        }
+        else if (_contentDetached && WindowState != WindowState.Minimized)
+        {
+            CancelIdleTrim();
+            RestoreContentAfterBackground();
         }
     }
 
@@ -151,6 +168,13 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
             _trayService.HideToTray(showHint: true);
+
+            if (!_workTracker.HasActiveWork)
+            {
+                DetachContentForBackground();
+            }
+
+            ScheduleIdleTrimIfSafe();
             return;
         }
 
@@ -252,6 +276,144 @@ public partial class MainWindow : Window
     {
         WindowState = WindowState.Minimized;
     }
+
+    private void DetachContentForBackground()
+    {
+        if (_contentDetached)
+        {
+            return;
+        }
+
+        if (_workTracker.HasActiveWork)
+        {
+            return; // Do not clear UI while automation is active.
+        }
+
+        if (ContentFrame is null)
+        {
+            return;
+        }
+
+        if (_navigationService.IsInitialized)
+        {
+            _viewModel.NavigateTo(typeof(BootstrapPage));
+        }
+
+        var nav = ContentFrame.NavigationService;
+        if (nav is not null)
+        {
+            while (nav.RemoveBackEntry() is not null) { }
+            nav.Content = null;
+        }
+
+        ContentFrame.Content = null; // Release the visual tree so memory can drop while in the tray.
+        _navigationService.ClearCache();
+
+        // Hint the GC so large visuals are reclaimed promptly; does not affect automation services.
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+
+        TrimWorkingSet();
+        _contentDetached = true;
+    }
+
+    private void RestoreContentAfterBackground()
+    {
+        if (!_contentDetached)
+        {
+            return;
+        }
+
+        CancelIdleTrim();
+        _contentDetached = false;
+        _viewModel.Activate(); // Re-navigate to the selected item (or default) to rebuild the UI.
+    }
+
+    private void ScheduleIdleTrimIfSafe()
+    {
+        CancelIdleTrim();
+
+        if (!_preferences.Current.RunInBackground)
+        {
+            return;
+        }
+
+        if (WindowState != WindowState.Minimized)
+        {
+            return;
+        }
+
+        if (_workTracker.HasActiveWork)
+        {
+            return;
+        }
+
+        _idleTrimCts = new CancellationTokenSource();
+        _ = RunIdleTrimAsync(_idleTrimCts.Token);
+    }
+
+    private async Task RunIdleTrimAsync(CancellationToken token)
+    {
+        try
+        {
+            await Task.Delay(TimeSpan.FromMinutes(5), token);
+
+            if (token.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (WindowState != WindowState.Minimized || !_preferences.Current.RunInBackground)
+            {
+                return;
+            }
+
+            if (_workTracker.HasActiveWork)
+            {
+                return; // Skip if any automation is running.
+            }
+
+            DetachContentForBackground();
+            _viewModel.LogActivityInformation("PulseGuard", "Idle tray memory trim executed.");
+        }
+        catch (OperationCanceledException)
+        {
+            // Ignore cancellation.
+        }
+    }
+
+    private void CancelIdleTrim()
+    {
+        _idleTrimCts?.Cancel();
+        _idleTrimCts?.Dispose();
+        _idleTrimCts = null;
+    }
+
+    private static void TrimWorkingSet()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            using var process = Process.GetCurrentProcess();
+            _ = EmptyWorkingSet(process.Handle);
+            _ = SetProcessWorkingSetSize(process.Handle, new IntPtr(-1), new IntPtr(-1));
+        }
+        catch
+        {
+            // Best-effort trim; ignore failures.
+        }
+    }
+
+    [DllImport("psapi.dll")]
+    private static extern bool EmptyWorkingSet(IntPtr hProcess);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool SetProcessWorkingSetSize(IntPtr hProcess, IntPtr dwMinimumWorkingSetSize, IntPtr dwMaximumWorkingSetSize);
 
     private void MaximizeButton_OnClick(object sender, RoutedEventArgs e)
     {
