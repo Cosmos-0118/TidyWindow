@@ -243,44 +243,60 @@
                                         </ListView.ItemContainerStyle>
                                         <ListView.ItemTemplate>
                                             <DataTemplate>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                    VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding PackageName}"
-                                                                       FontWeight="SemiBold"
-                                                                       TextWrapping="Wrap"/>
-                                                            <TextBlock Text="{Binding StatusLabel}"
-                                                                       Margin="10,0,0,0"
-                                                                       FontSize="12"
-                                                                       FontWeight="SemiBold">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Foreground" Value="{StaticResource InstallTextAccentBrush}"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding StatusLabel}" Value="Installed">
-                                                                                <Setter Property="Foreground" Value="{StaticResource InstallTextSuccessBrush}"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding StatusLabel}" Value="Failed">
-                                                                                <Setter Property="Foreground" Value="{StaticResource InstallTextDangerBrush}"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding StatusLabel}" Value="Cancelled">
-                                                                                <Setter Property="Foreground" Value="{StaticResource InstallTextWarningBrush}"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                        </StackPanel>
-                                                        <TextBlock Text="{Binding Message}"
-                                                                   Foreground="{StaticResource InstallTextMutedBrush}"
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding PackageName}"
+                                                                   FontWeight="SemiBold"
+                                                                   TextWrapping="Wrap"/>
+                                                        <TextBlock Text="{Binding StatusLabel}"
+                                                                   Margin="10,0,0,0"
                                                                    FontSize="12"
-                                                                   TextWrapping="Wrap"
-                                                                   Margin="0,6,0,0">
+                                                                   FontWeight="SemiBold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="{StaticResource InstallTextAccentBrush}"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding StatusLabel}" Value="Installed">
+                                                                            <Setter Property="Foreground" Value="{StaticResource InstallTextSuccessBrush}"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding StatusLabel}" Value="Failed">
+                                                                            <Setter Property="Foreground" Value="{StaticResource InstallTextDangerBrush}"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding StatusLabel}" Value="Cancelled">
+                                                                            <Setter Property="Foreground" Value="{StaticResource InstallTextWarningBrush}"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
+
+                                                    <TextBlock Text="{Binding Message}"
+                                                               Foreground="{StaticResource InstallTextMutedBrush}"
+                                                               FontSize="12"
+                                                               TextWrapping="Wrap"
+                                                               Margin="0,6,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,6,0,0">
+                                                        <TextBlock Text="{Binding Attempts}"
+                                                               Foreground="{StaticResource InstallTextSecondaryBrush}"
+                                                                   FontSize="11">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
                                                                     <Setter Property="Visibility" Value="Visible"/>
@@ -295,50 +311,36 @@
                                                                 </Style>
                                                             </TextBlock.Style>
                                                         </TextBlock>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                    Margin="0,6,0,0">
-                                                            <TextBlock Text="{Binding Attempts}"
-                                                                   Foreground="{StaticResource InstallTextSecondaryBrush}"
-                                                                       FontSize="11">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                            <TextBlock Text="{Binding CompletedAt, StringFormat={}{0:G}}"
-                                                                       Foreground="{StaticResource InstallTextTimestampBrush}"
-                                                                       FontSize="11"
-                                                                       Margin="10,0,0,0">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                        </StackPanel>
+                                                        <TextBlock Text="{Binding CompletedAt, StringFormat={}{0:G}}"
+                                                                   Foreground="{StaticResource InstallTextTimestampBrush}"
+                                                                   FontSize="11"
+                                                                   Margin="10,0,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Text, RelativeSource={RelativeSource Self}}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
                                                     </StackPanel>
-                                                    <StackPanel Grid.Column="1"
-                                                                Orientation="Horizontal"
-                                                                VerticalAlignment="Center">
+
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,10,0,0">
                                                         <Button Content="View details"
                                                             Command="{Binding DataContext.ShowQueueOperationDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                            CommandParameter="{Binding}"
+                                                            Style="{StaticResource InstallSecondaryButtonStyle}"
+                                                            Padding="12,4"
+                                                            Margin="0,0,8,0"/>
+                                                        <Button Content="Show output"
+                                                            Command="{Binding DataContext.ShowOperationOutputCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                             CommandParameter="{Binding}"
                                                             Style="{StaticResource InstallSecondaryButtonStyle}"
                                                             Padding="12,4"
@@ -350,7 +352,7 @@
                                                                 Padding="12,4"
                                                                 Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                     </StackPanel>
-                                                </Grid>
+                                                </StackPanel>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
                                     </ListView>
@@ -475,6 +477,119 @@
                                 </TextBlock.Style>
                             </TextBlock>
                         </Grid>
+                    </Grid>
+                </Border>
+            </ScrollViewer>
+        </Grid>
+
+        <Grid x:Name="QueueOperationOutputOverlay"
+              Panel.ZIndex="7"
+              Background="#B0020617"
+              Visibility="{Binding IsOutputDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsOutputDialogVisible}"
+              HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalContentAlignment="Center"
+                          VerticalContentAlignment="Center"
+                          Padding="32">
+                <Border MaxWidth="900"
+                        Padding="24"
+                        Background="#0F172A"
+                        BorderBrush="#1E293B"
+                        BorderThickness="1"
+                        CornerRadius="18"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <DockPanel Margin="0,0,0,14">
+                            <StackPanel DockPanel.Dock="Left">
+                                <TextBlock Text="{Binding OutputDialogTitle}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource InstallTextPrimaryBrush}"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding OutputDialogOperation.StatusLabel}"
+                                           Margin="0,6,0,0"
+                                           Foreground="{StaticResource InstallTextMutedBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding OutputDialogOperation.Message}"
+                                           Margin="0,6,0,0"
+                                           Foreground="{StaticResource InstallTextCaptionBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+                        </DockPanel>
+
+                        <Border Grid.Row="1"
+                                Background="#0B1626"
+                                BorderBrush="#1E293B"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="12">
+                            <Grid>
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              MaxHeight="520">
+                                    <ItemsControl ItemsSource="{Binding OutputDialogOperation.DisplayLines}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding}"
+                                                           FontFamily="Consolas"
+                                                           FontSize="12"
+                                                           Foreground="{StaticResource InstallTextPrimaryBrush}"
+                                                           Margin="0,2"
+                                                           TextWrapping="Wrap"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                                <TextBlock Text="No output yet."
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="{StaticResource InstallTextMutedBrush}"
+                                           FontSize="12">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding OutputDialogOperation}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding OutputDialogOperation.DisplayLines.Count, TargetNullValue=0}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </Border>
+
+                        <StackPanel Grid.Row="2"
+                                    Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,14,0,0">
+                            <Button Content="Copy output"
+                                    Command="{Binding CopyOperationOutputCommand}"
+                                    Style="{StaticResource InstallSecondaryButtonStyle}"
+                                    Padding="12,6"
+                                    MinWidth="120"/>
+                            <Button Content="Close"
+                                    Command="{Binding CloseOutputDialogCommand}"
+                                    Style="{StaticResource InstallAccentButtonStyle}"
+                                    Padding="14,6"
+                                    MinWidth="120"
+                                    Margin="12,0,0,0"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </ScrollViewer>

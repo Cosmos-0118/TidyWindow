@@ -114,6 +114,11 @@ function Invoke-TidyCommand {
 
     Write-TidyLog -Level Information -Message $Description
 
+    # Prevent sticky non-zero $LASTEXITCODE from earlier native calls.
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
+
     if ($script:DryRunMode) {
         Write-TidyOutput -Message "[DryRun] Would run: $Description"
         if ($Arguments -and $Arguments.Count -gt 0) {
@@ -124,6 +129,14 @@ function Invoke-TidyCommand {
 
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    # If a native call returned 0 but the scriptblock emitted an int, respect that value.
+    if ($exitCode -eq 0 -and $output) {
+        $lastItem = ($output | Select-Object -Last 1)
+        if ($lastItem -is [int] -or $lastItem -is [long]) {
+            $exitCode = [int]$lastItem
+        }
+    }
 
     foreach ($entry in @($output)) {
         if ($null -eq $entry) {

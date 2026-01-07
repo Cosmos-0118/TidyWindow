@@ -39,6 +39,7 @@ $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:RestorePointCreated = $false
 
 # Default log path if not supplied
 if ([string]::IsNullOrWhiteSpace($LogPath)) {
@@ -113,6 +114,11 @@ function Invoke-TidyCommand {
 
     Write-TidyLog -Level Information -Message $Description
 
+    # Clear sticky LASTEXITCODE from prior native calls to avoid false failures.
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
+
     if ($script:DryRunMode) {
         Write-TidyOutput -Message "[DryRun] Would run: $Description"
         Write-TidyOutput -Message "[DryRun] Command: $Command $($Arguments -join ' ')"
@@ -121,6 +127,14 @@ function Invoke-TidyCommand {
 
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    # Respect numeric return values emitted by the scriptblock when LASTEXITCODE stays 0.
+    if ($exitCode -eq 0 -and $output) {
+        $lastItem = ($output | Select-Object -Last 1)
+        if ($lastItem -is [int] -or $lastItem -is [long]) {
+            $exitCode = [int]$lastItem
+        }
+    }
 
     foreach ($entry in @($output)) {
         if ($null -eq $entry) {
@@ -242,6 +256,11 @@ try {
         }
     }
 
+    # Create a restore point before repairs if requested (and not already done)
+    if ($CreateSystemRestorePoint.IsPresent -and -not $script:DryRunMode -and -not $script:RestorePointCreated) {
+        $script:RestorePointCreated = New-SystemRestorePointSafe -Description 'TidyWindow pre-scan snapshot'
+    }
+
     if (-not $SkipSfc.IsPresent) {
         Write-TidyOutput -Message 'Running System File Checker (this can take 5-15 minutes).'
         $sfcExit = Invoke-TidyCommand -Command { sfc /scannow } -Description 'Running SFC /scannow.' -RequireSuccess -AcceptableExitCodes @(1)
@@ -286,9 +305,9 @@ try {
 
     Write-TidyOutput -Message 'System health scan completed.'
 
-    # Optionally create a restore point after successful repairs
-    if ($CreateSystemRestorePoint.IsPresent -and -not $script:DryRunMode) {
-        New-SystemRestorePointSafe -Description 'TidyWindow post-scan snapshot'
+    # Optionally create a restore point after successful repairs if one was not created earlier
+    if ($CreateSystemRestorePoint.IsPresent -and -not $script:DryRunMode -and -not $script:RestorePointCreated) {
+        $script:RestorePointCreated = New-SystemRestorePointSafe -Description 'TidyWindow post-scan snapshot'
     }
 }
 catch {

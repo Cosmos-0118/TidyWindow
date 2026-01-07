@@ -239,6 +239,38 @@ function Get-BrowserProcessNames {
     }
 }
 
+function Warn-TidyBrowsersRunning {
+    if ($ForceCloseBrowsers.IsPresent) {
+        return
+    }
+
+    $processNames = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($browser in $script:TargetBrowsers) {
+        foreach ($name in (Get-BrowserProcessNames -Browser $browser)) {
+            if (-not [string]::IsNullOrWhiteSpace($name)) {
+                [void]$processNames.Add($name)
+            }
+        }
+    }
+
+    if ($processNames.Count -eq 0) {
+        return
+    }
+
+    $running = @()
+    foreach ($name in $processNames) {
+        $procs = Get-Process -Name $name -ErrorAction SilentlyContinue
+        if ($procs) {
+            $running += $procs
+        }
+    }
+
+    if ($running.Count -gt 0) {
+        $names = ($running | Select-Object -ExpandProperty ProcessName -Unique) -join ', '
+        Write-TidyOutput -Message ("Browsers appear to be running ({0}); cache clears may be locked. Re-run with -ForceCloseBrowsers to close them automatically." -f $names)
+    }
+}
+
 function Stop-TidyBrowserProcesses {
     if (-not $ForceCloseBrowsers.IsPresent) {
         return
@@ -557,26 +589,32 @@ function Get-PolicyDefinitions {
                 @{ Path = 'HKCU:SOFTWARE\Policies\Microsoft\Edge'; RequiresAdmin = $false },
                 @{ Path = 'HKLM:SOFTWARE\Policies\Microsoft\Edge'; RequiresAdmin = $true },
                 @{ Path = 'HKLM:SOFTWARE\Policies\Microsoft\EdgeUpdate'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Microsoft\EdgePerformance'; RequiresAdmin = $true }
+                @{ Path = 'HKLM:SOFTWARE\Policies\Microsoft\EdgePerformance'; RequiresAdmin = $true },
+                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Microsoft\Edge'; RequiresAdmin = $true },
+                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Microsoft\EdgeUpdate'; RequiresAdmin = $true }
             )
         }
         'Chrome' {
             return @(
                 @{ Path = 'HKCU:SOFTWARE\Policies\Google\Chrome'; RequiresAdmin = $false },
                 @{ Path = 'HKLM:SOFTWARE\Policies\Google\Chrome'; RequiresAdmin = $true },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Google\Update'; RequiresAdmin = $true }
+                @{ Path = 'HKLM:SOFTWARE\Policies\Google\Update'; RequiresAdmin = $true },
+                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Google\Chrome'; RequiresAdmin = $true },
+                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Google\Update'; RequiresAdmin = $true }
             )
         }
         'Brave' {
             return @(
                 @{ Path = 'HKCU:SOFTWARE\Policies\BraveSoftware\Brave'; RequiresAdmin = $false },
-                @{ Path = 'HKLM:SOFTWARE\Policies\BraveSoftware\Brave'; RequiresAdmin = $true }
+                @{ Path = 'HKLM:SOFTWARE\Policies\BraveSoftware\Brave'; RequiresAdmin = $true },
+                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\BraveSoftware\Brave'; RequiresAdmin = $true }
             )
         }
         'Opera' {
             return @(
                 @{ Path = 'HKCU:SOFTWARE\Policies\Opera Software\Opera'; RequiresAdmin = $false },
-                @{ Path = 'HKLM:SOFTWARE\Policies\Opera Software\Opera'; RequiresAdmin = $true }
+                @{ Path = 'HKLM:SOFTWARE\Policies\Opera Software\Opera'; RequiresAdmin = $true },
+                @{ Path = 'HKLM:SOFTWARE\WOW6432Node\Policies\Opera Software\Opera'; RequiresAdmin = $true }
             )
         }
         default { return @() }
@@ -729,6 +767,7 @@ function Write-TidySummary {
 try {
     Write-TidyLog -Level Information -Message ("Starting browser reset & cache cleanup task for: {0}." -f ($script:TargetBrowsers -join ', '))
 
+    Warn-TidyBrowsersRunning
     Stop-TidyBrowserProcesses
     Invoke-BrowserCacheCleanup
     Invoke-WebViewCacheCleanup

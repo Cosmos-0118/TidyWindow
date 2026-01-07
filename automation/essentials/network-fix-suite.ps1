@@ -1,6 +1,7 @@
 param(
     [string] $TargetHost = '8.8.8.8',
     [int] $LatencySamples = 8,
+    [int] $TcpPort,
     [switch] $SkipTraceroute,
     [switch] $SkipPathPing,
     [switch] $DiagnosticsOnly,
@@ -48,6 +49,7 @@ $script:AdapterSnapshotCaptured = $false
 $script:TestConnectionSucceeded = $false
 $script:TargetResolvedAddresses = [System.Collections.Generic.List[string]]::new()
 $script:TargetHostLabel = $TargetHost
+$script:EffectiveTcpPort = $null
 $script:ExecutionStart = Get-Date
 $script:SummaryEmitted = $false
 
@@ -111,8 +113,21 @@ function Invoke-TidyCommand {
 
     Write-TidyLog -Level Information -Message $Description
 
+    # Clear sticky non-zero LASTEXITCODE from prior native calls.
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
+
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    # If scriptblock emitted a numeric exit code while LASTEXITCODE stayed 0, honor it.
+    if ($exitCode -eq 0 -and $output) {
+        $lastItem = ($output | Select-Object -Last 1)
+        if ($lastItem -is [int] -or $lastItem -is [long]) {
+            $exitCode = [int]$lastItem
+        }
+    }
 
     foreach ($entry in @($output)) {
         if ($null -eq $entry) {
@@ -169,6 +184,9 @@ function Register-TidyAction {
             if ($script:ActionsFailedSet.Add($Name)) {
                 $script:ActionsFailed.Add(($Details) ? "${Name}: $Details" : $Name)
             }
+
+            # Ensure overall status is marked unsuccessful when any action fails.
+            $script:OperationSucceeded = $false
         }
         'Skipped' {
             if ($script:ActionsSkippedSet.Add($Name)) {
@@ -354,7 +372,8 @@ function Write-TidyNetworkSummary {
     Write-TidyOutput -Message ("Adapter statistics: {0}" -f $adapterStatus)
 
     $connectStatus = if ($script:TestConnectionSucceeded) { 'TCP probe succeeded' } else { 'No TCP response' }
-    Write-TidyOutput -Message ("Connectivity probe: {0}" -f $connectStatus)
+    $portLabel = if ($script:EffectiveTcpPort) { $script:EffectiveTcpPort } else { 'n/a' }
+    Write-TidyOutput -Message ("Connectivity probe: {0} (port {1})" -f $connectStatus, $portLabel)
 
     $pingLabel = if ($null -eq $script:PingExitCode) { 'Not attempted' } elseif ($script:PingExitCode -eq 0) { 'Success' } else { "Exit code $($script:PingExitCode)" }
     Write-TidyOutput -Message ("Ping status: {0} ({1} samples)" -f $pingLabel, $script:LatencySamplesEffective)
@@ -386,6 +405,24 @@ if ($LatencySamples -lt 1 -or $LatencySamples -gt $maxSamples) {
 $LatencySamples = [Math]::Max(1, [Math]::Min($LatencySamples, $maxSamples))
 $script:LatencySamplesEffective = $LatencySamples
 $script:TargetHostLabel = $TargetHost
+$script:EffectiveTcpPort = if ($TcpPort -gt 0) { $TcpPort } else { $null }
+
+if (-not $script:EffectiveTcpPort) {
+    $wellKnownDnsResolvers = @(
+        '8.8.8.8', '8.8.4.4',
+        '1.1.1.1', '1.0.0.1',
+        '9.9.9.9', '149.112.112.112',
+        '208.67.222.222', '208.67.220.220'
+    )
+
+    if (Test-TidyIpAddress -Value $TargetHost -and $wellKnownDnsResolvers -contains $TargetHost) {
+        $script:EffectiveTcpPort = 53
+        $script:DiagnosticsSummary.Add('Connectivity probe port auto-set to 53 for DNS resolver targets.')
+    }
+    else {
+        $script:EffectiveTcpPort = 443
+    }
+}
 
 try {
     if (-not (Test-TidyAdmin)) {
@@ -488,9 +525,9 @@ try {
         Register-TidyAction -Name 'DNS resolution' -Status Skipped -Details 'Target specified as IP address.'
     }
 
-    Write-TidyOutput -Message ("Testing connection to {0}." -f $TargetHost)
+    Write-TidyOutput -Message ("Testing connection to {0} on TCP port {1}." -f $TargetHost, $script:EffectiveTcpPort)
     try {
-        $testResult = Test-NetConnection -ComputerName $TargetHost -InformationLevel Detailed -ErrorAction Stop
+        $testResult = Test-NetConnection -ComputerName $TargetHost -Port $script:EffectiveTcpPort -InformationLevel Detailed -ErrorAction Stop
         $formatted = ($testResult | Format-List | Out-String)
         foreach ($line in ($formatted -split '\r?\n')) {
             if (-not [string]::IsNullOrWhiteSpace($line)) {
@@ -526,7 +563,8 @@ try {
 
     if (-not $SkipTraceroute.IsPresent) {
         Write-TidyOutput -Message 'Tracing network route.'
-        $script:TracerouteExitCode = Invoke-TidyNetworkAction -Action 'Traceroute' -Command { param($computerName) tracert.exe $computerName } -Arguments @($TargetHost) -Description 'tracert execution.'
+        $tracerouteArgs = @('-d', '-h', 15, '-w', 2000, $TargetHost)
+        $script:TracerouteExitCode = Invoke-TidyNetworkAction -Action 'Traceroute' -Command { param([string[]] $args) tracert.exe @args } -Arguments $tracerouteArgs -Description 'tracert execution with bounded hops and timeouts.'
         if ($null -eq $script:TracerouteExitCode) {
             $script:TracerouteExitCode = -1
         }
@@ -541,7 +579,8 @@ try {
 
     if (-not $SkipPathPing.IsPresent) {
         Write-TidyOutput -Message 'Running pathping for loss analysis (this can take several minutes).'
-        $script:PathpingExitCode = Invoke-TidyNetworkAction -Action 'PathPing' -Command { param($computerName) pathping.exe $computerName } -Arguments @($TargetHost) -Description 'pathping execution.'
+        $pathPingArgs = @('-d', '-h', 15, '-w', 2000, $TargetHost)
+        $script:PathpingExitCode = Invoke-TidyNetworkAction -Action 'PathPing' -Command { param([string[]] $args) pathping.exe @args } -Arguments $pathPingArgs -Description 'pathping execution with bounded hops and timeouts.'
         if ($null -eq $script:PathpingExitCode) {
             $script:PathpingExitCode = -1
         }

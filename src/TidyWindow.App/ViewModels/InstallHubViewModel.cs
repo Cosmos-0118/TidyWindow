@@ -14,6 +14,7 @@ using TidyWindow.Core.Install;
 using OpenFileDialog = Microsoft.Win32.OpenFileDialog;
 using SaveFileDialog = Microsoft.Win32.SaveFileDialog;
 using WpfApplication = System.Windows.Application;
+using WindowsClipboard = System.Windows.Clipboard;
 
 namespace TidyWindow.App.ViewModels;
 
@@ -129,6 +130,16 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private bool _isQueueOperationDetailsVisible;
+
+    [ObservableProperty]
+    private bool _isOutputDialogVisible;
+
+    [ObservableProperty]
+    private InstallOperationItemViewModel? _outputDialogOperation;
+
+    public string OutputDialogTitle => OutputDialogOperation is null
+        ? "Operation output"
+        : $"{OutputDialogOperation.PackageName} output";
 
     [ObservableProperty]
     private int _catalogPageSize = DetermineDefaultCatalogPageSize();
@@ -352,6 +363,11 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
     }
 
+    partial void OnOutputDialogOperationChanged(InstallOperationItemViewModel? oldValue, InstallOperationItemViewModel? newValue)
+    {
+        OnPropertyChanged(nameof(OutputDialogTitle));
+    }
+
     partial void OnCatalogPageSizeChanged(int oldValue, int newValue)
     {
         if (newValue < 1)
@@ -507,6 +523,11 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
             {
                 SelectedOperation = null;
             }
+
+            if (OutputDialogOperation?.Id == snapshot.Id)
+            {
+                CloseOutputDialog();
+            }
         }
 
         _activityLog.LogInformation("Install hub", $"Cleared {removed.Count} completed operation(s).");
@@ -545,6 +566,51 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         SelectedOperation = operation;
         IsQueueOperationDetailsVisible = true;
+    }
+
+    [RelayCommand]
+    private void ShowOperationOutput(InstallOperationItemViewModel? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+
+        OutputDialogOperation = operation;
+        IsOutputDialogVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseOutputDialog()
+    {
+        IsOutputDialogVisible = false;
+        OutputDialogOperation = null;
+    }
+
+    [RelayCommand]
+    private void CopyOperationOutput()
+    {
+        if (OutputDialogOperation is null)
+        {
+            return;
+        }
+
+        var lines = OutputDialogOperation.DisplayLines;
+        if (lines is null || lines.Count == 0)
+        {
+            _mainViewModel.SetStatusMessage("No output to copy yet.");
+            return;
+        }
+
+        try
+        {
+            WindowsClipboard.SetText(string.Join(Environment.NewLine, lines));
+            _mainViewModel.SetStatusMessage("Output copied to clipboard.");
+        }
+        catch
+        {
+            _mainViewModel.SetStatusMessage("Unable to access clipboard.");
+        }
     }
 
     [RelayCommand]
@@ -1330,6 +1396,8 @@ public sealed partial class InstallOperationItemViewModel : ObservableObject
     private bool _hasErrors;
 
     public bool HasTranscript => HasOutput || HasErrors;
+
+    public IReadOnlyList<string> DisplayLines => HasErrors && ErrorLines.Count > 0 ? ErrorLines : OutputLines;
 
     partial void OnHasOutputChanged(bool value) => OnPropertyChanged(nameof(HasTranscript));
 

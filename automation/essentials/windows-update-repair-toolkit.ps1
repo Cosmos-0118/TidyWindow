@@ -113,8 +113,21 @@ function Invoke-TidyCommand {
 
     Write-TidyLog -Level Information -Message $Description
 
+    # Clear sticky LASTEXITCODE from prior native calls to avoid false failures.
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
+
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    # If the scriptblock emitted a numeric code while LASTEXITCODE stayed 0, honor it.
+    if ($exitCode -eq 0 -and $output) {
+        $lastItem = ($output | Select-Object -Last 1)
+        if ($lastItem -is [int] -or $lastItem -is [long]) {
+            $exitCode = [int]$lastItem
+        }
+    }
 
     foreach ($entry in @($output)) {
         if ($null -eq $entry) {
@@ -528,7 +541,7 @@ function Reset-WindowsUpdateNetwork {
     Write-TidyOutput -Message 'Resetting Windows Update network stack (Winsock, proxy, IPv4).'
     Invoke-TidyCommand -Command { netsh winsock reset } -Description 'netsh winsock reset' -RequireSuccess | Out-Null
     Invoke-TidyCommand -Command { netsh winhttp reset proxy } -Description 'netsh winhttp reset proxy' | Out-Null
-    Invoke-TidyCommand -Command { netsh int ip reset } -Description 'netsh int ip reset' | Out-Null
+    Invoke-TidyCommand -Command { netsh int ip reset } -Description 'netsh int ip reset' -AcceptableExitCodes @(0,1) | Out-Null
 }
 
 function Trigger-WindowsUpdateScan {

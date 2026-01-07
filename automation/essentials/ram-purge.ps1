@@ -97,8 +97,21 @@ function Invoke-TidyCommand {
 
     Write-TidyLog -Level Information -Message $Description
 
+    # Reset $LASTEXITCODE to avoid sticky non-zero values from prior native calls.
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
+
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    # Respect numeric return values if a scriptblock emits them while LASTEXITCODE stays 0.
+    if ($exitCode -eq 0 -and $output) {
+        $lastItem = ($output | Select-Object -Last 1)
+        if ($lastItem -is [int] -or $lastItem -is [long]) {
+            $exitCode = [int]$lastItem
+        }
+    }
 
     foreach ($entry in @($output)) {
         if ($null -eq $entry) {

@@ -49,6 +49,7 @@ $script:WinsockResetStatus = 'Not attempted'
 $script:IpResetAttempted = $false
 $script:IpResetSucceeded = $false
 $script:IpResetStatus = 'Not attempted'
+$script:IpResetLogPath = $null
 $script:RebootRecommended = $false
 $script:AdaptersRestarted = [System.Collections.Generic.List[string]]::new()
 $script:AdaptersFailed = [System.Collections.Generic.List[string]]::new()
@@ -118,6 +119,11 @@ function Invoke-TidyCommand {
 
     Write-TidyLog -Level Information -Message $Description
 
+    # Prevent sticky $LASTEXITCODE values from earlier native calls from leaking into this invocation.
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
+
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
 
@@ -165,6 +171,9 @@ function Register-TidyResetAction {
             if ($script:ActionsFailedSet.Add($Name)) {
                 $script:ActionsFailed.Add(($Details) ? "${Name}: $Details" : $Name)
             }
+
+            # Mark overall run as not fully successful when a step fails.
+            $script:OperationSucceeded = $false
         }
         'Skipped' {
             if ($script:ActionsSkippedSet.Add($Name)) {
@@ -262,7 +271,8 @@ function Invoke-TidyResetAction {
         [scriptblock] $Command,
         [object[]] $Arguments = @(),
         [string] $Description = 'Executing network remediation command.',
-        [switch] $RequireSuccess
+        [switch] $RequireSuccess,
+        [int[]] $AdditionalSuccessExitCodes = @()
     )
 
     try {
@@ -284,7 +294,7 @@ function Invoke-TidyResetAction {
     $exitCode = if ($null -eq $resolved.ExitCode) { 0 } else { [int]$resolved.ExitCode }
     $detailMessage = $resolved.Message
 
-    if ($exitCode -ne 0) {
+    if ($exitCode -ne 0 -and -not ($AdditionalSuccessExitCodes -contains $exitCode)) {
         $detailText = if ([string]::IsNullOrWhiteSpace($detailMessage)) { "Exit code $exitCode" } else { $detailMessage }
         Register-TidyResetAction -Name $Action -Status Failed -Details $detailText
         $script:OperationSucceeded = $false
@@ -318,7 +328,7 @@ function Write-TidyResetSummary {
 
     Write-TidyOutput -Message ("DNS cache flush: {0}" -f $(if ($script:DnsFlushSucceeded) { 'Success' } else { 'See diagnostic notes' }))
     Write-TidyOutput -Message ("ARP cache clear: {0}" -f $(if ($script:ArpFlushSucceeded) { 'Success' } else { 'See diagnostic notes' }))
-    Write-TidyOutput -Message ("TCP reset: {0}" -f $(if ($script:TcpResetSucceeded) { 'Success' } else { 'See diagnostic notes' }))
+    Write-TidyOutput -Message ("TCP tuning reset: {0}" -f $(if ($script:TcpResetSucceeded) { 'Success' } else { 'See diagnostic notes' }))
     Write-TidyOutput -Message ("Winsock reset: {0}" -f $script:WinsockResetStatus)
     Write-TidyOutput -Message ("IP stack reset: {0}" -f $script:IpResetStatus)
 
@@ -413,16 +423,19 @@ try {
         $script:DiagnosticsSummary.Add('ARP cache clear failed due to an exception.')
     }
 
-    Write-TidyOutput -Message 'Resetting TCP global statistics.'
-    $tcpExit = Invoke-TidyResetAction -Action 'Reset TCP global state' -Command { netsh interface tcp reset } -Description 'Resetting TCP interface state.'
+    Write-TidyOutput -Message 'Normalizing TCP auto-tuning and heuristics.'
+    $tcpExit = Invoke-TidyResetAction -Action 'Normalize TCP stack' -Command {
+        netsh interface tcp set heuristics disabled | Out-Null
+        netsh interface tcp set global autotuninglevel=normal | Out-Null
+    } -Description 'Normalizing TCP global settings.'
     if ($tcpExit -eq 0) {
         $script:TcpResetSucceeded = $true
     }
     elseif ($null -ne $tcpExit) {
-        $script:DiagnosticsSummary.Add('TCP reset returned a non-zero exit code.')
+        $script:DiagnosticsSummary.Add('TCP tuning normalization returned a non-zero exit code.')
     }
     else {
-        $script:DiagnosticsSummary.Add('TCP reset failed due to an exception.')
+        $script:DiagnosticsSummary.Add('TCP tuning normalization failed due to an exception.')
     }
 
     if ($SkipWinsockReset.IsPresent) {
@@ -457,10 +470,15 @@ try {
     else {
         Write-TidyOutput -Message 'Resetting IP stack bindings.'
         $script:IpResetAttempted = $true
-        $ipExit = Invoke-TidyResetAction -Action 'IP stack reset' -Command { netsh int ip reset } -Description 'Resetting IP interfaces.'
-        if ($ipExit -eq 0) {
+        $script:IpResetLogPath = Join-Path -Path $env:TEMP -ChildPath 'tidy-ip-reset.log'
+        $ipExit = Invoke-TidyResetAction -Action 'IP stack reset' -Command { param($logPath) netsh int ip reset $logPath } -Arguments @($script:IpResetLogPath) -Description 'Resetting IP interfaces.' -AdditionalSuccessExitCodes @(1)
+        if ($ipExit -eq 0 -or $ipExit -eq 1) {
             $script:IpResetSucceeded = $true
-            $script:IpResetStatus = 'Success'
+            $script:IpResetStatus = if ($ipExit -eq 0) { 'Success' } else { 'Success (exit code 1; review log and reboot recommended)' }
+            if ($ipExit -eq 1) {
+                $script:DiagnosticsSummary.Add("IP stack reset returned exit code 1; registry entries may have been in use. Review the log file at $script:IpResetLogPath and reboot if issues persist.")
+                $script:RebootRecommended = $true
+            }
         }
         elseif ($null -ne $ipExit) {
             $script:IpResetStatus = "Failed (exit code $ipExit)"
@@ -507,6 +525,7 @@ try {
                         Disable-NetAdapter -Name $name -Confirm:$false -PassThru -ErrorAction Stop | Out-Null
                         Start-Sleep -Seconds 2
                         Enable-NetAdapter -Name $name -Confirm:$false -PassThru -ErrorAction Stop | Out-Null
+                        if (Test-Path -Path 'variable:LASTEXITCODE') { $global:LASTEXITCODE = 0 }
                     } -Arguments @($adapter.Name) -Description ("Restarting adapter '{0}'." -f $adapter.Name)
 
                     if ($restartExit -eq 0) {

@@ -439,7 +439,7 @@
                                                                   MaxColumnWidth="420"
                                                                   ColumnSpacing="18"
                                                                   RowSpacing="18"
-                                                                  Padding="0,0,18,18"/>
+                                                                  Padding="18,0,18,18"/>
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>

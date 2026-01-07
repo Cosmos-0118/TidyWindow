@@ -138,10 +138,16 @@ function Invoke-TidyCommand {
         [scriptblock] $Command,
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
-        [switch] $RequireSuccess
+        [switch] $RequireSuccess,
+        [int[]] $AcceptableExitCodes = @()
     )
 
     Write-TidyLog -Level Information -Message $Description
+
+    # Clear sticky LASTEXITCODE from prior native calls to avoid false failures.
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
 
     if ($script:DryRunMode) {
         Write-TidyOutput -Message "[DryRun] Would run: $Description"
@@ -153,6 +159,14 @@ function Invoke-TidyCommand {
 
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+
+    # If the scriptblock emitted a numeric code while LASTEXITCODE stayed 0, honor it.
+    if ($exitCode -eq 0 -and $output) {
+        $lastItem = ($output | Select-Object -Last 1)
+        if ($lastItem -is [int] -or $lastItem -is [long]) {
+            $exitCode = [int]$lastItem
+        }
+    }
 
     foreach ($entry in @($output)) {
         if ($null -eq $entry) {
@@ -168,7 +182,14 @@ function Invoke-TidyCommand {
     }
 
     if ($RequireSuccess -and $exitCode -ne 0) {
-        throw "$Description failed with exit code $exitCode."
+        $acceptsExitCode = $false
+        if ($AcceptableExitCodes -and ($AcceptableExitCodes -contains $exitCode)) {
+            $acceptsExitCode = $true
+        }
+
+        if (-not $acceptsExitCode) {
+            throw "$Description failed with exit code $exitCode."
+        }
     }
 
     return $exitCode
