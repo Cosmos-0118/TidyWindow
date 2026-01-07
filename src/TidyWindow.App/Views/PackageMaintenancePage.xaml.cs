@@ -25,6 +25,7 @@ public partial class PackageMaintenancePage : Page
 
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
+        _viewModel.PageChanged += OnPageChanged;
         Unloaded += OnPageUnloaded;
         Loaded += OnPageLoaded;
         IsVisibleChanged += OnIsVisibleChanged;
@@ -72,6 +73,16 @@ public partial class PackageMaintenancePage : Page
         app.Dispatcher.BeginInvoke(new Action(app.Shutdown));
     }
 
+    private void OnPageChanged(object? sender, EventArgs e)
+    {
+        if (ContentScrollViewer is null)
+        {
+            return;
+        }
+
+        ContentScrollViewer.ScrollToVerticalOffset(0);
+    }
+
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
         if (_disposed)
@@ -81,6 +92,7 @@ public partial class PackageMaintenancePage : Page
 
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
         _viewModel.ConfirmElevation = null;
+        _viewModel.PageChanged -= OnPageChanged;
         DetachScrollHandlers();
         if (_packagesListView is not null)
         {
@@ -103,6 +115,7 @@ public partial class PackageMaintenancePage : Page
     {
         _viewModel.ConfirmElevation = ConfirmElevation;
         _viewModel.AdministratorRestartRequested += OnAdministratorRestartRequested;
+        _viewModel.PageChanged += OnPageChanged;
         if (_packagesListView is not null)
         {
             _packagesListView.Loaded += PackagesListView_Loaded;

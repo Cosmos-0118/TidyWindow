@@ -66,10 +66,12 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly PackageVersionDiscoveryService _versionDiscoveryService;
     private readonly Dictionary<string, VersionCacheEntry> _versionCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly CancellationTokenSource _versionLookupCts = new();
+    private readonly int _pageSize = 40;
 
     private bool _isProcessingOperations;
     private DateTimeOffset? _lastRefreshedAt;
     private bool _isDisposed;
+    private int _currentPage = 1;
 
     public PackageMaintenanceViewModel(
         PackageInventoryService inventoryService,
@@ -104,6 +106,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     public ObservableCollection<PackageMaintenanceItemViewModel> Packages { get; } = new();
 
+    public ObservableCollection<PackageMaintenanceItemViewModel> PagedPackages { get; } = new();
+
     public ObservableCollection<string> ManagerFilters { get; } = new();
 
     public ObservableCollection<string> Warnings { get; } = new();
@@ -111,6 +115,22 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     public ObservableCollection<PackageMaintenanceOperationViewModel> Operations { get; } = new();
 
     public bool HasOperations => Operations.Count > 0;
+
+    public int CurrentPage => _currentPage;
+
+    public int TotalPages => ComputeTotalPages(Packages.Count, _pageSize);
+
+    public string PageDisplay => Packages.Count == 0
+        ? "Page 0 of 0"
+        : $"Page {_currentPage} of {TotalPages}";
+
+    public bool CanGoToPreviousPage => _currentPage > 1;
+
+    public bool CanGoToNextPage => _currentPage < TotalPages;
+
+    public bool HasMultiplePages => Packages.Count > _pageSize;
+
+    public event EventHandler? PageChanged;
 
     [ObservableProperty]
     private bool _isBusy;
@@ -603,6 +623,32 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private bool CanSelectAllPackages()
     {
         return Packages.Count > 0;
+    }
+
+    [RelayCommand]
+    private void GoToPreviousPage()
+    {
+        if (!CanGoToPreviousPage)
+        {
+            return;
+        }
+
+        _currentPage--;
+        RefreshPagedPackages();
+        _mainViewModel.SetStatusMessage(PageDisplay);
+    }
+
+    [RelayCommand]
+    private void GoToNextPage()
+    {
+        if (!CanGoToNextPage)
+        {
+            return;
+        }
+
+        _currentPage++;
+        RefreshPagedPackages();
+        _mainViewModel.SetStatusMessage(PageDisplay);
     }
 
     [RelayCommand]
@@ -1323,6 +1369,9 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             .ToList();
 
         SynchronizeCollection(Packages, ordered);
+        ResetToFirstPage();
+        RefreshPagedPackages();
+
         OnPropertyChanged(nameof(HasPackages));
         OnPropertyChanged(nameof(SummaryText));
         QueueSelectedUpdatesCommand.NotifyCanExecuteChanged();
@@ -1352,6 +1401,56 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         {
             SelectedManager = selected;
         }
+    }
+
+    private void ResetToFirstPage()
+    {
+        _currentPage = 1;
+    }
+
+    private void RefreshPagedPackages()
+    {
+        var totalPages = TotalPages;
+        if (_currentPage > totalPages)
+        {
+            _currentPage = totalPages;
+        }
+
+        var skip = (_currentPage - 1) * _pageSize;
+        var pageItems = Packages
+            .Skip(skip)
+            .Take(_pageSize)
+            .ToList();
+
+        PagedPackages.Clear();
+        foreach (var item in pageItems)
+        {
+            PagedPackages.Add(item);
+        }
+
+        RaisePagingProperties();
+        PageChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RaisePagingProperties()
+    {
+        OnPropertyChanged(nameof(CurrentPage));
+        OnPropertyChanged(nameof(TotalPages));
+        OnPropertyChanged(nameof(PageDisplay));
+        OnPropertyChanged(nameof(CanGoToPreviousPage));
+        OnPropertyChanged(nameof(CanGoToNextPage));
+        OnPropertyChanged(nameof(HasMultiplePages));
+    }
+
+    private static int ComputeTotalPages(int itemCount, int pageSize)
+    {
+        if (itemCount <= 0)
+        {
+            return 1;
+        }
+
+        var sanitizedPageSize = Math.Max(1, pageSize);
+        return (itemCount + sanitizedPageSize - 1) / sanitizedPageSize;
     }
 
     private static IEnumerable<string>? BuildInventoryDetails(PackageInventorySnapshot snapshot)
