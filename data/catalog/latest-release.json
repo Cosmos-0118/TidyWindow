@@ -1,10 +1,10 @@
 {
-  "version": "3.6.2",
+  "version": "3.6.3",
   "channel": "stable",
-  "summary": "-improved startup page so now appx and 32bit apps also show.  -improved pathpilot page optimization.  -improved the ui of startup page, now there is no cutoff.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.2/TidyWindow-Setup-3.6.2.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.2",
-  "publishedAt": "2026-01-06T18:45:22Z",
-  "installerSizeBytes": 81325969,
-  "sha256": "7224f6832c193ed6c478870e150da35336072d6b2ada25ff9f87bd7da1d9d61c"
+  "summary": "-now user gets prompted while installing an update.  -now we remove the installed installer after installing the update.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.3/TidyWindow-Setup-3.6.3.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.3",
+  "publishedAt": "2026-01-07T05:51:21Z",
+  "installerSizeBytes": 81329743,
+  "sha256": "6d06277fe05a7c7b9cb921608bed3ab6ff2f8a24f7ddce02dc54cf7e6543aac1"
 }
