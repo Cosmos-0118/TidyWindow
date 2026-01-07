@@ -217,8 +217,7 @@
             </Grid.Style>
 
             <Grid Margin="24"
-                  HorizontalAlignment="Center"
-                  MaxWidth="1280">
+                HorizontalAlignment="Stretch">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
@@ -409,7 +408,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="#E5E7EB" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="#E5E7EB" TextWrapping="Wrap" TextTrimming="None" />
                                             <Border Margin="8,0,0,0"
                                                     Background="{StaticResource StartupBadgeBrush}"
                                                     BorderBrush="#1F3B55"
@@ -431,15 +430,14 @@
                                                    Text="{Binding Publisher}"
                                                    Foreground="#C7D2FE"
                                                    FontSize="12"
-                                                   TextWrapping="NoWrap"
-                                                   TextTrimming="CharacterEllipsis" />
+                                                   TextWrapping="Wrap"
+                                                   TextTrimming="None" />
                                         <TextBlock Margin="0,4,0,0"
                                                    Text="{Binding Item.ExecutablePath}"
                                                    Foreground="{StaticResource StartupMutedBrush}"
                                                    FontSize="11"
                                                    TextWrapping="Wrap"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxHeight="44" />
+                                                   TextTrimming="None" />
                                         <TextBlock Margin="0,4,0,0"
                                                    Text="{Binding LastModifiedDisplay}"
                                                    Foreground="#94A3B8"
