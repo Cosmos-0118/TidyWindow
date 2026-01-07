@@ -36,11 +36,11 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
-        <Grid x:Name="CatalogHost"
-            Margin="32,0,32,24"
-            SizeChanged="OnCatalogHostSizeChanged">
-          <Grid MaxWidth="1180"
-              HorizontalAlignment="Center">
+                <Grid x:Name="CatalogHost"
+                        Margin="32,0,32,24"
+                        SizeChanged="OnCatalogHostSizeChanged">
+                    <Grid MaxWidth="1180"
+                            HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
@@ -590,27 +590,8 @@
                                 <StackPanel Grid.Column="1"
                                             Orientation="Horizontal"
                                             Margin="12,0,0,0"
-                                            HorizontalAlignment="Right">
-                                    <StackPanel.Style>
-                                        <Style TargetType="StackPanel">
-                                            <Setter Property="Visibility" Value="Visible"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasMultipleCatalogPages}" Value="False">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </StackPanel.Style>
-                                    <Button Content="Previous"
-                                            Command="{Binding PreviousCatalogPageCommand}"
-                                            Style="{StaticResource InstallSecondaryButtonStyle}"
-                                            MinWidth="110"
-                                            Margin="0,0,8,0"/>
-                                    <Button Content="Next"
-                                            Command="{Binding NextCatalogPageCommand}"
-                                            Style="{StaticResource InstallAccentButtonStyle}"
-                                            MinWidth="110"/>
-                                </StackPanel>
+                                            HorizontalAlignment="Right"
+                                            Visibility="Collapsed"/>
                             </Grid>
 
                             <TextBlock Grid.Row="3"
@@ -634,6 +615,46 @@
                         </Grid>
                     </Border>
                 </Grid>
-        </Grid>
-    </Grid>
+            </Grid>
+
+            <!-- Floating pager overlay for catalog navigation -->
+            <Border HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="24"
+                Padding="10,8"
+                Background="#0F172A"
+                BorderBrush="#1E293B"
+                BorderThickness="1"
+                CornerRadius="10"
+                Panel.ZIndex="8"
+                Visibility="{Binding HasMultipleCatalogPages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Border.Effect>
+                <DropShadowEffect BlurRadius="12"
+                           ShadowDepth="0"
+                           Opacity="0.25"
+                           Color="#000000" />
+                </Border.Effect>
+                    <StackPanel Orientation="Horizontal"
+                        VerticalAlignment="Center">
+                    <TextBlock Text="{Binding CatalogPageDisplay}"
+                           Foreground="{StaticResource InstallTextMutedBrush}"
+                           FontSize="12"
+                           VerticalAlignment="Center" />
+                <StackPanel Orientation="Horizontal"
+                        Margin="12,0,0,0">
+                    <Button Content="Previous"
+                        Command="{Binding PreviousCatalogPageCommand}"
+                        Style="{StaticResource InstallSecondaryButtonStyle}"
+                        Padding="12,6"
+                        Margin="0,0,8,0"
+                        IsEnabled="{Binding CanGoToPreviousCatalogPage}" />
+                    <Button Content="Next"
+                        Command="{Binding NextCatalogPageCommand}"
+                        Style="{StaticResource InstallAccentButtonStyle}"
+                        Padding="12,6"
+                        IsEnabled="{Binding CanGoToNextCatalogPage}" />
+                </StackPanel>
+                </StackPanel>
+            </Border>
+            </Grid>
 </UserControl>

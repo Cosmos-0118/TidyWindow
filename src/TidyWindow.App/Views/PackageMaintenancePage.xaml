@@ -16,6 +16,7 @@
     TextOptions.TextRenderingMode="ClearType"
     TextOptions.TextHintingMode="Fixed"
     RenderOptions.ClearTypeHint="Enabled"
+    RenderOptions.BitmapScalingMode="HighQuality"
     UseLayoutRounding="True"
     SnapsToDevicePixels="True"
       d:DataContext="{d:DesignInstance Type=viewModels:PackageMaintenanceViewModel, IsDesignTimeCreatable=False}">

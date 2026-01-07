@@ -160,6 +160,10 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
     }
 
+    public string CatalogPageDisplay => Packages.Count == 0
+        ? "Page 0 / 0"
+        : $"Page {CatalogCurrentPage} / {CatalogTotalPages}";
+
     public bool HasMultipleCatalogPages => CatalogTotalPages > 1;
 
     partial void OnCurrentPivotChanged(CurrentInstallHubPivot value)
@@ -890,6 +894,7 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         SynchronizeCollection(CatalogPagePackages, slice);
 
         OnPropertyChanged(nameof(CatalogPageSummary));
+        OnPropertyChanged(nameof(CatalogPageDisplay));
         PreviousCatalogPageCommand?.NotifyCanExecuteChanged();
         NextCatalogPageCommand?.NotifyCanExecuteChanged();
     }

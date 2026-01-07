@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading.Tasks;
@@ -90,12 +91,15 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private readonly StartupControlService _control;
     private readonly StartupDelayService _delay;
     private readonly ActivityLogService _activityLog;
+    private readonly List<StartupEntryItemViewModel> _filteredEntries = new();
 
     [ObservableProperty]
     private bool isBusy;
 
     [ObservableProperty]
     private ObservableCollection<StartupEntryItemViewModel> entries = new();
+
+    public ObservableCollection<StartupEntryItemViewModel> PagedEntries { get; } = new();
 
     [ObservableProperty]
     private int visibleCount;
@@ -115,6 +119,9 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     [ObservableProperty]
     private int baselineDisabledCount;
 
+    private readonly int _pageSize = 24;
+    private int _currentPage = 1;
+
     private const int DefaultDelaySeconds = 45;
     private static readonly TimeSpan MinimumBusyDuration = TimeSpan.FromMilliseconds(1000);
 
@@ -130,11 +137,51 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         DelayCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DelayAsync, CanDelay);
     }
 
+    public int CurrentPage => _currentPage;
+
+    public int TotalPages => ComputeTotalPages(_filteredEntries.Count, _pageSize);
+
+    public string PageDisplay => _filteredEntries.Count == 0
+        ? "Page 0 of 0"
+        : $"Page {_currentPage} of {TotalPages}";
+
+    public bool CanGoToPreviousPage => _currentPage > 1;
+
+    public bool CanGoToNextPage => _currentPage < TotalPages;
+
+    public bool HasMultiplePages => _filteredEntries.Count > _pageSize;
+
+    public event EventHandler? PageChanged;
+
     public IAsyncRelayCommand RefreshCommand { get; }
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> ToggleCommand { get; }
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> DelayCommand { get; }
+
+    [RelayCommand]
+    private void GoToPreviousPage()
+    {
+        if (!CanGoToPreviousPage)
+        {
+            return;
+        }
+
+        _currentPage--;
+        RefreshPagedEntries();
+    }
+
+    [RelayCommand]
+    private void GoToNextPage()
+    {
+        if (!CanGoToNextPage)
+        {
+            return;
+        }
+
+        _currentPage++;
+        RefreshPagedEntries();
+    }
 
     private bool CanToggle(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy;
 
@@ -240,5 +287,89 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         {
             item.IsBusy = false;
         }
+    }
+
+    public void ApplyVisibleEntries(IReadOnlyList<StartupEntryItemViewModel> visibleEntries, bool resetPage)
+    {
+        _filteredEntries.Clear();
+
+        if (visibleEntries is not null)
+        {
+            _filteredEntries.AddRange(visibleEntries);
+        }
+
+        if (resetPage)
+        {
+            ResetToFirstPage();
+        }
+
+        RefreshPagedEntries();
+        RefreshVisibleCounters();
+    }
+
+    public void RefreshVisibleCounters()
+    {
+        UpdateCounters(_filteredEntries);
+    }
+
+    private void RefreshPagedEntries()
+    {
+        var totalPages = TotalPages;
+        if (_currentPage > totalPages)
+        {
+            _currentPage = totalPages;
+        }
+
+        var skip = (_currentPage - 1) * _pageSize;
+        var pageItems = _filteredEntries
+            .Skip(skip)
+            .Take(_pageSize)
+            .ToList();
+
+        PagedEntries.Clear();
+        foreach (var item in pageItems)
+        {
+            PagedEntries.Add(item);
+        }
+
+        RaisePagingProperties();
+        PageChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void UpdateCounters(IReadOnlyList<StartupEntryItemViewModel> items)
+    {
+        var list = items ?? Array.Empty<StartupEntryItemViewModel>();
+
+        VisibleCount = list.Count;
+        DisabledVisibleCount = list.Count(item => !item.IsEnabled);
+        EnabledVisibleCount = list.Count(item => item.IsEnabled);
+        UnsignedVisibleCount = list.Count(item => item.Item.SignatureStatus == StartupSignatureStatus.Unsigned);
+        HighImpactVisibleCount = list.Count(item => item.Impact == StartupImpact.High);
+    }
+
+    private void ResetToFirstPage()
+    {
+        _currentPage = 1;
+    }
+
+    private void RaisePagingProperties()
+    {
+        OnPropertyChanged(nameof(CurrentPage));
+        OnPropertyChanged(nameof(TotalPages));
+        OnPropertyChanged(nameof(PageDisplay));
+        OnPropertyChanged(nameof(CanGoToPreviousPage));
+        OnPropertyChanged(nameof(CanGoToNextPage));
+        OnPropertyChanged(nameof(HasMultiplePages));
+    }
+
+    private static int ComputeTotalPages(int itemCount, int pageSize)
+    {
+        if (itemCount <= 0)
+        {
+            return 1;
+        }
+
+        var sanitizedPageSize = Math.Max(1, pageSize);
+        return (itemCount + sanitizedPageSize - 1) / sanitizedPageSize;
     }
 }

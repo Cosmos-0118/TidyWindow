@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Media;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.Core.Startup;
@@ -17,6 +18,7 @@ public partial class StartupControllerPage : Page
     private readonly StartupControllerViewModel _viewModel;
     private readonly CollectionViewSource _entriesView;
     private INotifyCollectionChanged? _entriesNotifier;
+    private ScrollViewer? _entriesScrollViewer;
 
     private bool _includeRun = true;
     private bool _includeStartup = true;
@@ -37,6 +39,7 @@ public partial class StartupControllerPage : Page
         _entriesView = (CollectionViewSource)FindResource("StartupEntriesView");
         Loaded += OnLoaded;
         _viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        _viewModel.PageChanged += OnPageChanged;
         Unloaded += OnUnloaded;
     }
 
@@ -62,7 +65,7 @@ public partial class StartupControllerPage : Page
         Loaded -= OnLoaded;
         await _viewModel.RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
         SubscribeToEntries();
-        RefreshView();
+        RefreshView(resetPage: true);
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -70,19 +73,20 @@ public partial class StartupControllerPage : Page
         if (string.Equals(e.PropertyName, nameof(StartupControllerViewModel.Entries), StringComparison.Ordinal))
         {
             SubscribeToEntries();
-            RefreshView();
+            RefreshView(resetPage: true);
         }
     }
 
     private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
     {
         _search = SearchBox.Text?.Trim() ?? string.Empty;
-        RefreshView();
+        RefreshView(resetPage: true);
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _viewModel.PageChanged -= OnPageChanged;
 
         if (_entriesNotifier is not null)
         {
@@ -102,7 +106,7 @@ public partial class StartupControllerPage : Page
         }
 
         SyncFilterToggles();
-        RefreshView();
+        RefreshView(resetPage: true);
     }
 
     private void SyncFilterToggles()
@@ -118,11 +122,19 @@ public partial class StartupControllerPage : Page
         _showDisabled = ShowDisabledFilter?.IsChecked != false; // default true
     }
 
-    private void RefreshView()
+    private void RefreshView(bool resetPage)
     {
         SyncFilterToggles();
-        _entriesView.View?.Refresh();
-        UpdateCounters();
+
+        if (_entriesView.View is null)
+        {
+            _viewModel.ApplyVisibleEntries(Array.Empty<StartupEntryItemViewModel>(), resetPage);
+            return;
+        }
+
+        _entriesView.View.Refresh();
+        var filteredItems = _entriesView.View.Cast<StartupEntryItemViewModel>().ToList();
+        _viewModel.ApplyVisibleEntries(filteredItems, resetPage);
     }
 
     private void SubscribeToEntries()
@@ -142,32 +154,11 @@ public partial class StartupControllerPage : Page
         SubscribeToEntryChanges(_viewModel.Entries);
     }
 
-    private void UpdateCounters()
-    {
-        var view = _entriesView.View;
-        if (view is null)
-        {
-            _viewModel.VisibleCount = 0;
-            _viewModel.DisabledVisibleCount = 0;
-            _viewModel.EnabledVisibleCount = 0;
-            _viewModel.UnsignedVisibleCount = 0;
-            _viewModel.HighImpactVisibleCount = 0;
-            return;
-        }
-
-        var items = view.Cast<StartupEntryItemViewModel>().ToList();
-        _viewModel.VisibleCount = items.Count;
-        _viewModel.DisabledVisibleCount = items.Count(item => !item.IsEnabled);
-        _viewModel.EnabledVisibleCount = items.Count(item => item.IsEnabled);
-        _viewModel.UnsignedVisibleCount = items.Count(item => item.Item.SignatureStatus == StartupSignatureStatus.Unsigned);
-        _viewModel.HighImpactVisibleCount = items.Count(item => item.Impact == StartupImpact.High);
-    }
-
     private void OnEntriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         SubscribeToEntryChanges(e.NewItems?.OfType<StartupEntryItemViewModel>() ?? Enumerable.Empty<StartupEntryItemViewModel>());
         UnsubscribeFromEntryChanges(e.OldItems?.OfType<StartupEntryItemViewModel>() ?? Enumerable.Empty<StartupEntryItemViewModel>());
-        RefreshView();
+        RefreshView(resetPage: true);
     }
 
     private void SubscribeToEntryChanges(IEnumerable<StartupEntryItemViewModel> items)
@@ -198,13 +189,13 @@ public partial class StartupControllerPage : Page
 
         if (isEnabledChange)
         {
-            RefreshView(); // Re-apply filters when enable/disable toggled.
+            RefreshView(resetPage: false); // Re-apply filters when enable/disable toggled.
             return;
         }
 
         if (isBusyChange)
         {
-            UpdateCounters();
+            _viewModel.RefreshVisibleCounters();
         }
     }
 
@@ -293,5 +284,40 @@ public partial class StartupControllerPage : Page
         }
 
         return entry.Impact != StartupImpact.High;
+    }
+
+    private void OnPageChanged(object? sender, EventArgs e)
+    {
+        _entriesScrollViewer ??= FindScrollViewer(EntriesItemsControl);
+        _entriesScrollViewer?.ScrollToVerticalOffset(0);
+    }
+
+    private void OnEntriesLoaded(object sender, RoutedEventArgs e)
+    {
+        _entriesScrollViewer ??= FindScrollViewer(EntriesItemsControl);
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject? root)
+    {
+        if (root is null)
+        {
+            return null;
+        }
+
+        if (root is ScrollViewer viewer)
+        {
+            return viewer;
+        }
+
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var result = FindScrollViewer(VisualTreeHelper.GetChild(root, i));
+            if (result is not null)
+            {
+                return result;
+            }
+        }
+
+        return null;
     }
 }
