@@ -172,7 +172,7 @@ public sealed class SettingsViewModelTests
     {
         public Task<UpdateInstallationResult> DownloadAndInstallAsync(UpdateCheckResult update, IProgress<UpdateDownloadProgress>? progress = null, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(new UpdateInstallationResult("C:/temp/installer.exe", true));
+            return Task.FromResult(new UpdateInstallationResult("C:/temp/installer.exe", true, true));
         }
 
         public void Dispose()

@@ -481,13 +481,23 @@ public sealed class SettingsViewModel : ViewModelBase
 
             var result = await _updateInstallerService.DownloadAndInstallAsync(_updateResult, progress).ConfigureAwait(true);
 
-            UpdateStatusMessage = "Installer launched. TidyWindow will close so the upgrade can finish.";
-            _mainViewModel.LogActivityInformation(
-                "Updates",
-                $"Installer launched at {result.InstallerPath}. Hash verified: {result.HashVerified}.");
+            if (result.Launched)
+            {
+                UpdateStatusMessage = "Installer launched. TidyWindow will close so the upgrade can finish.";
+                _mainViewModel.LogActivityInformation(
+                    "Updates",
+                    $"Installer launched at {result.InstallerPath}. Hash verified: {result.HashVerified}.");
 
-            await Task.Delay(1500).ConfigureAwait(true);
-            ShutdownForInstaller();
+                await Task.Delay(1500).ConfigureAwait(true);
+                ShutdownForInstaller();
+            }
+            else
+            {
+                UpdateStatusMessage = "Installer download completed. Launch was cancelled.";
+                _mainViewModel.LogActivityInformation(
+                    "Updates",
+                    $"Installer download completed at {result.InstallerPath}, but launch was cancelled by the user. Hash verified: {result.HashVerified}.");
+            }
         }
         catch (OperationCanceledException)
         {

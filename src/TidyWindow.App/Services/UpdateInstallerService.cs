@@ -8,6 +8,7 @@ using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Application = System.Windows.Application;
 using MessageBox = System.Windows.MessageBox;
 
 namespace TidyWindow.App.Services;
@@ -48,9 +49,9 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
 
         var installerPath = await DownloadInstallerAsync(update, progress, cancellationToken).ConfigureAwait(false);
         var hashVerified = await VerifyInstallerAsync(installerPath, update.Sha256, cancellationToken).ConfigureAwait(false);
-        LaunchInstaller(installerPath);
+        var launched = LaunchInstaller(installerPath);
 
-        return new UpdateInstallationResult(installerPath, hashVerified);
+        return new UpdateInstallationResult(installerPath, hashVerified, launched);
     }
 
     public void Dispose()
@@ -140,14 +141,16 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
         return true;
     }
 
-    private void LaunchInstaller(string installerPath)
+    private bool LaunchInstaller(string installerPath)
     {
         var prompt = $"The update installer was downloaded to:\n{installerPath}\n\nRun it now?";
-        var choice = MessageBox.Show(prompt, "Run TidyWindow installer", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
+        var choice = ShowInstallerPrompt(prompt);
         if (choice != MessageBoxResult.Yes)
         {
             _activityLog.LogInformation("Updates", "Installer download completed but launch was cancelled by the user.");
-            return;
+            TryDeleteInstaller(installerPath);
+            CleanupOldInstallers(Path.GetDirectoryName(installerPath) ?? string.Empty, keepPath: null, removeEmptyDirectory: true);
+            return false;
         }
 
         var startInfo = new ProcessStartInfo(installerPath)
@@ -173,6 +176,8 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
                 // Best-effort cleanup.
             }
         });
+
+        return true;
     }
 
     private void ThrowIfDisposed()
@@ -181,6 +186,21 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
         {
             throw new ObjectDisposedException(nameof(UpdateInstallerService));
         }
+    }
+
+    private static MessageBoxResult ShowInstallerPrompt(string prompt)
+    {
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            return dispatcher.Invoke(() => ShowInstallerPrompt(prompt));
+        }
+
+        var owner = Application.Current?.MainWindow;
+        owner?.Activate();
+        return owner is null
+            ? MessageBox.Show(prompt, "Run TidyWindow installer", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes)
+            : MessageBox.Show(owner, prompt, "Run TidyWindow installer", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.Yes);
     }
 
     private static void CleanupOldInstallers(string directory, string? keepPath, bool removeEmptyDirectory)

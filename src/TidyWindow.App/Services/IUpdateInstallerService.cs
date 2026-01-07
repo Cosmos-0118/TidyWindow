@@ -14,4 +14,4 @@ public interface IUpdateInstallerService : IDisposable
 
 public sealed record UpdateDownloadProgress(long BytesReceived, long? TotalBytes);
 
-public sealed record UpdateInstallationResult(string InstallerPath, bool HashVerified);
+public sealed record UpdateInstallationResult(string InstallerPath, bool HashVerified, bool Launched);
