@@ -155,9 +155,18 @@ public sealed class StartupControlService
             }
 
             var approvedSubKey = GetStartupApprovedSubKey(item);
-            if (!TrySetStartupApprovedState(root, approvedSubKey, valueName, enabled: false, out var approvedError))
+            var canUseStartupApproved = !string.IsNullOrWhiteSpace(approvedSubKey);
+
+            if (canUseStartupApproved)
             {
-                return new StartupToggleResult(false, item, null, approvedError);
+                if (!TrySetStartupApprovedState(root, approvedSubKey!, valueName, enabled: false, out var approvedError))
+                {
+                    return new StartupToggleResult(false, item, null, approvedError);
+                }
+            }
+            else
+            {
+                key.DeleteValue(valueName, throwOnMissingValue: false);
             }
 
             var backup = new StartupEntryBackup(
@@ -177,7 +186,6 @@ public sealed class StartupControlService
                 CreatedAtUtc: DateTimeOffset.UtcNow);
 
             _backupStore.Save(backup);
-            key.DeleteValue(valueName, throwOnMissingValue: false);
             return new StartupToggleResult(true, item with { IsEnabled = false }, backup, null);
         }
         catch (Exception ex)
@@ -195,11 +203,6 @@ public sealed class StartupControlService
 
         var valueName = ExtractValueName(item);
         var backup = _backupStore.Get(item.Id);
-        var data = backup?.RegistryValueData ?? item.RawCommand ?? BuildCommand(item.ExecutablePath, item.Arguments);
-        if (string.IsNullOrWhiteSpace(data))
-        {
-            return new StartupToggleResult(false, item, backup, "No backup data available to restore.");
-        }
 
         try
         {
@@ -210,12 +213,27 @@ public sealed class StartupControlService
             }
 
             var approvedSubKey = GetStartupApprovedSubKey(item);
-            if (!TrySetStartupApprovedState(root, approvedSubKey, valueName, enabled: true, out var approvedError))
+            var canUseStartupApproved = !string.IsNullOrWhiteSpace(approvedSubKey);
+
+            if (key.GetValue(valueName) is null)
             {
-                return new StartupToggleResult(false, item, backup, approvedError);
+                var data = backup?.RegistryValueData ?? item.RawCommand ?? BuildCommand(item.ExecutablePath, item.Arguments);
+                if (string.IsNullOrWhiteSpace(data))
+                {
+                    return new StartupToggleResult(false, item, backup, "No data available to restore.");
+                }
+
+                key.SetValue(valueName, data);
             }
 
-            key.SetValue(valueName, data);
+            if (canUseStartupApproved)
+            {
+                if (!TrySetStartupApprovedState(root, approvedSubKey!, valueName, enabled: true, out var approvedError))
+                {
+                    return new StartupToggleResult(false, item, backup, approvedError);
+                }
+            }
+
             if (backup is not null)
             {
                 _backupStore.Remove(item.Id);
@@ -238,11 +256,6 @@ public sealed class StartupControlService
 
         try
         {
-            if (!File.Exists(item.ExecutablePath))
-            {
-                return new StartupToggleResult(true, item with { IsEnabled = false }, null, null);
-            }
-
             var entryName = Path.GetFileName(item.RawCommand ?? item.ExecutablePath);
             var root = ResolveStartupFolderRoot(item.EntryLocation);
             if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
@@ -253,22 +266,15 @@ public sealed class StartupControlService
                 }
             }
 
-            var backupDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TidyWindow", "StartupBackups", "files");
-            Directory.CreateDirectory(backupDirectory);
-            var backupName = $"{SanitizeFileName(item.Id)}{Path.GetExtension(item.ExecutablePath)}";
-            var backupPath = Path.Combine(backupDirectory, backupName);
-
-            File.Move(item.ExecutablePath, backupPath, overwrite: true);
-
             var backup = new StartupEntryBackup(
                 item.Id,
                 item.SourceKind,
                 RegistryRoot: null,
-                RegistrySubKey: null,
-                RegistryValueName: null,
+                RegistrySubKey: item.EntryLocation,
+                RegistryValueName: entryName,
                 RegistryValueData: null,
                 FileOriginalPath: item.ExecutablePath,
-                FileBackupPath: backupPath,
+                FileBackupPath: null,
                 TaskPath: null,
                 TaskEnabled: null,
                 ServiceName: null,
@@ -288,26 +294,11 @@ public sealed class StartupControlService
     private StartupToggleResult EnableStartupFile(StartupItem item)
     {
         var backup = _backupStore.Get(item.Id);
-        if (backup?.FileOriginalPath is null || backup.FileBackupPath is null)
-        {
-            return new StartupToggleResult(false, item, backup, "No backup file recorded.");
-        }
 
         try
         {
-            var originalDirectory = Path.GetDirectoryName(backup.FileOriginalPath);
-            if (!string.IsNullOrWhiteSpace(originalDirectory))
-            {
-                Directory.CreateDirectory(originalDirectory);
-            }
-
-            if (File.Exists(backup.FileBackupPath))
-            {
-                File.Move(backup.FileBackupPath, backup.FileOriginalPath, overwrite: true);
-            }
-
-            var entryName = Path.GetFileName(backup.FileOriginalPath);
-            var root = ResolveStartupFolderRoot(item.EntryLocation ?? backup.RegistrySubKey);
+            var entryName = Path.GetFileName(item.ExecutablePath ?? backup?.FileOriginalPath);
+            var root = ResolveStartupFolderRoot(item.EntryLocation ?? backup?.RegistrySubKey);
             if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
             {
                 if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: true, out var approvedError))
@@ -316,7 +307,10 @@ public sealed class StartupControlService
                 }
             }
 
-            _backupStore.Remove(item.Id);
+            if (backup is not null)
+            {
+                _backupStore.Remove(item.Id);
+            }
             return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
         }
         catch (Exception ex)
@@ -620,8 +614,13 @@ public sealed class StartupControlService
         return Registry.CurrentUser;
     }
 
-    private static string GetStartupApprovedSubKey(StartupItem item)
+    private static string? GetStartupApprovedSubKey(StartupItem item)
     {
+        if (!string.IsNullOrWhiteSpace(item.EntryLocation) && item.EntryLocation.Contains("RunServices", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
         var baseName = item.SourceKind == StartupItemSourceKind.RunOnce ? "RunOnce" : "Run";
         var subKey = $"Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\{baseName}";
 

@@ -20,7 +20,7 @@ public sealed class MainWindowTests
     {
         await WpfTestHelper.RunAsync(async () =>
         {
-            EnsureApplication();
+            WpfTestHelper.EnsureApplication();
 
             using var scope = await MainWindowTestScope.CreateAsync(runInBackground: true);
 
@@ -37,7 +37,7 @@ public sealed class MainWindowTests
     {
         await WpfTestHelper.RunAsync(async () =>
         {
-            EnsureApplication();
+            WpfTestHelper.EnsureApplication();
 
             using var scope = await MainWindowTestScope.CreateAsync(runInBackground: true);
 
@@ -52,14 +52,6 @@ public sealed class MainWindowTests
             InvokeClosing(scope.Window, args);
             Assert.False(args.Cancel);
         });
-    }
-
-    private static void EnsureApplication()
-    {
-        if (WpfApplication.Current is null)
-        {
-            new WpfApplication();
-        }
     }
 
     private static void InvokeStateChanged(MainWindow window)

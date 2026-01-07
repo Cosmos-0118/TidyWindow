@@ -18,7 +18,7 @@ public sealed class TrayServiceTests
     {
         await WpfTestHelper.RunAsync(async () =>
         {
-            EnsureApplication();
+            WpfTestHelper.EnsureApplication();
 
             using var scope = await TrayTestScope.CreateAsync();
 
@@ -40,7 +40,7 @@ public sealed class TrayServiceTests
     {
         await WpfTestHelper.RunAsync(async () =>
         {
-            EnsureApplication();
+            WpfTestHelper.EnsureApplication();
 
             using var scope = await TrayTestScope.CreateAsync();
 
@@ -59,14 +59,6 @@ public sealed class TrayServiceTests
 
             scope.WorkTracker.CompleteWork(token);
         });
-    }
-
-    private static void EnsureApplication()
-    {
-        if (WpfApplication.Current is null)
-        {
-            new WpfApplication();
-        }
     }
 
     private sealed class TrayTestScope : IDisposable

@@ -435,11 +435,11 @@
                                     </ItemsControl.Style>
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <ux:AdaptiveTilePanel MinColumnWidth="320"
+                                            <ux:AdaptiveTilePanel MinColumnWidth="280"
                                                                   MaxColumnWidth="420"
                                                                   ColumnSpacing="18"
                                                                   RowSpacing="18"
-                                                                  Padding="18,0,18,18"/>
+                                                                  Padding="12,0,12,18"/>
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>

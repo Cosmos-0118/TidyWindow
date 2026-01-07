@@ -84,7 +84,7 @@ public sealed class PulseGuardServiceTests
     {
         await WpfTestHelper.RunAsync(async () =>
         {
-            EnsureApplication();
+            WpfTestHelper.EnsureApplication();
 
             using var scope = new PulseGuardTestScope();
             var window = new System.Windows.Window
@@ -100,14 +100,6 @@ public sealed class PulseGuardServiceTests
 
             await scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromSeconds(2));
         });
-    }
-
-    private static void EnsureApplication()
-    {
-        if (System.Windows.Application.Current is null)
-        {
-            new System.Windows.Application();
-        }
     }
 
     private sealed class PulseGuardTestScope : IDisposable

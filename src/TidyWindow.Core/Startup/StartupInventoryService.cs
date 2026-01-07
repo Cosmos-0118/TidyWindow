@@ -65,15 +65,25 @@ public sealed class StartupInventoryService
         if (options.IncludeRunKeys)
         {
             EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKCU Run", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.CurrentUser, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKCU Run (32-bit)", isMachineScope: false, preferWow: true, items, warnings, cancellationToken);
             EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKLM Run", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
             EnumerateRunKey(Registry.LocalMachine, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run", StartupItemSourceKind.RunKey, "HKLM Run (32-bit)", isMachineScope: true, preferWow: true, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run", StartupItemSourceKind.RunKey, "HKCU Policies Run", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer\\Run", StartupItemSourceKind.RunKey, "HKLM Policies Run", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\RunServices", StartupItemSourceKind.RunKey, "HKCU RunServices", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\RunServices", StartupItemSourceKind.RunKey, "HKLM RunServices", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunServices", StartupItemSourceKind.RunKey, "HKLM RunServices (32-bit)", isMachineScope: true, preferWow: true, items, warnings, cancellationToken);
         }
 
         if (options.IncludeRunOnce)
         {
             EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKCU RunOnce", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.CurrentUser, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKCU RunOnce (32-bit)", isMachineScope: false, preferWow: true, items, warnings, cancellationToken);
             EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKLM RunOnce", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
             EnumerateRunKey(Registry.LocalMachine, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce", StartupItemSourceKind.RunOnce, "HKLM RunOnce (32-bit)", isMachineScope: true, preferWow: true, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce", StartupItemSourceKind.RunOnce, "HKCU RunServicesOnce", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce", StartupItemSourceKind.RunOnce, "HKLM RunServicesOnce", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
+            EnumerateRunKey(Registry.LocalMachine, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce", StartupItemSourceKind.RunOnce, "HKLM RunServicesOnce (32-bit)", isMachineScope: true, preferWow: true, items, warnings, cancellationToken);
         }
     }
 
