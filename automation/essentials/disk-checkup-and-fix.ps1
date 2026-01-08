@@ -927,8 +927,14 @@ try {
         }
     }
 
+    $chkdskCommand = { param($args) & chkdsk @args }
+    if ($PerformRepair.IsPresent) {
+        # Prevent interactive scheduling prompts from hanging; we schedule explicitly when needed.
+        $chkdskCommand = { param($args) cmd.exe /c ("echo N|chkdsk {0}" -f ($args -join ' ')) }
+    }
+
     Write-TidyOutput -Message ("Running CHKDSK in {0} mode." -f $modeDescription)
-    $chkdskResult = Invoke-TidyCommand -Command { param($args) & chkdsk @args } -Arguments @($arguments) -Description ("CHKDSK {0}" -f ($arguments -join ' '))
+    $chkdskResult = Invoke-TidyCommand -Command $chkdskCommand -Arguments @($arguments) -Description ("CHKDSK {0}" -f ($arguments -join ' '))
 
     $chkdskExit = 0
     $chkdskOutput = @()
@@ -1050,7 +1056,8 @@ try {
             $autoRepairModeDescription = if ($autoRepairIncludeSurfaceScan) { 'repair with surface scan (automatic)' } else { 'repair (automatic)' }
             Write-TidyOutput -Message ("Running CHKDSK in {0} mode." -f $autoRepairModeDescription)
 
-            $autoRepairResult = Invoke-TidyCommand -Command { param($args) & chkdsk @args } -Arguments @($autoRepairArgs) -Description ("CHKDSK {0}" -f ($autoRepairArgs -join ' '))
+            $autoRepairCommand = { param($args) cmd.exe /c ("echo N|chkdsk {0}" -f ($args -join ' ')) }
+            $autoRepairResult = Invoke-TidyCommand -Command $autoRepairCommand -Arguments @($autoRepairArgs) -Description ("CHKDSK {0}" -f ($autoRepairArgs -join ' '))
 
             $autoRepairExit = 0
             $autoRepairOutput = @()
