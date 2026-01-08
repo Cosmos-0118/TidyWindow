@@ -1,10 +1,10 @@
 {
-  "version": "3.6.5",
+  "version": "3.6.6",
   "channel": "stable",
-  "summary": "-fixed ui bugs in installhub page catalog section.  -added pop up in queue section of essentials and installhub page.  -fixed a bug where pressing toggle autoscrolls to top in startup page.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.5/TidyWindow-Setup-3.6.5.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.5",
-  "publishedAt": "2026-01-07T14:49:24Z",
-  "installerSizeBytes": 81340485,
-  "sha256": "6eb4b5fc0dedd3d5feab2149f2856e19a702f71c8aa7ab15650d682dadd75bef"
+  "summary": "-fixed a minor bug in installhub page - catalog section.  -improved the enable and disable function of startup page.  -improved the enumeration of locations of startup apps.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.6/TidyWindow-Setup-3.6.6.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.6",
+  "publishedAt": "2026-01-07T16:15:30Z",
+  "installerSizeBytes": 81342026,
+  "sha256": "5d91efdbf80d37f08a580b3ca706e77edcb16dc23dc5ca3adcf126ba00e939fb"
 }
