@@ -190,13 +190,14 @@ public partial class StartupControllerPage : Page
         if (isEnabledChange)
         {
             RefreshView(resetPage: false); // Re-apply filters when enable/disable toggled.
-            return;
         }
 
         if (isBusyChange)
         {
             _viewModel.RefreshVisibleCounters();
         }
+
+        _viewModel.RefreshCommandStates();
     }
 
     private void OnEntriesFilter(object sender, FilterEventArgs e)

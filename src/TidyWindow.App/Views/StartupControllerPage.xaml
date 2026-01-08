@@ -135,6 +135,43 @@
             </Setter>
         </Style>
 
+        <Style x:Key="DangerButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#0F0A0A" />
+            <Setter Property="Padding" Value="16,9" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                CornerRadius="12"
+                                Padding="{TemplateBinding Padding}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#F87171" Offset="0" />
+                                    <GradientStop Color="#EF4444" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="RenderTransform">
+                                    <Setter.Value>
+                                        <ScaleTransform ScaleX="1.01" ScaleY="1.01" />
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="OutlineButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#E2E8F0" />
             <Setter Property="Background" Value="#0E1A2C" />
@@ -165,6 +202,25 @@
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <Style x:Key="StartupStatusBadgeStyle" TargetType="Border">
+            <Setter Property="Background" Value="#0F1C2F" />
+            <Setter Property="BorderBrush" Value="#1F2E46" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                    <Setter Property="Background" Value="#0F2F25" />
+                    <Setter Property="BorderBrush" Value="#22C55E" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
+                    <Setter Property="Background" Value="#2C1A1A" />
+                    <Setter Property="BorderBrush" Value="#F87171" />
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
 
         <Style x:Key="StartupCardStyle" TargetType="Border">
@@ -456,35 +512,53 @@
                                             <Border Margin="0,0,6,6" Background="#10243A" Padding="8,4" CornerRadius="8" BorderBrush="#1E3A5F" BorderThickness="1">
                                                 <TextBlock Text="{Binding Item.EntryLocation}" Foreground="#E0F2FE" FontSize="11" TextWrapping="Wrap" />
                                             </Border>
-                                            <Border Margin="0,0,6,6" Background="#142E2B" Padding="8,4" CornerRadius="8" BorderBrush="#1E4A3F" BorderThickness="1"
-                                                    Visibility="{Binding IsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBlock Text="Enabled" Foreground="#34D399" FontSize="11" />
-                                            </Border>
-                                            <Border Margin="0,0,6,6" Background="#1F1D2B" Padding="8,4" CornerRadius="8" BorderBrush="#2E2943" BorderThickness="1"
-                                                    Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                                <TextBlock Text="Disabled" Foreground="#FACC15" FontSize="11" />
-                                            </Border>
                                         </WrapPanel>
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                        <Border Style="{StaticResource StartupStatusBadgeStyle}" HorizontalAlignment="Right">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="8" Height="8" Fill="#34D399" VerticalAlignment="Center"
+                                                         Visibility="{Binding IsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                <Ellipse Width="8" Height="8" Fill="#F87171" VerticalAlignment="Center"
+                                                         Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                <TextBlock Text="Enabled"
+                                                           Margin="6,0,0,0"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#DCFCE7"
+                                                           Visibility="{Binding IsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                <TextBlock Text="Disabled"
+                                                           Margin="6,0,0,0"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#FEE2E2"
+                                                           Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Right">
+                                            <Button Content="Enable"
+                                                    Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding DataContext.EnableCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Disable"
+                                                    Margin="8,0,0,0"
+                                                    Style="{StaticResource DangerButtonStyle}"
+                                                    Command="{Binding DataContext.DisableCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
+
                                         <Button Content="Delay 45s"
-                                            Margin="0,0,0,8"
-                                            Style="{StaticResource OutlineButtonStyle}"
-                                            Command="{Binding DataContext.DelayCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                            CommandParameter="{Binding}"
-                                            ToolTip="Defers this user-scope entry to a delayed logon task"
-                                            IsEnabled="{Binding CanDelay}" />
-                                        <Button Content="Toggle"
-                                                Style="{StaticResource PrimaryButtonStyle}"
-                                                Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                Margin="0,12,0,0"
+                                                Style="{StaticResource OutlineButtonStyle}"
+                                                Command="{Binding DataContext.DelayCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                 CommandParameter="{Binding}"
-                                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
+                                                ToolTip="Defers this user-scope entry to a delayed logon task"
+                                                IsEnabled="{Binding CanDelay}" />
                                         <ProgressBar Height="6"
-                                                     Width="140"
+                                                     Width="160"
                                                      IsIndeterminate="True"
-                                             Margin="0,8,0,0"
-                                             Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                                     Margin="0,10,0,0"
+                                                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                     </StackPanel>
                                 </Grid>
                             </Border>

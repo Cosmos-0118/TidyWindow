@@ -134,6 +134,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ToggleCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(ToggleAsync, CanToggle);
+        EnableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(EnableAsync, CanEnable);
+        DisableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DisableAsync, CanDisable);
         DelayCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DelayAsync, CanDelay);
     }
 
@@ -156,6 +158,10 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     public IAsyncRelayCommand RefreshCommand { get; }
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> ToggleCommand { get; }
+
+    public IAsyncRelayCommand<StartupEntryItemViewModel> EnableCommand { get; }
+
+    public IAsyncRelayCommand<StartupEntryItemViewModel> DisableCommand { get; }
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> DelayCommand { get; }
 
@@ -185,9 +191,15 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     private bool CanToggle(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy;
 
+    private bool CanEnable(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && !item.IsEnabled;
+
+    private bool CanDisable(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && item.IsEnabled;
+
     partial void OnIsBusyChanged(bool value)
     {
         ToggleCommand.NotifyCanExecuteChanged();
+        EnableCommand.NotifyCanExecuteChanged();
+        DisableCommand.NotifyCanExecuteChanged();
         DelayCommand.NotifyCanExecuteChanged();
     }
 
@@ -255,6 +267,68 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         }
     }
 
+    private async Task EnableAsync(StartupEntryItemViewModel? item)
+    {
+        if (item is null || item.IsEnabled)
+        {
+            return;
+        }
+
+        item.IsBusy = true;
+        try
+        {
+            var result = await _control.EnableAsync(item.Item);
+            if (result.Succeeded)
+            {
+                item.UpdateFrom(result.Item);
+                _activityLog.LogSuccess("StartupController", $"Enabled {result.Item.Name}", new object?[] { result.Item.EntryLocation, result.Backup?.CreatedAtUtc });
+            }
+            else
+            {
+                _activityLog.LogWarning("StartupController", $"Failed to enable {item.Name}: {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogError("StartupController", $"Error enabling {item.Name}: {ex.Message}");
+        }
+        finally
+        {
+            item.IsBusy = false;
+        }
+    }
+
+    private async Task DisableAsync(StartupEntryItemViewModel? item)
+    {
+        if (item is null || !item.IsEnabled)
+        {
+            return;
+        }
+
+        item.IsBusy = true;
+        try
+        {
+            var result = await _control.DisableAsync(item.Item);
+            if (result.Succeeded)
+            {
+                item.UpdateFrom(result.Item);
+                _activityLog.LogSuccess("StartupController", $"Disabled {result.Item.Name}", new object?[] { result.Item.EntryLocation, result.Backup?.CreatedAtUtc });
+            }
+            else
+            {
+                _activityLog.LogWarning("StartupController", $"Failed to disable {item.Name}: {result.ErrorMessage}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogError("StartupController", $"Error disabling {item.Name}: {ex.Message}");
+        }
+        finally
+        {
+            item.IsBusy = false;
+        }
+    }
+
     private bool CanDelay(StartupEntryItemViewModel? item) => item is not null && item.CanDelay && !IsBusy && !item.IsBusy;
 
     private async Task DelayAsync(StartupEntryItemViewModel? item)
@@ -305,11 +379,20 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
         RefreshPagedEntries(raisePageChanged: resetPage);
         RefreshVisibleCounters();
+        RefreshCommandStates();
     }
 
     public void RefreshVisibleCounters()
     {
         UpdateCounters(_filteredEntries);
+    }
+
+    public void RefreshCommandStates()
+    {
+        ToggleCommand.NotifyCanExecuteChanged();
+        EnableCommand.NotifyCanExecuteChanged();
+        DisableCommand.NotifyCanExecuteChanged();
+        DelayCommand.NotifyCanExecuteChanged();
     }
 
     private void RefreshPagedEntries(bool raisePageChanged)

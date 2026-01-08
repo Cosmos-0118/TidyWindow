@@ -344,13 +344,8 @@ public sealed class StartupInventoryService
             return;
         }
 
-        using var systemAppDataRoot = Registry.CurrentUser.OpenSubKey(@"Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\SystemAppData", writable: false);
-        if (systemAppDataRoot is null)
-        {
-            return;
-        }
-
-        foreach (var familyName in systemAppDataRoot.GetSubKeyNames())
+        var familyNames = CollectPackageFamilyNames(warnings);
+        foreach (var familyName in familyNames)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -426,6 +421,52 @@ public sealed class StartupInventoryService
         {
             // Non-fatal: warnings are advisory.
         }
+    }
+
+    private static IReadOnlyCollection<string> CollectPackageFamilyNames(List<string> warnings)
+    {
+        var families = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            using var systemAppDataRoot = Registry.CurrentUser.OpenSubKey(@"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData", writable: false);
+            if (systemAppDataRoot is not null)
+            {
+                foreach (var familyName in systemAppDataRoot.GetSubKeyNames())
+                {
+                    if (!string.IsNullOrWhiteSpace(familyName))
+                    {
+                        families.Add(familyName);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Failed to enumerate packaged startup state: {ex.Message}");
+        }
+
+        try
+        {
+            using var packagesRoot = Registry.ClassesRoot.OpenSubKey("Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppModel\\Repository\\Packages", writable: false);
+            if (packagesRoot is not null)
+            {
+                foreach (var packageFullName in packagesRoot.GetSubKeyNames())
+                {
+                    var familyName = BuildPackageFamilyNameFromFullName(packageFullName);
+                    if (!string.IsNullOrWhiteSpace(familyName))
+                    {
+                        families.Add(familyName);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Failed to enumerate AppX packages: {ex.Message}");
+        }
+
+        return families;
     }
 
     private static bool TryResolvePackageInfo(string packageFamilyName, out string packageRoot, out string? packageDisplayName)
@@ -560,6 +601,36 @@ public sealed class StartupInventoryService
     private static bool IsEnabledStartupState(int state)
     {
         return state is 2 or 4 or 5;
+    }
+
+    private static string? BuildPackageFamilyNameFromFullName(string packageFullName)
+    {
+        if (string.IsNullOrWhiteSpace(packageFullName))
+        {
+            return null;
+        }
+
+        var publisherSeparator = packageFullName.LastIndexOf("__", StringComparison.Ordinal);
+        if (publisherSeparator <= 0 || publisherSeparator + 2 >= packageFullName.Length)
+        {
+            return null;
+        }
+
+        var publisherId = packageFullName[(publisherSeparator + 2)..];
+        var nameAndVersion = packageFullName[..publisherSeparator];
+        var versionSeparator = nameAndVersion.IndexOf('_');
+        if (versionSeparator <= 0)
+        {
+            return null;
+        }
+
+        var packageName = nameAndVersion[..versionSeparator];
+        if (string.IsNullOrWhiteSpace(packageName) || string.IsNullOrWhiteSpace(publisherId))
+        {
+            return null;
+        }
+
+        return $"{packageName}_{publisherId}";
     }
 
     private static (string FamilyName, string PublisherId) SplitPackageFamilyName(string packageFamilyName)
