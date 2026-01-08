@@ -156,28 +156,48 @@
         </Style>
 
         <Style x:Key="ProcessNavToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="#94A3B8" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Foreground" Value="#CBD5E1" />
+            <Setter Property="Background" Value="#0F1C30" />
+            <Setter Property="BorderBrush" Value="#1F2E46" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="18,11" />
+            <Setter Property="Margin" Value="0,0,8,0" />
             <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Border x:Name="Root"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="10"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#132036" />
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8" />
+                                <Setter TargetName="Root" Property="Background" Value="#13294A" />
                                 <Setter Property="Foreground" Value="#F8FAFC" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1D4ED8" />
+                                <Setter TargetName="Root" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#2563EB" Offset="0" />
+                                            <GradientStop Color="#1D4ED8" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#60A5FA" />
                                 <Setter Property="Foreground" Value="#F8FAFC" />
+                                <Setter TargetName="Root" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.25" Color="#60A5FA" />
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -490,23 +510,31 @@
             </controls:PageTitleBar.BodyContent>
         </controls:PageTitleBar>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,16">
-            <ToggleButton Content="Known processes"
-                          Style="{StaticResource ProcessNavToggleStyle}"
-                          Command="{Binding SwitchSectionCommand}"
-                          CommandParameter="{x:Static viewModels:KnownProcessViewSection.Catalog}"
-                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Catalog, Mode=OneWay}" />
-            <ToggleButton Content="Process controls"
-                          Style="{StaticResource ProcessNavToggleStyle}"
-                          Command="{Binding SwitchSectionCommand}"
-                          CommandParameter="{x:Static viewModels:KnownProcessViewSection.Settings}"
-                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Settings, Mode=OneWay}" />
-            <ToggleButton Content="Threat Watch"
-                          Style="{StaticResource ProcessNavToggleStyle}"
-                          Command="{Binding SwitchSectionCommand}"
-                          CommandParameter="{x:Static viewModels:KnownProcessViewSection.ThreatWatch}"
-                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=ThreatWatch, Mode=OneWay}" />
-        </StackPanel>
+        <Border Grid.Row="1"
+                Background="#0E1A2C"
+                BorderBrush="#1B2538"
+                BorderThickness="1"
+                CornerRadius="12"
+                Padding="10"
+                Margin="0,0,0,16">
+            <StackPanel Orientation="Horizontal">
+                <ToggleButton Content="Known processes"
+                              Style="{StaticResource ProcessNavToggleStyle}"
+                              Command="{Binding SwitchSectionCommand}"
+                              CommandParameter="{x:Static viewModels:KnownProcessViewSection.Catalog}"
+                              IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Catalog, Mode=OneWay}" />
+                <ToggleButton Content="Process controls"
+                              Style="{StaticResource ProcessNavToggleStyle}"
+                              Command="{Binding SwitchSectionCommand}"
+                              CommandParameter="{x:Static viewModels:KnownProcessViewSection.Settings}"
+                              IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Settings, Mode=OneWay}" />
+                <ToggleButton Content="Threat Watch"
+                              Style="{StaticResource ProcessNavToggleStyle}"
+                              Command="{Binding SwitchSectionCommand}"
+                              CommandParameter="{x:Static viewModels:KnownProcessViewSection.ThreatWatch}"
+                              IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=ThreatWatch, Mode=OneWay}" />
+            </StackPanel>
+        </Border>
 
         <Border Grid.Row="2"
                 CornerRadius="8"

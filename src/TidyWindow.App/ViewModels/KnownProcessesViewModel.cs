@@ -20,6 +20,8 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
     private readonly MainViewModel _mainViewModel;
     private bool _isInitialized;
 
+    private static readonly TimeSpan MinimumBusyDuration = TimeSpan.FromMilliseconds(750);
+
     public KnownProcessesViewModel(
         ProcessCatalogParser catalogParser,
         ProcessStateStore stateStore,
@@ -81,6 +83,7 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         try
         {
             IsBusy = true;
+            await Task.Yield(); // Let the UI render the busy state before heavy work.
             _mainViewModel.SetStatusMessage("Refreshing known processes...");
             var snapshot = await Task.Run(() => _catalogParser.LoadSnapshot());
             var preferenceLookup = BuildPreferenceLookup(_stateStore.GetPreferences());
@@ -119,11 +122,10 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         }
         finally
         {
-            var minimumDelay = TimeSpan.FromSeconds(2);
             var elapsed = stopwatch.Elapsed;
-            if (elapsed < minimumDelay)
+            if (elapsed < MinimumBusyDuration)
             {
-                await Task.Delay(minimumDelay - elapsed);
+                await Task.Delay(MinimumBusyDuration - elapsed);
             }
 
             IsBusy = false;

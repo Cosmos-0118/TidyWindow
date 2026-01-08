@@ -1073,6 +1073,40 @@
         <Setter Property="Margin"
             Value="0,0,8,8"/>
     </Style>
+
+    <Style x:Key="CleanupAutomationButtonStyle" TargetType="Button">
+        <Setter Property="Foreground" Value="#0B1224" />
+        <Setter Property="Padding" Value="18,10" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="MinWidth" Value="118" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="Root"
+                            CornerRadius="10"
+                            Padding="{TemplateBinding Padding}">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#6EE7F9" Offset="0" />
+                                <GradientStop Color="#6366F1" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.94" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Root" Property="Opacity" Value="0.6" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
     </Page.Resources>
         <Grid UseLayoutRounding="True"
                     SnapsToDevicePixels="True">
@@ -1123,11 +1157,6 @@
                                    Foreground="{StaticResource CleanupAccentBrush}"
                                    FontWeight="SemiBold"
                                    FontSize="14"/>
-                            <Button Content="Automation"
-                                Margin="12,0,0,0"
-                                Style="{StaticResource FlatButtonStyle}"
-                                Padding="12,4"
-                                Command="{Binding ToggleAutomationPanelCommand}"/>
                         </StackPanel>
                         <TextBlock Text="Shape your cleanup preview"
                                    FontSize="26"
@@ -1453,25 +1482,35 @@
                         </StackPanel>
                     </Expander>
 
-                    <StackPanel Orientation="Horizontal"
+                            <StackPanel Orientation="Horizontal"
                                 HorizontalAlignment="Right"
                                 Margin="0,24,0,0">
-                        <Button Content="Cancel"
+                            <Button Content="Cancel"
                                 Command="{Binding CancelCommand}"
-                                Style="{StaticResource FlatButtonStyle}"/>
-                        <Button Content="Reset filters"
+                                Style="{StaticResource FlatButtonStyle}"
+                                Margin="0,0,10,0"/>
+                            <Button Content="Reset filters"
                                 Command="{Binding ResetFiltersCommand}"
                                 Style="{StaticResource FlatButtonStyle}"
-                                Background="{StaticResource CleanupSurfaceBrush}"/>
+                                Background="{StaticResource CleanupSurfaceBrush}"
+                                Margin="0,0,10,0"/>
+                            <Button Content="Automation"
+                                Style="{StaticResource CleanupAutomationButtonStyle}"
+                                Command="{Binding ToggleAutomationPanelCommand}"
+                                Margin="0,0,10,0">
+                            <Button.IsEnabled>
+                            <Binding Path="IsBusy" Converter="{StaticResource InverseBooleanConverter}"/>
+                            </Button.IsEnabled>
+                        </Button>
                         <Button Content="Run preview"
-                                Background="{StaticResource CleanupAccentBrushSecondary}"
-                                Foreground="#041225"
-                                FontWeight="Semibold"
-                                Padding="16,8"
-                                Cursor="Hand"
-                                BorderThickness="0"
-                                Command="{Binding RunPreviewCommand}"
-                                Margin="0">
+                            Background="{StaticResource CleanupAccentBrushSecondary}"
+                            Foreground="#041225"
+                            FontWeight="Semibold"
+                            Padding="16,8"
+                            Cursor="Hand"
+                            BorderThickness="0"
+                            Command="{Binding RunPreviewCommand}"
+                            Margin="0">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="RunBorder"

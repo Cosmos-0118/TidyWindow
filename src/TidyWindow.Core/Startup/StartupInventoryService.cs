@@ -24,6 +24,44 @@ public sealed class StartupInventoryService
     public SystemTasks.Task<StartupInventorySnapshot> GetInventoryAsync(StartupInventoryOptions? options = null, CancellationToken cancellationToken = default)
     {
         var effectiveOptions = options ?? StartupInventoryOptions.Default;
+
+        // Run the inventory on a dedicated STA thread so UI threads stay responsive and COM shortcut resolution keeps working.
+        var tcs = new SystemTasks.TaskCompletionSource<StartupInventorySnapshot>(SystemTasks.TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var thread = new Thread(() =>
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var snapshot = BuildSnapshot(effectiveOptions, cancellationToken);
+                tcs.TrySetResult(snapshot);
+            }
+            catch (OperationCanceledException oce)
+            {
+                tcs.TrySetCanceled(oce.CancellationToken);
+            }
+            catch (Exception ex)
+            {
+                tcs.TrySetException(ex);
+            }
+        })
+        {
+            IsBackground = true
+        };
+
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+
+        if (cancellationToken.CanBeCanceled)
+        {
+            cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        }
+
+        return tcs.Task;
+    }
+
+    private static StartupInventorySnapshot BuildSnapshot(StartupInventoryOptions effectiveOptions, CancellationToken cancellationToken)
+    {
         var items = new List<StartupItem>();
         var warnings = new List<string>();
 
@@ -35,8 +73,7 @@ public sealed class StartupInventoryService
 
         AppendDelayWarnings(items, warnings);
 
-        var snapshot = new StartupInventorySnapshot(items, warnings, DateTimeOffset.UtcNow, warnings.Count > 0);
-        return SystemTasks.Task.FromResult(snapshot);
+        return new StartupInventorySnapshot(items, warnings, DateTimeOffset.UtcNow, warnings.Count > 0);
     }
 
     private static void ExecuteSafe(System.Action action, List<string> warnings, string context)
