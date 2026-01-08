@@ -137,8 +137,21 @@
                                            Margin="0,2,0,0"
                                            Foreground="{StaticResource QuestionnaireMutedBrush}"
                                            FontSize="12"
-                                           TextWrapping="Wrap"
-                                           Visibility="{Binding Description, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                           TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Visible" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Description}" Value="">
+                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                             </StackPanel>
                         </StackPanel>
                         <ControlTemplate.Triggers>

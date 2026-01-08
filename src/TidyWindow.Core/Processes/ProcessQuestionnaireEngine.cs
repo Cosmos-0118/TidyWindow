@@ -211,35 +211,41 @@ public sealed class ProcessQuestionnaireEngine
 
     private static ProcessQuestionnaireDefinition BuildDefinition()
     {
-        var yesOption = new ProcessQuestionOption("yes", "Yes", null);
-        var noOption = new ProcessQuestionOption("no", "No", null);
+        var yesOption = new ProcessQuestionOption(
+            "yes",
+            "Yes, I use this",
+            "Keep the related Windows helpers running.");
+        var noOption = new ProcessQuestionOption(
+            "no",
+            "No, turn it down",
+            "Pause or auto-stop the extra background services.");
         var yesNoOptions = new[] { yesOption, noOption };
 
         var questions = new List<ProcessQuestion>
         {
-            new("usage.gaming", "Gaming features", "Do you actively use Xbox Game Bar or Microsoft Store games on this PC?", yesNoOptions),
-            new("usage.vr", "Mixed Reality", "Do you use any Mixed Reality or VR headsets on this device?", yesNoOptions),
-            new("usage.printer", "Printing & fax", "Do you need local printers or fax devices connected to this PC?", yesNoOptions),
-            new("usage.phone", "Phone Link & notifications", "Do you rely on Phone Link notifications or cross-device experiences?", yesNoOptions),
-            new("usage.location", "Location & Maps", "Do you need location/Maps functionality on this PC?", yesNoOptions),
-            new("device.touch", "Touch & pen input", "Is this a touchscreen or pen-enabled device?", yesNoOptions),
-            new("usage.developer", "Developer helpers", "Do you rely on Remote Registry, Diagnostics Hub, or other developer diagnostics services on this PC?", yesNoOptions),
-            new("usage.telemetrycore", "Diagnostics & telemetry", "Do you want Windows diagnostics, Connected User Experiences, and error reporting services to stay enabled?", yesNoOptions),
-            new("usage.telemetryadvanced", "BITS / IP Helper", "Do you rely on Background Intelligent Transfer Service (BITS) or IP Helper/IPv6 networking features?", yesNoOptions),
-            new("usage.performance", "Background caching (SysMain)", "Do you want Windows caching/prefetching helpers like SysMain to stay enabled for faster launches?", yesNoOptions),
-            new("usage.edgeupdates", "Microsoft Edge background updates", "Should Microsoft Edge keep its background updater services running automatically on this PC?", yesNoOptions),
-            new("usage.cellular", "Cellular / Phone Service", "Does this PC rely on Phone Service or cellular radio features?", yesNoOptions),
+            new("usage.gaming", "Gaming & Game Bar", "Do you actually use Xbox Game Bar or play Microsoft Store games here? Choose no to silence Xbox background helpers when you do not.", yesNoOptions),
+            new("usage.vr", "Mixed Reality / VR", "Do you plug in VR or Mixed Reality headsets on this PC?", yesNoOptions),
+            new("usage.printer", "Printing & fax", "Do you print or fax from this PC? Pick yes if a printer or fax is connected.", yesNoOptions),
+            new("usage.phone", "Phone Link & notifications", "Do you rely on Phone Link for calls, messaging, or notifications?", yesNoOptions),
+            new("usage.location", "Location & Maps", "Do you want location and Maps apps to keep working on this device?", yesNoOptions),
+            new("device.touch", "Touch & pen input", "Is this a touchscreen or pen-enabled device you tap or write on?", yesNoOptions),
+            new("usage.developer", "Developer diagnostics", "Do you use Remote Registry, Diagnostics Hub, or similar developer diagnostics tools?", yesNoOptions),
+            new("usage.telemetrycore", "Diagnostics & telemetry", "Do you want Windows diagnostics, Connected User Experiences, and error reporting to stay enabled?", yesNoOptions),
+            new("usage.telemetryadvanced", "BITS / IP Helper", "Do you depend on Background Intelligent Transfer Service (BITS) downloads or IPv6/advanced networking features?", yesNoOptions),
+            new("usage.performance", "Background caching (SysMain)", "Do you want Windows caching/prefetching helpers like SysMain to speed up app launches?", yesNoOptions),
+            new("usage.edgeupdates", "Microsoft Edge background updates", "Should Microsoft Edge keep updating itself in the background automatically?", yesNoOptions),
+            new("usage.cellular", "Cellular / Phone Service", "Does this PC use Phone Service or cellular data/SMS features?", yesNoOptions),
             new("usage.appreadiness", "Store app prep (AppReadiness)", "Do you regularly install Microsoft Store apps that need the App Readiness service to stay running?", yesNoOptions),
-            new("usage.remotedesktop", "Remote Desktop host features", "Do you host Remote Desktop sessions or use Routing and Remote Access/VPN on this device?", yesNoOptions),
-            new("usage.cloudsync", "OneDrive / People / Work Folders sync", "Should Microsoft account sync (OneSync, Work Folders, Mail/Calendar/People) stay active?", yesNoOptions),
-            new("usage.bluetooth", "Bluetooth accessories", "Do you actively pair Bluetooth audio, controllers, or pens with this PC?", yesNoOptions),
-            new("usage.hotspot", "Mobile hotspot / ICS", "Do you share this PC's connection via Mobile Hotspot or Internet Connection Sharing?", yesNoOptions),
-            new("usage.storeapps", "Microsoft Store platform", "Do you use Microsoft Store / UWP apps that need their platform services running in the background?", yesNoOptions),
-            new("usage.sharedexperience", "Shared experiences & Wallet", "Do you depend on Nearby sharing, cross-device experiences, or Microsoft Wallet connectors?", yesNoOptions),
-            new("usage.searchindexing", "Windows Search indexing", "Do you rely on Windows Search indexing for fast results?", yesNoOptions),
-            new("usage.deliveryoptimization", "Delivery Optimization peer sharing", "Do you use Delivery Optimization or Store peer sharing for updates?", yesNoOptions),
-            new("usage.helloface", "Windows Hello Face", "Do you sign in with Windows Hello Face or other camera biometrics?", yesNoOptions),
-            new("usage.scheduledtasks", "Telemetry & Edge scheduled tasks", "Do you want Windows telemetry, Edge update, Retail Demo, Flighting, Remote Assistance, or RDS scheduled tasks to stay enabled?", yesNoOptions),
+            new("usage.remotedesktop", "Remote Desktop & VPN host", "Do you host Remote Desktop sessions or use Routing and Remote Access/VPN on this device?", yesNoOptions),
+            new("usage.cloudsync", "OneDrive / Mail / People sync", "Should OneDrive, Work Folders, Mail/Calendar/People, and account sync stay active?", yesNoOptions),
+            new("usage.bluetooth", "Bluetooth accessories", "Do you pair Bluetooth audio, controllers, or pens with this PC?", yesNoOptions),
+            new("usage.hotspot", "Mobile hotspot / sharing", "Do you share this PC's internet connection with other devices (Mobile Hotspot/ICS)?", yesNoOptions),
+            new("usage.storeapps", "Microsoft Store apps", "Do you run Microsoft Store / UWP apps that need their platform services in the background?", yesNoOptions),
+            new("usage.sharedexperience", "Nearby sharing & Wallet", "Do you use Nearby sharing, cross-device experiences, or Microsoft Wallet connectors?", yesNoOptions),
+            new("usage.searchindexing", "Windows Search indexing", "Do you rely on Windows Search indexing for fast file and email results?", yesNoOptions),
+            new("usage.deliveryoptimization", "Delivery Optimization sharing", "Do you want Delivery Optimization or peer sharing for updates to stay on?", yesNoOptions),
+            new("usage.helloface", "Windows Hello Face", "Do you sign in with Windows Hello Face or other camera biometrics on this PC?", yesNoOptions),
+            new("usage.scheduledtasks", "Telemetry & updater tasks", "Should Windows telemetry, Edge update, and support tasks stay scheduled?", yesNoOptions),
         };
 
         return new ProcessQuestionnaireDefinition(questions);
