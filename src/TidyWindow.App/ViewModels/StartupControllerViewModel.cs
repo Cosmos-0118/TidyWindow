@@ -250,16 +250,25 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             if (result.Succeeded)
             {
                 item.UpdateFrom(result.Item);
-                _activityLog.LogSuccess("StartupController", $"{(result.Item.IsEnabled ? "Enabled" : "Disabled")} {result.Item.Name}", new object?[] { result.Item.EntryLocation, result.Backup?.CreatedAtUtc });
+                _activityLog.LogSuccess(
+                    "StartupController",
+                    $"{(result.Item.IsEnabled ? "Enabled" : "Disabled")} {result.Item.Name}",
+                    BuildToggleDetails(result));
             }
             else
             {
-                _activityLog.LogWarning("StartupController", $"Failed to toggle {item.Name}: {result.ErrorMessage}");
+                _activityLog.LogWarning(
+                    "StartupController",
+                    $"Failed to toggle {item.Name}: {result.ErrorMessage}",
+                    BuildToggleDetails(result));
             }
         }
         catch (Exception ex)
         {
-            _activityLog.LogError("StartupController", $"Error toggling {item.Name}: {ex.Message}");
+            _activityLog.LogError(
+                "StartupController",
+                $"Error toggling {item?.Name}: {ex.Message}",
+                BuildErrorDetails(item?.Item, ex));
         }
         finally
         {
@@ -281,16 +290,25 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             if (result.Succeeded)
             {
                 item.UpdateFrom(result.Item);
-                _activityLog.LogSuccess("StartupController", $"Enabled {result.Item.Name}", new object?[] { result.Item.EntryLocation, result.Backup?.CreatedAtUtc });
+                _activityLog.LogSuccess(
+                    "StartupController",
+                    $"Enabled {result.Item.Name}",
+                    BuildToggleDetails(result));
             }
             else
             {
-                _activityLog.LogWarning("StartupController", $"Failed to enable {item.Name}: {result.ErrorMessage}");
+                _activityLog.LogWarning(
+                    "StartupController",
+                    $"Failed to enable {item.Name}: {result.ErrorMessage}",
+                    BuildToggleDetails(result));
             }
         }
         catch (Exception ex)
         {
-            _activityLog.LogError("StartupController", $"Error enabling {item.Name}: {ex.Message}");
+            _activityLog.LogError(
+                "StartupController",
+                $"Error enabling {item.Name}: {ex.Message}",
+                BuildErrorDetails(item.Item, ex));
         }
         finally
         {
@@ -312,16 +330,25 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             if (result.Succeeded)
             {
                 item.UpdateFrom(result.Item);
-                _activityLog.LogSuccess("StartupController", $"Disabled {result.Item.Name}", new object?[] { result.Item.EntryLocation, result.Backup?.CreatedAtUtc });
+                _activityLog.LogSuccess(
+                    "StartupController",
+                    $"Disabled {result.Item.Name}",
+                    BuildToggleDetails(result));
             }
             else
             {
-                _activityLog.LogWarning("StartupController", $"Failed to disable {item.Name}: {result.ErrorMessage}");
+                _activityLog.LogWarning(
+                    "StartupController",
+                    $"Failed to disable {item.Name}: {result.ErrorMessage}",
+                    BuildToggleDetails(result));
             }
         }
         catch (Exception ex)
         {
-            _activityLog.LogError("StartupController", $"Error disabling {item.Name}: {ex.Message}");
+            _activityLog.LogError(
+                "StartupController",
+                $"Error disabling {item.Name}: {ex.Message}",
+                BuildErrorDetails(item.Item, ex));
         }
         finally
         {
@@ -350,17 +377,63 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             }
             else
             {
-                _activityLog.LogWarning("StartupController", $"Failed to delay {item.Name}: {result.ErrorMessage}");
+                _activityLog.LogWarning("StartupController", $"Failed to delay {item.Name}: {result.ErrorMessage}", new object?[] { item.Item.Id, item.Item.SourceKind, item.Item.EntryLocation, result.ErrorMessage, result.ReplacementTaskPath });
             }
         }
         catch (Exception ex)
         {
-            _activityLog.LogError("StartupController", $"Error delaying {item.Name}: {ex.Message}");
+            _activityLog.LogError("StartupController", $"Error delaying {item.Name}: {ex.Message}", BuildErrorDetails(item.Item, ex));
         }
         finally
         {
             item.IsBusy = false;
         }
+    }
+
+    private static IEnumerable<object?> BuildToggleDetails(StartupToggleResult result)
+    {
+        var item = result.Item;
+        yield return new
+        {
+            item.Id,
+            item.Name,
+            item.SourceKind,
+            item.SourceTag,
+            item.EntryLocation,
+            item.ExecutablePath,
+            item.RawCommand,
+            item.Arguments,
+            item.UserContext,
+            item.IsEnabled,
+            BackupCreatedUtc = result.Backup?.CreatedAtUtc,
+            BackupRegistry = result.Backup is null ? null : new { result.Backup.RegistryRoot, result.Backup.RegistrySubKey, result.Backup.RegistryValueName },
+            BackupTask = result.Backup?.TaskPath,
+            BackupService = result.Backup?.ServiceName,
+            BackupFile = result.Backup?.FileOriginalPath,
+            result.ErrorMessage
+        };
+    }
+
+    private static IEnumerable<object?> BuildErrorDetails(StartupItem? item, Exception ex)
+    {
+        if (item is not null)
+        {
+            yield return new
+            {
+                item.Id,
+                item.Name,
+                item.SourceKind,
+                item.SourceTag,
+                item.EntryLocation,
+                item.ExecutablePath,
+                item.RawCommand,
+                item.Arguments,
+                item.UserContext,
+                item.IsEnabled
+            };
+        }
+
+        yield return ex;
     }
 
     public void ApplyVisibleEntries(IReadOnlyList<StartupEntryItemViewModel> visibleEntries, bool resetPage)
