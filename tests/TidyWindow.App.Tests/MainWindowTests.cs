@@ -16,7 +16,7 @@ namespace TidyWindow.App.Tests;
 public sealed class MainWindowTests
 {
     [Fact]
-    public async Task MinimizeWhileRunningInBackgroundHidesToTray()
+    public async Task MinimizeWhileRunningInBackgroundStaysMinimized()
     {
         await WpfTestHelper.RunAsync(async () =>
         {
@@ -27,8 +27,8 @@ public sealed class MainWindowTests
             scope.Window.WindowState = WindowState.Minimized;
             InvokeStateChanged(scope.Window);
 
-            Assert.Equal(1, scope.Tray.HideToTrayCalls);
-            Assert.True(scope.Tray.LastHideToTrayHint);
+            Assert.Equal(0, scope.Tray.HideToTrayCalls);
+            Assert.Equal(WindowState.Minimized, scope.Window.WindowState);
         });
     }
 

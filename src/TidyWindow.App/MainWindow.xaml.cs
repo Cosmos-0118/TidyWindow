@@ -92,17 +92,7 @@ public partial class MainWindow : Window
     {
         UpdateMaximizeVisualState();
 
-        if (WindowState == WindowState.Minimized && _preferences.Current.RunInBackground)
-        {
-            if (!_workTracker.HasActiveWork)
-            {
-                DetachContentForBackground();
-            }
-
-            ScheduleIdleTrimIfSafe();
-            _trayService.HideToTray(showHint: true);
-        }
-        else if (_contentDetached && WindowState != WindowState.Minimized)
+        if (_contentDetached && WindowState != WindowState.Minimized)
         {
             CancelIdleTrim();
             RestoreContentAfterBackground();

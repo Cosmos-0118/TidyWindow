@@ -349,7 +349,7 @@ public sealed class UserPreferencesService
 }
 
 public sealed record UserPreferences(
-    bool RunInBackground = true,
+    bool RunInBackground = false,
     bool LaunchAtStartup = true,
     bool PulseGuardEnabled = true,
     bool NotificationsEnabled = true,
