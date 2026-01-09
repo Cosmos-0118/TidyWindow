@@ -55,28 +55,54 @@ public partial class DeepScanPage : Page
             return;
         }
 
-        await ExecuteDeleteCommandAsync(item);
+        await ExecuteDeleteCommandAsync(item, _viewModel.DeleteFindingCommand);
 
         e.Handled = true;
     }
 
-    private async Task ExecuteDeleteCommandAsync(DeepScanItemViewModel item)
+    private async void ForceDeleteButton_OnClick(object sender, RoutedEventArgs e)
     {
-        var deleteCommand = _viewModel.DeleteFindingCommand;
+        if (sender is not System.Windows.Controls.Button { DataContext: DeepScanItemViewModel item })
+        {
+            return;
+        }
 
-        if (deleteCommand is IAsyncRelayCommand<DeepScanItemViewModel?> asyncCommandWithParam)
+        var itemKind = item.IsDirectory ? "folder" : "file";
+        var message =
+            $"Force delete will take ownership, break locks, and may schedule removal on reboot. This can disrupt apps if you remove an essential {itemKind}.\n\nAre you absolutely sure you want to proceed?";
+
+        var confirmation = System.Windows.MessageBox.Show(
+            message,
+            "Force delete warning",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Stop,
+            MessageBoxResult.No);
+
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        await ExecuteDeleteCommandAsync(item, _viewModel.ForceDeleteFindingCommand);
+
+        e.Handled = true;
+    }
+
+    private async Task ExecuteDeleteCommandAsync(DeepScanItemViewModel item, object? command)
+    {
+        if (command is IAsyncRelayCommand<DeepScanItemViewModel?> asyncCommandWithParam)
         {
             await asyncCommandWithParam.ExecuteAsync(item);
             return;
         }
 
-        if (deleteCommand is IAsyncRelayCommand asyncCommand)
+        if (command is IAsyncRelayCommand asyncCommand)
         {
             await asyncCommand.ExecuteAsync(item);
             return;
         }
 
-        if (deleteCommand is IRelayCommand relayCommand && relayCommand.CanExecute(item))
+        if (command is IRelayCommand relayCommand && relayCommand.CanExecute(item))
         {
             relayCommand.Execute(item);
         }

@@ -91,6 +91,11 @@
             <GradientStop Color="#FB7185"
                   Offset="1"/>
         </LinearGradientBrush>
+          <DropShadowEffect x:Key="DeepScanDangerShadowEffect"
+                      Color="#FF1F1F"
+                      BlurRadius="24"
+                      ShadowDepth="0"
+                      Opacity="0.85"/>
         <DropShadowEffect x:Key="DeepScanSoftShadowEffect"
                           Color="#01060C"
                           BlurRadius="24"
@@ -893,7 +898,8 @@
                                                     </Button.Template>
                                                 </Button>
                                                 <Button Content="Delete"
-                                                        Click="DeleteButton_OnClick"
+                                                    Click="DeleteButton_OnClick"
+                                                    IsEnabled="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource InverseBooleanConverter}}"
                             Padding="12,6"
                             MinWidth="104"
                                                         Background="{StaticResource DeepScanDangerActionBrush}"
@@ -921,6 +927,54 @@
                                                                 <Trigger Property="IsEnabled"
                                                                          Value="False">
                                                                     <Setter TargetName="DangerActionBorder"
+                                                                            Property="Opacity"
+                                                                            Value="0.55"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                                <Button Content="Force delete"
+                                                    Click="ForceDeleteButton_OnClick"
+                                                    IsEnabled="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource InverseBooleanConverter}}"
+                                                        Padding="12,6"
+                                                        MinWidth="136"
+                                                        Margin="8,0,0,0"
+                                                        Background="{StaticResource DeepScanDangerActionBrush}"
+                                                        Foreground="#2D050D"
+                                                        BorderThickness="0"
+                                                        Cursor="Hand"
+                                                        ToolTip="Force delete takes ownership, unlocks handles, and may schedule removal on reboot. Use only when you are certain.">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border x:Name="ForceDangerActionBorder"
+                                                                    Background="{TemplateBinding Background}"
+                                                                    CornerRadius="12"
+                                                                    Padding="{TemplateBinding Padding}"
+                                                                    Effect="{StaticResource DeepScanDangerShadowEffect}"
+                                                                    SnapsToDevicePixels="True">
+                                                                <ContentPresenter HorizontalAlignment="Center"
+                                                                                  VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver"
+                                                                         Value="True">
+                                                                    <Setter TargetName="ForceDangerActionBorder"
+                                                                            Property="Background"
+                                                                            Value="{StaticResource DeepScanDangerActionHoverBrush}"/>
+                                                                    <Setter TargetName="ForceDangerActionBorder"
+                                                                            Property="Effect">
+                                                                        <Setter.Value>
+                                                                            <DropShadowEffect Color="#FF2F3F"
+                                                                                              BlurRadius="28"
+                                                                                              ShadowDepth="0"
+                                                                                              Opacity="0.95"/>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                </Trigger>
+                                                                <Trigger Property="IsEnabled"
+                                                                         Value="False">
+                                                                    <Setter TargetName="ForceDangerActionBorder"
                                                                             Property="Opacity"
                                                                             Value="0.55"/>
                                                                 </Trigger>

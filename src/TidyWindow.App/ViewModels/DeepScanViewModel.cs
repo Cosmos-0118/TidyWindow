@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.Core.Cleanup;
 using TidyWindow.Core.Diagnostics;
 
 namespace TidyWindow.App.ViewModels;
@@ -14,6 +15,7 @@ public sealed record DeepScanLocationOption(string Label, string Path, string De
 
 public sealed partial class DeepScanViewModel : ViewModelBase
 {
+    private readonly CleanupService _cleanupService;
     private readonly DeepScanService _deepScanService;
     private readonly MainViewModel _mainViewModel;
     private readonly List<DeepScanFinding> _allFindings = new();
@@ -37,9 +39,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private int _totalFindings;
     private bool _suppressPresetSync;
 
-    public DeepScanViewModel(DeepScanService deepScanService, MainViewModel mainViewModel)
+    public DeepScanViewModel(DeepScanService deepScanService, CleanupService cleanupService, MainViewModel mainViewModel)
     {
         _deepScanService = deepScanService ?? throw new ArgumentNullException(nameof(deepScanService));
+        _cleanupService = cleanupService ?? throw new ArgumentNullException(nameof(cleanupService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
 
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
@@ -250,8 +253,60 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
     }
 
+    private async Task<(bool Success, string? Error)> ForceDeleteItemAsync(DeepScanItemViewModel item)
+    {
+        try
+        {
+            var previewItem = new CleanupPreviewItem(
+                item.Name,
+                item.Path,
+                item.Finding.SizeBytes,
+                item.Finding.ModifiedUtc.UtcDateTime,
+                item.IsDirectory,
+                item.Extension,
+                isHidden: false,
+                isSystem: false);
+
+            var options = new CleanupDeletionOptions
+            {
+                PreferRecycleBin = false,
+                AllowPermanentDeleteFallback = true,
+                SkipLockedItems = false,
+                TakeOwnershipOnAccessDenied = true,
+                AllowDeleteOnReboot = true,
+                MaxRetryCount = 3,
+                RetryDelay = TimeSpan.FromMilliseconds(200)
+            };
+
+            var result = await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options);
+            var entry = result.Entries.FirstOrDefault();
+
+            if (entry is null)
+            {
+                return (false, "Force delete did not return a result.");
+            }
+
+            if (entry.Disposition == CleanupDeletionDisposition.Deleted)
+            {
+                return (true, null);
+            }
+
+            var reason = string.IsNullOrWhiteSpace(entry.Reason) ? entry.EffectiveReason : entry.Reason;
+            return (false, reason);
+        }
+        catch (Exception ex)
+        {
+            return (false, ex.Message);
+        }
+    }
+
     [RelayCommand]
-    private async Task DeleteFindingAsync(DeepScanItemViewModel? item)
+    private Task DeleteFindingAsync(DeepScanItemViewModel? item) => DeleteFindingInternalAsync(item, useForceDelete: false);
+
+    [RelayCommand]
+    private Task ForceDeleteFindingAsync(DeepScanItemViewModel? item) => DeleteFindingInternalAsync(item, useForceDelete: true);
+
+    private async Task DeleteFindingInternalAsync(DeepScanItemViewModel? item, bool useForceDelete)
     {
         if (item is null)
         {
@@ -284,19 +339,23 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 return;
             }
 
-            _mainViewModel.SetStatusMessage($"Deleting '{name}'…");
-            var (success, error) = await Task.Run(() => TryDeleteItem(item));
+            _mainViewModel.SetStatusMessage(useForceDelete ? $"Force deleting '{name}'…" : $"Deleting '{name}'…");
+            var result = useForceDelete
+                ? await ForceDeleteItemAsync(item)
+                : await Task.Run(() => TryDeleteItem(item));
 
-            if (success)
+            if (result.Success)
             {
                 var removedCount = RemoveFinding(item.Finding);
                 var suffix = removedCount > 1 ? $" and {removedCount - 1} nested item(s)" : string.Empty;
-                _mainViewModel.SetStatusMessage($"Deleted '{name}'{suffix}.");
+                var prefix = useForceDelete ? "Force deleted" : "Deleted";
+                _mainViewModel.SetStatusMessage($"{prefix} '{name}'{suffix}.");
             }
             else
             {
-                var message = string.IsNullOrWhiteSpace(error) ? "Unknown error." : error;
-                _mainViewModel.SetStatusMessage($"Delete failed: {message}");
+                var message = string.IsNullOrWhiteSpace(result.Error) ? "Unknown error." : result.Error;
+                var prefix = useForceDelete ? "Force delete failed" : "Delete failed";
+                _mainViewModel.SetStatusMessage($"{prefix}: {message}");
             }
         }
         finally
