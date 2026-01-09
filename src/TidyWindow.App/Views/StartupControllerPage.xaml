@@ -547,6 +547,14 @@
                                                     CommandParameter="{Binding}" />
                                         </StackPanel>
 
+                                        <ToggleButton Content="Auto-keep disabled"
+                                                  Margin="0,10,0,0"
+                                                  Style="{StaticResource FilterToggleStyle}"
+                                                  IsChecked="{Binding IsAutoGuardEnabled, Mode=TwoWay}"
+                                                  Checked="OnGuardToggled"
+                                                  Unchecked="OnGuardToggled"
+                                                  ToolTip="If the app re-enables itself, TidyWindow will disable it again on refresh." />
+
                                         <Button Content="Delay 45s"
                                                 Margin="0,12,0,0"
                                                 Style="{StaticResource OutlineButtonStyle}"

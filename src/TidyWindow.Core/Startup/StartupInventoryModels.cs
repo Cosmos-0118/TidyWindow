@@ -51,6 +51,11 @@ public sealed record StartupInventoryOptions
     /// </summary>
     public bool IncludeDisabled { get; init; } = true;
 
+    /// <summary>
+    /// Include entries that only exist in Explorer's StartupApproved state (no live Run/StartupFolder item).
+    /// </summary>
+    public bool IncludeStartupApprovedOrphans { get; init; } = true;
+
     public static StartupInventoryOptions ForThreatWatch() => Default with
     {
         IncludeDisabled = false

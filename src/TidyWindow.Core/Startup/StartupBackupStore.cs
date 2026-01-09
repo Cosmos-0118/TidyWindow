@@ -44,6 +44,15 @@ public sealed class StartupBackupStore
         }
     }
 
+    public IReadOnlyCollection<StartupEntryBackup> GetAll()
+    {
+        lock (_lock)
+        {
+            var map = ReadAll();
+            return map.Values.ToList();
+        }
+    }
+
     public void Save(StartupEntryBackup backup)
     {
         if (backup is null)

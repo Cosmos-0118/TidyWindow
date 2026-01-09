@@ -46,6 +46,9 @@ public sealed partial class StartupEntryItemViewModel : ObservableObject
     [ObservableProperty]
     private bool canDelay;
 
+    [ObservableProperty]
+    private bool isAutoGuardEnabled;
+
     public void UpdateFrom(StartupItem item)
     {
         Item = item ?? throw new ArgumentNullException(nameof(item));
@@ -91,6 +94,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private readonly StartupControlService _control;
     private readonly StartupDelayService _delay;
     private readonly ActivityLogService _activityLog;
+    private readonly StartupBackupStore _backupStore = new();
+    private readonly StartupGuardService _guardService;
     private readonly List<StartupEntryItemViewModel> _filteredEntries = new();
 
     [ObservableProperty]
@@ -125,13 +130,13 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private const int DefaultDelaySeconds = 45;
     private static readonly TimeSpan MinimumBusyDuration = TimeSpan.FromMilliseconds(1000);
 
-    public StartupControllerViewModel(StartupInventoryService inventory, StartupControlService control, StartupDelayService delay, ActivityLogService activityLog)
+    public StartupControllerViewModel(StartupInventoryService inventory, StartupControlService control, StartupDelayService delay, ActivityLogService activityLog, StartupGuardService? guardService = null)
     {
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         _control = control ?? throw new ArgumentNullException(nameof(control));
         _delay = delay ?? throw new ArgumentNullException(nameof(delay));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
-
+        _guardService = guardService ?? new StartupGuardService();
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ToggleCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(ToggleAsync, CanToggle);
         EnableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(EnableAsync, CanEnable);
@@ -213,6 +218,13 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
             var snapshot = await _inventory.GetInventoryAsync();
             var mapped = snapshot.Items.Select(startup => new StartupEntryItemViewModel(startup)).ToList();
+            var guarded = _guardService.GetAll();
+            foreach (var entry in mapped)
+            {
+                entry.IsAutoGuardEnabled = guarded.Contains(entry.Item.Id, StringComparer.OrdinalIgnoreCase);
+            }
+
+            await AutoReDisableAsync(mapped).ConfigureAwait(true);
             Entries = new ObservableCollection<StartupEntryItemViewModel>(mapped);
             BaselineDisabledCount = mapped.Count(item => !item.IsEnabled);
         }
@@ -434,6 +446,67 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         }
 
         yield return ex;
+    }
+
+    public async Task SetGuardAsync(StartupEntryItemViewModel entry, bool enabled)
+    {
+        if (entry is null)
+        {
+            return;
+        }
+
+        _guardService.SetGuard(entry.Item.Id, enabled);
+        entry.IsAutoGuardEnabled = enabled;
+
+        if (enabled && entry.IsEnabled)
+        {
+            await DisableAsync(entry);
+        }
+    }
+
+    private async Task AutoReDisableAsync(IReadOnlyCollection<StartupEntryItemViewModel> mapped)
+    {
+        var guards = _guardService.GetAll();
+        if (guards.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var entry in mapped)
+        {
+            var guarded = guards.Contains(entry.Item.Id, StringComparer.OrdinalIgnoreCase);
+            if (!guarded || !entry.IsEnabled)
+            {
+                continue;
+            }
+
+            try
+            {
+                var result = await _control.DisableAsync(entry.Item).ConfigureAwait(true);
+                if (result.Succeeded)
+                {
+                    entry.UpdateFrom(result.Item);
+                    _activityLog.LogWarning(
+                        "StartupController",
+                        $"Re-disabled {entry.Name} because it was re-enabled externally.",
+                        BuildToggleDetails(result));
+                }
+                else
+                {
+                    _activityLog.LogWarning(
+                        "StartupController",
+                        $"Attempted to re-disable {entry.Name} but failed: {result.ErrorMessage}",
+                        BuildToggleDetails(result));
+                }
+            }
+            catch (Exception ex)
+            {
+                _activityLog.LogError(
+                    "StartupController",
+                    $"Error re-disabling {entry.Name}: {ex.Message}",
+                    BuildErrorDetails(entry.Item, ex));
+            }
+        }
     }
 
     public void ApplyVisibleEntries(IReadOnlyList<StartupEntryItemViewModel> visibleEntries, bool resetPage)

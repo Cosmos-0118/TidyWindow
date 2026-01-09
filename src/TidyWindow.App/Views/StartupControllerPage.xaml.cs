@@ -55,7 +55,8 @@ public partial class StartupControllerPage : Page
             new StartupInventoryService(),
             new StartupControlService(),
             new StartupDelayService(),
-            new ActivityLogService());
+            new ActivityLogService(),
+            new StartupGuardService());
 
         _entriesView = new CollectionViewSource();
     }
@@ -274,17 +275,12 @@ public partial class StartupControllerPage : Page
 
     private static bool IsSafe(StartupEntryItemViewModel entry)
     {
-        if (entry.Item.SignatureStatus == StartupSignatureStatus.Unsigned)
-        {
-            return false;
-        }
+        var isTrusted = entry.Item.SignatureStatus == StartupSignatureStatus.SignedTrusted;
+        var isUserScope = !string.Equals(entry.Item.UserContext, "Machine", StringComparison.OrdinalIgnoreCase);
+        var isNonService = entry.Item.SourceKind != StartupItemSourceKind.Service;
+        var isLowOrMedium = entry.Impact == StartupImpact.Low || entry.Impact == StartupImpact.Medium;
 
-        if (entry.Item.SourceKind == StartupItemSourceKind.Service)
-        {
-            return false;
-        }
-
-        return entry.Impact != StartupImpact.High;
+        return isTrusted && isUserScope && isNonService && isLowOrMedium;
     }
 
     private void OnPageChanged(object? sender, EventArgs e)
@@ -296,6 +292,17 @@ public partial class StartupControllerPage : Page
     private void OnEntriesLoaded(object sender, RoutedEventArgs e)
     {
         _entriesScrollViewer ??= FindScrollViewer(EntriesItemsControl);
+    }
+
+    private async void OnGuardToggled(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: StartupEntryItemViewModel entry })
+        {
+            return;
+        }
+
+        var isChecked = (sender as System.Windows.Controls.Primitives.ToggleButton)?.IsChecked == true;
+        await _viewModel.SetGuardAsync(entry, isChecked).ConfigureAwait(true);
     }
 
     private static ScrollViewer? FindScrollViewer(DependencyObject? root)

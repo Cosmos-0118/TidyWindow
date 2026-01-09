@@ -70,6 +70,7 @@ public sealed class StartupInventoryService
         ExecuteSafe(() => EnumerateLogonTasks(effectiveOptions, items, warnings, cancellationToken), warnings, "Logon tasks");
         ExecuteSafe(() => EnumerateAutostartServices(effectiveOptions, items, warnings, cancellationToken), warnings, "Autostart services");
         ExecuteSafe(() => EnumeratePackagedStartupTasks(effectiveOptions, items, warnings, cancellationToken), warnings, "Packaged startup tasks");
+        ExecuteSafe(() => AppendStartupApprovedOrphans(effectiveOptions, items, warnings, cancellationToken), warnings, "StartupApproved orphans");
 
         AppendDelayWarnings(items, warnings);
 
@@ -121,6 +122,156 @@ public sealed class StartupInventoryService
             EnumerateRunKey(Registry.CurrentUser, "Software\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce", StartupItemSourceKind.RunOnce, "HKCU RunServicesOnce", isMachineScope: false, preferWow: false, items, warnings, cancellationToken);
             EnumerateRunKey(Registry.LocalMachine, "Software\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce", StartupItemSourceKind.RunOnce, "HKLM RunServicesOnce", isMachineScope: true, preferWow: false, items, warnings, cancellationToken);
             EnumerateRunKey(Registry.LocalMachine, "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunServicesOnce", StartupItemSourceKind.RunOnce, "HKLM RunServicesOnce (32-bit)", isMachineScope: true, preferWow: true, items, warnings, cancellationToken);
+        }
+    }
+
+    private static void AppendStartupApprovedOrphans(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeStartupApprovedOrphans)
+        {
+            return;
+        }
+
+        var existingIds = new HashSet<string>(items.Select(static i => i.Id), StringComparer.OrdinalIgnoreCase);
+
+        // Run / RunOnce (user + machine, 32-bit variants)
+        AppendRunApprovedOrphans(Registry.CurrentUser, "HKCU Run", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", StartupItemSourceKind.RunKey, isMachineScope: false, existingIds, items, warnings, cancellationToken);
+        AppendRunApprovedOrphans(Registry.CurrentUser, "HKCU Run (32-bit)", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32", StartupItemSourceKind.RunKey, isMachineScope: false, existingIds, items, warnings, cancellationToken);
+        AppendRunApprovedOrphans(Registry.LocalMachine, "HKLM Run", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run", StartupItemSourceKind.RunKey, isMachineScope: true, existingIds, items, warnings, cancellationToken);
+        AppendRunApprovedOrphans(Registry.LocalMachine, "HKLM Run (32-bit)", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\Run32", StartupItemSourceKind.RunKey, isMachineScope: true, existingIds, items, warnings, cancellationToken);
+        AppendRunApprovedOrphans(Registry.CurrentUser, "HKCU RunOnce", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\RunOnce", StartupItemSourceKind.RunOnce, isMachineScope: false, existingIds, items, warnings, cancellationToken);
+        AppendRunApprovedOrphans(Registry.CurrentUser, "HKCU RunOnce (32-bit)", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\RunOnce32", StartupItemSourceKind.RunOnce, isMachineScope: false, existingIds, items, warnings, cancellationToken);
+        AppendRunApprovedOrphans(Registry.LocalMachine, "HKLM RunOnce", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\RunOnce", StartupItemSourceKind.RunOnce, isMachineScope: true, existingIds, items, warnings, cancellationToken);
+        AppendRunApprovedOrphans(Registry.LocalMachine, "HKLM RunOnce (32-bit)", "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\RunOnce32", StartupItemSourceKind.RunOnce, isMachineScope: true, existingIds, items, warnings, cancellationToken);
+
+        // Startup folders (user + common)
+        AppendStartupFolderApprovedOrphans(isMachineScope: false, existingIds, items, warnings, cancellationToken);
+        AppendStartupFolderApprovedOrphans(isMachineScope: true, existingIds, items, warnings, cancellationToken);
+    }
+
+    private static void AppendRunApprovedOrphans(RegistryKey root, string sourceTag, string subKey, StartupItemSourceKind kind, bool isMachineScope, HashSet<string> existingIds, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            foreach (var entryName in key.GetValueNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var approved = ResolveStartupApproved(root, subKey, entryName, preferWow: false);
+                if (approved is null)
+                {
+                    continue;
+                }
+
+                var id = $"run:{sourceTag}:{entryName}";
+                if (existingIds.Contains(id))
+                {
+                    continue;
+                }
+
+                items.Add(new StartupItem(
+                    id,
+                    string.IsNullOrWhiteSpace(entryName) ? sourceTag : entryName,
+                    ExecutablePath: string.Empty,
+                    kind,
+                    sourceTag,
+                    Arguments: null,
+                    RawCommand: null,
+                    IsEnabled: approved.Value,
+                    EntryLocation: $"{GetRootName(root)}\\{InferRunLocationFromApproved(subKey)}",
+                    Publisher: null,
+                    SignatureStatus: StartupSignatureStatus.Unknown,
+                    Impact: ClassifyImpact(kind, isMachineScope, isDelayed: false, fileSizeBytes: null),
+                    FileSizeBytes: null,
+                    LastModifiedUtc: null,
+                    UserContext: isMachineScope ? "Machine" : "CurrentUser"));
+
+                existingIds.Add(id);
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"StartupApproved scan failed for {subKey}: {ex.Message}");
+        }
+    }
+
+    private static string InferRunLocationFromApproved(string approvedSubKey)
+    {
+        if (approvedSubKey.Contains("RunOnce", StringComparison.OrdinalIgnoreCase))
+        {
+            return approvedSubKey.Contains("RunOnce32", StringComparison.OrdinalIgnoreCase)
+                ? "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\RunOnce"
+                : "Software\\Microsoft\\Windows\\CurrentVersion\\RunOnce";
+        }
+
+        return approvedSubKey.Contains("Run32", StringComparison.OrdinalIgnoreCase)
+            ? "Software\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Run"
+            : "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    }
+
+    private static void AppendStartupFolderApprovedOrphans(bool isMachineScope, HashSet<string> existingIds, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
+            var root = isMachineScope ? Registry.LocalMachine : Registry.CurrentUser;
+            using var key = root.OpenSubKey("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            var startupPath = Environment.GetFolderPath(isMachineScope ? Environment.SpecialFolder.CommonStartup : Environment.SpecialFolder.Startup);
+            var sourceTag = isMachineScope ? "Common Startup" : "Startup Folder";
+
+            foreach (var entryName in key.GetValueNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var approved = ResolveStartupApproved(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, preferWow: false);
+                if (approved is null)
+                {
+                    continue;
+                }
+
+                var id = $"startup:{sourceTag}:{entryName}";
+                if (existingIds.Contains(id))
+                {
+                    continue;
+                }
+
+                items.Add(new StartupItem(
+                    id,
+                    string.IsNullOrWhiteSpace(entryName) ? sourceTag : entryName,
+                    ExecutablePath: string.Empty,
+                    StartupItemSourceKind.StartupFolder,
+                    sourceTag,
+                    Arguments: null,
+                    RawCommand: null,
+                    IsEnabled: approved.Value,
+                    EntryLocation: startupPath,
+                    Publisher: null,
+                    SignatureStatus: StartupSignatureStatus.Unknown,
+                    Impact: StartupImpact.Low,
+                    FileSizeBytes: null,
+                    LastModifiedUtc: null,
+                    UserContext: isMachineScope ? "Machine" : "CurrentUser"));
+
+                existingIds.Add(id);
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"StartupApproved scan failed for StartupFolder: {ex.Message}");
         }
     }
 
@@ -381,19 +532,40 @@ public sealed class StartupInventoryService
             return;
         }
 
-        var familyNames = CollectPackageFamilyNames(warnings);
+        var packageInfos = CollectPackageManagerPackages(warnings);
+        var familyNames = new HashSet<string>(CollectPackageFamilyNames(warnings), StringComparer.OrdinalIgnoreCase);
+        foreach (var familyName in packageInfos.Keys)
+        {
+            familyNames.Add(familyName);
+        }
+
         foreach (var familyName in familyNames)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
             try
             {
-                if (!TryResolvePackageInfo(familyName, out var packageRoot, out var packageDisplayName))
+                string? packageRoot = null;
+                string? packageDisplayName = null;
+
+                if (packageInfos.TryGetValue(familyName, out var info))
                 {
-                    continue;
+                    packageRoot = info.InstalledLocation;
+                    packageDisplayName = info.DisplayName;
                 }
 
-                var tasks = ParsePackagedStartupTasks(packageRoot, packageDisplayName);
+                if (string.IsNullOrWhiteSpace(packageRoot) || !Directory.Exists(packageRoot))
+                {
+                    if (!TryResolvePackageInfo(familyName, out packageRoot, out var registryDisplayName))
+                    {
+                        warnings.Add($"Skipped packaged app {familyName}: manifest location not found");
+                        continue;
+                    }
+
+                    packageDisplayName ??= registryDisplayName;
+                }
+
+                var tasks = ParsePackagedStartupTasks(packageRoot, packageDisplayName, familyName, warnings);
                 foreach (var task in tasks)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -506,6 +678,77 @@ public sealed class StartupInventoryService
         return families;
     }
 
+    private static Dictionary<string, PackageManagerPackageInfo> CollectPackageManagerPackages(List<string> warnings)
+    {
+        var packages = new Dictionary<string, PackageManagerPackageInfo>(StringComparer.OrdinalIgnoreCase);
+
+        try
+        {
+            var pmType = Type.GetType("Windows.Management.Deployment.PackageManager, Windows, ContentType=WindowsRuntime");
+            if (pmType is null)
+            {
+                warnings.Add("PackageManager type not available; packaged apps may be incomplete");
+                return packages;
+            }
+
+            var pm = Activator.CreateInstance(pmType);
+            if (pm is null)
+            {
+                warnings.Add("PackageManager could not be created; packaged apps may be incomplete");
+                return packages;
+            }
+
+            var findMethod = pmType.GetMethod("FindPackagesForUser", new[] { typeof(string) });
+            if (findMethod is null)
+            {
+                warnings.Add("PackageManager.FindPackagesForUser not found; packaged apps may be incomplete");
+                return packages;
+            }
+
+            var result = findMethod.Invoke(pm, new object?[] { string.Empty }) as System.Collections.IEnumerable;
+            if (result is null)
+            {
+                warnings.Add("PackageManager returned null package list; packaged apps may be incomplete");
+                return packages;
+            }
+
+            foreach (var pkg in result)
+            {
+                if (pkg is null)
+                {
+                    continue;
+                }
+
+                var packageType = pkg.GetType();
+                var idVal = packageType.GetProperty("Id")?.GetValue(pkg);
+                var family = idVal?.GetType().GetProperty("FamilyName")?.GetValue(idVal) as string;
+                if (string.IsNullOrWhiteSpace(family))
+                {
+                    continue;
+                }
+
+                string? installedPath = null;
+                string? displayName = null;
+
+                var installedLocation = packageType.GetProperty("InstalledLocation")?.GetValue(pkg);
+                if (installedLocation is not null)
+                {
+                    installedPath = installedLocation.GetType().GetProperty("Path")?.GetValue(installedLocation) as string;
+                }
+
+                displayName = packageType.GetProperty("DisplayName")?.GetValue(pkg) as string;
+
+                packages[family] = new PackageManagerPackageInfo(family, installedPath, displayName);
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"PackageManager scan failed: {ex.Message}");
+        }
+
+        return packages;
+    }
+
     private static bool TryResolvePackageInfo(string packageFamilyName, out string packageRoot, out string? packageDisplayName)
     {
         packageRoot = string.Empty;
@@ -567,11 +810,12 @@ public sealed class StartupInventoryService
         return true;
     }
 
-    private static IReadOnlyList<PackagedStartupTaskDefinition> ParsePackagedStartupTasks(string packageRoot, string? packageDisplayName)
+    private static IReadOnlyList<PackagedStartupTaskDefinition> ParsePackagedStartupTasks(string packageRoot, string? packageDisplayName, string packageFamilyName, List<string> warnings)
     {
         var manifestPath = Path.Combine(packageRoot, "AppxManifest.xml");
         if (!File.Exists(manifestPath))
         {
+            warnings.Add($"Appx manifest missing for {packageFamilyName} at {manifestPath}");
             return Array.Empty<PackagedStartupTaskDefinition>();
         }
 
@@ -615,11 +859,14 @@ public sealed class StartupInventoryService
 
             return tasks;
         }
-        catch
+        catch (Exception ex)
         {
+            warnings.Add($"Failed to parse manifest for {packageFamilyName}: {ex.Message}");
             return Array.Empty<PackagedStartupTaskDefinition>();
         }
     }
+
+    private sealed record PackageManagerPackageInfo(string FamilyName, string? InstalledLocation, string? DisplayName);
 
     private static int? GetPackagedStartupState(string packageFamilyName, string taskId)
     {

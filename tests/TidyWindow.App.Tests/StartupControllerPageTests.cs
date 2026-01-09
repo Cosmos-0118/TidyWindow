@@ -1,5 +1,7 @@
 using System;
+using System.IO;
 using System.Windows.Data;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views;
 using TidyWindow.Core.Startup;
@@ -71,6 +73,29 @@ public sealed class StartupControllerPageTests
     }
 
     [Fact]
+    public async Task OnEntriesFilter_SafeFilterRequiresTrustedUserLowImpact()
+    {
+        await WpfTestHelper.Run(() =>
+        {
+            var page = CreatePage();
+            SetDefaults(page);
+            SetField(page, "_filterSafe", true);
+
+            var trustedUserLow = CreateEntry("safe-user", StartupItemSourceKind.RunKey, isEnabled: true, signature: StartupSignatureStatus.SignedTrusted, impact: StartupImpact.Low, userContext: "CurrentUser");
+            var signedButNotTrusted = CreateEntry("signed", StartupItemSourceKind.RunKey, isEnabled: true, signature: StartupSignatureStatus.Signed, impact: StartupImpact.Low, userContext: "CurrentUser");
+            var machineScope = CreateEntry("machine", StartupItemSourceKind.RunKey, isEnabled: true, signature: StartupSignatureStatus.SignedTrusted, impact: StartupImpact.Low, userContext: "Machine");
+            var service = CreateEntry("service", StartupItemSourceKind.Service, isEnabled: true, signature: StartupSignatureStatus.SignedTrusted, impact: StartupImpact.Low, userContext: "Machine");
+            var highImpact = CreateEntry("high", StartupItemSourceKind.RunKey, isEnabled: true, signature: StartupSignatureStatus.SignedTrusted, impact: StartupImpact.High, userContext: "CurrentUser");
+
+            Assert.True(ApplyFilter(page, trustedUserLow));
+            Assert.False(ApplyFilter(page, signedButNotTrusted));
+            Assert.False(ApplyFilter(page, machineScope));
+            Assert.False(ApplyFilter(page, service));
+            Assert.False(ApplyFilter(page, highImpact));
+        });
+    }
+
+    [Fact]
     public void StartupEntryItemViewModel_FormatsLastModifiedDisplay()
     {
         var timestamp = new DateTimeOffset(2024, 12, 31, 23, 45, 0, TimeSpan.Zero);
@@ -80,6 +105,38 @@ public sealed class StartupControllerPageTests
 
         var unknown = new StartupEntryItemViewModel(CreateItem("id-2", "Unknown", null)).LastModifiedDisplay;
         Assert.Equal("Modified: unknown", unknown);
+    }
+
+    [Fact]
+    public async System.Threading.Tasks.Task SetGuardAsync_PersistsFlagWithoutDisablingWhenAlreadyDisabled()
+    {
+        var temp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+
+        try
+        {
+            var guardService = new StartupGuardService(temp);
+            var viewModel = new StartupControllerViewModel(
+                new StartupInventoryService(),
+                new StartupControlService(),
+                new StartupDelayService(),
+                new ActivityLogService(),
+                guardService);
+
+            var entry = new StartupEntryItemViewModel(CreateItem("guarded-1", "Guarded", DateTimeOffset.UtcNow))
+            {
+                IsEnabled = false
+            };
+
+            await viewModel.SetGuardAsync(entry, enabled: true);
+
+            Assert.True(entry.IsAutoGuardEnabled);
+            Assert.True(guardService.IsGuarded(entry.Item.Id));
+        }
+        finally
+        {
+            try { Directory.Delete(temp, recursive: true); } catch { }
+        }
     }
 
     private static StartupControllerPage CreatePage()
@@ -120,13 +177,13 @@ public sealed class StartupControllerPageTests
         field!.SetValue(page, value);
     }
 
-    private static StartupEntryItemViewModel CreateEntry(string id, StartupItemSourceKind kind, bool isEnabled = true, StartupSignatureStatus signature = StartupSignatureStatus.SignedTrusted, StartupImpact impact = StartupImpact.Medium, string publisher = "Publisher", string entryLocation = "HKCU\\Run")
+    private static StartupEntryItemViewModel CreateEntry(string id, StartupItemSourceKind kind, bool isEnabled = true, StartupSignatureStatus signature = StartupSignatureStatus.SignedTrusted, StartupImpact impact = StartupImpact.Medium, string publisher = "Publisher", string entryLocation = "HKCU\\Run", string userContext = "CurrentUser")
     {
-        var item = CreateItem(id, id, DateTimeOffset.UtcNow, kind, isEnabled, signature, impact, publisher, entryLocation);
+        var item = CreateItem(id, id, DateTimeOffset.UtcNow, kind, isEnabled, signature, impact, publisher, entryLocation, userContext);
         return new StartupEntryItemViewModel(item);
     }
 
-    private static StartupItem CreateItem(string id, string name, DateTimeOffset? lastModifiedUtc = null, StartupItemSourceKind kind = StartupItemSourceKind.RunKey, bool isEnabled = true, StartupSignatureStatus signature = StartupSignatureStatus.SignedTrusted, StartupImpact impact = StartupImpact.Medium, string publisher = "Publisher", string entryLocation = "HKCU\\Run")
+    private static StartupItem CreateItem(string id, string name, DateTimeOffset? lastModifiedUtc = null, StartupItemSourceKind kind = StartupItemSourceKind.RunKey, bool isEnabled = true, StartupSignatureStatus signature = StartupSignatureStatus.SignedTrusted, StartupImpact impact = StartupImpact.Medium, string publisher = "Publisher", string entryLocation = "HKCU\\Run", string userContext = "CurrentUser")
     {
         return new StartupItem(
             id,
@@ -143,6 +200,6 @@ public sealed class StartupControllerPageTests
             impact,
             1,
             lastModifiedUtc,
-            "CurrentUser");
+            userContext);
     }
 }
