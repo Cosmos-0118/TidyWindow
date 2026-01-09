@@ -63,6 +63,12 @@ dotnet test tests/TidyWindow.App.Tests/TidyWindow.App.Tests.csproj
 -   Tools in `tools/` validate catalog consistency (`check_duplicate_packages.py`, `suggest_catalog_fixes.py`) and PowerShell flows (`test-process-catalog-parser.ps1`).
 -   PulseGuard and the Activity Log offer runtime confirmation that long-running automations completed or surfaced actionable errors.
 
+## Press Mentions
+
+TidyWindow has been featured across multiple tech websites and software directories. Thank you to everyone who reviewed, listed, or shared it!
+
+See [Press-and-Reviews.md](Press-and-Reviews.md) for the full list of mentions.
+
 ## Documentation Map
 
 -   [`docs/cleanup.md`](docs/cleanup.md) – Disk cleanup workflow, risk model, and automation scheduler.
@@ -88,3 +94,4 @@ dotnet test tests/TidyWindow.App.Tests/TidyWindow.App.Tests.csproj
 TidyWindow ships under the MIT License (see [`LICENSE`](LICENSE)).
 
 The project is built with github copilot assistance alongside contributions from the Windows, PowerShell, winget, Scoop, and Chocolatey ecosystems.
+
