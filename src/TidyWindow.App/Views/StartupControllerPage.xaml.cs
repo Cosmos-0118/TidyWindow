@@ -275,49 +275,29 @@ public partial class StartupControllerPage : Page
 
     private static bool IsSafe(StartupEntryItemViewModel entry)
     {
-        if (entry.Item.SignatureStatus != StartupSignatureStatus.SignedTrusted)
+        var isUserScope = !string.Equals(entry.Item.UserContext, "Machine", StringComparison.OrdinalIgnoreCase);
+        var isHighSystem = entry.Impact == StartupImpact.High && !isUserScope;
+
+        if (IsCriticalSystem(entry))
         {
             return false;
         }
 
-        if (entry.Impact == StartupImpact.High)
-        {
-            return false;
-        }
+        return !isHighSystem;
+    }
 
-        if (entry.Item.SourceKind is StartupItemSourceKind.Service or StartupItemSourceKind.PackagedTask)
-        {
-            return false;
-        }
+    private static bool IsCriticalSystem(StartupEntryItemViewModel entry)
+    {
+        var publisher = (entry.Publisher ?? string.Empty).ToLowerInvariant();
+        var path = (entry.Item.ExecutablePath ?? string.Empty).ToLowerInvariant();
+        var isSystemPath = path.Contains("\\windows\\system32") || path.Contains("\\windows\\syswow64") || path.Contains("\\program files\\windows defender") || path.Contains("\\program files\\windows security") || path.Contains("\\program files\\common files\\microsoft shared") || path.Contains("\\windows\\servicing") || path.Contains("\\windows\\systemapps");
 
-        if (string.Equals(entry.Item.UserContext, "Machine", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
+        var isMicrosoftSecurity = publisher.Contains("microsoft") && (path.Contains("defender") || path.Contains("security") || path.Contains("antimal") || path.Contains("wd"));
+        var isDriverStack = publisher.Contains("intel") || publisher.Contains("advanced micro devices") || publisher.Contains("amd") || publisher.Contains("nvidia") || publisher.Contains("realtek") || publisher.Contains("qualcomm") || publisher.Contains("mediatek");
+        var isCoreService = entry.Item.SourceKind == StartupItemSourceKind.Service && !string.Equals(entry.Item.UserContext, "CurrentUser", StringComparison.OrdinalIgnoreCase);
+        var isSystemTask = entry.Item.SourceKind == StartupItemSourceKind.ScheduledTask && isSystemPath && publisher.Contains("microsoft");
 
-        var publisher = entry.Publisher ?? string.Empty;
-        if (publisher.Contains("Microsoft", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        var path = entry.Item.ExecutablePath ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        var isSystemPath = path.Contains(@"\Windows\", StringComparison.OrdinalIgnoreCase);
-        if (isSystemPath)
-        {
-            return false;
-        }
-
-        var isUserland = path.Contains(@"\AppData\", StringComparison.OrdinalIgnoreCase)
-                         || path.Contains(@"\Program Files\", StringComparison.OrdinalIgnoreCase)
-                         || path.Contains(@"\Program Files (x86)\", StringComparison.OrdinalIgnoreCase);
-
-        return isUserland || entry.Item.SourceKind is StartupItemSourceKind.StartupFolder or StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce;
+        return isSystemPath || isMicrosoftSecurity || isDriverStack || isCoreService || isSystemTask;
     }
 
     private void OnPageChanged(object? sender, EventArgs e)
