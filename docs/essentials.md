@@ -113,7 +113,7 @@ Full visibility into what's happening:
 ┌───────────────────┐         ┌──────────────────────────┐
 │ EssentialsTask    │         │ EssentialsTaskQueue      │
 │ Catalog           │         │ (Sequential Processing)  │
-│ (Task Definitions)│         │                          │
+│ (Task Definitions) │         │                          │
 └─────────┬─────────┘         └──────────-┬──────────────┘
           │                               │
           ▼                               ▼
