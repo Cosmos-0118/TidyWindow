@@ -1,10 +1,10 @@
 {
-  "version": "3.6.7",
+  "version": "3.7.0",
   "channel": "stable",
-  "summary": "-improved questionnaire.  -improves startup controller page - new it have proper enable and disable buttons.  -added proper logging to startup page.  -fixed loading overlays.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.6.7/TidyWindow-Setup-3.6.7.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.6.7",
-  "publishedAt": "2026-01-08T12:49:19Z",
-  "installerSizeBytes": 81352468,
-  "sha256": "064b83f490fe528af34a213e9b36ef123608aa81cab65a7a971127d97fc811bf"
+  "summary": "-fixed a ui bug in essentials page.  -added automatic disable in startup page.  -improved startup page logic and filters.  -added force delete in deepscan page.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.7.0/TidyWindow-Setup-3.7.0.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.7.0",
+  "publishedAt": "2026-01-09T20:15:46Z",
+  "installerSizeBytes": 81372660,
+  "sha256": "02935cfef928339d453c283460029d50a5d3727a409de01110926ce8982f755c"
 }
