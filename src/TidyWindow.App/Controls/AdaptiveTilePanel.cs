@@ -249,6 +249,13 @@ public sealed class AdaptiveTilePanel : WpfPanel
 
         tileWidth = Math.Max(minWidth, Math.Min(maxWidth, tileWidth));
 
+        if (!double.IsNaN(availableWidth) && !double.IsInfinity(availableWidth) && availableWidth > 0)
+        {
+            var viewportWidthPerTile = (availableWidth - Math.Max(0, columns - 1) * ColumnSpacing) / Math.Max(1, columns);
+            viewportWidthPerTile = Math.Max(MinimumTileWidth, viewportWidthPerTile);
+            tileWidth = Math.Min(tileWidth, viewportWidthPerTile);
+        }
+
         var spacing = ColumnSpacing;
         var inset = 0d;
         var usedWidth = columns * tileWidth + Math.Max(0, columns - 1) * spacing;

@@ -275,12 +275,49 @@ public partial class StartupControllerPage : Page
 
     private static bool IsSafe(StartupEntryItemViewModel entry)
     {
-        var isTrusted = entry.Item.SignatureStatus == StartupSignatureStatus.SignedTrusted;
-        var isUserScope = !string.Equals(entry.Item.UserContext, "Machine", StringComparison.OrdinalIgnoreCase);
-        var isNonService = entry.Item.SourceKind != StartupItemSourceKind.Service;
-        var isLowOrMedium = entry.Impact == StartupImpact.Low || entry.Impact == StartupImpact.Medium;
+        if (entry.Item.SignatureStatus != StartupSignatureStatus.SignedTrusted)
+        {
+            return false;
+        }
 
-        return isTrusted && isUserScope && isNonService && isLowOrMedium;
+        if (entry.Impact == StartupImpact.High)
+        {
+            return false;
+        }
+
+        if (entry.Item.SourceKind is StartupItemSourceKind.Service or StartupItemSourceKind.PackagedTask)
+        {
+            return false;
+        }
+
+        if (string.Equals(entry.Item.UserContext, "Machine", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var publisher = entry.Publisher ?? string.Empty;
+        if (publisher.Contains("Microsoft", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var path = entry.Item.ExecutablePath ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        var isSystemPath = path.Contains(@"\Windows\", StringComparison.OrdinalIgnoreCase);
+        if (isSystemPath)
+        {
+            return false;
+        }
+
+        var isUserland = path.Contains(@"\AppData\", StringComparison.OrdinalIgnoreCase)
+                         || path.Contains(@"\Program Files\", StringComparison.OrdinalIgnoreCase)
+                         || path.Contains(@"\Program Files (x86)\", StringComparison.OrdinalIgnoreCase);
+
+        return isUserland || entry.Item.SourceKind is StartupItemSourceKind.StartupFolder or StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce;
     }
 
     private void OnPageChanged(object? sender, EventArgs e)
