@@ -94,6 +94,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private readonly StartupControlService _control;
     private readonly StartupDelayService _delay;
     private readonly ActivityLogService _activityLog;
+    private readonly UserPreferencesService _preferences;
     private readonly StartupBackupStore _backupStore = new();
     private readonly StartupGuardService _guardService;
     private readonly List<StartupEntryItemViewModel> _filteredEntries = new();
@@ -130,19 +131,25 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private const int DefaultDelaySeconds = 45;
     private static readonly TimeSpan MinimumBusyDuration = TimeSpan.FromMilliseconds(1000);
 
-    public StartupControllerViewModel(StartupInventoryService inventory, StartupControlService control, StartupDelayService delay, ActivityLogService activityLog, StartupGuardService? guardService = null)
+    public StartupControllerViewModel(StartupInventoryService inventory, StartupControlService control, StartupDelayService delay, ActivityLogService activityLog, UserPreferencesService preferences, StartupGuardService? guardService = null)
     {
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         _control = control ?? throw new ArgumentNullException(nameof(control));
         _delay = delay ?? throw new ArgumentNullException(nameof(delay));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
+        _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
         _guardService = guardService ?? new StartupGuardService();
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ToggleCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(ToggleAsync, CanToggle);
         EnableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(EnableAsync, CanEnable);
         DisableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DisableAsync, CanDisable);
         DelayCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DelayAsync, CanDelay);
+
+        StartupGuardEnabled = _preferences.Current.StartupGuardEnabled;
     }
+
+    [ObservableProperty]
+    private bool startupGuardEnabled;
 
     public int CurrentPage => _currentPage;
 
@@ -369,6 +376,11 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     }
 
     private bool CanDelay(StartupEntryItemViewModel? item) => item is not null && item.CanDelay && !IsBusy && !item.IsBusy;
+
+    partial void OnStartupGuardEnabledChanged(bool value)
+    {
+        _preferences.SetStartupGuardEnabled(value);
+    }
 
     private async Task DelayAsync(StartupEntryItemViewModel? item)
     {

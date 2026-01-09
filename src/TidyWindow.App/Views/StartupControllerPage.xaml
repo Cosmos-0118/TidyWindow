@@ -336,6 +336,11 @@
                                 <ProgressBar Width="90" Height="8" IsIndeterminate="True" Foreground="#38BDF8" Background="#0E1C30" BorderBrush="#1F2E46" />
                                 <TextBlock Text="Working..." Margin="8,0,0,0" Foreground="#E5E7EB" FontSize="12" VerticalAlignment="Center" />
                             </StackPanel>
+                            <ToggleButton Content="Background auto-disable"
+                                          Style="{StaticResource FilterToggleStyle}"
+                                          Margin="0,0,10,0"
+                                          IsChecked="{Binding StartupGuardEnabled, Mode=TwoWay}"
+                                          ToolTip="Keeps guarded startup apps disabled automatically in the background (respects Run in background setting)." />
                             <Button Content="Refresh"
                                     Style="{StaticResource OutlineButtonStyle}"
                                     Command="{Binding RefreshCommand}"

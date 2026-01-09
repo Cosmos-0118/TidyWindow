@@ -147,6 +147,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<StartupInventoryService>();
                 services.AddSingleton<StartupControlService>();
                 services.AddSingleton<StartupDelayService>();
+                services.AddSingleton<StartupGuardService>();
+                services.AddSingleton<StartupGuardBackgroundService>();
                 services.AddSingleton<ThreatWatchScanService>();
                 services.AddSingleton<ThreatWatchBackgroundScanner>();
 
@@ -202,6 +204,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<MaintenanceAutoUpdateScheduler>();
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
         _ = _host.Services.GetRequiredService<ThreatWatchBackgroundScanner>();
+        _ = _host.Services.GetRequiredService<StartupGuardBackgroundService>();
 
         var startHidden = launchMinimized && preferences.Current.RunInBackground;
 

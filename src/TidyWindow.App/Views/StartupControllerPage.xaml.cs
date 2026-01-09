@@ -51,11 +51,13 @@ public partial class StartupControllerPage : Page
             throw new ArgumentException("Use the public constructor in production code.", nameof(skipInitializeComponent));
         }
 
+        var preferences = new UserPreferencesService();
         _viewModel = new StartupControllerViewModel(
             new StartupInventoryService(),
             new StartupControlService(),
             new StartupDelayService(),
             new ActivityLogService(),
+            preferences,
             new StartupGuardService());
 
         _entriesView = new CollectionViewSource();

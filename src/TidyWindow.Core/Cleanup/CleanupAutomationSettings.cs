@@ -28,7 +28,7 @@ public sealed record CleanupAutomationSettings
         automationEnabled: false,
         intervalMinutes: DefaultIntervalMinutes,
         deletionMode: CleanupAutomationDeletionMode.SkipLocked,
-        includeDownloads: true,
+        includeDownloads: false,
         includeBrowserHistory: false,
         topItemCount: DefaultTopItemCount,
         lastRunUtc: null);

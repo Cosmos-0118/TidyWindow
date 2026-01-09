@@ -48,6 +48,8 @@ public sealed class UserPreferencesService
 
     public void SetPulseGuardEnabled(bool value) => Update(p => p with { PulseGuardEnabled = value });
 
+    public void SetStartupGuardEnabled(bool value) => Update(p => p with { StartupGuardEnabled = value });
+
     public void SetNotificationsEnabled(bool value) => Update(p => p with { NotificationsEnabled = value });
 
     public void SetNotifyOnlyWhenInactive(bool value) => Update(p => p with { NotifyOnlyWhenInactive = value });
@@ -352,6 +354,7 @@ public sealed record UserPreferences(
     bool RunInBackground = false,
     bool LaunchAtStartup = true,
     bool PulseGuardEnabled = true,
+    bool StartupGuardEnabled = false,
     bool NotificationsEnabled = true,
     bool NotifyOnlyWhenInactive = true,
     bool PulseGuardShowSuccessSummaries = true,

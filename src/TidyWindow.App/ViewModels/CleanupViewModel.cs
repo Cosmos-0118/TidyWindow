@@ -336,7 +336,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     }
 
     [ObservableProperty]
-    private bool _includeDownloads = true;
+    private bool _includeDownloads = false;
 
     [ObservableProperty]
     private bool _includeBrowserHistory = true;
@@ -450,7 +450,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private CleanupAutomationDeletionModeOption? _selectedAutomationDeletionMode;
 
     [ObservableProperty]
-    private bool _automationIncludeDownloads = true;
+    private bool _automationIncludeDownloads = false;
 
     [ObservableProperty]
     private bool _automationIncludeBrowserHistory = false;
@@ -2838,7 +2838,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     [RelayCommand]
     private void ResetFilters()
     {
-        IncludeDownloads = true;
+        IncludeDownloads = false;
         IncludeBrowserHistory = true;
         SelectedItemKind = CleanupItemKind.Both;
         SelectedExtensionFilterMode = CleanupExtensionFilterMode.None;
