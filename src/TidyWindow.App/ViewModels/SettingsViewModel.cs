@@ -2,10 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
+using System.Net.Http;
+using System.Text.Json;
+using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
+using WindowsClipboard = System.Windows.Clipboard;
 
 namespace TidyWindow.App.ViewModels;
 
@@ -36,6 +42,10 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _isInstallingUpdate;
     private long _installerBytesReceived;
     private long? _installerTotalBytes;
+    private static readonly HttpClient ReleaseNotesHttpClient = CreateReleaseNotesClient();
+    private bool _hasFetchedFullReleaseNotes;
+    private bool _isReleaseNotesDialogVisible;
+    private IReadOnlyList<ReleaseNoteLine> _releaseNotesDisplayLines = Array.Empty<ReleaseNoteLine>();
 
     public SettingsViewModel(
         MainViewModel mainViewModel,
@@ -60,10 +70,18 @@ public sealed class SettingsViewModel : ViewModelBase
 
         CheckForUpdatesCommand = new AsyncRelayCommand(CheckForUpdatesAsync, CanCheckForUpdates);
         InstallUpdateCommand = new AsyncRelayCommand(InstallUpdateAsync, CanInstallUpdate);
+        ShowReleaseNotesCommand = new RelayCommand(ShowReleaseNotes, CanShowReleaseNotes);
+        CloseReleaseNotesCommand = new RelayCommand(CloseReleaseNotes);
+        CopyReleaseNotesCommand = new RelayCommand(CopyReleaseNotes, () => HasReleaseNotesContent);
+        OpenReleaseNotesLinkCommand = new RelayCommand(OpenReleaseNotesLink, () => LatestReleaseNotesUri is not null);
     }
 
     public IAsyncRelayCommand CheckForUpdatesCommand { get; }
     public IAsyncRelayCommand InstallUpdateCommand { get; }
+    public IRelayCommand ShowReleaseNotesCommand { get; }
+    public IRelayCommand CloseReleaseNotesCommand { get; }
+    public IRelayCommand CopyReleaseNotesCommand { get; }
+    public IRelayCommand OpenReleaseNotesLinkCommand { get; }
 
     public bool TelemetryEnabled
     {
@@ -258,6 +276,26 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool HasReleaseNotesLink => LatestReleaseNotesUri is not null;
 
     public bool HasDownloadLink => LatestDownloadUri is not null;
+
+    public bool IsReleaseNotesDialogVisible
+    {
+        get => _isReleaseNotesDialogVisible;
+        private set => SetProperty(ref _isReleaseNotesDialogVisible, value);
+    }
+
+    public IReadOnlyList<ReleaseNoteLine> ReleaseNotesDisplayLines => _releaseNotesDisplayLines;
+
+    public bool HasReleaseNotesContent => _releaseNotesDisplayLines.Count > 0;
+
+    public bool HasReleaseNotes => HasReleaseNotesContent || HasReleaseNotesLink;
+
+    public string ReleaseNotesDialogTitle => _updateResult is null
+        ? "Release notes"
+        : $"Release notes - {_updateResult.LatestVersion}";
+
+    public string ReleaseNotesDialogSubtitle => _updateResult is { PublishedAtUtc: { } publishedAt }
+        ? $"{FormatTimestamp(publishedAt)} - {UpdateChannelDisplay} channel"
+        : "Release notes will show after the first check.";
 
     public bool HasAttemptedUpdateCheck
     {
@@ -549,6 +587,7 @@ public sealed class SettingsViewModel : ViewModelBase
                 : $"No updates available (current {result.CurrentVersion}).",
             BuildUpdateDetails(result));
 
+        RefreshReleaseNotesContent();
         RaiseUpdateProperties();
     }
 
@@ -566,9 +605,265 @@ public sealed class SettingsViewModel : ViewModelBase
         OnPropertyChanged(nameof(LatestReleaseNotesUri));
         OnPropertyChanged(nameof(LatestDownloadUri));
         OnPropertyChanged(nameof(HasReleaseNotesLink));
+        OnPropertyChanged(nameof(ReleaseNotesDisplayLines));
+        OnPropertyChanged(nameof(HasReleaseNotesContent));
+        OnPropertyChanged(nameof(HasReleaseNotes));
+        OnPropertyChanged(nameof(ReleaseNotesDialogTitle));
+        OnPropertyChanged(nameof(ReleaseNotesDialogSubtitle));
         OnPropertyChanged(nameof(HasDownloadLink));
         OnPropertyChanged(nameof(LastUpdateCheckDisplay));
         InstallUpdateCommand.NotifyCanExecuteChanged();
+        ShowReleaseNotesCommand.NotifyCanExecuteChanged();
+        CopyReleaseNotesCommand.NotifyCanExecuteChanged();
+        OpenReleaseNotesLinkCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RefreshReleaseNotesContent()
+    {
+        _releaseNotesDisplayLines = BuildReleaseNotesLines(_updateResult?.Summary);
+        _hasFetchedFullReleaseNotes = false;
+        _ = TryFetchFullReleaseNotesAsync();
+
+        if (!HasReleaseNotes)
+        {
+            IsReleaseNotesDialogVisible = false;
+        }
+
+        OnPropertyChanged(nameof(ReleaseNotesDisplayLines));
+        OnPropertyChanged(nameof(HasReleaseNotesContent));
+        OnPropertyChanged(nameof(HasReleaseNotes));
+        OnPropertyChanged(nameof(ReleaseNotesDialogTitle));
+        OnPropertyChanged(nameof(ReleaseNotesDialogSubtitle));
+
+        UpdateReleaseNotesCommands();
+    }
+
+    private async Task<bool> TryFetchFullReleaseNotesAsync()
+    {
+        var uri = LatestReleaseNotesUri;
+        if (uri is null || _updateResult is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var apiUri = new Uri($"https://api.github.com/repos/Cosmos-0118/TidyWindow/releases/tags/v{_updateResult.LatestVersion}");
+            using var request = new HttpRequestMessage(HttpMethod.Get, apiUri);
+            using var response = await ReleaseNotesHttpClient.SendAsync(request).ConfigureAwait(false);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                return false;
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
+            var payload = await JsonSerializer.DeserializeAsync<GitHubReleaseResponse>(stream).ConfigureAwait(false);
+            if (payload?.Body is null || payload.Body.Length == 0)
+            {
+                return false;
+            }
+
+            var parsed = BuildReleaseNotesLines(payload.Body);
+            if (parsed.Count == 0)
+            {
+                return false;
+            }
+
+            await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                _releaseNotesDisplayLines = parsed;
+                OnPropertyChanged(nameof(ReleaseNotesDisplayLines));
+                OnPropertyChanged(nameof(HasReleaseNotesContent));
+                OnPropertyChanged(nameof(HasReleaseNotes));
+                UpdateReleaseNotesCommands();
+            });
+            _hasFetchedFullReleaseNotes = true;
+            return true;
+        }
+        catch
+        {
+            // Ignore fetch failures; fall back to manifest summary.
+            return false;
+        }
+    }
+
+    private void UpdateReleaseNotesCommands()
+    {
+        ShowReleaseNotesCommand.NotifyCanExecuteChanged();
+        CopyReleaseNotesCommand.NotifyCanExecuteChanged();
+        OpenReleaseNotesLinkCommand.NotifyCanExecuteChanged();
+    }
+
+    private async Task EnsureFullReleaseNotesAsync()
+    {
+        if (_hasFetchedFullReleaseNotes)
+        {
+            return;
+        }
+
+        if (!NeedsFullReleaseNotesFetch())
+        {
+            _hasFetchedFullReleaseNotes = true;
+            return;
+        }
+
+        await TryFetchFullReleaseNotesAsync().ConfigureAwait(true);
+    }
+
+    private bool NeedsFullReleaseNotesFetch()
+    {
+        if (_releaseNotesDisplayLines.Count == 0)
+        {
+            return true;
+        }
+
+        return _releaseNotesDisplayLines.Any(line => line.Text.Contains("...", StringComparison.Ordinal));
+    }
+
+    private bool CanShowReleaseNotes() => HasReleaseNotes;
+
+    private async void ShowReleaseNotes()
+    {
+        if (!HasReleaseNotes)
+        {
+            PublishStatus("Release notes are not available yet.");
+            return;
+        }
+
+        await EnsureFullReleaseNotesAsync().ConfigureAwait(true);
+        IsReleaseNotesDialogVisible = true;
+    }
+
+    private void CloseReleaseNotes()
+    {
+        IsReleaseNotesDialogVisible = false;
+    }
+
+    private void CopyReleaseNotes()
+    {
+        if (!HasReleaseNotesContent)
+        {
+            PublishStatus("No release notes to copy yet.");
+            return;
+        }
+
+        try
+        {
+            var text = string.Join(Environment.NewLine, _releaseNotesDisplayLines.Select(line => $"{line.Icon} {line.Text}"));
+            WindowsClipboard.SetText(text);
+            PublishStatus("Release notes copied to the clipboard.");
+        }
+        catch
+        {
+            PublishStatus("Unable to access the clipboard.");
+        }
+    }
+
+    private void OpenReleaseNotesLink()
+    {
+        var uri = LatestReleaseNotesUri;
+        if (uri is null)
+        {
+            PublishStatus("Release notes link is not available yet.");
+            return;
+        }
+
+        try
+        {
+            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            PublishStatus("Could not open the release notes link.");
+            _mainViewModel.LogActivityInformation("Updates", $"Failed to open release notes link: {ex.Message}");
+        }
+    }
+
+    private static IReadOnlyList<ReleaseNoteLine> BuildReleaseNotesLines(string? summary)
+    {
+        if (string.IsNullOrWhiteSpace(summary))
+        {
+            return Array.Empty<ReleaseNoteLine>();
+        }
+
+        var normalized = summary.Replace("\r\n", "\n");
+        var segments = Regex.Split(normalized, @"(?:\r?\n|\s+-\s*|^\s*-\s*)")
+            .Select(part => part.Trim())
+            .Where(part => part.Length > 0)
+            .ToList();
+
+        if (segments.Count == 0)
+        {
+            return Array.Empty<ReleaseNoteLine>();
+        }
+
+        var lines = new List<ReleaseNoteLine>(segments.Count);
+        foreach (var segment in segments)
+        {
+            var text = NormalizeReleaseNoteText(segment);
+            lines.Add(new ReleaseNoteLine(ResolveReleaseNoteIcon(text), text));
+        }
+
+        return lines;
+    }
+
+    private static string NormalizeReleaseNoteText(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = text.Trim();
+        return char.IsLower(trimmed[0]) ? char.ToUpper(trimmed[0], CultureInfo.CurrentCulture) + trimmed[1..] : trimmed;
+    }
+
+    private static string ResolveReleaseNoteIcon(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return "•";
+        }
+
+        if (text.Contains("fix", StringComparison.OrdinalIgnoreCase))
+        {
+            return "🛠️";
+        }
+
+        if (text.Contains("add", StringComparison.OrdinalIgnoreCase) || text.Contains("new", StringComparison.OrdinalIgnoreCase))
+        {
+            return "✨";
+        }
+
+        if (text.Contains("improve", StringComparison.OrdinalIgnoreCase) || text.Contains("better", StringComparison.OrdinalIgnoreCase))
+        {
+            return "🚀";
+        }
+
+        if (text.Contains("security", StringComparison.OrdinalIgnoreCase) || text.Contains("defender", StringComparison.OrdinalIgnoreCase))
+        {
+            return "🛡️";
+        }
+
+        return "•";
+    }
+
+    public sealed record ReleaseNoteLine(string Icon, string Text);
+
+    private sealed record GitHubReleaseResponse(string? Body);
+
+    private static HttpClient CreateReleaseNotesClient()
+    {
+        var client = new HttpClient
+        {
+            Timeout = TimeSpan.FromSeconds(10)
+        };
+
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("TidyWindow/ReleaseNotesFetcher");
+        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
+        client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
+        return client;
     }
 
     private static IEnumerable<string> BuildUpdateDetails(UpdateCheckResult result)

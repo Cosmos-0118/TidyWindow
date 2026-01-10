@@ -208,13 +208,25 @@
                         <Setter Property="Foreground"
                                         Value="#0F172A"/>
                 </Style>
+
+                <Style x:Key="SettingsInfoChipStyle" TargetType="Border">
+                        <Setter Property="Background" Value="#0F172A"/>
+                        <Setter Property="BorderBrush" Value="#1E2E46"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="CornerRadius" Value="12"/>
+                        <Setter Property="Padding" Value="12,10"/>
+                        <Setter Property="Margin" Value="0,8,8,0"/>
+                        <Setter Property="SnapsToDevicePixels" Value="True"/>
+                        <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+                </Style>
         </Page.Resources>
 
-        <ScrollViewer Margin="32"
-                                  VerticalScrollBarVisibility="Auto"
-                                  HorizontalScrollBarVisibility="Disabled"
-                                  CanContentScroll="False">
-                <StackPanel>
+        <Grid>
+                <ScrollViewer Margin="32"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          CanContentScroll="False">
+                        <StackPanel>
                         <controls:PageTitleBar Title="Settings"
                                                Subtitle="Tune how TidyWindow runs on your machine."
                                                IconGlyph="⚙️"
@@ -316,57 +328,69 @@
                                                                    Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                                                    Margin="0,12,0,0"/>
 
-                                                <TextBlock Text="Release summary"
-                                                                   Foreground="#94A3B8"
-                                                                   FontSize="12"
-                                                                   Margin="0,16,0,4"/>
-                                                <TextBlock Text="{Binding LatestReleaseSummary}"
-                                                                   Foreground="#E2E8F0"
-                                                                   TextWrapping="Wrap"/>
+                                                <WrapPanel Margin="0,16,0,0">
+                                                        <Border Style="{StaticResource SettingsInfoChipStyle}">
+                                                                <StackPanel>
+                                                                        <TextBlock Text="Published"
+                                                                                           Foreground="#94A3B8"
+                                                                                           FontSize="11"/>
+                                                                        <TextBlock Text="{Binding LatestReleasePublishedDisplay}"
+                                                                                           Foreground="#F8FAFC"
+                                                                                           FontSize="14"
+                                                                                           FontWeight="SemiBold"/>
+                                                                </StackPanel>
+                                                        </Border>
 
-                                                <Grid Margin="0,16,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="Published"
-                                                                                   Foreground="#94A3B8"
-                                                                                   FontSize="12"/>
-                                                                <TextBlock Text="{Binding LatestReleasePublishedDisplay}"
-                                                                                   Foreground="#F8FAFC"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Installer size"
-                                                                                   Foreground="#94A3B8"
-                                                                                   FontSize="12"
-                                                                                   Margin="0,12,0,0"/>
-                                                                <TextBlock Text="{Binding InstallerSizeDisplay}"
-                                                                                   Foreground="#F8FAFC"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                        </StackPanel>
-                                                        <StackPanel Grid.Column="1"
-                                                                                Margin="12,0,0,0">
-                                                                <TextBlock Text="Integrity"
-                                                                                   Foreground="#94A3B8"
-                                                                                   FontSize="12"/>
-                                                                <TextBlock Text="{Binding LatestIntegrityDisplay}"
-                                                                                   Foreground="#F8FAFC"
-                                                                                   FontSize="13"
-                                                                                   TextWrapping="Wrap"/>
-                                                        </StackPanel>
-                                                </Grid>
+                                                        <Border Style="{StaticResource SettingsInfoChipStyle}">
+                                                                <StackPanel>
+                                                                        <TextBlock Text="Installer size"
+                                                                                           Foreground="#94A3B8"
+                                                                                           FontSize="11"/>
+                                                                        <TextBlock Text="{Binding InstallerSizeDisplay}"
+                                                                                           Foreground="#F8FAFC"
+                                                                                           FontSize="14"
+                                                                                           FontWeight="SemiBold"/>
+                                                                </StackPanel>
+                                                        </Border>
+
+                                                        <Border Style="{StaticResource SettingsInfoChipStyle}">
+                                                                <StackPanel>
+                                                                        <TextBlock Text="Integrity"
+                                                                                           Foreground="#94A3B8"
+                                                                                           FontSize="11"/>
+                                                                        <TextBlock Text="{Binding LatestIntegrityDisplay}"
+                                                                                           Foreground="#F8FAFC"
+                                                                                           FontSize="13"
+                                                                                           TextWrapping="Wrap"
+                                                                                           MaxWidth="220"/>
+                                                                </StackPanel>
+                                                        </Border>
+                                                </WrapPanel>
 
                                                 <StackPanel Margin="0,16,0,0"
-                                                                Visibility="{Binding HasReleaseNotesLink, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                Visibility="{Binding HasReleaseNotes, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                         <TextBlock Text="Release notes"
                                                                            Foreground="#94A3B8"
                                                                            FontSize="12"/>
-                                                        <TextBlock Foreground="#F8FAFC">
-                                                                <Hyperlink NavigateUri="{Binding LatestReleaseNotesUri}"
-                                                                                   RequestNavigate="UpdateLink_RequestNavigate">Open on GitHub</Hyperlink>
-                                                        </TextBlock>
+                                                        <StackPanel Orientation="Horizontal"
+                                                                        Margin="0,6,0,0">
+                                                                <Button Content="View release notes"
+                                                                                Command="{Binding ShowReleaseNotesCommand}"
+                                                                                Style="{StaticResource SettingsCheckButtonStyle}"
+                                                                                MinWidth="170"/>
+                                                                <Button Content="Open on GitHub"
+                                                                                Command="{Binding OpenReleaseNotesLinkCommand}"
+                                                                                Style="{StaticResource SettingsActionButtonStyle}"
+                                                                                Background="#111B33"
+                                                                                Foreground="#E2E8F0"
+                                                                                Tag="#1E293B"
+                                                                                Margin="8,0,0,0"
+                                                                                MinWidth="150"
+                                                                                IsEnabled="{Binding HasReleaseNotesLink}"/>
+                                                        </StackPanel>
+                                                        <TextBlock Text="Opens a focused popup with structured notes."
+                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
+                                                                   Margin="0,6,0,0"/>
                                                 </StackPanel>
 
                                                 <StackPanel Margin="0,12,0,0"
@@ -625,6 +649,138 @@
                                         </StackPanel>
                                 </Border>
                         </StackPanel>
-                </StackPanel>
-        </ScrollViewer>
+                                        </StackPanel>
+                </ScrollViewer>
+
+                <Grid x:Name="ReleaseNotesOverlay"
+                              Panel.ZIndex="9"
+                              Background="#B0020617"
+                              Visibility="{Binding IsReleaseNotesDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              IsHitTestVisible="{Binding IsReleaseNotesDialogVisible}">
+                        <Border MinWidth="540"
+                                        MaxWidth="980"
+                                        Margin="32"
+                                        Padding="28"
+                                        Background="#0B1729"
+                                        BorderBrush="#24344F"
+                                        BorderThickness="1"
+                                        CornerRadius="24"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                <Grid>
+                                        <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <StackPanel Margin="0,0,0,18">
+                                                <TextBlock Text="{Binding ReleaseNotesDialogTitle}"
+                                                                   FontSize="20"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="#F8FAFC"
+                                                                   TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding ReleaseNotesDialogSubtitle}"
+                                                                   Margin="0,6,0,0"
+                                                                   Foreground="#9FB0C7"
+                                                                   FontSize="12"
+                                                                   TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding UpdateAvailabilitySummary}"
+                                                                   Margin="0,6,0,0"
+                                                                   Foreground="#B4C4E0"
+                                                                   FontSize="12"
+                                                                   TextWrapping="Wrap"/>
+                                        </StackPanel>
+
+                                        <Border Grid.Row="1"
+                                                        Background="#0A162C"
+                                                        BorderBrush="#1E2F4B"
+                                                        BorderThickness="1"
+                                                        CornerRadius="12"
+                                                        Padding="12">
+                                                <Grid>
+                                                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                                                              HorizontalScrollBarVisibility="Disabled"
+                                                                              MaxHeight="540">
+                                                                <ItemsControl ItemsSource="{Binding ReleaseNotesDisplayLines}"
+                                                                                      HorizontalAlignment="Stretch"
+                                                                                      Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
+                                                                        <ItemsControl.ItemTemplate>
+                                                                                <DataTemplate>
+                                                                                        <Grid Margin="0,6,0,6">
+                                                                                                <Grid.ColumnDefinitions>
+                                                                                                        <ColumnDefinition Width="Auto"/>
+                                                                                                        <ColumnDefinition Width="*"/>
+                                                                                                </Grid.ColumnDefinitions>
+                                                                                                <TextBlock Text="{Binding Icon}"
+                                                                                                           FontSize="14"
+                                                                                                           Margin="0,0,10,0"
+                                                                                                           VerticalAlignment="Top"/>
+                                                                                                <TextBlock Grid.Column="1"
+                                                                                                           Text="{Binding Text}"
+                                                                                                           FontSize="13"
+                                                                                                           Foreground="#E2E8F0"
+                                                                                                           TextWrapping="Wrap"
+                                                                                                           TextTrimming="None"
+                                                                                                           Margin="0,0,6,0"/>
+                                                                                        </Grid>
+                                                                                </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                </ItemsControl>
+                                                        </ScrollViewer>
+                                                        <TextBlock Text="Release notes will appear after the first check."
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center"
+                                                                       Foreground="#5F6B84"
+                                                                       FontSize="12">
+                                                                <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                                <Setter Property="Visibility"
+                                                                                                Value="Collapsed"/>
+                                                                                <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding ReleaseNotesDisplayLines.Count, TargetNullValue=0}"
+                                                                                                         Value="0">
+                                                                                                <Setter Property="Visibility"
+                                                                                                                Value="Visible"/>
+                                                                                        </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                        </Style>
+                                                                </TextBlock.Style>
+                                                        </TextBlock>
+                                                </Grid>
+                                        </Border>
+
+                                        <StackPanel Grid.Row="2"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    Margin="0,18,0,0">
+                                                <Button Content="Open on GitHub"
+                                                                Command="{Binding OpenReleaseNotesLinkCommand}"
+                                                                Style="{StaticResource SettingsActionButtonStyle}"
+                                                                Background="#111B33"
+                                                                Foreground="#E2E8F0"
+                                                                Tag="#1E293B"
+                                                                Padding="14,6"
+                                                                MinWidth="140"
+                                                                IsEnabled="{Binding HasReleaseNotesLink}"/>
+                                                <Button Content="Copy notes"
+                                                                Command="{Binding CopyReleaseNotesCommand}"
+                                                                Style="{StaticResource SettingsActionButtonStyle}"
+                                                                Background="#0F172A"
+                                                                Foreground="#E2E8F0"
+                                                                Tag="#1F2A3D"
+                                                                Padding="14,6"
+                                                                MinWidth="120"
+                                                                Margin="10,0,0,0"/>
+                                                <Button Content="Close"
+                                                                Command="{Binding CloseReleaseNotesCommand}"
+                                                                Style="{StaticResource SettingsCheckButtonStyle}"
+                                                                Padding="16,8"
+                                                                MinWidth="120"
+                                                                Margin="12,0,0,0"/>
+                                        </StackPanel>
+                                </Grid>
+                        </Border>
+                </Grid>
+        </Grid>
 </Page>

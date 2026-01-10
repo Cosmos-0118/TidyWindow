@@ -384,12 +384,12 @@
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
                         <Button Content="Run scan"
-                                Command="{Binding RefreshCommand}"
-                                Padding="18,10"
-                                Background="{StaticResource DeepScanActionButtonBrush}"
-                                Foreground="#041217"
-                                BorderThickness="0"
-                                Cursor="Hand">
+                            Command="{Binding RefreshCommand}"
+                            Padding="18,10"
+                            Background="{StaticResource DeepScanActionButtonBrush}"
+                            Foreground="#041217"
+                            BorderThickness="0"
+                            Cursor="Hand">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
                                     <Border x:Name="ScanBorder"
@@ -407,63 +407,12 @@
                                                     Property="Opacity"
                                                     Value="0.6"/>
                                         </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="ScanBorder"
-                                                    Property="Background"
-                                                    Value="{StaticResource DeepScanActionButtonHoverBrush}"/>
-                                        </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
                             </Button.Template>
                             <Button.IsEnabled>
-                                <Binding Path="IsBusy"
-                                         Converter="{StaticResource InverseBooleanConverter}"/>
+                                <Binding Path="IsBusy" Converter="{StaticResource InverseBooleanConverter}"/>
                             </Button.IsEnabled>
-                        </Button>
-                        <Button Content="Cancel"
-                                Command="{Binding CancelScanCommand}"
-                                Padding="14,10"
-                                Margin="8,0,0,0"
-                                Background="#1E293B"
-                                Foreground="#E2E8F0"
-                                BorderBrush="#334155"
-                                BorderThickness="1"
-                                Cursor="Hand"
-                                ToolTip="Stop the current scan.">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="CancelBorder"
-                                            Background="{TemplateBinding Background}"
-                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                            BorderThickness="{TemplateBinding BorderThickness}"
-                                            CornerRadius="10"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"/>
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsEnabled"
-                                                 Value="False">
-                                            <Setter TargetName="CancelBorder"
-                                                    Property="Opacity"
-                                                    Value="0.55"/>
-                                        </Trigger>
-                                        <Trigger Property="IsMouseOver"
-                                                 Value="True">
-                                            <Setter TargetName="CancelBorder"
-                                                    Property="Background"
-                                                    Value="#25324A"/>
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                            <Button.IsEnabled>
-                                <Binding Path="CanCancel"/>
-                            </Button.IsEnabled>
-                            <Button.Visibility>
-                                <Binding Path="CanCancel" Converter="{StaticResource BooleanToVisibilityConverter}"/>
-                            </Button.Visibility>
                         </Button>
                     </StackPanel>
                 </Grid>
