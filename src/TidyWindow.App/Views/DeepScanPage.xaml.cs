@@ -85,13 +85,10 @@ public partial class DeepScanPage : Page
 
         if (confirmation != MessageBoxResult.Yes)
         {
-            _viewModel.IsForceDeleteArmed = false;
             return;
         }
 
         await ExecuteDeleteCommandAsync(item, _viewModel.ForceDeleteFindingCommand);
-
-        _viewModel.IsForceDeleteArmed = false;
 
         e.Handled = true;
     }

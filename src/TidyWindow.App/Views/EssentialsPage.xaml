@@ -141,6 +141,65 @@
             </Setter>
         </Style>
 
+        <Style x:Key="EssentialsDialogCloseButtonStyle" TargetType="Button">
+            <Setter Property="Background">
+                <Setter.Value>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#1C2438" Offset="0"/>
+                        <GradientStop Color="#11182B" Offset="1"/>
+                    </LinearGradientBrush>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="BorderBrush" Value="#2F3F60"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="#E5EDFF"/>
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="MinWidth" Value="96"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect BlurRadius="12" ShadowDepth="0" Color="#5510122A" Opacity="0.65"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                  <Path Data="M4,4 L10,10 M10,4 L4,10"
+                                      StrokeThickness="1.8"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      Stroke="{TemplateBinding Foreground}"
+                                      Margin="0,0,6,0"/>
+                                <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1F2C48"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#0B1220"/>
+                                <Setter Property="Foreground" Value="#C7D2FE"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.55"/>
+                                <Setter Property="Effect" Value="{x:Null}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style x:Key="EssentialsCardStyle" TargetType="Border">
             <Setter Property="Background" Value="#0F1B30"/>
             <Setter Property="BorderBrush" Value="#1E2E46"/>
@@ -1216,13 +1275,6 @@
                                        FontSize="13"
                                        TextWrapping="Wrap"/>
                         </StackPanel>
-                        <Button Content="Close"
-                                Command="{Binding CloseTaskDetailsCommand}"
-                                Style="{StaticResource EssentialsSecondaryButtonStyle}"
-                                Padding="10,4"
-                                MinWidth="96"
-                                DockPanel.Dock="Right"
-                                HorizontalAlignment="Right"/>
                     </DockPanel>
 
                     <Grid Grid.Row="1">
@@ -1238,6 +1290,7 @@
 
                         <ScrollViewer Grid.Row="1"
                                       Margin="0,12,0,0"
+                                      Padding="0,0,14,0"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
                                       MaxHeight="480">
@@ -1362,6 +1415,13 @@
                                                    TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Border>
+                            <Button Content="Close"
+                                Command="{Binding DataContext.CloseTaskDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                Style="{StaticResource EssentialsDialogCloseButtonStyle}"
+                                Padding="12,6"
+                                MinWidth="120"
+                                Margin="0,18,8,0"
+                                HorizontalAlignment="Right"/>
                             </StackPanel>
                         </ScrollViewer>
 
