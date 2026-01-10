@@ -67,6 +67,11 @@ public partial class DeepScanPage : Page
             return;
         }
 
+        if (!_viewModel.CanForceDelete)
+        {
+            return;
+        }
+
         var itemKind = item.IsDirectory ? "folder" : "file";
         var message =
             $"Force delete will take ownership, break locks, and may schedule removal on reboot. This can disrupt apps if you remove an essential {itemKind}.\n\nAre you absolutely sure you want to proceed?";
@@ -80,10 +85,13 @@ public partial class DeepScanPage : Page
 
         if (confirmation != MessageBoxResult.Yes)
         {
+            _viewModel.IsForceDeleteArmed = false;
             return;
         }
 
         await ExecuteDeleteCommandAsync(item, _viewModel.ForceDeleteFindingCommand);
+
+        _viewModel.IsForceDeleteArmed = false;
 
         e.Handled = true;
     }

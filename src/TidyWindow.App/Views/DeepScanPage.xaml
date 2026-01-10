@@ -421,6 +421,50 @@
                                          Converter="{StaticResource InverseBooleanConverter}"/>
                             </Button.IsEnabled>
                         </Button>
+                        <Button Content="Cancel"
+                                Command="{Binding CancelScanCommand}"
+                                Padding="14,10"
+                                Margin="8,0,0,0"
+                                Background="#1E293B"
+                                Foreground="#E2E8F0"
+                                BorderBrush="#334155"
+                                BorderThickness="1"
+                                Cursor="Hand"
+                                ToolTip="Stop the current scan.">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="CancelBorder"
+                                            Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="10"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled"
+                                                 Value="False">
+                                            <Setter TargetName="CancelBorder"
+                                                    Property="Opacity"
+                                                    Value="0.55"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver"
+                                                 Value="True">
+                                            <Setter TargetName="CancelBorder"
+                                                    Property="Background"
+                                                    Value="#25324A"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Button.IsEnabled>
+                                <Binding Path="CanCancel"/>
+                            </Button.IsEnabled>
+                            <Button.Visibility>
+                                <Binding Path="CanCancel" Converter="{StaticResource BooleanToVisibilityConverter}"/>
+                            </Button.Visibility>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -540,9 +584,23 @@
                                                   Foreground="#E2E8F0"
                                                   Margin="0,0,0,8"/>
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Include system files (risky)"
+                                                  IsChecked="{Binding IncludeSystem}"
+                                                  Foreground="#E2E8F0"
+                                                  Margin="0,0,0,8"/>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                                   Content="Include folders"
                                                   IsChecked="{Binding IncludeDirectories}"
                                                   Foreground="#E2E8F0"/>
+                                        <TextBlock Text="Force delete is destructive. Enable only if you understand the risk."
+                                                   Foreground="#FCA5A5"
+                                                   FontSize="11"
+                                                   Margin="0,12,0,4"/>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Enable force delete (dangerous)"
+                                                  IsChecked="{Binding IsForceDeleteArmed}"
+                                                  Foreground="#FCA5A5"
+                                                  Margin="0,0,0,4"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -936,7 +994,7 @@
                                                 </Button>
                                                 <Button Content="Force delete"
                                                     Click="ForceDeleteButton_OnClick"
-                                                    IsEnabled="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource InverseBooleanConverter}}"
+                                                    IsEnabled="{Binding DataContext.CanForceDelete, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                         Padding="12,6"
                                                         MinWidth="136"
                                                         Margin="8,0,0,0"
@@ -944,7 +1002,7 @@
                                                         Foreground="#2D050D"
                                                         BorderThickness="0"
                                                         Cursor="Hand"
-                                                        ToolTip="Force delete takes ownership, unlocks handles, and may schedule removal on reboot. Use only when you are certain.">
+                                                        ToolTip="Force delete takes ownership, unlocks handles, and may schedule removal on reboot. Enable the toggle above first.">
                                                     <Button.Template>
                                                         <ControlTemplate TargetType="Button">
                                                             <Border x:Name="ForceDangerActionBorder"

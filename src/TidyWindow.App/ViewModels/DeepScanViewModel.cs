@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.Core.Cleanup;
@@ -21,12 +22,16 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private readonly List<DeepScanFinding> _allFindings = new();
     private readonly int _pageSize = 100;
 
+    private CancellationTokenSource? _scanCancellation;
+
     private bool _isBusy;
     private bool _isDeleting;
     private string _targetPath = string.Empty;
     private int _minimumSizeMb = 0;
     private int _maxItems = 1000;
     private bool _includeHidden;
+    private bool _includeSystem;
+    private bool _isForceDeleteArmed;
     private DateTimeOffset? _lastScanned;
     private string _summary = "Scan to surface files and folders quickly.";
     private string _nameFilter = string.Empty;
@@ -65,7 +70,14 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     public bool IsBusy
     {
         get => _isBusy;
-        set => SetProperty(ref _isBusy, value);
+        set
+        {
+            if (SetProperty(ref _isBusy, value))
+            {
+                OnPropertyChanged(nameof(CanForceDelete));
+                OnPropertyChanged(nameof(CanCancel));
+            }
+        }
     }
 
     public string TargetPath
@@ -97,6 +109,28 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         get => _includeHidden;
         set => SetProperty(ref _includeHidden, value);
     }
+
+    public bool IncludeSystem
+    {
+        get => _includeSystem;
+        set => SetProperty(ref _includeSystem, value);
+    }
+
+    public bool IsForceDeleteArmed
+    {
+        get => _isForceDeleteArmed;
+        set
+        {
+            if (SetProperty(ref _isForceDeleteArmed, value))
+            {
+                OnPropertyChanged(nameof(CanForceDelete));
+            }
+        }
+    }
+
+    public bool CanForceDelete => !_isBusy && _isForceDeleteArmed;
+
+    public bool CanCancel => _isBusy && _scanCancellation is { IsCancellationRequested: false };
 
     public DateTimeOffset? LastScanned
     {
@@ -182,6 +216,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             return;
         }
 
+        var cancellation = new CancellationTokenSource();
+        _scanCancellation = cancellation;
+        OnPropertyChanged(nameof(CanCancel));
+
         try
         {
             IsBusy = true;
@@ -199,6 +237,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 MaxItems,
                 MinimumSizeMb,
                 IncludeHidden,
+                IncludeSystem,
                 filters,
                 SelectedMatchMode,
                 IsCaseSensitiveMatch,
@@ -206,7 +245,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
             var progress = new Progress<DeepScanProgressUpdate>(update => ApplyProgress(update));
 
-            var result = await _deepScanService.RunScanAsync(request, progress);
+            var result = await _deepScanService.RunScanAsync(request, progress, cancellation.Token);
 
             ReplaceFindings(result.Findings);
 
@@ -220,13 +259,32 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                     ? $"Deep scan complete: {result.TotalCandidates} candidates totaling {result.TotalSizeDisplay}."
                     : "Deep scan completed with no candidates.");
         }
+        catch (OperationCanceledException)
+        {
+            Summary = "Scan canceled.";
+            _mainViewModel.SetStatusMessage("Deep scan canceled.");
+        }
         catch (Exception ex)
         {
             _mainViewModel.SetStatusMessage($"Deep scan failed: {ex.Message}");
         }
         finally
         {
+            _scanCancellation?.Dispose();
+            _scanCancellation = null;
+            OnPropertyChanged(nameof(CanCancel));
             IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelScan()
+    {
+        if (_scanCancellation is { IsCancellationRequested: false })
+        {
+            _scanCancellation.Cancel();
+            OnPropertyChanged(nameof(CanCancel));
+            _mainViewModel.SetStatusMessage("Canceling scan...");
         }
     }
 

@@ -198,6 +198,7 @@ public sealed class DeepScanService
             request.MaxItems,
             Math.Max(0L, (long)request.MinimumSizeInMegabytes) * 1024L * 1024L,
             request.IncludeHiddenFiles,
+            request.IncludeSystemFiles,
             request.NameFilters,
             request.NameMatchMode,
             request.IsCaseSensitiveNameMatch,
@@ -233,7 +234,7 @@ public sealed class DeepScanService
         if (context.IncludeDirectories && totalSize >= context.MinSizeBytes)
         {
             if (CreateDirectoryEntry(resolvedRoot) is { } rootDirectory
-                && !ShouldSkipDirectory(rootDirectory, context.IncludeHidden)
+                && !ShouldSkipDirectory(rootDirectory, context.IncludeHidden, context.IncludeSystem)
                 && MatchesName(rootDirectory.Name, context))
             {
                 var rootFinding = new DeepScanFinding(
@@ -282,7 +283,7 @@ public sealed class DeepScanService
                 continue;
             }
 
-            if (ShouldSkipDirectory(entry, context.IncludeHidden))
+            if (ShouldSkipDirectory(entry, context.IncludeHidden, context.IncludeSystem))
             {
                 continue;
             }
@@ -505,7 +506,7 @@ public sealed class DeepScanService
         finding = null;
         fileSize = 0;
 
-        if (ShouldSkipFile(entry.Attributes, entry.Name, context.IncludeHidden))
+        if (ShouldSkipFile(entry.Attributes, entry.Name, context.IncludeHidden, context.IncludeSystem))
         {
             return false;
         }
@@ -534,7 +535,7 @@ public sealed class DeepScanService
         return true;
     }
 
-    private static bool ShouldSkipDirectory(FileEntry entry, bool includeHidden)
+    private static bool ShouldSkipDirectory(FileEntry entry, bool includeHidden, bool includeSystem)
     {
         if (IsReparsePoint(entry.Attributes))
         {
@@ -546,17 +547,22 @@ public sealed class DeepScanService
             return true;
         }
 
+        if (!includeSystem && (entry.Attributes & FileAttributes.System) == FileAttributes.System)
+        {
+            return true;
+        }
+
         return false;
     }
 
-    private static bool ShouldSkipFile(FileAttributes attributes, string name, bool includeHidden)
+    private static bool ShouldSkipFile(FileAttributes attributes, string name, bool includeHidden, bool includeSystem)
     {
         if (!includeHidden && IsHidden(name, attributes))
         {
             return true;
         }
 
-        if (!includeHidden && (attributes & FileAttributes.System) == FileAttributes.System)
+        if (!includeSystem && (attributes & FileAttributes.System) == FileAttributes.System)
         {
             return true;
         }
@@ -704,6 +710,7 @@ public sealed class DeepScanService
             int limit,
             long minSizeBytes,
             bool includeHidden,
+            bool includeSystem,
             IReadOnlyList<string> nameFilters,
             DeepScanNameMatchMode nameMatchMode,
             bool isCaseSensitive,
@@ -713,6 +720,7 @@ public sealed class DeepScanService
             Limit = limit;
             MinSizeBytes = minSizeBytes;
             IncludeHidden = includeHidden;
+            IncludeSystem = includeSystem;
             NameFilters = nameFilters ?? Array.Empty<string>();
             NameMatchMode = nameMatchMode;
             NameComparison = isCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
@@ -723,7 +731,12 @@ public sealed class DeepScanService
             var suggestedDegree = processorCount <= 2 ? processorCount : Math.Min(processorCount, 8);
             MaxDegreeOfParallelism = Math.Max(1, suggestedDegree);
 
-            var attributesToSkip = FileAttributes.ReparsePoint | FileAttributes.System;
+            var attributesToSkip = FileAttributes.ReparsePoint;
+            if (!includeSystem)
+            {
+                attributesToSkip |= FileAttributes.System;
+            }
+
             if (!includeHidden)
             {
                 attributesToSkip |= FileAttributes.Hidden;
@@ -747,6 +760,8 @@ public sealed class DeepScanService
         public long MinSizeBytes { get; }
 
         public bool IncludeHidden { get; }
+
+        public bool IncludeSystem { get; }
 
         public IReadOnlyList<string> NameFilters { get; }
 
@@ -970,6 +985,7 @@ public sealed class DeepScanRequest
         int maxItems,
         int minimumSizeInMegabytes,
         bool includeHiddenFiles,
+        bool includeSystemFiles,
         IEnumerable<string>? nameFilters = null,
         DeepScanNameMatchMode nameMatchMode = DeepScanNameMatchMode.Contains,
         bool isCaseSensitiveNameMatch = false,
@@ -994,6 +1010,7 @@ public sealed class DeepScanRequest
         MaxItems = maxItems;
         MinimumSizeInMegabytes = minimumSizeInMegabytes;
         IncludeHiddenFiles = includeHiddenFiles;
+        IncludeSystemFiles = includeSystemFiles;
         NameMatchMode = nameMatchMode;
         IsCaseSensitiveNameMatch = isCaseSensitiveNameMatch;
         IncludeDirectories = includeDirectories;
@@ -1007,6 +1024,8 @@ public sealed class DeepScanRequest
     public int MinimumSizeInMegabytes { get; }
 
     public bool IncludeHiddenFiles { get; }
+
+    public bool IncludeSystemFiles { get; }
 
     public IReadOnlyList<string> NameFilters { get; }
 
