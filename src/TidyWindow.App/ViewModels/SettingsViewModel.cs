@@ -43,6 +43,10 @@ public sealed class SettingsViewModel : ViewModelBase
     private long _installerBytesReceived;
     private long? _installerTotalBytes;
     private static readonly HttpClient ReleaseNotesHttpClient = CreateReleaseNotesClient();
+    private static readonly JsonSerializerOptions GitHubSerializerOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
     private bool _hasFetchedFullReleaseNotes;
     private bool _isReleaseNotesDialogVisible;
     private IReadOnlyList<ReleaseNoteLine> _releaseNotesDisplayLines = Array.Empty<ReleaseNoteLine>();
@@ -658,7 +662,7 @@ public sealed class SettingsViewModel : ViewModelBase
             }
 
             await using var stream = await response.Content.ReadAsStreamAsync().ConfigureAwait(false);
-            var payload = await JsonSerializer.DeserializeAsync<GitHubReleaseResponse>(stream).ConfigureAwait(false);
+            var payload = await JsonSerializer.DeserializeAsync<GitHubReleaseResponse>(stream, GitHubSerializerOptions).ConfigureAwait(false);
             if (payload?.Body is null || payload.Body.Length == 0)
             {
                 return false;

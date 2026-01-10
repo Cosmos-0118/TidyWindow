@@ -114,11 +114,8 @@ jobs:
                   $summary = if ([string]::IsNullOrWhiteSpace($release.body)) {
                     "See release notes for details."
                   } else {
-                    ($release.body.Trim() -replace "\r", " " -replace "\n", " ")
-                  }
-
-                  if ($summary.Length -gt 220) {
-                    $summary = $summary.Substring(0, 217) + "..."
+                    # Preserve the full body so clients can render complete notes; normalize newlines only.
+                    ($release.body.Trim() -replace "`r`n", "`n" -replace "`r", "`n")
                   }
 
                   function Get-NormalizedVersion([string]$tagName) {
