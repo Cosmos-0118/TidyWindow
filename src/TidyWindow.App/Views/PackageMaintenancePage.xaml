@@ -2094,6 +2094,11 @@
                                                                                     Value="#22C55E"/>
                                                                         </DataTrigger>
                                                                         <DataTrigger Binding="{Binding Status}"
+                                                                                 Value="Cancelled">
+                                                                            <Setter Property="Foreground"
+                                                                                Value="#FBBF24"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Status}"
                                                                                      Value="Failed">
                                                                             <Setter Property="Foreground"
                                                                                     Value="#F87171"/>
@@ -2131,54 +2136,51 @@
                                                             </Style>
                                                         </TextBlock.Style>
                                                     </TextBlock>
-                                                    <Button Content="Operation details"
-                                                            Command="{Binding DataContext.ShowOperationDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
-                                                            CommandParameter="{Binding}"
-                                                            Margin="0,10,0,0">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button"
-                                                                   BasedOn="{StaticResource SecondaryButtonStyle}">
-                                                                <Setter Property="Visibility"
-                                                                        Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsPendingOrRunning}"
-                                                                                 Value="False">
-                                                                        <Setter Property="Visibility"
-                                                                                Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Margin="0,10,0,0">
+                                                        <Button Content="Cancel"
+                                                                Command="{Binding DataContext.CancelOperationCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button"
+                                                                       BasedOn="{StaticResource DangerButtonStyle}">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsPendingOrRunning}"
+                                                                                     Value="True">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                        <Button Content="Operation details"
+                                                                Command="{Binding DataContext.ShowOperationDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
+                                                                CommandParameter="{Binding}"
+                                                                Margin="8,0,0,0">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button"
+                                                                       BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                                    <Setter Property="Visibility"
+                                                                            Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsPendingOrRunning}"
+                                                                                     Value="False">
+                                                                            <Setter Property="Visibility"
+                                                                                    Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </DataTemplate>
                                         </ListView.ItemTemplate>
                                     </ListView>
 
-                                        <StackPanel Grid.Row="2"
-                                                    Orientation="Horizontal"
-                                                    HorizontalAlignment="Right"
-                                                    Margin="0,8,0,0"
-                                                    Visibility="{Binding HasMultiplePages, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <TextBlock Text="{Binding PageDisplay}"
-                                                       Foreground="{StaticResource TextMutedBrush}"
-                                                       FontSize="12"
-                                                       VerticalAlignment="Center"/>
-                                            <StackPanel Orientation="Horizontal"
-                                                        Margin="12,0,0,0">
-                                                <Button Content="Previous"
-                                                        Command="{Binding GoToPreviousPageCommand}"
-                                                        Style="{StaticResource SecondaryButtonStyle}"
-                                                        Padding="12,6"
-                                                        Margin="0,0,8,0"
-                                                        IsEnabled="{Binding CanGoToPreviousPage}"/>
-                                                <Button Content="Next"
-                                                        Command="{Binding GoToNextPageCommand}"
-                                                        Style="{StaticResource SecondaryButtonStyle}"
-                                                        Padding="12,6"
-                                                        IsEnabled="{Binding CanGoToNextPage}"/>
-                                            </StackPanel>
-                                        </StackPanel>
                                 </Grid>
                             </Border>
 
@@ -2495,8 +2497,21 @@
             BorderThickness="1"
             CornerRadius="10"
             Effect="{StaticResource MaintenanceOverlayShadowEffect}"
-            Panel.ZIndex="8"
-            Visibility="{Binding HasMultiplePages, Converter={StaticResource BooleanToVisibilityConverter}}">
+            Panel.ZIndex="8">
+            <Border.Style>
+                <Style TargetType="Border">
+                    <Setter Property="Visibility" Value="Collapsed"/>
+                    <Style.Triggers>
+                        <MultiDataTrigger>
+                            <MultiDataTrigger.Conditions>
+                                <Condition Binding="{Binding HasMultiplePages}" Value="True"/>
+                                <Condition Binding="{Binding ActiveSection}" Value="{x:Static viewModels:MaintenanceViewSection.Packages}"/>
+                            </MultiDataTrigger.Conditions>
+                            <Setter Property="Visibility" Value="Visible"/>
+                        </MultiDataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Border.Style>
             <StackPanel Orientation="Horizontal"
                 Margin="0,0,10,0"
                 VerticalAlignment="Center">

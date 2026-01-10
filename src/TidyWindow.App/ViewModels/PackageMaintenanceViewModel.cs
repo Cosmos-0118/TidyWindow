@@ -61,6 +61,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private readonly HashSet<PackageMaintenanceItemViewModel> _attachedItems = new();
     private readonly HashSet<PackageMaintenanceOperationViewModel> _attachedOperations = new();
     private readonly Queue<MaintenanceOperationRequest> _pendingOperations = new();
+    private readonly Dictionary<Guid, MaintenanceOperationRequest> _operationRequests = new();
     private readonly object _operationLock = new();
     private readonly UiDebounceDispatcher _searchFilterDebounce;
     private readonly PackageVersionDiscoveryService _versionDiscoveryService;
@@ -590,6 +591,63 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         IsOperationDetailsVisible = true;
     }
 
+    [RelayCommand(CanExecute = nameof(CanCancelOperation))]
+    private void CancelOperation(PackageMaintenanceOperationViewModel? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+
+        if (!TryGetOperationRequest(operation.Id, out var request) || request is null)
+        {
+            return;
+        }
+
+        if (operation.Status == MaintenanceOperationStatus.Pending)
+        {
+            if (TryCancelPending(request))
+            {
+                var message = "Cancelled before start.";
+                _workTracker.CompleteWork(request.WorkToken);
+                CleanupRequest(request);
+
+                _ = RunOnUiThreadAsync(() =>
+                {
+                    operation.MarkCancelled(message);
+                    operation.UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray<string>.Empty);
+                    var item = request.Item;
+                    item.IsBusy = false;
+                    item.IsQueued = false;
+                    item.QueueStatus = message;
+                    item.ApplyOperationResult(false, message);
+                    item.LastOperationMessage = message;
+                });
+
+                _activityLog.LogWarning("Maintenance", $"{operation.OperationDisplay} for '{request.Item.DisplayName}' cancelled before start.");
+                _mainViewModel.SetStatusMessage(message);
+                return;
+            }
+
+            request.Cancellation.Cancel();
+            _activityLog.LogWarning("Maintenance", $"Cancellation requested for {operation.OperationDisplay} on '{request.Item.DisplayName}'.");
+            _mainViewModel.SetStatusMessage($"Cancelling {operation.OperationDisplay} for '{request.Item.DisplayName}'...");
+            return;
+        }
+
+        if (operation.IsPendingOrRunning)
+        {
+            request.Cancellation.Cancel();
+            _activityLog.LogWarning("Maintenance", $"Cancellation requested for {operation.OperationDisplay} on '{request.Item.DisplayName}'.");
+            _mainViewModel.SetStatusMessage($"Cancelling {operation.OperationDisplay} for '{request.Item.DisplayName}'...");
+        }
+    }
+
+    private bool CanCancelOperation(PackageMaintenanceOperationViewModel? operation)
+    {
+        return operation is not null && operation.IsPendingOrRunning;
+    }
+
     [RelayCommand]
     private void CloseOperationDetails()
     {
@@ -790,13 +848,14 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         try
         {
-            var request = new MaintenanceOperationRequest(item, kind, packageId, requiresAdmin, operation, requestedVersion, workToken);
+            var request = new MaintenanceOperationRequest(item, kind, packageId, requiresAdmin, operation, requestedVersion, workToken, new CancellationTokenSource());
 
             bool shouldStartProcessor;
 
             lock (_operationLock)
             {
                 _pendingOperations.Enqueue(request);
+                _operationRequests[operation.Id] = request;
                 shouldStartProcessor = !_isProcessingOperations;
                 if (shouldStartProcessor)
                 {
@@ -855,6 +914,12 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     {
         try
         {
+            if (request.Cancellation.IsCancellationRequested)
+            {
+                await HandleOperationCancelledAsync(request, "Cancelled before start.").ConfigureAwait(false);
+                return;
+            }
+
             var item = request.Item;
             var operation = request.Operation;
             var progressMessage = ResolveProcessingMessage(request.Kind, request.TargetVersion);
@@ -883,9 +948,9 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
                     PackageMaintenanceResult result = request.Kind switch
                     {
-                        MaintenanceOperationKind.Update => await _maintenanceService.UpdateAsync(payload).ConfigureAwait(false),
-                        MaintenanceOperationKind.ForceRemove => await _maintenanceService.ForceRemoveAsync(payload).ConfigureAwait(false),
-                        _ => await _maintenanceService.RemoveAsync(payload).ConfigureAwait(false)
+                        MaintenanceOperationKind.Update => await _maintenanceService.UpdateAsync(payload, request.Cancellation.Token).ConfigureAwait(false),
+                        MaintenanceOperationKind.ForceRemove => await _maintenanceService.ForceRemoveAsync(payload, request.Cancellation.Token).ConfigureAwait(false),
+                        _ => await _maintenanceService.RemoveAsync(payload, request.Cancellation.Token).ConfigureAwait(false)
                     };
 
                     if (!result.Success
@@ -958,6 +1023,11 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
                     return;
                 }
+                catch (OperationCanceledException)
+                {
+                    await HandleOperationCancelledAsync(request, "Cancelled.").ConfigureAwait(false);
+                    return;
+                }
                 catch (Exception ex)
                 {
                     if (waitAttempts < InstallerBusyMaxWaitAttempts
@@ -995,6 +1065,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         finally
         {
             _workTracker.CompleteWork(request.WorkToken);
+            CleanupRequest(request);
         }
     }
 
@@ -1005,7 +1076,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
     partial void OnSearchTextChanged(string? oldValue, string? newValue)
     {
-        _searchFilterDebounce.Schedule(ApplyFilters);
+        _searchFilterDebounce.Schedule(() => ApplyFilters());
     }
 
     partial void OnSelectedManagerChanged(string? oldValue, string? newValue)
@@ -1344,7 +1415,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         return candidate.Trim('.');
     }
 
-    private void ApplyFilters()
+    private void ApplyFilters(bool preservePage = false)
     {
         IEnumerable<PackageMaintenanceItemViewModel> query = _allPackages;
 
@@ -1369,6 +1440,21 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             .ToList();
 
         SynchronizeCollection(Packages, ordered);
+
+        if (!preservePage)
+        {
+            ResetToFirstPage();
+        }
+        else
+        {
+            var totalPages = TotalPages;
+            if (_currentPage > totalPages)
+            {
+                _currentPage = Math.Max(1, totalPages);
+            }
+        }
+
+        RefreshPagedPackages();
         ResetToFirstPage();
         RefreshPagedPackages();
 
@@ -1826,6 +1912,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         {
             RetryFailedCommand.NotifyCanExecuteChanged();
             ClearCompletedCommand.NotifyCanExecuteChanged();
+            CancelOperationCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -1868,6 +1955,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         RetryFailedCommand.NotifyCanExecuteChanged();
         ClearCompletedCommand.NotifyCanExecuteChanged();
+        CancelOperationCommand.NotifyCanExecuteChanged();
     }
 
     private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1882,7 +1970,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.TargetVersion)
             || e.PropertyName == nameof(PackageMaintenanceItemViewModel.IsSuppressed))
         {
-            ApplyFilters();
+            ApplyFilters(preservePage: true);
         }
 
         if (e.PropertyName == nameof(PackageMaintenanceItemViewModel.HasUpdate))
@@ -2158,7 +2246,7 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' waiting: {waitMessage}");
 
-        await Task.Delay(delay).ConfigureAwait(false);
+        await Task.Delay(delay, request.Cancellation.Token).ConfigureAwait(false);
 
         await RunOnUiThreadAsync(() =>
         {
@@ -2172,6 +2260,90 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         _activityLog.LogInformation("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' resuming after wait.");
     }
 
+    private bool TryGetOperationRequest(Guid operationId, out MaintenanceOperationRequest? request)
+    {
+        lock (_operationLock)
+        {
+            return _operationRequests.TryGetValue(operationId, out request);
+        }
+    }
+
+    private bool TryCancelPending(MaintenanceOperationRequest request)
+    {
+        lock (_operationLock)
+        {
+            if (!_operationRequests.ContainsKey(request.Operation.Id) || _pendingOperations.Count == 0)
+            {
+                return false;
+            }
+
+            var removed = false;
+            var buffer = new Queue<MaintenanceOperationRequest>(_pendingOperations.Count);
+
+            while (_pendingOperations.Count > 0)
+            {
+                var candidate = _pendingOperations.Dequeue();
+                if (!removed && candidate.Operation.Id == request.Operation.Id)
+                {
+                    removed = true;
+                    continue;
+                }
+
+                buffer.Enqueue(candidate);
+            }
+
+            while (buffer.Count > 0)
+            {
+                _pendingOperations.Enqueue(buffer.Dequeue());
+            }
+
+            if (removed)
+            {
+                _operationRequests.Remove(request.Operation.Id);
+            }
+
+            return removed;
+        }
+    }
+
+    private void CleanupRequest(MaintenanceOperationRequest request)
+    {
+        lock (_operationLock)
+        {
+            _operationRequests.Remove(request.Operation.Id);
+        }
+
+        try
+        {
+            request.Cancellation.Dispose();
+        }
+        catch
+        {
+            // Suppress disposal errors.
+        }
+    }
+
+    private async Task HandleOperationCancelledAsync(MaintenanceOperationRequest request, string message)
+    {
+        var operation = request.Operation;
+        var item = request.Item;
+
+        await RunOnUiThreadAsync(() =>
+        {
+            operation.MarkCancelled(message);
+            operation.UpdateTranscript(ImmutableArray<string>.Empty, ImmutableArray<string>.Empty);
+            item.IsBusy = false;
+            item.IsQueued = false;
+            item.QueueStatus = message;
+            item.ApplyOperationResult(false, message);
+            item.LastOperationMessage = message;
+        }).ConfigureAwait(false);
+
+        await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage(message)).ConfigureAwait(false);
+
+        _activityLog.LogWarning("Maintenance", $"{operation.OperationDisplay} for '{item.DisplayName}' cancelled.");
+    }
+
     private sealed record MaintenanceOperationRequest(
         PackageMaintenanceItemViewModel Item,
         MaintenanceOperationKind Kind,
@@ -2179,7 +2351,8 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         bool RequiresAdministrator,
         PackageMaintenanceOperationViewModel Operation,
         string? TargetVersion,
-        Guid WorkToken);
+        Guid WorkToken,
+        CancellationTokenSource Cancellation);
 
     private static string? ResolveVersionLookupIdentifier(PackageMaintenanceItemViewModel item)
     {
@@ -2301,6 +2474,38 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         Automation.Dispose();
         _versionLookupCts.Cancel();
         _versionLookupCts.Dispose();
+
+        lock (_operationLock)
+        {
+            while (_pendingOperations.Count > 0)
+            {
+                var request = _pendingOperations.Dequeue();
+                try
+                {
+                    request.Cancellation.Cancel();
+                    request.Cancellation.Dispose();
+                }
+                catch
+                {
+                    // Suppress disposal errors during shutdown.
+                }
+            }
+
+            foreach (var request in _operationRequests.Values)
+            {
+                try
+                {
+                    request.Cancellation.Cancel();
+                    request.Cancellation.Dispose();
+                }
+                catch
+                {
+                    // Suppress disposal errors during shutdown.
+                }
+            }
+
+            _operationRequests.Clear();
+        }
     }
 }
 
@@ -2316,6 +2521,7 @@ public enum MaintenanceOperationStatus
     Pending,
     Waiting,
     Running,
+    Cancelled,
     Succeeded,
     Failed
 }
@@ -2358,6 +2564,7 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
         MaintenanceOperationStatus.Pending => "Queued",
         MaintenanceOperationStatus.Waiting => "Waiting",
         MaintenanceOperationStatus.Running => "Running",
+        MaintenanceOperationStatus.Cancelled => "Cancelled",
         MaintenanceOperationStatus.Succeeded => "Completed",
         MaintenanceOperationStatus.Failed => "Failed",
         _ => Status.ToString()
@@ -2365,7 +2572,9 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
 
     public bool IsPendingOrRunning => Status is MaintenanceOperationStatus.Pending or MaintenanceOperationStatus.Running or MaintenanceOperationStatus.Waiting;
 
-    public bool IsActive => IsPendingOrRunning;
+    public bool IsCancellable => IsPendingOrRunning;
+
+    public bool IsActive => IsCancellable;
 
     public bool HasErrors => !Errors.IsDefaultOrEmpty && Errors.Length > 0;
 
@@ -2434,6 +2643,13 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
         CompletedAt = DateTimeOffset.UtcNow;
     }
 
+    public void MarkCancelled(string message)
+    {
+        Status = MaintenanceOperationStatus.Cancelled;
+        Message = message;
+        CompletedAt = DateTimeOffset.UtcNow;
+    }
+
     public void UpdateTranscript(ImmutableArray<string> output, ImmutableArray<string> errors)
     {
         Output = output.IsDefault ? ImmutableArray<string>.Empty : output;
@@ -2443,6 +2659,7 @@ public sealed partial class PackageMaintenanceOperationViewModel : ObservableObj
     partial void OnStatusChanged(MaintenanceOperationStatus oldValue, MaintenanceOperationStatus newValue)
     {
         OnPropertyChanged(nameof(IsPendingOrRunning));
+        OnPropertyChanged(nameof(IsCancellable));
         OnPropertyChanged(nameof(IsActive));
         OnPropertyChanged(nameof(StatusDisplay));
     }
