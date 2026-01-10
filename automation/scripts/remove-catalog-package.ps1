@@ -470,17 +470,17 @@ function Invoke-Removal {
         Summary   = $summary
     }
 
-        if ($result.Output.Count -eq 0 -and $logs -is [System.Collections.IEnumerable]) {
-            $materializedLogs = @()
-            foreach ($item in $logs) { $materializedLogs += [string]$item }
-            $result.Output = $materializedLogs
-        }
+    if ($result.Output.Count -eq 0 -and $logs -is [System.Collections.IEnumerable]) {
+        $materializedLogs = @()
+        foreach ($item in $logs) { $materializedLogs += [string]$item }
+        $result.Output = $materializedLogs
+    }
 
-        if ($result.Errors.Count -eq 0 -and $errors -is [System.Collections.IEnumerable]) {
-            $materializedErrors = @()
-            foreach ($item in $errors) { $materializedErrors += [string]$item }
-            $result.Errors = $materializedErrors
-        }
+    if ($result.Errors.Count -eq 0 -and $errors -is [System.Collections.IEnumerable]) {
+        $materializedErrors = @()
+        foreach ($item in $errors) { $materializedErrors += [string]$item }
+        $result.Errors = $materializedErrors
+    }
 }
 
 function Get-TidyNormalizedName {
@@ -510,14 +510,14 @@ function Get-TidyNameFragments {
     foreach ($word in ($DisplayName -split '[^A-Za-z0-9]+')) {
         if ([string]::IsNullOrWhiteSpace($word)) { continue }
         $trimmed = $word.Trim()
-        if ($trimmed.Length -lt 4) { continue }
+        if ($trimmed.Length -lt 5) { continue }
         [void]$fragments.Add($trimmed)
     }
 
     foreach ($segment in ($PackageId -split '[^A-Za-z0-9]+')) {
         if ([string]::IsNullOrWhiteSpace($segment)) { continue }
         $trimmed = $segment.Trim()
-        if ($trimmed.Length -lt 4) { continue }
+        if ($trimmed.Length -lt 5) { continue }
         [void]$fragments.Add($trimmed)
     }
 
@@ -557,7 +557,7 @@ function Get-TidySafePath {
         [System.Environment]::GetFolderPath('Windows'),
         [System.Environment]::GetFolderPath('ProgramFiles'),
         [System.Environment]::GetFolderPath('ProgramFilesX86'),
-    [System.Environment]::GetFolderPath('CommonApplicationData'),
+        [System.Environment]::GetFolderPath('CommonApplicationData'),
         [System.Environment]::GetFolderPath('System'),
         [System.Environment]::GetFolderPath('SystemX86'),
         [System.Environment]::GetFolderPath('Desktop')
@@ -678,13 +678,13 @@ function Get-TidyUninstallEntries {
             if ($quietUninstallStringProperty) { $quietUninstallString = $quietUninstallStringProperty.Value }
 
             $entries.Add([pscustomobject]@{
-                Path = $key.PSPath
-                DisplayName = $candidate
-                InstallLocation = $installLocation
-                DisplayIcon = $displayIcon
-                UninstallString = $uninstallString
-                QuietUninstallString = $quietUninstallString
-            })
+                    Path                 = $key.PSPath
+                    DisplayName          = $candidate
+                    InstallLocation      = $installLocation
+                    DisplayIcon          = $displayIcon
+                    UninstallString      = $uninstallString
+                    QuietUninstallString = $quietUninstallString
+                })
         }
     }
 
@@ -718,6 +718,8 @@ function Stop-TidyProcesses {
         return 0
     }
 
+    $hasCandidatePaths = (Get-TidyCollectionCount -Source $CandidatePaths) -gt 0
+
     foreach ($process in $processes) {
         if ([int]$process.ProcessId -eq $currentPid) {
             continue
@@ -732,7 +734,7 @@ function Stop-TidyProcesses {
         $command = $process.CommandLine
         $matched = $false
 
-        if ($CandidatePaths) {
+        if ($hasCandidatePaths) {
             foreach ($path in $CandidatePaths) {
                 if ([string]::IsNullOrWhiteSpace($path)) { continue }
 
@@ -748,9 +750,9 @@ function Stop-TidyProcesses {
             }
         }
 
-        if (-not $matched -and $Fragments) {
+        if (-not $matched -and $hasCandidatePaths -and $Fragments) {
             foreach ($fragment in $Fragments) {
-                if ([string]::IsNullOrWhiteSpace($fragment) -or $fragment.Length -lt 4) { continue }
+                if ([string]::IsNullOrWhiteSpace($fragment) -or $fragment.Length -lt 5) { continue }
 
                 $matchesFragment = $false
 
@@ -874,11 +876,17 @@ function Invoke-TidyForceCleanup {
             [System.Environment]::GetFolderPath('ProgramFilesX86')
         ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
+        $skipFragments = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($value in @('setup', 'install', 'installer', 'update', 'helper', 'system', 'windows', 'microsoft', 'package', 'program')) {
+            [void]$skipFragments.Add($value)
+        }
+
         foreach ($root in $programRoots) {
             if (-not (Test-Path -LiteralPath $root)) { continue }
 
             foreach ($fragment in $fragments) {
-                if ([string]::IsNullOrWhiteSpace($fragment) -or $fragment.Length -lt 4) { continue }
+                if ([string]::IsNullOrWhiteSpace($fragment) -or $fragment.Length -lt 5) { continue }
+                if ($skipFragments.Contains($fragment)) { continue }
 
                 try {
                     foreach ($match in Get-ChildItem -Path $root -Directory -Filter "*${fragment}*" -ErrorAction SilentlyContinue) {
@@ -921,7 +929,7 @@ function Invoke-TidyForceCleanup {
         }
     }
 
-    if ($fragmentArray.Length -gt 0) {
+    if ($fragmentArray.Length -gt 0 -and ($candidatePathCount -gt 0 -or $fragmentArray.Length -ge 2)) {
         $appDataRoots = @(
             [System.Environment]::GetFolderPath('LocalApplicationData'),
             [System.Environment]::GetFolderPath('ApplicationData'),
@@ -932,7 +940,7 @@ function Invoke-TidyForceCleanup {
             if (-not (Test-Path -LiteralPath $root)) { continue }
 
             foreach ($fragment in $fragmentArray) {
-                if ([string]::IsNullOrWhiteSpace($fragment) -or $fragment.Length -lt 4) { continue }
+                if ([string]::IsNullOrWhiteSpace($fragment) -or $fragment.Length -lt 5) { continue }
 
                 try {
                     foreach ($match in Get-ChildItem -Path $root -Directory -Filter "*${fragment}*" -ErrorAction SilentlyContinue) {
@@ -971,13 +979,13 @@ function Invoke-TidyForceCleanup {
     }
 
     return [pscustomobject]@{
-        Attempted          = $true
-        Success            = $success
-        Summary            = $summary
-        ExitCode           = if ($success) { 0 } else { -1 }
+        Attempted           = $true
+        Success             = $success
+        Summary             = $summary
+        ExitCode            = if ($success) { 0 } else { -1 }
         ProcessesTerminated = $stopped
-        RemovedPaths       = $removedPaths
-        RemovedRegistry    = $removedRegistry
+        RemovedPaths        = $removedPaths
+        RemovedRegistry     = $removedRegistry
     }
 }
 
@@ -1016,8 +1024,11 @@ catch {
     if (-not $summary) { $summary = $message }
 }
 
-if ($ForceCleanup.IsPresent -and -not $DryRun.IsPresent)
-{
+$installedAfterAttempt = Get-TidyInstalledPackageVersion -Manager $managerKey -PackageId $PackageId
+$statusAfterAttempt = if ([string]::IsNullOrWhiteSpace($installedAfterAttempt)) { 'NotInstalled' } else { 'Installed' }
+
+$shouldForceCleanup = $ForceCleanup.IsPresent -and -not $DryRun.IsPresent -and $statusBefore -eq 'Installed' -and ($statusAfterAttempt -ne 'NotInstalled' -or -not $operationSucceeded)
+if ($shouldForceCleanup) {
     $forceCleanupInvoked = $true
     $forceResult = Invoke-TidyForceCleanup -ManagerKey $managerKey -PackageId $PackageId -DisplayName $DisplayName
     if ($forceResult.Attempted) {
@@ -1038,8 +1049,11 @@ if ($ForceCleanup.IsPresent -and -not $DryRun.IsPresent)
         $summary = $forceResult.Summary
     }
 }
+elseif ($ForceCleanup.IsPresent -and -not $DryRun.IsPresent) {
+    Add-TidyOutput "Force cleanup skipped because '$DisplayName' is already reported as removed."
+}
 
-$installedAfter = Get-TidyInstalledPackageVersion -Manager $managerKey -PackageId $PackageId
+$installedAfter = if ($forceCleanupInvoked) { Get-TidyInstalledPackageVersion -Manager $managerKey -PackageId $PackageId } else { $installedAfterAttempt }
 $statusAfter = if ([string]::IsNullOrWhiteSpace($installedAfter)) { 'NotInstalled' } else { 'Installed' }
 
 if ($statusAfter -eq 'NotInstalled' -or $DryRun.IsPresent) {

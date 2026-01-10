@@ -35,6 +35,9 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
     private const int WingetCannotUpgradeExitCode = -1978334956;
     private const int WingetUnknownVersionExitCode = -1978335189;
     private const int WingetInstallerHashMismatchExitCode = -1978335215;
+    private const int MsiAnotherVersionInstalledExitCode = 1638;
+    private const int WingetDowngradeBlockedExitCode = -1978334963;
+    private const int WingetApplicationNotFoundExitCode = unchecked((int)0x800401F5);
     private const int InstallerBusyMaxWaitAttempts = 6;
     private static readonly TimeSpan InstallerBusyInitialDelay = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan InstallerBusyMaximumDelay = TimeSpan.FromSeconds(60);
@@ -954,6 +957,17 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
                     };
 
                     if (!result.Success
+                        && request.Kind == MaintenanceOperationKind.Update
+                        && ShouldAttemptDowngradeFallback(request, result))
+                    {
+                        _activityLog.LogInformation(
+                            "Maintenance",
+                            $"Attempting downgrade fallback for '{item.DisplayName}' to {request.TargetVersion ?? "(unspecified)"} by uninstalling the newer version.");
+
+                        result = await AttemptDowngradeReinstallAsync(request, result).ConfigureAwait(false);
+                    }
+
+                    if (!result.Success
                         && waitAttempts < InstallerBusyMaxWaitAttempts
                         && TryDetectInstallerBusy(result, out var busyReason))
                     {
@@ -1067,6 +1081,84 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
             _workTracker.CompleteWork(request.WorkToken);
             CleanupRequest(request);
         }
+    }
+
+    private async Task<PackageMaintenanceResult> AttemptDowngradeReinstallAsync(MaintenanceOperationRequest request, PackageMaintenanceResult failedResult)
+    {
+        var item = request.Item;
+        var targetVersion = request.TargetVersion ?? string.Empty;
+
+        if (request.Cancellation.IsCancellationRequested)
+        {
+            return failedResult;
+        }
+
+        await RunOnUiThreadAsync(() =>
+        {
+            item.QueueStatus = string.IsNullOrWhiteSpace(targetVersion)
+                ? "Uninstalling current version before installing the requested build…"
+                : $"Uninstalling current version before installing {targetVersion}…";
+        }).ConfigureAwait(false);
+
+        var removePayload = new PackageMaintenanceRequest(item.Manager, request.PackageId, item.DisplayName, request.RequiresAdministrator, RequestedVersion: null);
+        var removeResult = await _maintenanceService.RemoveAsync(removePayload, request.Cancellation.Token).ConfigureAwait(false);
+
+        var uninstallBenign = !removeResult.Success && IsBenignUninstallFailure(removeResult);
+
+        if (!removeResult.Success && !uninstallBenign)
+        {
+            return failedResult with
+            {
+                Success = false,
+                Summary = string.IsNullOrWhiteSpace(removeResult.Summary)
+                    ? "Downgrade fallback failed while uninstalling the newer version."
+                    : $"Downgrade fallback failed while uninstalling the newer version: {removeResult.Summary}",
+                Output = MergeLines(failedResult.Output, removeResult.Output),
+                Errors = MergeLines(failedResult.Errors, removeResult.Errors),
+                ExitCode = removeResult.ExitCode,
+                LogFilePath = removeResult.LogFilePath ?? failedResult.LogFilePath
+            };
+        }
+
+        if (uninstallBenign)
+        {
+            await RunOnUiThreadAsync(() =>
+            {
+                item.QueueStatus = "Uninstall reported 'not found'; continuing with reinstall…";
+            }).ConfigureAwait(false);
+        }
+
+        if (request.Cancellation.IsCancellationRequested)
+        {
+            return failedResult with { Success = false, Summary = "Downgrade cancelled after uninstall." };
+        }
+
+        await RunOnUiThreadAsync(() =>
+        {
+            item.QueueStatus = string.IsNullOrWhiteSpace(targetVersion)
+                ? "Installing requested version after uninstall…"
+                : $"Installing requested version {targetVersion}…";
+        }).ConfigureAwait(false);
+
+        var installPayload = new PackageMaintenanceRequest(item.Manager, request.PackageId, item.DisplayName, request.RequiresAdministrator, request.TargetVersion);
+        var installResult = await _maintenanceService.UpdateAsync(installPayload, request.Cancellation.Token).ConfigureAwait(false);
+
+        if (installResult.Success)
+        {
+            return installResult;
+        }
+
+        var manualSummary = string.IsNullOrWhiteSpace(installResult.Summary)
+            ? "Downgrade fallback failed while reinstalling the requested version. Install the requested version manually, then refresh maintenance."
+            : $"Downgrade fallback failed while reinstalling the requested version: {installResult.Summary}. Install the requested version manually, then refresh maintenance.";
+
+        return installResult with
+        {
+            Summary = manualSummary,
+            Output = MergeLines(failedResult.Output, removeResult.Output, installResult.Output),
+            Errors = MergeLines(failedResult.Errors, removeResult.Errors, installResult.Errors),
+            LogFilePath = installResult.LogFilePath ?? removeResult.LogFilePath ?? failedResult.LogFilePath
+        };
     }
 
     private bool CanQueueSelectedUpdates()
@@ -1719,6 +1811,70 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         return false;
     }
 
+    private static bool ShouldAttemptDowngradeFallback(MaintenanceOperationRequest request, PackageMaintenanceResult result)
+    {
+        if (request is null || result is null)
+        {
+            return false;
+        }
+
+        var target = NormalizeVersion(request.TargetVersion);
+        var installed = NormalizeVersion(result.InstalledVersion);
+
+        if (string.IsNullOrWhiteSpace(target) || string.IsNullOrWhiteSpace(installed))
+        {
+            return false;
+        }
+
+        var targetIsOlder = IsNewerVersion(installed, target);
+        if (!targetIsOlder)
+        {
+            return false;
+        }
+
+        var exitCodeIndicatesConflict = result.ExitCode == MsiAnotherVersionInstalledExitCode
+            || result.ExitCode == WingetDowngradeBlockedExitCode;
+
+        var statusIndicatesConflict = string.Equals(result.StatusAfter, "UpToDate", StringComparison.OrdinalIgnoreCase);
+
+        return exitCodeIndicatesConflict || statusIndicatesConflict || ContainsDowngradeConflictMessage(result);
+    }
+
+    private static bool ContainsDowngradeConflictMessage(PackageMaintenanceResult result)
+    {
+        static bool ContainsPhrase(IEnumerable<string> lines)
+        {
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (line.IndexOf("another version of this application is already installed", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("already installed", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!result.Output.IsDefaultOrEmpty && result.Output.Length > 0 && ContainsPhrase(result.Output))
+        {
+            return true;
+        }
+
+        if (!result.Errors.IsDefaultOrEmpty && result.Errors.Length > 0 && ContainsPhrase(result.Errors))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(result.Summary)
+            && (result.Summary.IndexOf("already installed", StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
     private static bool ContainsNonActionableWingetMessage(PackageMaintenanceResult result)
     {
         static bool ContainsPhrase(IEnumerable<string> lines)
@@ -1823,6 +1979,78 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
         return !string.IsNullOrWhiteSpace(result.Summary)
             && (result.Summary.IndexOf("installer hash", StringComparison.OrdinalIgnoreCase) >= 0
                 || result.Summary.IndexOf("hash mismatch", StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
+    private static bool IsBenignUninstallFailure(PackageMaintenanceResult result)
+    {
+        if (result.ExitCode == WingetApplicationNotFoundExitCode)
+        {
+            return true;
+        }
+
+        static bool ContainsNotFound(IEnumerable<string> lines)
+        {
+            foreach (var line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                if (line.IndexOf("application not found", StringComparison.OrdinalIgnoreCase) >= 0
+                    || line.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if (!result.Output.IsDefaultOrEmpty && result.Output.Length > 0 && ContainsNotFound(result.Output))
+        {
+            return true;
+        }
+
+        if (!result.Errors.IsDefaultOrEmpty && result.Errors.Length > 0 && ContainsNotFound(result.Errors))
+        {
+            return true;
+        }
+
+        return !string.IsNullOrWhiteSpace(result.Summary)
+            && result.Summary.IndexOf("application not found", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static bool IsNewerVersion(string installedVersion, string candidateVersion)
+    {
+        if (Version.TryParse(installedVersion, out var installed) && Version.TryParse(candidateVersion, out var candidate))
+        {
+            return installed > candidate;
+        }
+
+        return string.Compare(installedVersion, candidateVersion, StringComparison.OrdinalIgnoreCase) > 0;
+    }
+
+    private static ImmutableArray<string> MergeLines(params ImmutableArray<string>[] segments)
+    {
+        var builder = ImmutableArray.CreateBuilder<string>();
+        foreach (var segment in segments)
+        {
+            if (segment.IsDefaultOrEmpty)
+            {
+                continue;
+            }
+
+            foreach (var line in segment)
+            {
+                if (!string.IsNullOrWhiteSpace(line))
+                {
+                    builder.Add(line);
+                }
+            }
+        }
+
+        return builder.ToImmutable();
     }
 
     private void SynchronizeCollection(ObservableCollection<PackageMaintenanceItemViewModel> target, IList<PackageMaintenanceItemViewModel> source)
