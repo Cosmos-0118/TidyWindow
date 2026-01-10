@@ -15,7 +15,7 @@ namespace TidyWindow.Core.Cleanup;
 public sealed class CleanupService
 {
     private readonly CleanupScanner _scanner;
-    private static readonly string[] ProtectedRoots = BuildProtectedRoots();
+    private static readonly ProtectedLocation[] ProtectedLocations = BuildProtectedLocations();
 
     public CleanupService()
         : this(new CleanupScanner(new CleanupDefinitionProvider()))
@@ -626,36 +626,44 @@ public sealed class CleanupService
         }
     }
 
-    private static string[] BuildProtectedRoots()
+    private static ProtectedLocation[] BuildProtectedLocations()
     {
-        var roots = new List<string>();
+        var locations = new List<ProtectedLocation>();
 
-        void AddIfValid(string? candidate)
+        void AddIfValid(string? candidate, bool protectSubtree)
         {
-            if (string.IsNullOrWhiteSpace(candidate))
-            {
-                return;
-            }
-
             var normalized = NormalizeFullPath(candidate);
             if (normalized.Length == 0)
             {
                 return;
             }
 
-            if (!roots.Any(root => string.Equals(root, normalized, StringComparison.OrdinalIgnoreCase)))
+            var existingIndex = locations.FindIndex(x => string.Equals(x.Path, normalized, StringComparison.OrdinalIgnoreCase));
+            if (existingIndex >= 0)
             {
-                roots.Add(normalized);
+                if (locations[existingIndex].ProtectSubtree || !protectSubtree)
+                {
+                    return;
+                }
+
+                locations[existingIndex] = new ProtectedLocation(normalized, protectSubtree: true);
+                return;
             }
+
+            locations.Add(new ProtectedLocation(normalized, protectSubtree));
         }
 
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(windows))
+        {
+            AddIfValid(windows, protectSubtree: true);
+        }
 
         void AddWindowsChild(string child)
         {
             if (!string.IsNullOrWhiteSpace(windows))
             {
-                AddIfValid(Path.Combine(windows, child));
+                AddIfValid(Path.Combine(windows, child), protectSubtree: true);
             }
         }
 
@@ -680,16 +688,39 @@ public sealed class CleanupService
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         if (!string.IsNullOrWhiteSpace(programFiles))
         {
-            AddIfValid(Path.Combine(programFiles, "WindowsApps"));
+            AddIfValid(programFiles, protectSubtree: false);
+            AddIfValid(Path.Combine(programFiles, "WindowsApps"), protectSubtree: true);
         }
 
         var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
         if (!string.IsNullOrWhiteSpace(programFilesX86))
         {
-            AddIfValid(Path.Combine(programFilesX86, "WindowsApps"));
+            AddIfValid(programFilesX86, protectSubtree: false);
+            AddIfValid(Path.Combine(programFilesX86, "WindowsApps"), protectSubtree: true);
         }
 
-        return roots.ToArray();
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (!string.IsNullOrWhiteSpace(programData))
+        {
+            AddIfValid(programData, protectSubtree: false);
+        }
+
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            AddIfValid(userProfile, protectSubtree: false);
+
+            var userProfilesRoot = Path.GetDirectoryName(userProfile);
+            AddIfValid(userProfilesRoot, protectSubtree: false);
+        }
+
+        if (!string.IsNullOrWhiteSpace(windows))
+        {
+            var systemRoot = Path.GetPathRoot(windows);
+            AddIfValid(systemRoot, protectSubtree: false);
+        }
+
+        return locations.ToArray();
     }
 
     private static string NormalizeFullPath(string? path)
@@ -717,15 +748,32 @@ public sealed class CleanupService
             return false;
         }
 
-        foreach (var root in ProtectedRoots)
+        foreach (var location in ProtectedLocations)
         {
-            if (IsSameOrSubPath(path, root))
+            if (location.ProtectSubtree)
+            {
+                if (IsSameOrSubPath(path, location.Path))
+                {
+                    return true;
+                }
+            }
+            else if (IsSamePath(path, location.Path))
             {
                 return true;
             }
         }
 
         return false;
+    }
+
+    private static bool IsSamePath(string candidate, string root)
+    {
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return false;
+        }
+
+        return string.Equals(candidate, root, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsSameOrSubPath(string candidate, string root)
@@ -782,6 +830,19 @@ public sealed class CleanupService
         {
             cancellationToken.ThrowIfCancellationRequested();
         }
+    }
+
+    private readonly struct ProtectedLocation
+    {
+        public ProtectedLocation(string path, bool protectSubtree)
+        {
+            Path = path;
+            ProtectSubtree = protectSubtree;
+        }
+
+        public string Path { get; }
+
+        public bool ProtectSubtree { get; }
     }
 
     private static class NativeMethods

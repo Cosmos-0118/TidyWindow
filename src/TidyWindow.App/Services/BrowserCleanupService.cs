@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Interop;
@@ -20,9 +22,17 @@ public sealed record BrowserCleanupResult(BrowserCleanupResultStatus Status, str
     public bool IsSuccess => Status == BrowserCleanupResultStatus.Success;
 }
 
+public enum BrowserKind
+{
+    Edge,
+    Chrome
+}
+
+public readonly record struct BrowserProfile(BrowserKind Kind, string ProfileDirectory);
+
 public interface IBrowserCleanupService : IDisposable
 {
-    Task<BrowserCleanupResult> ClearEdgeHistoryAsync(string profileDirectory, CancellationToken cancellationToken);
+    Task<BrowserCleanupResult> ClearHistoryAsync(BrowserProfile profile, IReadOnlyList<string> targetPaths, CancellationToken cancellationToken);
 }
 
 public sealed class BrowserCleanupService : IBrowserCleanupService
@@ -37,19 +47,24 @@ public sealed class BrowserCleanupService : IBrowserCleanupService
         _dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
     }
 
-    public Task<BrowserCleanupResult> ClearEdgeHistoryAsync(string profileDirectory, CancellationToken cancellationToken)
+    public Task<BrowserCleanupResult> ClearHistoryAsync(BrowserProfile profile, IReadOnlyList<string> targetPaths, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(profileDirectory))
+        if (string.IsNullOrWhiteSpace(profile.ProfileDirectory))
         {
-            return Task.FromResult(new BrowserCleanupResult(BrowserCleanupResultStatus.Skipped, "Edge profile directory is empty."));
+            return Task.FromResult(new BrowserCleanupResult(BrowserCleanupResultStatus.Skipped, "Browser profile directory is empty."));
         }
 
-        if (!Directory.Exists(profileDirectory))
+        if (!Directory.Exists(profile.ProfileDirectory))
         {
-            return Task.FromResult(new BrowserCleanupResult(BrowserCleanupResultStatus.Skipped, $"Edge profile directory not found: {profileDirectory}"));
+            return Task.FromResult(new BrowserCleanupResult(BrowserCleanupResultStatus.Skipped, $"Browser profile directory not found: {profile.ProfileDirectory}"));
         }
 
-        return InvokeOnDispatcherAsync(() => ClearEdgeHistoryInternalAsync(profileDirectory, cancellationToken));
+        return InvokeOnDispatcherAsync(() => profile.Kind switch
+        {
+            BrowserKind.Edge => ClearEdgeHistoryInternalAsync(profile.ProfileDirectory, cancellationToken),
+            BrowserKind.Chrome => Task.FromResult(ClearChromiumHistoryFiles(profile.ProfileDirectory, targetPaths)),
+            _ => Task.FromResult(new BrowserCleanupResult(BrowserCleanupResultStatus.Skipped, "Unsupported browser profile."))
+        });
     }
 
     public void Dispose()
@@ -149,6 +164,88 @@ public sealed class BrowserCleanupService : IBrowserCleanupService
             _hostSource = new HwndSource(parameters);
             return _hostSource.Handle;
         }
+    }
+
+    private static BrowserCleanupResult ClearChromiumHistoryFiles(string profileDirectory, IReadOnlyList<string> targetPaths)
+    {
+        if (targetPaths is null || targetPaths.Count == 0)
+        {
+            return new BrowserCleanupResult(BrowserCleanupResultStatus.Skipped, "No history entries selected for this profile.");
+        }
+
+        var successes = 0;
+        var failures = new List<string>();
+
+        foreach (var path in targetPaths.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (string.IsNullOrWhiteSpace(path))
+            {
+                continue;
+            }
+
+            if (!path.StartsWith(profileDirectory, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (!File.Exists(path))
+            {
+                continue;
+            }
+
+            if (TryDeleteFileWithRetry(path))
+            {
+                successes++;
+            }
+            else
+            {
+                failures.Add(path);
+            }
+        }
+
+        if (successes == 0 && failures.Count == 0)
+        {
+            return new BrowserCleanupResult(BrowserCleanupResultStatus.Skipped, "History files already removed.");
+        }
+
+        if (failures.Count > 0)
+        {
+            var message = $"Failed to clear some history files ({failures.Count} item(s)). Close the browser and try again.";
+            return new BrowserCleanupResult(BrowserCleanupResultStatus.Failed, message);
+        }
+
+        return new BrowserCleanupResult(BrowserCleanupResultStatus.Success, "Cleared browser history files.");
+    }
+
+    private static bool TryDeleteFileWithRetry(string path)
+    {
+        const int maxAttempts = 2;
+
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            try
+            {
+                File.SetAttributes(path, FileAttributes.Normal);
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                File.Delete(path);
+                return true;
+            }
+            catch
+            {
+                if (attempt == maxAttempts - 1)
+                {
+                    return false;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static class WindowStyles

@@ -1041,7 +1041,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
         var deletionOptions = new CleanupDeletionOptions
         {
             PreferRecycleBin = useRecycleBin,
-            AllowPermanentDeleteFallback = true,
+            // When recycle is requested, avoid silently falling back to permanent delete.
+            AllowPermanentDeleteFallback = !useRecycleBin,
             SkipLockedItems = SkipLockedItems,
             TakeOwnershipOnAccessDenied = RepairPermissionsBeforeDelete
         };
@@ -1616,7 +1617,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
             if (_browserCleanupService is not null)
             {
-                browserHistoryResult = await HandleEdgeHistoryAsync(itemsToDelete, CancellationToken.None);
+                browserHistoryResult = await HandleBrowserHistoryAsync(itemsToDelete, CancellationToken.None);
                 manualBrowserEntries.AddRange(browserHistoryResult.Entries);
             }
 
@@ -1891,7 +1892,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         return $"Cleanup run ({itemCount:N0} items)";
     }
 
-    private async Task<BrowserHistoryHandleResult> HandleEdgeHistoryAsync(
+    private async Task<BrowserHistoryHandleResult> HandleBrowserHistoryAsync(
         IReadOnlyList<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> items,
         CancellationToken cancellationToken)
     {
@@ -1900,7 +1901,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             return BrowserHistoryHandleResult.Empty;
         }
 
-        var grouped = new Dictionary<string, List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>>(StringComparer.OrdinalIgnoreCase);
+        var grouped = new Dictionary<string, (BrowserProfile Profile, List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> Items)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var tuple in items)
         {
@@ -1910,18 +1911,19 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
 
             var candidatePath = tuple.item.Model.FullName;
-            if (!BrowserHistoryHelper.TryGetEdgeProfileDirectory(candidatePath, out var profileDirectory))
+            if (!BrowserHistoryHelper.TryGetBrowserProfile(candidatePath, out var profile))
             {
                 continue;
             }
 
-            if (!grouped.TryGetValue(profileDirectory, out var list))
+            if (!grouped.TryGetValue(profile.ProfileDirectory, out var bucket))
             {
-                list = new List<(CleanupTargetGroupViewModel, CleanupPreviewItemViewModel)>();
-                grouped[profileDirectory] = list;
+                bucket = (profile, new List<(CleanupTargetGroupViewModel, CleanupPreviewItemViewModel)>());
+                grouped[profile.ProfileDirectory] = bucket;
             }
 
-            list.Add(tuple);
+            bucket.Items.Add(tuple);
+            grouped[profile.ProfileDirectory] = bucket;
         }
 
         if (grouped.Count == 0)
@@ -1936,17 +1938,26 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = await _browserCleanupService.ClearEdgeHistoryAsync(kvp.Key, cancellationToken).ConfigureAwait(false);
+            var profile = kvp.Value.Profile;
+            var targets = kvp.Value.Items.Select(static tuple => tuple.item.Model.FullName).ToList();
+            var result = await _browserCleanupService.ClearHistoryAsync(profile, targets, cancellationToken).ConfigureAwait(false);
             if (result.IsSuccess)
             {
-                foreach (var tuple in kvp.Value)
+                var dispositionMessage = profile.Kind switch
+                {
+                    BrowserKind.Edge => "Cleared safely via Microsoft Edge API.",
+                    BrowserKind.Chrome => "Cleared via Chrome history purge.",
+                    _ => "Cleared browser history."
+                };
+
+                foreach (var tuple in kvp.Value.Items)
                 {
                     var entry = new CleanupDeletionEntry(
                         tuple.item.Model.FullName,
                         tuple.item.Model.SizeBytes,
                         tuple.item.IsDirectory,
                         CleanupDeletionDisposition.Deleted,
-                        "Cleared safely via Microsoft Edge API.");
+                        dispositionMessage);
                     entries.Add((tuple.group, tuple.item, entry));
                 }
             }
@@ -3047,7 +3058,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 new CleanupDeletionOptions
                 {
                     PreferRecycleBin = UseRecycleBin,
-                    AllowPermanentDeleteFallback = true
+                    // Preserve reversibility for recycle requests; only allow hard delete when explicitly chosen.
+                    AllowPermanentDeleteFallback = !UseRecycleBin
                 },
                 generateReport: false);
         }

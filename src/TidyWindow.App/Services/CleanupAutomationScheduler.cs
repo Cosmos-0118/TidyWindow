@@ -243,7 +243,7 @@ public sealed class CleanupAutomationScheduler : IDisposable
             return BrowserCleanupBatch.Empty;
         }
 
-        var grouped = new Dictionary<string, List<CleanupPreviewItem>>(StringComparer.OrdinalIgnoreCase);
+        var grouped = new Dictionary<string, (BrowserProfile Profile, List<CleanupPreviewItem> Items)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var tuple in items)
         {
@@ -252,18 +252,19 @@ public sealed class CleanupAutomationScheduler : IDisposable
                 continue;
             }
 
-            if (!BrowserHistoryHelper.TryGetEdgeProfileDirectory(tuple.item.FullName, out var profileDirectory))
+            if (!BrowserHistoryHelper.TryGetBrowserProfile(tuple.item.FullName, out var profile))
             {
                 continue;
             }
 
-            if (!grouped.TryGetValue(profileDirectory, out var list))
+            if (!grouped.TryGetValue(profile.ProfileDirectory, out var bucket))
             {
-                list = new List<CleanupPreviewItem>();
-                grouped[profileDirectory] = list;
+                bucket = (profile, new List<CleanupPreviewItem>());
+                grouped[profile.ProfileDirectory] = bucket;
             }
 
-            list.Add(tuple.item);
+            bucket.Items.Add(tuple.item);
+            grouped[profile.ProfileDirectory] = bucket;
         }
 
         if (grouped.Count == 0)
@@ -285,17 +286,26 @@ public sealed class CleanupAutomationScheduler : IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var result = await _browserCleanupService.ClearEdgeHistoryAsync(kvp.Key, cancellationToken).ConfigureAwait(false);
+            var profile = kvp.Value.Profile;
+            var targets = kvp.Value.Items.Select(static item => item.FullName).ToList();
+            var result = await _browserCleanupService.ClearHistoryAsync(profile, targets, cancellationToken).ConfigureAwait(false);
             if (result.IsSuccess)
             {
-                foreach (var item in kvp.Value)
+                var dispositionMessage = profile.Kind switch
+                {
+                    BrowserKind.Edge => "Cleared via Microsoft Edge API.",
+                    BrowserKind.Chrome => "Cleared via Chrome history purge.",
+                    _ => "Cleared browser history."
+                };
+
+                foreach (var item in kvp.Value.Items)
                 {
                     entries.Add(new CleanupDeletionEntry(
                         item.FullName,
                         Math.Max(item.SizeBytes, 0),
                         item.IsDirectory,
                         CleanupDeletionDisposition.Deleted,
-                        "Cleared via Microsoft Edge API."));
+                        dispositionMessage));
                 }
             }
             else
