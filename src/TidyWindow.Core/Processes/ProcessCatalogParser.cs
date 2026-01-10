@@ -135,6 +135,9 @@ public sealed class ProcessCatalogParser
                     continue;
                 }
 
+                var isPattern = IsPattern(token);
+                var serviceIdentifier = isPattern ? null : ProcessCatalogEntry.NormalizeServiceIdentifier(token);
+
                 var entry = new ProcessCatalogEntry(
                     normalized,
                     token,
@@ -144,9 +147,10 @@ public sealed class ProcessCatalogParser
                     cautionSection ? ProcessRiskLevel.Caution : ProcessRiskLevel.Safe,
                     cautionSection ? ProcessActionPreference.Keep : ProcessActionPreference.AutoStop,
                     rationale,
-                    IsPattern(token),
+                    isPattern,
                     categoryOrder,
-                    ++entryOrder);
+                    ++entryOrder,
+                    serviceIdentifier);
 
                 entries.Add(entry);
             }
@@ -245,6 +249,22 @@ public sealed class ProcessCatalogParser
                 var displayName = string.IsNullOrWhiteSpace(model.DisplayName) ? model.Identifier.Trim() : model.DisplayName.Trim();
                 var entryOrder = ResolveOrder(model.Order, ref entryOrderCursor);
 
+                string? serviceIdentifier = null;
+                if (!isPattern && !string.IsNullOrWhiteSpace(model.ServiceName))
+                {
+                    serviceIdentifier = ProcessCatalogEntry.NormalizeServiceIdentifier(model.ServiceName);
+                    if (serviceIdentifier is null)
+                    {
+                        throw new InvalidDataException($"Entry '{model.Identifier}' declares an invalid serviceName '{model.ServiceName}'.");
+                    }
+                }
+
+                if (!isPattern && serviceIdentifier is null)
+                {
+                    serviceIdentifier = ProcessCatalogEntry.NormalizeServiceIdentifier(model.Identifier)
+                        ?? ProcessCatalogEntry.NormalizeServiceIdentifier(displayName);
+                }
+
                 var entry = new ProcessCatalogEntry(
                     normalized,
                     displayName,
@@ -256,7 +276,8 @@ public sealed class ProcessCatalogParser
                     rationale,
                     isPattern,
                     category.Order,
-                    entryOrder);
+                    entryOrder,
+                    serviceIdentifier);
 
                 entries.Add(entry);
             }
@@ -458,6 +479,8 @@ public sealed class ProcessCatalogParser
         public string? Identifier { get; init; }
 
         public string? DisplayName { get; init; }
+
+        public string? ServiceName { get; init; }
 
         public string? CategoryKey { get; init; }
 

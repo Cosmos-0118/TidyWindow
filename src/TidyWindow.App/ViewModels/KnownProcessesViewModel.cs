@@ -186,7 +186,14 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         try
         {
             _mainViewModel.SetStatusMessage($"Stopping {card.DisplayName}...");
-            var result = await _controlService.StopAsync(card.DisplayName);
+            var serviceName = card.ServiceIdentifier;
+            if (string.IsNullOrWhiteSpace(serviceName))
+            {
+                card.LastActionMessage = "No service identifier available for this entry.";
+                return;
+            }
+
+            var result = await _controlService.StopAsync(serviceName);
             var message = BuildActionMessage(card, result.Message);
             card.LastActionMessage = message;
             _mainViewModel.LogActivity(result.Success ? ActivityLogLevel.Success : ActivityLogLevel.Warning, "Known Processes", message);
@@ -221,7 +228,14 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
         try
         {
             _mainViewModel.SetStatusMessage($"Restarting {card.DisplayName}...");
-            var result = await _controlService.RestartAsync(card.DisplayName);
+            var serviceName = card.ServiceIdentifier;
+            if (string.IsNullOrWhiteSpace(serviceName))
+            {
+                card.LastActionMessage = "No service identifier available for this entry.";
+                return;
+            }
+
+            var result = await _controlService.RestartAsync(serviceName);
             var message = BuildActionMessage(card, result.Message);
             card.LastActionMessage = message;
             _mainViewModel.LogActivity(result.Success ? ActivityLogLevel.Success : ActivityLogLevel.Warning, "Known Processes", message);
@@ -258,7 +272,13 @@ public sealed partial class KnownProcessesViewModel : ViewModelBase
     {
         try
         {
-            var preference = new ProcessPreference(card.Identifier, action, ProcessPreferenceSource.UserOverride, DateTimeOffset.UtcNow, "Set via Known Processes tab");
+            var preference = new ProcessPreference(
+                card.Identifier,
+                action,
+                ProcessPreferenceSource.UserOverride,
+                DateTimeOffset.UtcNow,
+                "Set via Known Processes tab",
+                card.ServiceIdentifier);
             _stateStore.UpsertPreference(preference);
             card.ApplyPreference(action, ProcessPreferenceSource.UserOverride);
             UpdateSummary();
@@ -360,6 +380,7 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
         _owner = owner;
         Identifier = entry.Identifier;
         DisplayName = entry.DisplayName;
+        ServiceIdentifier = entry.ServiceIdentifier;
         CategoryKey = entry.CategoryKey;
         CategoryName = entry.CategoryName;
         Rationale = string.IsNullOrWhiteSpace(entry.Rationale)
@@ -367,7 +388,7 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
             : entry.Rationale;
         RecommendedAction = entry.RecommendedAction;
         _isCaution = entry.RiskLevel == ProcessRiskLevel.Caution;
-        SupportsServiceControl = !entry.IsPattern;
+        SupportsServiceControl = entry.SupportsServiceControl;
         Notes = notes;
         ApplyPreference(action, source);
     }
@@ -375,6 +396,8 @@ public sealed partial class KnownProcessCardViewModel : ObservableObject
     public string Identifier { get; }
 
     public string DisplayName { get; }
+
+    public string? ServiceIdentifier { get; }
 
     public string CategoryKey { get; }
 

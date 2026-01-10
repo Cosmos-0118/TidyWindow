@@ -18,7 +18,8 @@ public sealed record ProcessCatalogEntry
         string? rationale,
         bool isPattern,
         int categoryOrder,
-        int entryOrder)
+        int entryOrder,
+        string? serviceIdentifier = null)
     {
         if (string.IsNullOrWhiteSpace(identifier))
         {
@@ -36,6 +37,11 @@ public sealed record ProcessCatalogEntry
         IsPattern = isPattern;
         CategoryOrder = categoryOrder;
         EntryOrder = entryOrder;
+        ServiceIdentifier = isPattern ? null : NormalizeServiceIdentifier(string.IsNullOrWhiteSpace(serviceIdentifier) ? identifier : serviceIdentifier);
+        if (!string.IsNullOrWhiteSpace(serviceIdentifier) && ServiceIdentifier is null)
+        {
+            throw new ArgumentException("Service identifier contains invalid characters.", nameof(serviceIdentifier));
+        }
     }
 
     public string Identifier { get; init; }
@@ -60,6 +66,10 @@ public sealed record ProcessCatalogEntry
 
     public int EntryOrder { get; init; }
 
+    public string? ServiceIdentifier { get; init; }
+
+    public bool SupportsServiceControl => !IsPattern && !string.IsNullOrWhiteSpace(ServiceIdentifier);
+
     public static string NormalizeIdentifier(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -68,5 +78,26 @@ public sealed record ProcessCatalogEntry
         }
 
         return value.Trim().ToLowerInvariant();
+    }
+
+    public static string? NormalizeServiceIdentifier(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var trimmed = value.Trim();
+        if (trimmed.IndexOfAny(new[] { '\\', '/', '*', '?', ':', ';', '|' }) >= 0)
+        {
+            return null;
+        }
+
+        if (trimmed.Contains(' ', StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        return trimmed;
     }
 }

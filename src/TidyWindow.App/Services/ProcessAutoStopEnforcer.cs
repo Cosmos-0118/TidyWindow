@@ -17,17 +17,28 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
     private readonly ProcessStateStore _stateStore;
     private readonly ProcessControlService _controlService;
     private readonly ActivityLogService _activityLog;
+    private readonly Lazy<ProcessCatalogSnapshot> _catalogSnapshot;
+    private readonly Lazy<IReadOnlyDictionary<string, ProcessCatalogEntry>> _catalogLookup;
     private readonly SemaphoreSlim _runLock = new(1, 1);
     private System.Threading.Timer? _timer;
     private CancellationTokenSource? _nextRunNotificationCts;
     private ProcessAutomationSettings _settings;
     private bool _disposed;
 
-    public ProcessAutoStopEnforcer(ProcessStateStore stateStore, ProcessControlService controlService, ActivityLogService activityLog)
+    public ProcessAutoStopEnforcer(ProcessStateStore stateStore, ProcessControlService controlService, ActivityLogService activityLog, ProcessCatalogParser catalogParser)
     {
         _stateStore = stateStore ?? throw new ArgumentNullException(nameof(stateStore));
         _controlService = controlService ?? throw new ArgumentNullException(nameof(controlService));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
+        if (catalogParser is null)
+        {
+            throw new ArgumentNullException(nameof(catalogParser));
+        }
+
+        _catalogSnapshot = new Lazy<ProcessCatalogSnapshot>(catalogParser.LoadSnapshot, isThreadSafe: true);
+        _catalogLookup = new Lazy<IReadOnlyDictionary<string, ProcessCatalogEntry>>(
+            () => _catalogSnapshot.Value.Entries.ToDictionary(entry => entry.Identifier, StringComparer.OrdinalIgnoreCase),
+            isThreadSafe: true);
         _settings = _stateStore.GetAutomationSettings();
         ConfigureTimer();
     }
@@ -86,11 +97,18 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
             }
 
             var actions = new List<ProcessAutoStopActionResult>(targets.Length);
-            foreach (var identifier in targets)
+            foreach (var target in targets)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var stopResult = await _controlService.StopAsync(identifier, cancellationToken).ConfigureAwait(false);
-                actions.Add(new ProcessAutoStopActionResult(identifier, stopResult.Success, stopResult.Message));
+
+                if (!target.IsActionable)
+                {
+                    actions.Add(new ProcessAutoStopActionResult(target.Label, success: false, target.SkipReason ?? "No service identifier available."));
+                    continue;
+                }
+
+                var stopResult = await _controlService.StopAsync(target.ServiceName!, cancellationToken).ConfigureAwait(false);
+                actions.Add(new ProcessAutoStopActionResult(target.Label, stopResult.Success, stopResult.Message));
             }
 
             UpdateLastRun(timestamp);
@@ -182,16 +200,17 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
                 token.ThrowIfCancellationRequested();
 
                 var targets = GetAutoStopTargets();
-                if (targets.Length == 0)
+                var actionableTargets = targets.Where(static target => target.IsActionable).ToArray();
+                if (actionableTargets.Length == 0)
                 {
                     return;
                 }
 
-                var message = targets.Length == 1
+                var message = actionableTargets.Length == 1
                     ? "Auto-stop enforcement will run in about a minute for 1 service."
-                    : $"Auto-stop enforcement will run in about a minute for {targets.Length} services.";
+                    : $"Auto-stop enforcement will run in about a minute for {actionableTargets.Length} services.";
 
-                var details = BuildTargetDetails(targets, 8);
+                var details = BuildTargetDetails(actionableTargets, 8);
                 _activityLog.LogInformation("Auto-stop", message, details);
             }
             catch (TaskCanceledException)
@@ -248,14 +267,51 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         }
     }
 
-    private string[] GetAutoStopTargets()
+    private ProcessAutoStopTarget[] GetAutoStopTargets()
     {
-        return _stateStore.GetPreferences()
+        var preferences = _stateStore.GetPreferences()
             .Where(static pref => pref.Action == ProcessActionPreference.AutoStop)
-            .Select(static pref => pref.ProcessIdentifier)
-            .Where(static identifier => !string.IsNullOrWhiteSpace(identifier))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        if (preferences.Length == 0)
+        {
+            return Array.Empty<ProcessAutoStopTarget>();
+        }
+
+        var catalogLookup = _catalogLookup.Value;
+        var targets = new List<ProcessAutoStopTarget>(preferences.Length);
+
+        foreach (var preference in preferences)
+        {
+            catalogLookup.TryGetValue(preference.ProcessIdentifier, out var entry);
+
+            var displayName = entry?.DisplayName ?? preference.ProcessIdentifier;
+            var serviceIdentifier = entry?.ServiceIdentifier
+                ?? preference.ServiceIdentifier
+                ?? ProcessCatalogEntry.NormalizeServiceIdentifier(preference.ProcessIdentifier);
+
+            var normalizedService = ProcessCatalogEntry.NormalizeServiceIdentifier(serviceIdentifier);
+            string? skipReason = null;
+
+            if (string.IsNullOrWhiteSpace(normalizedService))
+            {
+                skipReason = "No valid service identifier available.";
+            }
+
+            targets.Add(new ProcessAutoStopTarget(preference.ProcessIdentifier, displayName, normalizedService, skipReason));
+        }
+
+        return targets
+            .GroupBy(target => target.ServiceName ?? target.ProcessId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToArray();
+    }
+
+    private sealed record ProcessAutoStopTarget(string ProcessId, string DisplayName, string? ServiceName, string? SkipReason)
+    {
+        public bool IsActionable => !string.IsNullOrWhiteSpace(ServiceName);
+
+        public string Label => string.IsNullOrWhiteSpace(DisplayName) ? ProcessId : DisplayName;
     }
 
     private static IEnumerable<string> BuildActionDetails(IReadOnlyList<ProcessAutoStopActionResult> actions)
@@ -269,9 +325,9 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         }
     }
 
-    private static IEnumerable<string> BuildTargetDetails(IEnumerable<string> targets, int max)
+    private static IEnumerable<string> BuildTargetDetails(IEnumerable<ProcessAutoStopTarget> targets, int max)
     {
-        var list = targets?.Where(static target => !string.IsNullOrWhiteSpace(target)).ToList() ?? new List<string>();
+        var list = targets?.Where(static target => target.IsActionable).ToList() ?? new List<ProcessAutoStopTarget>();
         if (list.Count == 0)
         {
             return Array.Empty<string>();
@@ -281,7 +337,7 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         var lines = new List<string>(limit + 1);
         for (var i = 0; i < limit; i++)
         {
-            lines.Add($"Target: {list[i]}");
+            lines.Add($"Target: {list[i].Label}");
         }
 
         if (list.Count > limit)

@@ -36,6 +36,7 @@ internal sealed class ProcessSettingsPortableModel
                 .Select(pref => new PortablePreferenceModel
                 {
                     ProcessIdentifier = pref.ProcessIdentifier,
+                    ServiceIdentifier = pref.ServiceIdentifier,
                     Action = pref.Action,
                     Source = pref.Source,
                     UpdatedAtUtc = pref.UpdatedAtUtc,
@@ -68,7 +69,8 @@ internal sealed class ProcessSettingsPortableModel
                     model.Action,
                     model.Source,
                     model.UpdatedAtUtc == default ? DateTimeOffset.UtcNow : model.UpdatedAtUtc,
-                    model.Notes);
+                    model.Notes,
+                    model.ServiceIdentifier);
                 list.Add(preference);
             }
             catch
@@ -110,6 +112,9 @@ internal sealed class ProcessSettingsPortableModel
     {
         [JsonPropertyName("id")]
         public string? ProcessIdentifier { get; set; }
+
+        [JsonPropertyName("serviceId")]
+        public string? ServiceIdentifier { get; set; }
 
         [JsonPropertyName("action")]
         public ProcessActionPreference Action { get; set; }

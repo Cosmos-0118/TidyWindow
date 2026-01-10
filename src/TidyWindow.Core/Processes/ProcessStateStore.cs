@@ -16,7 +16,7 @@ public sealed class ProcessStateStore
 {
     private const string StateOverrideEnvironmentVariable = "TIDYWINDOW_PROCESS_STATE_PATH";
     private const string DefaultFileName = "uiforprocesses-state.json";
-    internal const int LatestSchemaVersion = 6;
+    internal const int LatestSchemaVersion = 7;
 
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -470,7 +470,7 @@ public sealed class ProcessStateStore
         }
 
         var updatedAt = model.UpdatedAtUtc == default ? DateTimeOffset.UtcNow : model.UpdatedAtUtc;
-        return new ProcessPreference(model.ProcessId, model.Action, model.Source, updatedAt, model.Notes);
+        return new ProcessPreference(model.ProcessId, model.Action, model.Source, updatedAt, model.Notes, model.ServiceId);
     }
 
     private static ThreatWatchWhitelistEntry? ToWhitelistEntry(ThreatWatchWhitelistEntryModel? model)
@@ -632,6 +632,7 @@ public sealed class ProcessStateStore
                     .Select(static pref => new ProcessPreferenceModel
                     {
                         ProcessId = pref.ProcessIdentifier,
+                        ServiceId = pref.ServiceIdentifier,
                         Action = pref.Action,
                         Source = pref.Source,
                         UpdatedAtUtc = pref.UpdatedAtUtc,
@@ -687,6 +688,8 @@ public sealed class ProcessStateStore
     private sealed class ProcessPreferenceModel
     {
         public string? ProcessId { get; set; }
+
+        public string? ServiceId { get; set; }
 
         public ProcessActionPreference Action { get; set; }
 

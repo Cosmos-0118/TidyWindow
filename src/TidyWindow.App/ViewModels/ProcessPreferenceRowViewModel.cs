@@ -19,6 +19,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
             entry?.Identifier ?? throw new ArgumentNullException(nameof(entry)),
             entry.CategoryKey,
             entry.DisplayName,
+            preference?.ServiceIdentifier ?? entry.ServiceIdentifier,
             entry.CategoryName,
             entry.CategoryDescription,
             entry.RiskLevel == ProcessRiskLevel.Caution,
@@ -37,6 +38,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
         string identifier,
         string categoryKey,
         string displayName,
+        string? serviceIdentifier,
         string categoryName,
         string? categoryDescription,
         bool isCaution,
@@ -52,6 +54,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
         Identifier = ProcessCatalogEntry.NormalizeIdentifier(identifier);
         CategoryKey = string.IsNullOrWhiteSpace(categoryKey) ? "general" : categoryKey.Trim().ToLowerInvariant();
         DisplayName = string.IsNullOrWhiteSpace(displayName) ? Identifier : displayName;
+        ServiceIdentifier = ProcessCatalogEntry.NormalizeServiceIdentifier(serviceIdentifier);
         CategoryName = string.IsNullOrWhiteSpace(categoryName) ? "General" : categoryName;
         CategoryDescription = categoryDescription;
         IsCaution = isCaution;
@@ -59,7 +62,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
         Rationale = string.IsNullOrWhiteSpace(rationale) ? "No rationale provided." : rationale.Trim();
         IsCatalogEntry = isCatalogEntry;
 
-        _searchContext = string.Join(' ', Identifier, DisplayName, CategoryName, Rationale).ToLowerInvariant();
+        _searchContext = string.Join(' ', Identifier, DisplayName, ServiceIdentifier ?? string.Empty, CategoryName, Rationale).ToLowerInvariant();
 
         _effectiveAction = effectiveAction;
         _effectiveSource = effectiveSource;
@@ -70,6 +73,8 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
     public string Identifier { get; }
 
     public string DisplayName { get; }
+
+    public string? ServiceIdentifier { get; }
 
     public string CategoryKey { get; }
 
@@ -151,6 +156,7 @@ internal sealed partial class ProcessPreferenceRowViewModel : ObservableObject
             preference.ProcessIdentifier,
             "custom",
             preference.ProcessIdentifier,
+            preference.ServiceIdentifier,
             "Custom",
             "Imported preference",
             isCaution: false,

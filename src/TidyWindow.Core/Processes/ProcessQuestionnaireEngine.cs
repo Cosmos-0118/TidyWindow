@@ -162,6 +162,7 @@ public sealed class ProcessQuestionnaireEngine
     {
         var applied = new List<ProcessPreference>();
         var now = DateTimeOffset.UtcNow;
+        var catalogLookup = _catalogSnapshot.Value.Entries.ToDictionary(entry => entry.Identifier, StringComparer.OrdinalIgnoreCase);
 
         var recommendedSet = recommendedProcessIds.ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
         var existingPreferences = _stateStore.GetPreferences();
@@ -195,12 +196,15 @@ public sealed class ProcessQuestionnaireEngine
                 }
             }
 
+            catalogLookup.TryGetValue(processId, out var entry);
+
             var preference = new ProcessPreference(
                 processId,
                 ProcessActionPreference.AutoStop,
                 ProcessPreferenceSource.Questionnaire,
                 now,
-                "Derived from questionnaire responses");
+                "Derived from questionnaire responses",
+                entry?.ServiceIdentifier);
 
             _stateStore.UpsertPreference(preference);
             applied.Add(preference);

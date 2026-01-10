@@ -801,7 +801,13 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         {
             foreach (var row in targets)
             {
-                var preference = new ProcessPreference(row.Identifier, action, ProcessPreferenceSource.UserOverride, DateTimeOffset.UtcNow, $"Segment '{segment.Title}' quick toggle");
+                var preference = new ProcessPreference(
+                    row.Identifier,
+                    action,
+                    ProcessPreferenceSource.UserOverride,
+                    DateTimeOffset.UtcNow,
+                    $"Segment '{segment.Title}' quick toggle",
+                    row.ServiceIdentifier);
                 _processStateStore.UpsertPreference(preference);
                 row.ApplyPreference(preference.Action, preference.Source, preference.UpdatedAtUtc, preference.Notes);
             }
@@ -822,7 +828,13 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     {
         try
         {
-            var preference = new ProcessPreference(row.Identifier, action, ProcessPreferenceSource.UserOverride, DateTimeOffset.UtcNow, "Updated via Processes settings");
+            var preference = new ProcessPreference(
+                row.Identifier,
+                action,
+                ProcessPreferenceSource.UserOverride,
+                DateTimeOffset.UtcNow,
+                "Updated via Processes settings",
+                row.ServiceIdentifier);
             _processStateStore.UpsertPreference(preference);
             row.ApplyPreference(preference.Action, preference.Source, preference.UpdatedAtUtc, preference.Notes);
             ProcessEntriesView.Refresh();

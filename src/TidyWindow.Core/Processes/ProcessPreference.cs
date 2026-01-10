@@ -12,7 +12,8 @@ public sealed record ProcessPreference
         ProcessActionPreference action,
         ProcessPreferenceSource source,
         DateTimeOffset updatedAtUtc,
-        string? notes)
+        string? notes,
+        string? serviceIdentifier = null)
     {
         if (string.IsNullOrWhiteSpace(processIdentifier))
         {
@@ -24,6 +25,17 @@ public sealed record ProcessPreference
         Source = source;
         UpdatedAtUtc = updatedAtUtc;
         Notes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+
+        if (!string.IsNullOrWhiteSpace(serviceIdentifier))
+        {
+            var normalizedService = ProcessCatalogEntry.NormalizeServiceIdentifier(serviceIdentifier);
+            if (normalizedService is null)
+            {
+                throw new ArgumentException("Service identifier is invalid.", nameof(serviceIdentifier));
+            }
+
+            ServiceIdentifier = normalizedService;
+        }
     }
 
     public string ProcessIdentifier { get; init; }
@@ -35,6 +47,8 @@ public sealed record ProcessPreference
     public DateTimeOffset UpdatedAtUtc { get; init; }
 
     public string? Notes { get; init; }
+
+    public string? ServiceIdentifier { get; init; }
 
     public static string NormalizeProcessIdentifier(string value)
     {
