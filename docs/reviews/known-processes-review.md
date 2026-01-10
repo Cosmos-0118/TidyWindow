@@ -13,7 +13,7 @@
 ## Key issues and recommended improvements
 
 -   [x] **Service control targets are ambiguous** – Calls use the catalog display name rather than a service name when stopping/restarting or enforcing automation. Any mismatch becomes a no-op or failure. Store and use a dedicated service identifier and validate it during catalog ingestion.
--   [ ] **Manual run blocked when automation off** – "Run now" is gated behind the automation-enabled flag. Allow a one-time enforcement without enabling the scheduler for break-glass use.
+-   [x] **Manual run blocked when automation off** – "Run now" is gated behind the automation-enabled flag. Allow a one-time enforcement without enabling the scheduler for break-glass use.
 -   [ ] **Fixed 25s service timeout** – The stop path uses a fixed 25-second timeout and ignores disabled services, causing false failures on slow or disabled services. Add start-type checks and configurable timeouts.
 -   [ ] **Limited Threat Watch context** – Snapshots omit command-line and parent-process context, reducing triage fidelity. Capture these fields where permissions allow to improve rule precision and user insight.
 

@@ -284,18 +284,13 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
             return;
         }
 
-        if (!IsAutoStopAutomationEnabled)
-        {
-            _mainViewModel.LogActivityInformation("Process settings", "Enable auto-stop automation before running it manually.");
-            return;
-        }
-
         try
         {
             IsAutomationBusy = true;
+            var wasDisabled = !IsAutoStopAutomationEnabled;
             _mainViewModel.SetStatusMessage("Enforcing auto-stop preferences...");
 
-            var result = await _autoStopEnforcer.RunOnceAsync();
+            var result = await _autoStopEnforcer.RunOnceAsync(allowWhenDisabled: true);
             if (!result.WasSkipped)
             {
                 AutoStopLastRunUtc = result.ExecutedAtUtc;
@@ -306,6 +301,11 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
                 : (result.TargetCount == 0
                     ? "No auto-stop targets required enforcement."
                     : $"Auto-stop enforced for {result.TargetCount} service(s).");
+
+            if (wasDisabled && !result.WasSkipped)
+            {
+                message += " Automation remains disabled; this was a one-time run.";
+            }
 
             _mainViewModel.LogActivityInformation("Process settings", message);
         }

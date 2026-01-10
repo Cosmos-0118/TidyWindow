@@ -58,21 +58,21 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
 
         if (enforceImmediately && normalized.AutoStopEnabled)
         {
-            return await RunOnceInternalAsync(false, cancellationToken).ConfigureAwait(false);
+            return await RunOnceInternalAsync(false, allowWhenDisabled: false, cancellationToken).ConfigureAwait(false);
         }
 
         return null;
     }
 
-    public Task<ProcessAutoStopResult> RunOnceAsync(CancellationToken cancellationToken = default)
+    public Task<ProcessAutoStopResult> RunOnceAsync(bool allowWhenDisabled = false, CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
-        return RunOnceInternalAsync(false, cancellationToken);
+        return RunOnceInternalAsync(false, allowWhenDisabled, cancellationToken);
     }
 
-    private async Task<ProcessAutoStopResult> RunOnceInternalAsync(bool isBackground, CancellationToken cancellationToken)
+    private async Task<ProcessAutoStopResult> RunOnceInternalAsync(bool isBackground, bool allowWhenDisabled, CancellationToken cancellationToken)
     {
-        if (!_settings.AutoStopEnabled)
+        if (!_settings.AutoStopEnabled && !allowWhenDisabled)
         {
             return ProcessAutoStopResult.Skipped(DateTimeOffset.UtcNow);
         }
@@ -162,7 +162,7 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
 
     private async Task RunTimerCycleAsync()
     {
-        await RunOnceInternalAsync(true, CancellationToken.None).ConfigureAwait(false);
+        await RunOnceInternalAsync(true, allowWhenDisabled: false, CancellationToken.None).ConfigureAwait(false);
 
         if (!_settings.AutoStopEnabled)
         {
