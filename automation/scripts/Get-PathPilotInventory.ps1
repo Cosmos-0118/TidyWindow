@@ -180,7 +180,7 @@ function Normalize-InventoryPath {
         $normalized = $resolved
     }
 
-    $normalized = $normalized -replace '[\\/]+$',''
+    $normalized = $normalized -replace '[\\/]+$', ''
     return $normalized.ToUpperInvariant()
 }
 
@@ -249,13 +249,13 @@ function Backup-MachinePath {
 
     try {
         $escaped = ($CurrentPathValue ?? '').Replace('\\', '\\\\').Replace('"', '\\"')
-            $contentLines = @(
-                'Windows Registry Editor Version 5.00',
-                '',
-                "[$registryKey]",
-                "`"Path`"=`"$escaped`""
-            )
-            $content = $contentLines -join [Environment]::NewLine
+        $contentLines = @(
+            'Windows Registry Editor Version 5.00',
+            '',
+            "[$registryKey]",
+            "`"Path`"=`"$escaped`""
+        )
+        $content = $contentLines -join [Environment]::NewLine
         $content | Out-File -FilePath $backupPath -Encoding Unicode -Force
         return $backupPath
     }
@@ -300,10 +300,10 @@ function Get-MachinePathEntries {
 
         $resolved = Resolve-InventoryPath -Value $value
         $entries.Add([pscustomobject]@{
-            index    = $index
-            value    = $value
-            resolved = $resolved
-        }) | Out-Null
+                index    = $index
+                value    = $value
+                resolved = $resolved
+            }) | Out-Null
         $index++
     }
 
@@ -491,69 +491,127 @@ function Resolve-CommandPath {
     return $Command.Name
 }
 
+function Get-SafePathEntries {
+    param([string] $PathValue)
+
+    $results = New-Object 'System.Collections.Generic.List[string]'
+    if ([string]::IsNullOrWhiteSpace($PathValue)) {
+        return $results
+    }
+
+    foreach ($part in $PathValue -split ';') {
+        if ($null -eq $part) { continue }
+        $value = $part.Trim()
+        if ([string]::IsNullOrWhiteSpace($value)) { continue }
+
+        if ($value.StartsWith('\\')) { continue }
+
+        $resolved = Resolve-InventoryPath -Value $value
+        if ([string]::IsNullOrWhiteSpace($resolved)) { continue }
+
+        try {
+            $root = [System.IO.Path]::GetPathRoot($resolved)
+            if ([string]::IsNullOrWhiteSpace($root)) { continue }
+
+            $drive = New-Object -TypeName System.IO.DriveInfo -ArgumentList $root
+            if ($drive.DriveType -eq [System.IO.DriveType]::Network -or -not $drive.IsReady) {
+                continue
+            }
+        }
+        catch {
+            continue
+        }
+
+        $results.Add($value) | Out-Null
+    }
+
+    return $results
+}
+
 function Resolve-ActiveExecutable {
     param(
         [string] $ExecutableName,
-        [string[]] $WhereHints
+        [string[]] $WhereHints,
+        [System.Collections.Generic.List[string]] $Warnings
     )
 
     $candidates = New-Object 'System.Collections.Generic.List[string]'
     $sources = New-Object 'System.Collections.Generic.Dictionary[string, string]' ([System.StringComparer]::OrdinalIgnoreCase)
 
-    if (-not [string]::IsNullOrWhiteSpace($ExecutableName)) {
-        $command = Get-Command -Name $ExecutableName -ErrorAction SilentlyContinue
-        if ($command) {
-            $cmdPath = Resolve-CommandPath -Command $command
-            if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
-                $resolved = Resolve-InventoryPath -Value $cmdPath
-                if (-not [string]::IsNullOrWhiteSpace($resolved) -and (Test-Path -LiteralPath $resolved -PathType Leaf)) {
-                    [void]$candidates.Add($resolved)
-                    $sources[$resolved] = 'CommandLookup'
+    $originalPath = $env:Path
+    $originalPathEntries = @($originalPath -split ';' | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    $safePathEntries = Get-SafePathEntries -PathValue $originalPath
+    $sanitizedPath = if ($safePathEntries.Count -gt 0) { ($safePathEntries | Select-Object -Unique) -join ';' } else { $null }
+    if ($sanitizedPath) {
+        $env:Path = $sanitizedPath
+    }
+
+    try {
+        if (-not [string]::IsNullOrWhiteSpace($ExecutableName)) {
+            $command = Get-Command -Name $ExecutableName -ErrorAction SilentlyContinue
+            if ($command) {
+                $cmdPath = Resolve-CommandPath -Command $command
+                if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
+                    $resolved = Resolve-InventoryPath -Value $cmdPath
+                    if (-not [string]::IsNullOrWhiteSpace($resolved) -and (Test-Path -LiteralPath $resolved -PathType Leaf)) {
+                        [void]$candidates.Add($resolved)
+                        $sources[$resolved] = 'CommandLookup'
+                    }
+                }
+            }
+        }
+
+        $whereExe = Get-Command -Name 'where.exe' -ErrorAction SilentlyContinue
+        if ($whereExe) {
+            $targets = @()
+            foreach ($hint in @($WhereHints)) {
+                if (-not [string]::IsNullOrWhiteSpace($hint)) {
+                    $targets += $hint.Trim()
+                }
+            }
+
+            if ($targets.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($ExecutableName)) {
+                $targets = @($ExecutableName)
+            }
+
+            foreach ($target in $targets) {
+                try {
+                    $lines = & $whereExe.Source $target 2>$null
+                }
+                catch {
+                    $lines = @()
+                }
+
+                foreach ($line in @($lines)) {
+                    if ([string]::IsNullOrWhiteSpace($line)) {
+                        continue
+                    }
+
+                    $clean = $line.Trim()
+                    $resolved = Resolve-InventoryPath -Value $clean
+                    if ([string]::IsNullOrWhiteSpace($resolved)) {
+                        continue
+                    }
+
+                    if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
+                        continue
+                    }
+
+                    if (-not $sources.ContainsKey($resolved)) {
+                        $sources[$resolved] = "where:$target"
+                        [void]$candidates.Add($resolved)
+                    }
                 }
             }
         }
     }
+    finally {
+        $env:Path = $originalPath
 
-    $whereExe = Get-Command -Name 'where.exe' -ErrorAction SilentlyContinue
-    if ($whereExe) {
-        $targets = @()
-        foreach ($hint in @($WhereHints)) {
-            if (-not [string]::IsNullOrWhiteSpace($hint)) {
-                $targets += $hint.Trim()
-            }
-        }
-
-        if ($targets.Count -eq 0 -and -not [string]::IsNullOrWhiteSpace($ExecutableName)) {
-            $targets = @($ExecutableName)
-        }
-
-        foreach ($target in $targets) {
-            try {
-                $lines = & $whereExe.Source $target 2>$null
-            }
-            catch {
-                $lines = @()
-            }
-
-            foreach ($line in @($lines)) {
-                if ([string]::IsNullOrWhiteSpace($line)) {
-                    continue
-                }
-
-                $clean = $line.Trim()
-                $resolved = Resolve-InventoryPath -Value $clean
-                if ([string]::IsNullOrWhiteSpace($resolved)) {
-                    continue
-                }
-
-                if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
-                    continue
-                }
-
-                if (-not $sources.ContainsKey($resolved)) {
-                    $sources[$resolved] = "where:$target"
-                    [void]$candidates.Add($resolved)
-                }
+        if ($Warnings -and $safePathEntries.Count -lt $originalPathEntries.Count) {
+            $warningMessage = 'Skipped network or unavailable PATH entries while resolving active executable to avoid hangs.'
+            if (-not $Warnings.Contains($warningMessage)) {
+                $Warnings.Add($warningMessage) | Out-Null
             }
         }
     }
@@ -599,12 +657,12 @@ function Get-RegistryProbePaths {
 
     $results = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     if (-not $Probe -or [string]::IsNullOrWhiteSpace($Probe.key)) {
-        return ,@()
+        return , @()
     }
 
     $keyPath = ConvertTo-RegistryProviderPath -Key $Probe.key
     if ([string]::IsNullOrWhiteSpace($keyPath)) {
-        return ,@()
+        return , @()
     }
 
     $valueNames = @($Probe.valueNames)
@@ -624,7 +682,7 @@ function Get-RegistryProbePaths {
         }
     }
     catch {
-        return ,@()
+        return , @()
     }
 
     if ($includeSubkeys) {
@@ -676,9 +734,11 @@ function Get-RegistryProbePaths {
 
                 $target = if (-not [string]::IsNullOrWhiteSpace($append)) {
                     Join-Path -Path $basePath -ChildPath $append
-                } elseif (-not [string]::IsNullOrWhiteSpace($ExecutableName)) {
+                }
+                elseif (-not [string]::IsNullOrWhiteSpace($ExecutableName)) {
                     Join-Path -Path $basePath -ChildPath $ExecutableName
-                } else {
+                }
+                else {
                     $basePath
                 }
 
@@ -690,7 +750,7 @@ function Get-RegistryProbePaths {
         }
     }
 
-    return ,@($results.ToArray())
+    return , @($results.ToArray())
 }
 
 function ConvertTo-RegistryProviderPath {
@@ -704,10 +764,10 @@ function ConvertTo-RegistryProviderPath {
 
     switch -Regex ($trimmed) {
         '^(HKLM|HKEY_LOCAL_MACHINE)\\(.+)$' { return "Registry::HKEY_LOCAL_MACHINE\\$($Matches[2])" }
-        '^(HKCU|HKEY_CURRENT_USER)\\(.+)$'  { return "Registry::HKEY_CURRENT_USER\\$($Matches[2])" }
-        '^(HKCR|HKEY_CLASSES_ROOT)\\(.+)$'  { return "Registry::HKEY_CLASSES_ROOT\\$($Matches[2])" }
-        '^(HKU|HKEY_USERS)\\(.+)$'          { return "Registry::HKEY_USERS\\$($Matches[2])" }
-        '^(HKCC|HKEY_CURRENT_CONFIG)\\(.+)$'{ return "Registry::HKEY_CURRENT_CONFIG\\$($Matches[2])" }
+        '^(HKCU|HKEY_CURRENT_USER)\\(.+)$' { return "Registry::HKEY_CURRENT_USER\\$($Matches[2])" }
+        '^(HKCR|HKEY_CLASSES_ROOT)\\(.+)$' { return "Registry::HKEY_CLASSES_ROOT\\$($Matches[2])" }
+        '^(HKU|HKEY_USERS)\\(.+)$' { return "Registry::HKEY_USERS\\$($Matches[2])" }
+        '^(HKCC|HKEY_CURRENT_CONFIG)\\(.+)$' { return "Registry::HKEY_CURRENT_CONFIG\\$($Matches[2])" }
         Default { return $trimmed }
     }
 }
@@ -1017,17 +1077,17 @@ function Invoke-PathPilotSwitch {
     }
 
     return [pscustomobject]@{
-        runtimeId          = $runtime.id
-        targetExecutable   = $resolvedInstallPath
-        targetDirectory    = $targetDirectory
-        installationId     = if ($matchedInstallation) { $matchedInstallation.id } else { $null }
-        backupPath         = $backupPath
-        previousPath       = $MachinePathRaw
-        updatedPath        = if ($pathChanged) { $newPathValue } else { $MachinePathRaw }
-        pathUpdated        = $pathChanged
-        success            = $true
-        message            = $statusMessage
-        timestamp          = [DateTimeOffset]::UtcNow.ToString('o')
+        runtimeId        = $runtime.id
+        targetExecutable = $resolvedInstallPath
+        targetDirectory  = $targetDirectory
+        installationId   = if ($matchedInstallation) { $matchedInstallation.id } else { $null }
+        backupPath       = $backupPath
+        previousPath     = $MachinePathRaw
+        updatedPath      = if ($pathChanged) { $newPathValue } else { $MachinePathRaw }
+        pathUpdated      = $pathChanged
+        success          = $true
+        message          = $statusMessage
+        timestamp        = [DateTimeOffset]::UtcNow.ToString('o')
     }
 }
 
@@ -1157,7 +1217,7 @@ function Get-RuntimeInventory {
 
     $whereHints = @(Get-DiscoveryPropertyValues -Discovery $discovery -PropertyName 'whereHints')
     if ($whereHints.Count -eq 0) { $whereHints = $null }
-    $activeInfo = Resolve-ActiveExecutable -ExecutableName $executableName -WhereHints $whereHints
+    $activeInfo = Resolve-ActiveExecutable -ExecutableName $executableName -WhereHints $whereHints -Warnings $Warnings
     $matchedInstallation = $null
     if ($activeInfo.Path -and $installLookup.ContainsKey($activeInfo.Path)) {
         $matchedInstallation = $installLookup[$activeInfo.Path]
@@ -1185,25 +1245,25 @@ function Get-RuntimeInventory {
     $active = $null
     if ($activeInfo.Path) {
         $active = [pscustomobject]@{
-            executablePath            = $activeInfo.Path
-            pathEntry                 = $pathEntry
-            matchesKnownInstallation  = [bool]$matchedInstallation
-            installationId            = if ($matchedInstallation) { $matchedInstallation.id } else { $null }
-            source                    = $activeInfo.Source
+            executablePath           = $activeInfo.Path
+            pathEntry                = $pathEntry
+            matchesKnownInstallation = [bool]$matchedInstallation
+            installationId           = if ($matchedInstallation) { $matchedInstallation.id } else { $null }
+            source                   = $activeInfo.Source
         }
     }
 
     $resolutionOrder = @($activeInfo.Candidates)
 
     return [pscustomobject]@{
-        id             = $id
-        name           = $displayName
-        description    = $Runtime.description
-        executableName = $executableName
-        desiredVersion = $Runtime.desiredVersion
-        installations  = $installations
-        status         = $status
-        active         = $active
+        id              = $id
+        name            = $displayName
+        description     = $Runtime.description
+        executableName  = $executableName
+        desiredVersion  = $Runtime.desiredVersion
+        installations   = $installations
+        status          = $status
+        active          = $active
         resolutionOrder = $resolutionOrder
     }
 }
@@ -1240,7 +1300,7 @@ $payload = [pscustomobject]@{
         raw     = $machinePathRaw
         entries = $machinePathEntries
     }
-    warnings   = $warnings
+    warnings    = $warnings
 }
 
 if ($switchResult) {
