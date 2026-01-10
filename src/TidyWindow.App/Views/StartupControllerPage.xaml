@@ -66,7 +66,7 @@
             <Setter Property="BorderBrush" Value="#1F2E46" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="Padding" Value="12,8" />
-            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="Margin" Value="0,0,10,10" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
@@ -375,7 +375,7 @@
                                  CaretBrush="#38BDF8"
                                  TextChanged="OnSearchTextChanged"
                                  ToolTip="Search name, publisher, or path" />
-                        <WrapPanel Margin="0,8,0,0">
+                        <WrapPanel Margin="0,12,0,0">
                             <ToggleButton x:Name="RunFilter"
                                           Content="Run keys"
                                           Style="{StaticResource FilterToggleStyle}"
