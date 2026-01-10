@@ -70,19 +70,25 @@ internal static class WpfTestHelper
 
     private static WpfApplication CreateApplication()
     {
+        WpfApplication? app;
+
         if (WpfApplication.Current is not null)
         {
-            return WpfApplication.Current;
+            app = WpfApplication.Current;
         }
-
-        // If we're already on the WPF dispatcher thread, create directly to avoid deadlocks.
-        if (TaskScheduler.Current == Scheduler.Value)
+        else if (TaskScheduler.Current == Scheduler.Value)
         {
-            return WpfApplication.Current ?? new WpfApplication();
+            // If we're already on the WPF dispatcher thread, create directly to avoid deadlocks.
+            app = WpfApplication.Current ?? new WpfApplication();
+        }
+        else
+        {
+            app = null;
+            Run(() => app = WpfApplication.Current ?? new WpfApplication()).GetAwaiter().GetResult();
         }
 
-        WpfApplication? app = null;
-        Run(() => app = WpfApplication.Current ?? new WpfApplication()).GetAwaiter().GetResult();
-        return app!;
+        app ??= new WpfApplication();
+        app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+        return app;
     }
 }

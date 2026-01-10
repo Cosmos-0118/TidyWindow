@@ -3126,6 +3126,20 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Content="Allow protected system locations (dangerous)"
+                                          IsChecked="{Binding IncludeProtectedSystemLocations, Mode=TwoWay}"
+                                          IsEnabled="{Binding RepairPermissionsBeforeDelete}"
+                                          Foreground="#FCA5A5"
+                                          FontSize="13"
+                                          Margin="0,12,0,0"
+                                          ToolTip="When enabled, files inside Windows and Program Files may be removed. Use only if you are absolutely sure.">
+                                    <CheckBox.Resources>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource TextBlockBaseStyle}">
+                                            <Setter Property="TextWrapping" Value="Wrap"/>
+                                        </Style>
+                                    </CheckBox.Resources>
+                                </CheckBox>
                             </StackPanel>
                         </Border>
                         <Border Style="{StaticResource SheetCardStyle}"

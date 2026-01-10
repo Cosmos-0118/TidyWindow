@@ -105,7 +105,7 @@ public sealed class CleanupService
             index++;
             progress?.Report(new CleanupDeletionProgress(index, total, normalizedPath));
 
-            if (IsProtectedPath(normalizedPath))
+            if (IsProtectedPath(normalizedPath) && !options.AllowProtectedSystemPaths)
             {
                 entries.Add(new CleanupDeletionEntry(
                     normalizedPath,

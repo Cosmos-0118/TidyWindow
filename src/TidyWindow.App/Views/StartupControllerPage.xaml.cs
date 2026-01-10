@@ -277,15 +277,22 @@ public partial class StartupControllerPage : Page
 
     private static bool IsSafe(StartupEntryItemViewModel entry)
     {
-        var isUserScope = !string.Equals(entry.Item.UserContext, "Machine", StringComparison.OrdinalIgnoreCase);
-        var isHighSystem = entry.Impact == StartupImpact.High && !isUserScope;
+        var isUserScope = string.Equals(entry.Item.UserContext, "CurrentUser", StringComparison.OrdinalIgnoreCase);
+        var isSupportedSource = entry.Item.SourceKind is StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce or StartupItemSourceKind.StartupFolder;
+        var isTrusted = entry.Item.SignatureStatus == StartupSignatureStatus.SignedTrusted;
+        var isLowImpact = entry.Impact == StartupImpact.Low;
+
+        if (!isUserScope || !isSupportedSource || !isTrusted || !isLowImpact)
+        {
+            return false;
+        }
 
         if (IsCriticalSystem(entry))
         {
             return false;
         }
 
-        return !isHighSystem;
+        return true;
     }
 
     private static bool IsCriticalSystem(StartupEntryItemViewModel entry)

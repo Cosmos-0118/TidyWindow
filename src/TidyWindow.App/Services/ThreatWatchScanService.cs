@@ -64,15 +64,15 @@ public sealed class ThreatWatchScanService
                     continue;
                 }
 
-                var hasContext = context.TryGetValue(process.Id, out var contextEntry);
-                var parentProcessId = hasContext ? contextEntry.ParentProcessId : null;
+                var _ = context.TryGetValue(process.Id, out var contextEntry);
+                var parentProcessId = contextEntry?.ParentProcessId;
                 var grandParentProcessId = ResolveParentId(parentProcessId, context);
 
                 var snapshot = new RunningProcessSnapshot(
                     process.Id,
                     NormalizeProcessName(process),
                     path,
-                    commandLine: hasContext ? contextEntry.CommandLine : null,
+                    commandLine: contextEntry?.CommandLine,
                     parentProcessId: parentProcessId,
                     parentProcessName: ResolveProcessName(parentProcessId, context),
                     grandParentProcessId: grandParentProcessId,

@@ -68,6 +68,12 @@ public sealed record CleanupDeletionOptions
     /// </summary>
     public bool AllowDeleteOnReboot { get; init; }
 
+    /// <summary>
+    /// Allows deletion of items under protected system locations (e.g., Windows and Program Files).
+    /// Defaults to false because removing these paths can destabilize the OS.
+    /// </summary>
+    public bool AllowProtectedSystemPaths { get; init; }
+
     internal CleanupDeletionOptions Sanitize()
     {
         var retryCount = MaxRetryCount < 0 ? 0 : MaxRetryCount;

@@ -105,20 +105,20 @@ public sealed class TrayService : ITrayService
 
         _window.Dispatcher.Invoke(() =>
         {
-            if (!_window.IsVisible)
+            var wasVisible = _window.IsVisible;
+
+            if (wasVisible)
             {
-                return;
+                _window.Hide();
             }
 
-            _window.Hide();
-
-            // Trim cached pages once the window is hidden if no automation is active.
+            // Trim cached pages even if the window was already hidden, as long as no automation is active.
             if (!_workTracker.HasActiveWork)
             {
                 _pageCache.ClearAll();
             }
 
-            if (showHint)
+            if (showHint && wasVisible)
             {
                 _activityLog.LogInformation("BackgroundMode", "TidyWindow continues running from the system tray.");
 

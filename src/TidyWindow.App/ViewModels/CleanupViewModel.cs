@@ -402,6 +402,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private bool _repairPermissionsBeforeDelete;
 
     [ObservableProperty]
+    private bool _includeProtectedSystemLocations;
+
+    [ObservableProperty]
     private bool _isRunConfirmationPopupOpen;
 
     [ObservableProperty]
@@ -1044,7 +1047,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
             // When recycle is requested, avoid silently falling back to permanent delete.
             AllowPermanentDeleteFallback = !useRecycleBin,
             SkipLockedItems = SkipLockedItems,
-            TakeOwnershipOnAccessDenied = RepairPermissionsBeforeDelete
+            TakeOwnershipOnAccessDenied = RepairPermissionsBeforeDelete,
+            AllowProtectedSystemPaths = IncludeProtectedSystemLocations
         };
 
         await ExecuteDeletionAsync(snapshot, deletionOptions, generateReport);
@@ -1089,6 +1093,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         GenerateCleanupReport = false;
         SkipLockedItems = true;
         RepairPermissionsBeforeDelete = false;
+        IncludeProtectedSystemLocations = false;
         IsRunConfirmationPopupOpen = false;
 
         BuildPendingDeletionRisks(itemsToDelete);
@@ -2323,6 +2328,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             $"Skipped: {result.SkippedCount:N0} ({FormatSize(skippedMegabytes)})",
             $"Failed: {result.FailedCount:N0} ({FormatSize(failedMegabytes)})",
             $"Force delete enabled: {options.TakeOwnershipOnAccessDenied}",
+            $"Include protected system locations: {options.AllowProtectedSystemPaths}",
             $"Skip locked items: {options.SkipLockedItems}",
             $"Delete-on-reboot allowed: {deleteOnRebootAllowed}"
         };
@@ -3059,7 +3065,8 @@ public sealed partial class CleanupViewModel : ViewModelBase
                 {
                     PreferRecycleBin = UseRecycleBin,
                     // Preserve reversibility for recycle requests; only allow hard delete when explicitly chosen.
-                    AllowPermanentDeleteFallback = !UseRecycleBin
+                    AllowPermanentDeleteFallback = !UseRecycleBin,
+                    AllowProtectedSystemPaths = IncludeProtectedSystemLocations
                 },
                 generateReport: false);
         }
@@ -3214,6 +3221,15 @@ public sealed partial class CleanupViewModel : ViewModelBase
         if (value && SkipLockedItems)
         {
             SkipLockedItems = false;
+        }
+
+        if (!value)
+        {
+            // Never allow the protected system toggle to stay on when force delete is disabled.
+            if (IncludeProtectedSystemLocations)
+            {
+                IncludeProtectedSystemLocations = false;
+            }
         }
     }
 
@@ -3666,24 +3682,46 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     private static string[] BuildSensitiveRoots()
     {
-        var roots = new List<string>();
+        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        void AddIfExists(params Environment.SpecialFolder[] folders)
+        static void AddIfExists(HashSet<string> set, string? path)
         {
-            foreach (var folder in folders)
+            if (string.IsNullOrWhiteSpace(path))
             {
-                var path = Environment.GetFolderPath(folder);
-                if (!string.IsNullOrWhiteSpace(path))
-                {
-                    roots.Add(path);
-                }
+                return;
+            }
+
+            try
+            {
+                set.Add(Path.GetFullPath(path));
+            }
+            catch (Exception)
+            {
+                set.Add(path);
             }
         }
 
-        AddIfExists(Environment.SpecialFolder.Windows, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86, Environment.SpecialFolder.CommonApplicationData);
-        roots.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "AppData", "Local", "Temp"));
+        var windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        AddIfExists(roots, windowsDir);
 
-        return roots.Where(static directory => !string.IsNullOrWhiteSpace(directory)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (!string.IsNullOrWhiteSpace(windowsDir))
+        {
+            AddIfExists(roots, Path.Combine(windowsDir, "System32"));
+            AddIfExists(roots, Path.Combine(windowsDir, "SysWOW64"));
+            AddIfExists(roots, Path.Combine(windowsDir, "WinSxS"));
+            AddIfExists(roots, Path.Combine(windowsDir, "Servicing"));
+            AddIfExists(roots, Path.Combine(windowsDir, "Installer"));
+        }
+
+        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.System));
+        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.SystemX86));
+        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
+        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
+        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles));
+        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFilesX86));
+        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData));
+
+        return roots.Where(static directory => !string.IsNullOrWhiteSpace(directory)).ToArray();
     }
 
     private static bool IsElevationLikelyRequired(string path)

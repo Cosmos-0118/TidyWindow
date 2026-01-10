@@ -103,11 +103,11 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
 
                 if (!target.IsActionable)
                 {
-                    actions.Add(new ProcessAutoStopActionResult(target.Label, success: false, target.SkipReason ?? "No service identifier available."));
+                    actions.Add(new ProcessAutoStopActionResult(target.Label, Success: false, target.SkipReason ?? "No service identifier available."));
                     continue;
                 }
 
-                var stopResult = await _controlService.StopAsync(target.ServiceName!, cancellationToken).ConfigureAwait(false);
+                var stopResult = await _controlService.StopAsync(target.ServiceName!, cancellationToken: cancellationToken).ConfigureAwait(false);
                 actions.Add(new ProcessAutoStopActionResult(target.Label, stopResult.Success, stopResult.Message));
             }
 

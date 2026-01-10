@@ -985,7 +985,7 @@ public sealed class DeepScanRequest
         int maxItems,
         int minimumSizeInMegabytes,
         bool includeHiddenFiles,
-        bool includeSystemFiles,
+        bool includeSystemFiles = false,
         IEnumerable<string>? nameFilters = null,
         DeepScanNameMatchMode nameMatchMode = DeepScanNameMatchMode.Contains,
         bool isCaseSensitiveNameMatch = false,
