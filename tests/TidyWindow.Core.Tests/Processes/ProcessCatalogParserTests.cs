@@ -121,6 +121,86 @@ public sealed class ProcessCatalogParserTests
         }
     }
 
+    [Fact]
+    public void LoadSnapshot_FromJsonAssignsServiceIdentifiers()
+    {
+        var json = """
+{
+    "entries": [
+        {
+            "identifier": "diagtrack",
+            "displayName": "DiagTrack",
+            "serviceName": "DiagTrack",
+            "categoryKey": "D",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop"
+        },
+        {
+            "identifier": "pattern_*",
+            "displayName": "pattern_*",
+            "serviceName": "ShouldIgnore",
+            "isPattern": true,
+            "categoryKey": "X",
+            "recommendedAction": "AutoStop"
+        }
+    ]
+}
+""";
+
+        var path = Path.Combine(Path.GetTempPath(), $"TidyWindow_CatalogSvc_{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, json);
+
+        try
+        {
+            var parser = new ProcessCatalogParser(path);
+            var snapshot = parser.LoadSnapshot();
+
+            var diagtrack = Assert.Single(snapshot.Entries, entry => entry.Identifier == "diagtrack");
+            Assert.Equal("DiagTrack", diagtrack.ServiceIdentifier);
+            Assert.True(diagtrack.SupportsServiceControl);
+
+            var pattern = Assert.Single(snapshot.Entries, entry => entry.Identifier == "pattern_*");
+            Assert.Null(pattern.ServiceIdentifier);
+            Assert.False(pattern.SupportsServiceControl);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void LoadSnapshot_FromJsonRejectsInvalidServiceNames()
+    {
+        var json = """
+{
+    "entries": [
+        {
+            "identifier": "diagtrack",
+            "displayName": "DiagTrack",
+            "serviceName": "Diag Track", // space should be rejected
+            "categoryKey": "D",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop"
+        }
+    ]
+}
+""";
+
+        var path = Path.Combine(Path.GetTempPath(), $"TidyWindow_CatalogBadSvc_{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, json);
+
+        try
+        {
+            var parser = new ProcessCatalogParser(path);
+            Assert.Throws<InvalidDataException>(() => parser.LoadSnapshot());
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
     private static string CreateTempCatalog(bool includeWorkflowTail = false)
     {
         var body = """

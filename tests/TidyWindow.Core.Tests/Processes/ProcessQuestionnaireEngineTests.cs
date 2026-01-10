@@ -76,6 +76,31 @@ public sealed class ProcessQuestionnaireEngineTests
         }
     }
 
+    [Fact]
+    public void EvaluateAndApply_PersistsServiceIdentifiers()
+    {
+        var catalogPath = CreateTempJsonCatalogWithServices();
+        var statePath = CreateTempState();
+
+        try
+        {
+            var parser = new ProcessCatalogParser(catalogPath);
+            var store = new ProcessStateStore(statePath);
+            var engine = new ProcessQuestionnaireEngine(parser, store);
+
+            engine.EvaluateAndApply(CreateAllNoAnswers());
+
+            var preferences = store.GetPreferences();
+            var diagTrack = Assert.Single(preferences, pref => pref.ProcessIdentifier == "diagtrack");
+            Assert.Equal("DiagTrack", diagTrack.ServiceIdentifier);
+        }
+        finally
+        {
+            File.Delete(catalogPath);
+            File.Delete(statePath);
+        }
+    }
+
     private static string CreateTempCatalog()
     {
         var body = """
@@ -170,6 +195,35 @@ iphlpsvc
 """;
 
         var path = Path.Combine(Path.GetTempPath(), $"TidyWindow_CatalogJson_{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, body);
+        return path;
+    }
+
+    private static string CreateTempJsonCatalogWithServices()
+    {
+        var body = """
+{
+    "entries": [
+        {
+            "identifier": "diagtrack",
+            "displayName": "DiagTrack",
+            "serviceName": "DiagTrack",
+            "categoryKey": "D",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop"
+        },
+        {
+            "identifier": "werfault",
+            "displayName": "WerFault",
+            "categoryKey": "D",
+            "risk": "Safe",
+            "recommendedAction": "AutoStop"
+        }
+    ]
+}
+""";
+
+        var path = Path.Combine(Path.GetTempPath(), $"TidyWindow_CatalogSvcJson_{Guid.NewGuid():N}.json");
         File.WriteAllText(path, body);
         return path;
     }
