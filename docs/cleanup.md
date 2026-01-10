@@ -1,234 +1,56 @@
-# Cleanup Page Documentation
+# Cleanup Page
 
-## Overview
+## What the Cleanup page does
 
-The Cleanup page surfaces a guided workflow for reclaiming disk space without risking accidental data loss. It combines a high-performance .NET scanner with rich filtering, process lock inspection, and a multi-phase UI that walks users from target discovery to confirmation and post-run summaries.
+The Cleanup page walks users through discovering reclaimable disk space, vetting risky targets, and deleting selected items with observable progress. It pairs a fast .NET scanner with guarded deletion flows, Edge history cleanup, lock inspection, and optional automation for unattended runs.
 
-## Purpose
+## Core flow (Setup → Preview → Confirm → Delete → Celebrate)
 
--   **Discover Clutter**: Run a fast preview that ranks reclaimable folders and files across downloads, browser caches, and system temp areas.
--   **Vet Risk**: Sort by size, age, or heuristic risk, filter by extension, and inspect drill-down details before selecting anything for deletion.
--   **Remove Safely**: Execute deletions with recycle bin fallback, retry logic, and optional permission repair while skipping protected locations.
--   **Handle Locks**: Detect apps that are holding files open and close them gracefully (or forcefully) before cleanup.
--   **Automate Cleanup**: Schedule recurring sweeps that trim only the top offenders using conservative defaults, or export a detailed report for audits.
+-   **Setup**: Toggle Downloads and Edge history scope, choose item kind (files, folders, both), set the preview size (10–100,000; default 50), pick extension filters/profiles (Documents, Spreadsheets, Images, Media, Archives, Logs), select age presets (all/7/30/90/180 days), and choose sort (Impact, Newest, Risk).
+-   **Preview**: Grouped targets show counts, size, and warnings. A paged item list (default 50 per page) supports select-all per page and category-level selection. Live summaries show selected count/size and risk signals.
+-   **Confirmation**: When Delete is invoked, the sheet shows totals, category breakdown, and risk highlights. Toggles: Recycle Bin, generate report, skip locked items (default on), repair permissions (take ownership), lock panel with refresh/close/force-close controls, and a run popup before proceeding.
+-   **Delete**: `CleanupService.DeleteAsync` runs sequentially with progress updates (~120 ms cadence), recycle-bin preference, retries, delete-on-reboot fallback, and optional permission repair. Edge history items are cleared via WebView2 APIs instead of file deletion. Activity Log entries and optional JSON+Markdown reports capture outcomes.
+-   **Celebrate**: Shows reclaimed size, deleted/skipped/failed counts, categories touched, duration, time-saved estimate, share text, and report link when generated. Failures remain selected for follow-up.
 
-## Safety Features
+## Safety guardrails
 
-### Why Cleanup Operations Are Safe
+-   **Protected paths**: `CleanupService` refuses to delete under critical Windows folders (System32, SysWOW64, WinSxS, SystemApps, SystemResources, servicing, assembly, Installer, Fonts, WindowsApps).
+-   **Lock handling**: Up to 32 items per category (600 total) are sampled for lock inspection. `ResourceLockService` surfaces locking apps; users can close or force close them, and deletions default to skipping locked entries unless overridden.
+-   **Permission repair (opt-in)**: When enabled, the engine clears attributes, takes ownership on access denied, retries, then falls back to force-delete or delete-on-reboot.
+-   **Recycle-bin preference**: Users can request recycle-bin moves; permanent delete fallback is allowed in manual runs and disabled in automation’s dustbin mode.
+-   **Recent/risk awareness**: The confirmation sheet calls out items modified in the last 3 days, protected locations, and lock signals before deletion.
+-   **Progress and logging**: Every deletion result is captured; missing items are marked skipped; progress reporting throttles UI churn while remaining responsive.
 
-#### 1. **Protected System Guardrails**
+## Defaults and limits
 
--   `CleanupService` maintains a list of protected roots (Windows, Program Files, AppData system folders) and automatically skips any path that resolves under them.
--   Hidden and system attributes are respected when `SkipHiddenItems` or `SkipSystemItems` is turned on (defaults applied in automation and confirmation sheets).
+-   Preview count: default 50; min 10, max 100,000.
+-   Age filters: all, 7, 30, 90, or 180+ days (filtering; not hard safety gates).
+-   Sorting: Impact (size), Newest (last modified), Risk (signal-heavy first).
+-   Confirmation defaults: Recycle Bin off, reports off, skip locked on, permission repair off.
+-   Automation defaults: Disabled; daily interval when enabled; top 200 items (min 50, max 50,000); Skip Locked mode; Downloads and browser history off by default.
 
-#### 2. **Recycle Bin Preference With Fallbacks**
+## Automation
 
--   Users can opt to move selections into the Recycle Bin (`PreferRecycleBin`), with an automatic fallback to ordinary deletion if the shell refuses the move.
--   Permanent deletes are only attempted when the fallback path is explicitly enabled.
+-   Scheduler persists settings, clamps intervals to 1 hour–30 days, and top-item counts to 50–50,000.
+-   Each run previews, sorts by size, trims to the configured top-N, clears Edge history via API when included, deletes with mode-specific options (Skip Locked, Move to Recycle Bin without permanent fallback, or Force Delete with ownership + delete-on-reboot), logs results, and updates last-run status.
 
-#### 3. **Recent File Protection**
+## Implementation map
 
--   The confirmation sheet highlights recently modified files (≤ 3 days) and the engine respects the "skip recent" option to avoid wiping active work.
--   Age filters (7/30/90/180+ days) give an extra layer of protection before items ever reach the queue.
+-   UI and flow: [src/TidyWindow.App/ViewModels/CleanupViewModel.cs](src/TidyWindow.App/ViewModels/CleanupViewModel.cs)
+-   Deletion engine: [src/TidyWindow.Core/Cleanup/CleanupService.cs](src/TidyWindow.Core/Cleanup/CleanupService.cs)
+-   Automation: [src/TidyWindow.App/Services/CleanupAutomationScheduler.cs](src/TidyWindow.App/Services/CleanupAutomationScheduler.cs) and [src/TidyWindow.Core/Cleanup/CleanupAutomationSettings.cs](src/TidyWindow.Core/Cleanup/CleanupAutomationSettings.cs)
+-   Lock inspection/closing: [src/TidyWindow.App/Services/ResourceLockService.cs](src/TidyWindow.App/Services/ResourceLockService.cs)
+-   Edge history cleanup: [src/TidyWindow.App/Services/BrowserCleanupService.cs](src/TidyWindow.App/Services/BrowserCleanupService.cs)
 
-#### 4. **Lock Inspection & Process Control**
+## Developer notes
 
--   The lock inspector samples up to 600 of the largest selected paths, asks `ResourceLockService` for handle owners, and surfaces a list of blocking apps.
--   Users can close, force close, or ignore locks; the deletion run automatically skips busy items unless explicit force modes are configured.
+-   Add new targets via `CleanupDefinitionProvider` with clear signals and category metadata so preview grouping and risk surfacing stay meaningful.
+-   Update protected roots when introducing new system-sensitive areas; the delete pipeline skips them before any retries.
+-   Keep automation conservative by default; expose destructive switches (force delete, permission repair) as opt-in and log outcomes for diagnostics.
 
-#### 5. **Permission Repair Options**
+## Known gaps to watch
 
--   When enabled, `CleanupDeletionOptions.TakeOwnershipOnAccessDenied` attempts to clear ACL obstacles and retries deletions.
--   The engine only escalates to force-delete flows after all softer attempts fail, and it documents those actions in the Activity Log.
-
-#### 6. **Browser History Safety**
-
--   Microsoft Edge history targets are cleared via `IBrowserCleanupService.ClearEdgeHistoryAsync`, which calls official APIs instead of deleting database files.
--   If the Edge API refuses the request, the entry remains untouched and the warning is logged.
-
-#### 7. **Sequential, Observable Execution**
-
--   Deletions run sequentially with a progress dispatcher that updates the UI every ~120 ms.
--   Each deletion result (`CleanupDeletionEntry`) is aggregated into transcripts that feed the status message, celebration view, and optional cleanup report.
-
-#### 8. **Phase-Based UX Guardrails**
-
+-   Protected root list currently covers critical Windows subfolders but not the broader Program Files or user-profile roots; keep selections sane for those paths.
+-   Hidden/system file skipping is off by default; pair with filters or consider enabling when adding higher-risk targets.
 -   Users must pass through Setup → Preview → Confirmation phases; destructive actions are hidden during preview.
--   The confirmation sheet centralises risk warnings, recycle bin and force options, and locking app tooling before deletion can start.
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────┐
-│              CleanupPage.xaml                │
-│             (View – Container)               │
-└──────────────┬───────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│           CleanupViewModel.cs                │
-│      (ViewModel – Business Logic)            │
-└───────┬───────────────┬──────────────┬─────-─┘
-        │               │              │
-        ▼               ▼              ▼
-┌───────────────┐ ┌───────────────┐ ┌─────────────────────┐
-│CleanupService │ │ResourceLock   │ │CleanupAutomation    │
-│(.Core)        │ │Service        │ │Scheduler            │
-└─────┬─────────┘ └────┬──────────┘ └─────────┬───────────┘
-      │                │                      │
-      ▼                ▼                      ▼
-┌─────────────-┐ ┌──────────────┐ ┌────────────────────┐
-│Browser       │ │IRelativeTime │ │CleanupAutomation   │
-│CleanupService│ │Ticker        │ │SettingsStore       │
-└─────────────-┘ └──────────────┘ └────────────────────┘
-```
-
-### Key Components
-
--   **`CleanupViewModel`** (`src/TidyWindow.App/ViewModels/CleanupViewModel.cs`)
-
-    -   Orchestrates setup/preview/celebration phases, filtering, and selection state.
-    -   Builds `CleanupDeletionOptions`, invokes `CleanupService.DeleteAsync`, and logs outcomes.
-    -   Manages lock inspection, automation panel state, and celebration analytics.
-
--   **`CleanupService`** (`src/TidyWindow.Core/Cleanup/CleanupService.cs`)
-
-    -   Scans filesystem metadata and executes deletions with retry, recycle-bin fallback, delete-on-reboot, and ACL repair.
-    -   Guarantees deterministic handling of protected paths and detail-rich result objects.
-
--   **`ResourceLockService`** (`src/TidyWindow.App/Services/ResourceLockService.cs`)
-
-    -   Queries running processes for open handles to sampled paths and exposes graceful/force close flows.
-
--   **`CleanupAutomationScheduler`** (`src/TidyWindow.App/Services/Cleanup/CleanupAutomationScheduler.cs`)
-
-    -   Runs preview/deletion cycles on a timer using top-N items, with guard rails to avoid long-running batches.
-
--   **`BrowserCleanupService`** (`src/TidyWindow.App/Services/BrowserCleanupService.cs`)
-
-    -   Integrates with Edge profiles to clear history through supported APIs.
-
--   **`CleanupTargetGroupViewModel` / `CleanupPreviewItemViewModel`** (`src/TidyWindow.App/ViewModels/CleanupTargetGroupViewModel.cs`)
-    -   Represent category-level groupings (Downloads, Temp, Browser, etc.) and individual preview items with selection state, signals, and metadata badges.
-
-## User Interface
-
-### Setup Phase
-
--   **Hero Section**: Summarises last run, reclaimed MB, and suggested next action.
--   **Scope Toggles**: Include Downloads, include browser history, and preview size slider (10–100 000 items).
--   **Filters**:
-    -   Item type (files/folders/both), extension mode (include/exclude/custom), and extension profiles (Documents, Images, Archives, Logs, etc.).
-    -   Age filter presets and sort modes (Largest, Newest, Risk).
--   **Run Button**: Launches `RunPreviewAsync` to generate a fresh report.
-
-### Preview Phase
-
--   **Target Shelf**: Grid of category cards showing remaining items, total size, warnings, and quick-select toggles.
--   **Item List**: Virtualised list with icon, name, location, size, age, signals, and risk chips; supports paging (50 items/page by default) and select-all per page.
--   **Selection Summary**: Live aggregate of selected item count and size.
--   **Risk Panel**: Shows warnings for recent, protected, or locked files.
--   **Action Buttons**: Delete selected, clear selection, or return to setup.
-
-### Confirmation Sheet
-
--   Opens when Delete is invoked and includes:
-    -   Item count, total MB, and category breakdown.
-    -   Toggles for Recycle Bin, generate report, skip locked items, repair permissions.
-    -   Locking process panel with refresh/close controls.
-    -   “Confirm cleanup” button guarded by run popup and disable logic when no items remain.
-
-### Locking Process Popup
-
--   Lists apps/services holding handles, with metadata, impacted item count, and close/force close commands.
--   Provides context such as restartable services and whether an entry is critical.
-
-### Celebration Phase
-
--   Displays reclaimed size, deletion stats, skipped/failed counts, categories touched, duration, and shareable summary text.
--   Provides direct link to generated report (if requested) and enumerates skipped/failed items with reasons.
-
-### Automation Panel
-
--   Configure top-item limit (10–5000), interval (1h–30d), deletion mode (Skip Locked, Move to Dustbin, Force Delete), and scope toggles.
--   Shows last automation run, current status, and pending configuration changes.
-
-## Workflow
-
-1. **Scope Preview**
-
-    - User adjusts toggles/filters and runs a preview.
-    - `CleanupService.PreviewAsync` returns grouped targets which are filtered and sorted before rendering.
-
-2. **Inspect & Select**
-
-    - User pages through items, uses extension/age filters, and selects items.
-    - Selection summary and risk panel update in real time.
-
-3. **Confirm & Inspect Locks**
-
-    - Confirmation sheet aggregates selection stats, kicks off lock inspection, and surfaces blocking apps.
-    - Users choose options (Recycle Bin, skip locked, permission repair) and resolve locks as needed.
-
-4. **Delete**
-
-    - `ConfirmCleanupAsync` gathers current selections, merges Edge-history results, and calls `CleanupService.DeleteAsync` with progress reporting.
-    - Results feed status messages, Activity Log entries, and optional cleanup report generation.
-
-5. **Celebrate & Review**
-
-    - Celebration tracks items deleted/skipped/failed, categories touched, reclaimed size, time saved estimates, and share summary.
-    - Failures remain selected for further action; users can export the report or rerun preview.
-
-6. **Automate (Optional)**
-    - Automation scheduler periodically runs preview/deletion using top-N items and configured deletion mode.
-    - Scheduler logs runs to Activity Log and respects lock skip/force preferences.
-
-## Safety Mechanisms in Detail
-
--   **Protected Roots**: `CleanupService.IsProtectedPath` prevents deletions under `%SystemRoot%`, `%ProgramFiles%`, `%ProgramData%`, and other sensitive directories.
--   **Retry & Delete-on-Reboot**: For stubborn files, the engine retries with exponential backoff, clears attributes, renames to tombstones, or schedules delete-on-reboot when allowed.
--   **Skips for Missing Items**: If an item disappears between preview and deletion, the result is marked as skipped with reason preserved in transcripts.
--   **Signal-Based Risk**: Items flagged with lock/permission warnings bubble additional risk markers in the UI.
--   **Activity Logging**: Every deletion run writes structured entries (success or error) with counts, duration, and report details.
--   **Report Generation**: Optional JSON+Markdown reports capture disposition per item for audit trails.
-
-## Automation Details
-
--   **Settings Store**: `CleanupAutomationSettingsStore` persists interval, top-item count, and deletion mode.
--   **Top-N Strategy**: Automation trims only the highest-impact items, respecting filters and guarding against long-running mass deletions.
--   **Browser History & Downloads**: Automation can include downloads/history independently of manual selections.
--   **Work Tracking**: Integrates with `IAutomationWorkTracker` so background runs appear in the global Activity Log and tray notifications.
-
-## Best Practices
-
-### For Users
-
-1. **Preview Frequently**: Run previews before toggling automation so you understand high-impact categories.
-2. **Start With Recycle Bin**: Leave the Recycle Bin option enabled until you trust the filters for your environment.
-3. **Review Locks**: Close apps/services that hold handles instead of forcing deletes whenever possible.
-4. **Leverage Reports**: Generate cleanup reports for compliance or to review skipped/failed items later.
-5. **Set Age Filters**: Tighten age filters when cleaning shared or collaborative folders.
-
-### For Developers
-
-1. **Extend via Targets**: Add new cleanup targets in `CleanupDefinitionProvider` with clear risk metadata.
-2. **Respect Guardrails**: Always update `ProtectedRoots` when adding new system-sensitive areas.
-3. **Emit Signals**: Provide descriptive signals (`CleanupPreviewItem.Signal`) to surface context in the UI.
-4. **Keep Automation Conservative**: Default new automation behaviours to safe values and expose toggles in confirmation sheets.
-5. **Log Rich Context**: Include item counts, sizes, and failure reasons in Activity Log entries for diagnostics.
-
-## Technical Notes
-
--   **Concurrency**: Scanning runs on background threads and delivers results through `PreviewPagingController` to keep the UI responsive.
--   **Virtualisation**: Item grids use `CollectionView` paging to avoid rendering thousands of rows at once.
--   **Relative Time**: `IRelativeTimeTicker` keeps duration displays (e.g., last automation run) fresh without expensive recomputations.
--   **Lock Sampling**: To avoid handle storms, lock inspection samples by category size, capping at 600 paths per run.
-
-## Future Enhancements
-
--   Incremental previews that only refresh changed folders.
--   Richer diffing between sequential runs.
--   Power scheduling rules for automation (run only on AC / idle).
--   Integration hooks for third-party secure erase tools.
 

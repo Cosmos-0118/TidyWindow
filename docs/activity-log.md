@@ -126,10 +126,3 @@ The Activity Log keeps a searchable, filterable record of everything TidyWindow 
 -   **Debounce**: Search refresh is debounced at 110 ms to prevent re-filtering on every keystroke.
 -   **Clipboard**: Clipboard write failures (e.g., locked by remote session) are ignored so the UI remains responsive.
 
-## Future Enhancements
-
--   Export to Markdown/JSON from the UI.
--   Persistent log store with daily rotation.
--   Bookmarking and tagging entries for investigations.
--   Correlation IDs across automation runs.
-

@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Essentials page provides a curated collection of high-impact Windows maintenance and repair automations. These scripts address common system issues including network connectivity, disk health, Windows Update problems, Defender issues, storage cleanup, and more. The page emphasizes safety, transparency, and user control through dry-run modes, system restore points, detailed logging, and sequential execution.
+The Essentials page provides a curated collection of high-impact Windows maintenance and repair automations. These scripts address common system issues including network connectivity, disk health, Windows Update problems, Defender issues, storage cleanup, and more. The page emphasizes safety, transparency, and user control through sequential execution, restore-point guidance, and detailed logging.
 
 ## Purpose
 
@@ -21,24 +21,11 @@ The Essentials automations are designed with multiple layers of safety to protec
 
 #### 1. **Dry-Run Mode**
 
-Many essential tasks support a "dry-run" or preview mode that shows what would happen without making any changes:
-
--   **System Health Scanner**: Preview which SFC/DISM operations would run
--   **Browser Reset & Cache Cleanup**: Preview which caches, policies, or repairs would run per selected browser
--   **Windows Defender Repair**: Preview scan types and service operations
--   **Print Spooler Recovery**: Preview service restarts and queue operations
-
-When dry-run is enabled, scripts log `[DryRun]` messages indicating what actions would be taken, allowing you to review the plan before committing.
+Dry-run support is currently exposed only for **Browser Reset & Cache Cleanup** (preview which caches, policies, or repairs would run for selected browsers). Other tasks run live once queued. Expanding dry-run/diagnostic-only toggles to additional tasks is a planned enhancement.
 
 #### 2. **System Restore Points**
 
-Critical operations can automatically create system restore points before making changes:
-
--   **Windows Update Repair**: Creates a restore point before resetting update components
--   **System Health Scanner**: Optional restore point creation before DISM/SFC repairs
--   **Storage Operations**: Restore points available for major cleanup operations
-
-This allows you to roll back changes if something unexpected occurs.
+Use the **System Restore Manager** task to create a fresh checkpoint before running high-impact automations. System Health offers an optional restore-point toggle; other tasks do not currently enforce restore-point creation at queue time. Rolling back is possible if a recent checkpoint exists.
 
 #### 3. **Sequential Execution**
 
@@ -59,21 +46,11 @@ All operations can be cancelled at any time:
 
 #### 5. **Comprehensive Logging**
 
-Every operation produces detailed transcripts:
-
--   **Output Transcripts**: All command output is captured
--   **Error Transcripts**: Errors are logged separately for review
--   **JSON Summaries**: Structured data for programmatic analysis
--   **Activity Log Integration**: All operations appear in the Activity Log
+Every operation captures output and error transcripts that can be reviewed in the Queue view. Activity Log entries summarize runs. Persisted export of transcripts/JSON reports is a future improvement.
 
 #### 6. **Safe Defaults**
 
-All tasks use conservative, safe default settings:
-
--   Non-destructive operations are enabled by default
--   Destructive operations require explicit opt-in
--   Options are clearly labeled with descriptions
--   Defaults favor system stability over aggressive cleanup
+Review task options before queuing. Several tasks enable most toggles by default, so high-impact actions may run unless you opt them off. Safe/conservative presets are recommended and planned for future releases.
 
 #### 7. **Guard Rails**
 
@@ -642,3 +619,4 @@ Potential improvements:
 -   Scheduled automation with conditions
 -   Task result analysis and recommendations
 -   Integration with Windows Event Log
+

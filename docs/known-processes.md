@@ -1,212 +1,54 @@
-# Known Processes Page Documentation
+# Known Processes
 
-## Overview
+This page helps administrators keep background services and suspicious executables under control. It combines a curated catalog, user overrides, auto-stop automation, and Threat Watch telemetry. The experience is split into three pivots so you can move between recommendations, bulk settings, and runtime detections without losing context.
 
-The Known Processes workspace helps administrators tame noisy background services and suspicious executables. It combines a curated catalog of Windows services, user-defined preferences, and a live Threat Watch scanner that keeps watch for untrusted processes. The page is split into three pivots—Known Processes, Process Controls, and Threat Watch—so users can jump between recommendations, policy tuning, and runtime telemetry.
+## Page Anatomy
 
-## Purpose
+-   **Known Processes (Catalog)**: Category accordions show vetted entries with risk badges, rationale, recommended action, and optional notes. Cards let you toggle Auto-stop/Keep, stop or restart supported services (with confirmation), and jump to Microsoft Learn search for the service name. A summary banner counts how many entries are set to auto-stop.
+-   **Process Controls (Settings)**: A filterable table of the same catalog plus any orphaned preferences. Includes search, “auto-stop only” filtering, and segment quick toggles by category. First-run questionnaire prompts appear here; import/export and reset live here too.
+-   **Threat Watch**: Severity buckets (Critical/Elevated/Watch) backed by live scans. Each hit shows process name, path, matched rules, and last action. Actions include whitelist directory/process, ignore, Defender file scan, open file location, and quarantine (kill + persist record after confirmation).
 
--   **Known Process Guidance**: Surface vetted recommendations for services that can be safely auto-stopped or should remain running.
--   **User Overrides**: Let operators override defaults, capture rationale, and export/import preference sets across machines.
--   **Automation**: Enforce auto-stop policies on a recurring schedule and keep an audit trail of enforcement runs.
--   **Threat Hunting**: Flag unsigned or anomalous processes via Threat Watch scanning and provide tools to quarantine or whitelist them.
--   **Education**: Offer one-click documentation and rationales so users understand why a service is recommended for action.
+## Lifecycle and Data Flow
 
-## Safety Features
+-   On first entry, `KnownProcessesViewModel` loads a catalog snapshot, merges stored preferences from `ProcessStateStore`, builds category cards, and updates the auto-stop summary. It then refreshes process settings and triggers a Threat Watch scan.
+-   Preferences are persisted as `ProcessPreference` records with an action, source (Default, Questionnaire, User Override), timestamp, and optional notes. Questionnaire snapshots, whitelist/quarantine decisions, suspicious hits, and automation settings are all stored in `ProcessStateStore`.
+-   Threat Watch rehydrates persisted hits on startup, then scans running processes plus startup entries via `ThreatWatchScanService` and `ThreatWatchDetectionService`. Results are grouped by suspicion level and cached for later sessions.
 
-### Why Known Process Operations Are Safe
+## Catalog Experience
 
-#### 1. **Curated Catalog with Risk Levels**
+-   Category accordions default to expanded; caution categories stay visually marked. Cards display rationale (falling back to category description when missing), recommendation label, current action, and source badge.
+-   Toggle switches immediately write a user override and refresh summary counts. Service Stop/Restart buttons are only enabled for catalog entries that map to concrete services; every action goes through `IUserConfirmationService` and logs to the Activity Log. “Learn more” opens a Microsoft Learn search for the process name.
 
--   Catalog entries (from `data/catalog/processes/`) include category risk flags, rationales, and recommended actions vetted by the team.
--   Caution categories are visually marked so users slow down before making changes.
+## Process Controls (Settings) Pivot
 
-#### 2. **Confirmation Prompts**
+-   Search and “auto-stop only” filters drive the table view. Rows include category, current action, source, last updated, and notes. Orphaned preferences (not present in the current catalog) remain visible so they can be cleaned up.
+-   Segment quick toggles apply Auto-stop or Keep to all rows in a category, with mixed-state indicators.
+-   Import/Export moves preferences, questionnaire answers, whitelist/quarantine entries, and automation settings as JSON. Reset clears questionnaire answers and all overrides after confirmation.
+-   The questionnaire can be auto-launched on first visit or re-run on demand. Answers are evaluated by `ProcessQuestionnaireEngine` and applied as overrides.
 
--   Stopping or restarting a service invokes `IUserConfirmationService` with clear warnings about potential side effects.
--   Quarantine actions in Threat Watch prompt for acknowledgement before terminating processes.
+## Auto-stop Automation
 
-#### 3. **Questionnaire & Overrides**
+-   Settings: enable/disable flag, interval (clamped to 5–120 minutes), and last-run timestamp. Applying settings persists them and, when enabled, immediately enforces once.
+-   Scheduler: `ProcessAutoStopEnforcer` runs sequentially on a timer. It skips when disabled or when there are zero Auto-stop preferences. It logs upcoming runs about one minute before enforcement when targets exist.
+-   Enforcement: stops each target service through `ProcessControlService`, updates last-run time, and records successes or failures in the Activity Log. Manual “Run now” is available when automation is enabled.
 
--   The optional onboarding questionnaire captures environment requirements before any automation is enabled.
--   Preferences store the source (System Default, Questionnaire, User Override) so it’s easy to revert to safer defaults.
+## Threat Watch
 
-#### 4. **Automation Guard Rails**
+-   Scans: collects running processes (including paths and start times where available) plus startup entries, then evaluates them via detection rules and Defender intel. Results are written to state so they survive app restarts.
+-   Filters: text search across process name, path, and matched rules, plus severity drop-down. Quick clear resets filters.
+-   Actions: whitelist (process + directory), ignore/remove, Defender file scan, open file location, and quarantine. Quarantine prompts for confirmation, attempts to terminate matching processes, then persists a quarantine record with optional Defender verdict details.
+-   Summaries: shows last scan timestamp and counts per severity; summary text highlights total detections or confirms a clean scan.
 
--   `ProcessAutoStopEnforcer` enforces preferences sequentially, logs every action, and respects a configurable interval (5–120 minutes).
--   Automation runs are skipped if there are no auto-stop targets, preventing unnecessary service churn.
+## Safety and Guardrails
 
-#### 5. **Threat Watch Intel**
+-   Confirmation prompts precede service control and quarantine. Caution categories surface risk before toggling.
+-   Automation is single-threaded with a lock to avoid overlapping runs; it records last-run time and upcoming-run notifications only when targets exist.
+-   Service control is Windows-only; attempts on non-Windows hosts return a descriptive message instead of throwing.
+-   Whitelist and quarantine decisions are persisted to avoid repeated prompts and to keep an audit trail.
 
--   Threat Watch uses Defender APIs and local heuristics to classify suspicious processes into Critical/Elevated/Watch buckets.
--   Whitelisting and quarantine both persist decisions in `ProcessStateStore` to avoid repetitive prompts and to maintain an audit trail.
+## Developer Notes
 
-#### 6. **Activity Logging**
+-   Catalog entries originate from the process catalog parser and should include clear identifiers, recommendations, and rationale. Avoid empty rationales—card text falls back to the category description when missing.
+-   Keep questionnaire definitions aligned with catalog changes so recommended actions stay relevant.
+-   Detection rules should default to Watch until validated; always include evidence strings so matched-rules text stays meaningful.
 
--   All catalog updates, service actions, automation runs, imports/exports, and Threat Watch verdicts are written to the Activity Log with contextual details.
-
-## Architecture
-
-```
-┌──────────────────────────────────────────────┐
-│            KnownProcessesPage.xaml           │
-│             (View – Container)               │
-└──────────────┬───────────────────────────────┘
-               │
-               ▼
-┌──────────────────────────────────────────────┐
-│        KnownProcessesViewModel.cs            │
-│    (Catalog + Pivot Orchestration)           │
-└──────┬──────────────┬───────────────────────-┘
-       │              │
-       ▼              ▼
-┌────────────────--┐ ┌────────────────────────┐
-│ProcessPreferences│ │ThreatWatchViewModel.cs  │
-│ViewModel.cs      │ │(Threat Watch Scanner)   │
-└──────┬───────────┘ └──────┬─────────────────┘
-       │                    │
-       ▼                    ▼
-┌──────────────┐   ┌────────────────────────┐
-│ProcessState  │   │ThreatWatchScanService.cs│
-│Store.cs      │   │ProcessAutoStopEnforcer │
-└──────────────┘   └────────────────────────┘
-       │
-       ▼
-┌──────────────────────────┐
-│ProcessCatalogParser.cs   │
-│ProcessControlService.cs  │
-└──────────────────────────┘
-```
-
-### Key Components
-
--   **`KnownProcessesViewModel`** (`src/TidyWindow.App/ViewModels/KnownProcessesViewModel.cs`)
-
-    -   Loads catalog entries, maps preferences, and tracks the active pivot (Known Processes, Process Controls, Threat Watch).
-    -   Coordinates service control operations and logs outcomes.
-
--   **`ProcessPreferencesViewModel`** (`src/TidyWindow.App/ViewModels/ProcessPreferencesViewModel.cs`)
-
-    -   Provides filtering, segment views, import/export, questionnaire prompts, and automation controls for process preferences.
-
--   **`ProcessStateStore`** (`src/TidyWindow.Core/Processes/ProcessStateStore.cs`)
-
-    -   Persists questionnaire snapshots, user overrides, whitelist/quarantine entries, and auto-stop automation settings.
-
--   **`ProcessAutoStopEnforcer`** (`src/TidyWindow.App/Services/ProcessAutoStopEnforcer.cs`)
-
-    -   Applies auto-stop rules on demand or on a schedule, using Windows service APIs to stop targets safely.
-
--   **`ProcessControlService`** (`src/TidyWindow.App/Services/ProcessControlService.cs`)
-
-    -   Wraps service controller operations with retry and status reporting (Stop, Restart).
-
--   **`ThreatWatchViewModel` + `ThreatWatchScanService`**
-    -   Scan running processes using heuristics and Defender intel, track results, and support remediation workflows.
-
-## User Interface
-
-### Known Processes Pivot
-
--   **Category Accordion**: Displays known process groups with risk badges and descriptions.
--   **Process Cards**: Show display name, rationale, recommendation (Auto-stop or Keep), action toggles, and notes.
--   **Actions**:
-    -   Toggle action (Auto-stop ↔ Keep).
-    -   Stop/Restart service buttons (when supported).
-    -   Learn more opens Microsoft Docs search for the service.
--   **Summary Banner**: Highlights how many processes are set to auto-stop.
-
-### Process Controls Pivot
-
--   **Process Table**: Filterable list of known process entries with columns for current action, source, last updated, and notes.
--   **Segments**: Logical groupings (e.g., "Developer tools", "OEM services") to help focus on related processes.
--   **Filters**: Search box, "Auto-stop only" toggle, segment quick filters.
--   **Questionnaire**: Launches first-run questionnaire to seed recommended preferences.
--   **Automation Panel**:
-    -   Enable/disable auto-stop automation, set interval, view last run, and apply settings.
-    -   Manual "Run now" button re-enforces preferences immediately.
--   **Import/Export**: Save or load JSON bundles of preferences for team rollout.
--   **Reset**: One-click reset clears questionnaire data and user overrides (with confirmation).
-
-### Threat Watch Pivot
-
--   **Severity Buckets**: Columns for Critical, Elevated, and Watch hits with counts and color coding.
--   **Hit List**: Each entry shows process name, file path, detection rationale, and latest action.
--   **Actions**:
-    -   Refresh scan, whitelist directory or process, ignore, quarantine (terminates running instances), scan file via Defender, open file location.
--   **Filters**: Search text and severity drop-down.
--   **Summary**: Last scan timestamp and quick stats on hit counts.
-
-## Workflow
-
-1. **Initialization**
-
-    - On first load, `KnownProcessesViewModel.RefreshAsync` parses catalog JSON/YAML, merges stored preferences, and populates category cards.
-    - Settings pivot loads questionnaire snapshot and automation settings.
-    - Threat Watch pivot reads persisted hits before the first manual scan.
-
-2. **Known Processes Review**
-
-    - Users expand categories, review rationales, and toggle actions. Each toggle updates `ProcessStateStore` and summary counts.
-    - Optional service control actions (Stop/Restart) go through confirmation prompts and log outcomes.
-
-3. **Preference Tuning**
-
-    - Settings pivot provides bulk filtering and editing, import/export, and questionnaire re-run.
-    - Applying automation settings writes to `ProcessAutoStopEnforcer` and optionally enforces immediately.
-
-4. **Automation**
-
-    - `ApplyAutoStopAutomationAsync` persists settings and optionally runs enforcement; background scheduler enforces thereafter.
-    - Manual "Run now" triggers `ProcessAutoStopEnforcer.RunOnceAsync` on demand.
-
-5. **Threat Watch Response**
-    - Users run scans, triage hits, whitelist legitimate software, or quarantine suspicious binaries.
-    - All outcomes update `ProcessStateStore` so repeated scans honour earlier decisions.
-
-## Automation Details
-
--   **Intervals**: 5, 10, 15, 30, 60, or 120 minutes; clamped to `ProcessAutomationSettings` min/max.
--   **Targets**: Only entries whose effective action is Auto-stop are enforced.
--   **Execution**: Enforcer operates on a background thread, respects cancellation, and logs the number of services acted upon.
--   **Status Messaging**: Automation status shows disabled/enabled state, interval string, last run relative time, and pending changes flag.
-
-## Data Models
-
--   **`KnownProcessCardViewModel`**: Wraps catalog entries with state, toggle labels, and action messages.
--   **`ProcessPreferenceRowViewModel`**: Drives the Settings list, including last change time and source badge.
--   **`ThreatWatchHitViewModel`**: Represents suspicious processes with severity, last action message, and command handlers.
--   **`ProcessPreference`**: Stored in `ProcessStateStore`; captures process identifier, action, source, timestamp, and optional notes.
--   **`ProcessAutomationSettings`**: Persisted automation configuration (enabled flag, interval, targets, last run).
-
-## Best Practices
-
-### For Users
-
-1. **Start with the Questionnaire**: Seed your environment with sensible defaults before enforcing automation.
-2. **Review Caution Categories**: Treat yellow-marked catalog entries as advisory; verify business impact before toggling.
-3. **Use Import/Export for Teams**: Share JSON bundles to keep preferences consistent across fleets.
-4. **Whitelist Intentionally**: Threat Watch whitelists persist; document notes so future reviewers know why an entry is trusted.
-5. **Monitor Activity Log**: Service actions and automation runs are logged—use the Activity Log page for auditing.
-
-### For Developers
-
-1. **Document Catalog Updates**: Provide descriptive rationales and risk levels when adding new catalog entries.
-2. **Maintain Questionnaire Flow**: Keep questions in sync with catalog changes and environment assumptions.
-3. **Guard Long Operations**: Any new service automation should run sequentially and surface progress to `MainViewModel`.
-4. **Extend Threat Watch Carefully**: New heuristics should default to Watch level until validated; always log evidence strings.
-5. **Respect User Overrides**: Never overwrite explicit user choices during catalog refreshes or automation runs.
-
-## Technical Notes
-
--   **Data Sources**: Catalog parser supports YAML with include files; state store serializes JSON under `%ProgramData%/TidyWindow/process-state`.
--   **Threading**: UI refreshes are marshalled onto the dispatcher; long-running operations use `Task.Run` with status messages.
--   **Dialogs**: Import/export and Threat Watch holdings use WPF modal windows with owner linking for proper focus management.
--   **Telemetry**: Automation and Threat Watch results feed PulseGuard toasts when noteworthy events occur (e.g., suspicious hits).
-
-## Future Enhancements
-
--   Multi-machine synchronization of preferences via cloud or file share.
--   Integration with Windows Defender Application Control for policy enforcement.
--   Expanded catalog metadata (e.g., CPU impact, memory footprint) to guide prioritization.
--   Scriptable CLI for headless enforcement on servers.

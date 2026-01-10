@@ -1,53 +1,37 @@
-# Startup Controller Guardrails
+# Startup Controller
 
-## Scope and goals
+Manage all startup sources in one place with reversible toggles, delay options for user-scope items, and backups that mirror Task Manager’s enabled/disabled state.
 
--   Surface every startup source in one place: HKCU/HKLM Run & RunOnce, Startup folders (per-user and common), logon-scheduled tasks, and autostart services.
--   Enable/disable and delay operations with reversible backups and clear status (enabled/disabled chips) that reflect Task Manager via StartupApproved state.
--   Keep users safe with elevation checks, backups, and documented rollback paths if vendors re-add entries.
+## Page Anatomy
 
-## Prerequisites
+-   **Inventory**: Consolidated list across Run/RunOnce (HKCU/HKLM), Startup folders (per-user and common), logon scheduled tasks, and autostart services. Shows signing info, impact, last modified, and enabled state (StartupApproved-aware).
+-   **Actions**: Enable/disable with per-entry backup, delay launch for user-scope entries (default ~45s via replacement logon task), and restore from backup. Toggles disable while operations run.
+-   **Filters and counters**: Quick filters for unsigned/high-impact and source types; enabled/disabled visibility toggles and counters that respect current filters.
 
--   App runs elevated for HKLM writes; Run/StartupFolder delay is user-scope unless elevated.
--   .NET 8, Windows-only features (registry, services, Task Scheduler). Non-Windows is unsupported (CA1416 warnings acceptable).
--   Inventory matches Task Manager using Explorer StartupApproved keys for Run/StartupFolder entries and task/service enabled flags.
+## Guardrails
 
-## Operations and guardrails
+-   **Elevation checks**: HKLM and service operations require admin; attempts without elevation are blocked with clear errors.
+-   **Backups for every change**: Registry values, startup files, scheduled task enablement, and service start/delayed-start settings are captured before modification so restores can be applied per entry.
+-   **Task Manager parity**: Explorer StartupApproved values are read to keep enabled/disabled chips consistent with Task Manager.
+-   **Scope limits on delay**: Delay is only offered for user-scope Run/StartupFolder entries; services and machine-scope tasks are excluded to avoid breaking boot flows.
+-   **Logging and state refresh**: All operations log to the Activity Log; inventory refresh updates counters and filter results after changes.
 
--   **Inventory**: `StartupInventoryService` enumerates sources with signing info, impact score, last modified, and enabled state. Explorer StartupApproved values are honored so "disabled" matches Task Manager.
--   **Toggle enable/disable**: `StartupControlService` requires elevation for HKLM/Services. Each change writes a reversible `StartupEntryBackup` (registry values, file moves, task enabled state, service start type/delayed start). Errors are logged to activity log; toggles are disabled during in-flight operations.
--   **Delay launch (user entries only)**: `StartupDelayService` creates a logon task per entry; we do not delay services or machine-scope tasks. Delay is default 45s with backup/plan recorded; warns if vendor re-adds entries.
--   **Filters and search**: Quick filters for safe/unsigned/high-impact and source-type toggles. Enabled/disabled visibility filters default on, wired to `IsEnabled` and refreshed on change.
--   **Telemetry counters**: Visible/disabled/enabled/unsigned/high-impact counts refresh with view filters applied; baseline disabled count tracks pre-change state.
+## Backup and Restore
 
-## Backup and rollback
-
--   **Registry entries**: Before deletion, value name, data, root, subkey captured into `StartupEntryBackup`; enable restores from backup and removes the record.
--   **Startup files**: Moved to `%ProgramData%/TidyWindow/StartupBackups/files` with original path recorded. Restore moves back and drops backup record.
--   **Scheduled tasks**: Captures `Task.Enabled`; restore re-applies and clears backup.
--   **Services**: Captures `Start` and `DelayedAutoStart`; restore re-applies and clears backup.
--   **Delay plans**: `StartupDelayPlanStore` tracks replacement task path; self-heal warnings surface if vendor re-adds.
-
-## Restoring defaults
-
--   Use the Toggle action to re-enable items; it applies the recorded backup where present.
--   If a backup is missing or corrupted, re-run inventory and manually re-create the entry (use vendor installer) or re-enable via Task Scheduler/Services MMC.
--   For delayed entries that reappeared, disable/delete the re-added startup entry or re-run Delay; warnings surface in activity log.
-
-## Safety notes
-
--   Guard against non-elevated HKLM writes; `EnsureElevated` throws if admin role is missing.
--   Unsigned/high-impact filters are OR-combined to avoid hiding risky items.
--   Service toggles intentionally avoid delay; only disable/enable with backup of start values.
--   File moves and registry writes are best-effort; errors are returned in `StartupToggleResult` and logged.
+-   **Registry entries**: Backup stores name, data, root, and subkey; restore rewrites the value and drops the backup record.
+-   **Startup files**: Moved to `%ProgramData%/TidyWindow/StartupBackups/files` with the original path retained; restore moves it back.
+-   **Scheduled tasks**: Captures `Enabled` state and reapplies on restore.
+-   **Services**: Captures `Start` and `DelayedAutoStart` and reapplies on restore; no delay scheduling is attempted.
+-   **Delay plans**: Replacement task paths are tracked; warnings surface if a vendor re-adds the original entry.
 
 ## Troubleshooting
 
--   **Mismatch with Task Manager enabled/disabled**: Confirm StartupApproved keys exist; inventory now reads those flags. If still mismatched, refresh inventory and ensure Task Manager state was applied for the same user scope.
--   **Cannot toggle service/task**: Requires elevation; ensure app is running as admin. Task Scheduler items must exist at recorded path.
--   **Delay task missing**: Warning in activity log; re-run Delay to recreate; vendor re-adds can remove our replacement task.
+-   **Task Manager mismatch**: Ensure StartupApproved entries exist for the account; refresh inventory to sync states.
+-   **Cannot toggle service/task**: Requires elevation and a valid Task Scheduler path; rerun as admin if blocked.
+-   **Missing delay task**: Check Activity Log warnings; rerun Delay to recreate if a vendor removed it.
 
-## Testing hints
+## Testing Hints
 
--   Run `dotnet test tests/TidyWindow.App.Tests/TidyWindow.App.Tests.csproj --filter "StartupControllerPageTests"` for UI filter logic.
--   Add integration checks for Run/StartupFolder disabled states by editing Explorer StartupApproved entries and verifying `IsEnabled` reflects them.
+-   Run targeted tests for startup controller views and filters in the app test suite.
+-   Validate disabled-state parity by editing StartupApproved entries and confirming the UI mirrors Task Manager.
+
