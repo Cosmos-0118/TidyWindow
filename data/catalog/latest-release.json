@@ -1,10 +1,10 @@
 {
-  "version": "3.7.0",
+  "version": "3.7.1",
   "channel": "stable",
-  "summary": "-fixed a ui bug in essentials page.  -added automatic disable in startup page.  -improved startup page logic and filters.  -added force delete in deepscan page.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.7.0/TidyWindow-Setup-3.7.0.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.7.0",
-  "publishedAt": "2026-01-09T20:15:46Z",
-  "installerSizeBytes": 81372660,
-  "sha256": "02935cfef928339d453c283460029d50a5d3727a409de01110926ce8982f755c"
+  "summary": "-fixed an issue in registry page where the toggles showed applied even when they didn't.  -fixed overlapping ui bug in registry page.  -fixed overlapping filters in startup page.  -improved network fix script and ui b...",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.7.1/TidyWindow-Setup-3.7.1.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.7.1",
+  "publishedAt": "2026-01-10T05:03:19Z",
+  "installerSizeBytes": 81378858,
+  "sha256": "e458f65e5303948494d64b42676afdbd4e452096cc314100baa7978299026127"
 }
