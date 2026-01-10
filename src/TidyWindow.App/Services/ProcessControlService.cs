@@ -13,50 +13,60 @@ public sealed class ProcessControlService
 {
     private static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(25);
 
-    public Task<ProcessControlResult> StopAsync(string serviceName, CancellationToken cancellationToken = default)
+    public Task<ProcessControlResult> StopAsync(string serviceName, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => ControlService(serviceName, controller =>
+        return Task.Run(() => ControlService(serviceName, timeout, (controller, effectiveTimeout) =>
         {
             controller.Refresh();
+            if (controller.StartType == ServiceStartMode.Disabled)
+            {
+                return ProcessControlResult.CreateSuccess($"{serviceName} is disabled; skipping stop.");
+            }
+
             if (controller.Status == ServiceControllerStatus.Stopped)
             {
                 return ProcessControlResult.CreateSuccess($"{serviceName} is already stopped.");
             }
 
             controller.Stop();
-            controller.WaitForStatus(ServiceControllerStatus.Stopped, DefaultTimeout);
+            controller.WaitForStatus(ServiceControllerStatus.Stopped, effectiveTimeout);
             return ProcessControlResult.CreateSuccess($"Stopped {serviceName}.");
         }), cancellationToken);
     }
 
-    public Task<ProcessControlResult> StartAsync(string serviceName, CancellationToken cancellationToken = default)
+    public Task<ProcessControlResult> StartAsync(string serviceName, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
-        return Task.Run(() => ControlService(serviceName, controller =>
+        return Task.Run(() => ControlService(serviceName, timeout, (controller, effectiveTimeout) =>
         {
             controller.Refresh();
+            if (controller.StartType == ServiceStartMode.Disabled)
+            {
+                return ProcessControlResult.CreateFailure($"{serviceName} is disabled and cannot be started.");
+            }
+
             if (controller.Status is ServiceControllerStatus.Running or ServiceControllerStatus.StartPending)
             {
                 return ProcessControlResult.CreateSuccess($"{serviceName} is already running.");
             }
 
             controller.Start();
-            controller.WaitForStatus(ServiceControllerStatus.Running, DefaultTimeout);
+            controller.WaitForStatus(ServiceControllerStatus.Running, effectiveTimeout);
             return ProcessControlResult.CreateSuccess($"Started {serviceName}.");
         }), cancellationToken);
     }
 
-    public async Task<ProcessControlResult> RestartAsync(string serviceName, CancellationToken cancellationToken = default)
+    public async Task<ProcessControlResult> RestartAsync(string serviceName, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
-        var stopResult = await StopAsync(serviceName, cancellationToken).ConfigureAwait(false);
+        var stopResult = await StopAsync(serviceName, timeout, cancellationToken).ConfigureAwait(false);
         if (!stopResult.Success)
         {
             return stopResult;
         }
 
-        return await StartAsync(serviceName, cancellationToken).ConfigureAwait(false);
+        return await StartAsync(serviceName, timeout, cancellationToken).ConfigureAwait(false);
     }
 
-    private static ProcessControlResult ControlService(string? serviceName, Func<ServiceController, ProcessControlResult> action)
+    private static ProcessControlResult ControlService(string? serviceName, TimeSpan? timeout, Func<ServiceController, TimeSpan, ProcessControlResult> action)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -72,8 +82,9 @@ public sealed class ProcessControlService
 
         try
         {
+            var effectiveTimeout = ResolveTimeout(timeout);
             using var controller = new ServiceController(trimmedName);
-            return action(controller);
+            return action(controller, effectiveTimeout);
         }
         catch (InvalidOperationException ex) when (IsServiceMissing(ex))
         {
@@ -95,6 +106,16 @@ public sealed class ProcessControlService
 
         return exception.Message?.IndexOf("does not exist", StringComparison.OrdinalIgnoreCase) >= 0
             || exception.Message?.IndexOf("cannot open", StringComparison.OrdinalIgnoreCase) >= 0;
+    }
+
+    private static TimeSpan ResolveTimeout(TimeSpan? timeout)
+    {
+        if (timeout is null || timeout <= TimeSpan.Zero)
+        {
+            return DefaultTimeout;
+        }
+
+        return timeout.Value;
     }
 }
 

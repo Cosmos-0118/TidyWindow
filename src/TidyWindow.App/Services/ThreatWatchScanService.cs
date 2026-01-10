@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Management;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Processes.ThreatWatch;
@@ -51,6 +52,7 @@ public sealed class ThreatWatchScanService
 
     private static IReadOnlyList<RunningProcessSnapshot> SnapshotProcesses()
     {
+        var context = TryLoadProcessContext();
         var list = new List<RunningProcessSnapshot>();
         foreach (var process in Process.GetProcesses())
         {
@@ -62,15 +64,19 @@ public sealed class ThreatWatchScanService
                     continue;
                 }
 
+                var hasContext = context.TryGetValue(process.Id, out var contextEntry);
+                var parentProcessId = hasContext ? contextEntry.ParentProcessId : null;
+                var grandParentProcessId = ResolveParentId(parentProcessId, context);
+
                 var snapshot = new RunningProcessSnapshot(
                     process.Id,
                     NormalizeProcessName(process),
                     path,
-                    commandLine: null,
-                    parentProcessId: null,
-                    parentProcessName: null,
-                    grandParentProcessId: null,
-                    grandParentProcessName: null,
+                    commandLine: hasContext ? contextEntry.CommandLine : null,
+                    parentProcessId: parentProcessId,
+                    parentProcessName: ResolveProcessName(parentProcessId, context),
+                    grandParentProcessId: grandParentProcessId,
+                    grandParentProcessName: ResolveProcessName(grandParentProcessId, context),
                     startedAtUtc: TryGetStartTime(process),
                     isElevated: false);
 
@@ -152,4 +158,71 @@ public sealed class ThreatWatchScanService
             item.SourceTag,
             item.RawCommand ?? item.SourceTag);
     }
+
+    private static IReadOnlyDictionary<int, ProcessContext> TryLoadProcessContext()
+    {
+        var map = new Dictionary<int, ProcessContext>();
+
+        try
+        {
+            using var searcher = new ManagementObjectSearcher("SELECT ProcessId, ParentProcessId, Name, CommandLine FROM Win32_Process");
+            using var results = searcher.Get();
+
+            foreach (ManagementObject instance in results)
+            {
+                var processId = ToInt(instance["ProcessId"]);
+                if (processId is null)
+                {
+                    continue;
+                }
+
+                map[processId.Value] = new ProcessContext(
+                    instance["Name"] as string,
+                    instance["CommandLine"] as string,
+                    ToInt(instance["ParentProcessId"]));
+            }
+        }
+        catch
+        {
+            // Access to WMI can fail under restrictive policies; context remains sparse in that case.
+        }
+
+        return map;
+    }
+
+    private static int? ToInt(object? value)
+    {
+        try
+        {
+            return value is null ? null : Convert.ToInt32(value);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static int? ResolveParentId(int? processId, IReadOnlyDictionary<int, ProcessContext> context)
+    {
+        if (processId is null)
+        {
+            return null;
+        }
+
+        return context.TryGetValue(processId.Value, out var info) ? info.ParentProcessId : null;
+    }
+
+    private static string? ResolveProcessName(int? processId, IReadOnlyDictionary<int, ProcessContext> context)
+    {
+        if (processId is null)
+        {
+            return null;
+        }
+
+        return context.TryGetValue(processId.Value, out var info)
+            ? RunningProcessSnapshot.NormalizeProcessName(info.Name)
+            : null;
+    }
+
+    private sealed record ProcessContext(string? Name, string? CommandLine, int? ParentProcessId);
 }
