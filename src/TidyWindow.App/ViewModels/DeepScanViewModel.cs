@@ -28,7 +28,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private int _maxItems = 1000;
     private bool _includeHidden;
     private DateTimeOffset? _lastScanned;
-    private string _summary = "Run a scan to surface large files and folders.";
+    private string _summary = "Scan to surface files and folders quickly.";
     private string _nameFilter = string.Empty;
     private DeepScanNameMatchMode _selectedMatchMode = DeepScanNameMatchMode.Contains;
     private bool _isCaseSensitiveMatch;
