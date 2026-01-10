@@ -457,6 +457,7 @@
                   HorizontalAlignment="Center">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
@@ -472,28 +473,51 @@
                                        FontSize="13"
                                        Foreground="#94A3B8"
                                        TextWrapping="Wrap"/>
-                            <WrapPanel Margin="0,18,0,0">
-                                <ToggleButton Content="Task shelf"
-                                              Style="{StaticResource EssentialsPivotToggleStyle}"
-                                              Command="{Binding NavigatePivotCommand}"
-                                              CommandParameter="{x:Static viewModels:EssentialsPivot.Tasks}"
-                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Tasks}}"/>
-                                <ToggleButton Content="Queue + output"
-                                              Style="{StaticResource EssentialsPivotToggleStyle}"
-                                              Command="{Binding NavigatePivotCommand}"
-                                              CommandParameter="{x:Static viewModels:EssentialsPivot.Queue}"
-                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Queue}}"/>
-                                <ToggleButton Content="Automation settings"
-                                              Style="{StaticResource EssentialsPivotToggleStyle}"
-                                              Command="{Binding NavigatePivotCommand}"
-                                              CommandParameter="{x:Static viewModels:EssentialsPivot.Settings}"
-                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Settings}}"/>
-                            </WrapPanel>
                         </StackPanel>
                     </controls:PageTitleBar.BodyContent>
                 </controls:PageTitleBar>
 
-                <Grid Grid.Row="1">
+                <Border Grid.Row="1"
+                        Style="{StaticResource EssentialsCardStyle}"
+                        Padding="14"
+                        Margin="0,0,0,18">
+                    <StackPanel>
+                        <TextBlock Text="Switch views"
+                                   FontSize="12"
+                                   Foreground="#8CA0BF"
+                                   Margin="0,0,0,10"/>
+                        <WrapPanel>
+                            <ToggleButton Content="Task shelf"
+                                          Padding="16,8"
+                                          MinWidth="130"
+                                          FontWeight="SemiBold"
+                                          Style="{StaticResource EssentialsPivotToggleStyle}"
+                                          Command="{Binding NavigatePivotCommand}"
+                                          CommandParameter="{x:Static viewModels:EssentialsPivot.Tasks}"
+                                          IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Tasks}}"/>
+                            <ToggleButton Content="Queue + output"
+                                          Padding="16,8"
+                                          MinWidth="130"
+                                          FontWeight="SemiBold"
+                                          Margin="10,0,0,0"
+                                          Style="{StaticResource EssentialsPivotToggleStyle}"
+                                          Command="{Binding NavigatePivotCommand}"
+                                          CommandParameter="{x:Static viewModels:EssentialsPivot.Queue}"
+                                          IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Queue}}"/>
+                            <ToggleButton Content="Automation settings"
+                                          Padding="16,8"
+                                          MinWidth="150"
+                                          FontWeight="SemiBold"
+                                          Margin="10,0,0,0"
+                                          Style="{StaticResource EssentialsPivotToggleStyle}"
+                                          Command="{Binding NavigatePivotCommand}"
+                                          CommandParameter="{x:Static viewModels:EssentialsPivot.Settings}"
+                                          IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Settings}}"/>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Grid Grid.Row="2">
                     <Grid>
                         <Grid.Resources>
                             <Thickness x:Key="CardSpacing" xml:space="preserve">0,24,0,0</Thickness>
@@ -798,6 +822,7 @@
                                               BorderThickness="0"
                                               Foreground="#F8FAFC"
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                               VirtualizingPanel.IsVirtualizing="True"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               VirtualizingStackPanel.ScrollUnit="Pixel">
@@ -826,26 +851,60 @@
                                                                     <TextBlock Text="{Binding TaskName}"
                                                                                FontWeight="SemiBold"
                                                                                FontSize="15"/>
-                                                                    <Border Margin="10,0,0,0"
-                                                                            Background="#2F3042"
-                                                                            CornerRadius="6"
-                                                                            Padding="6,2"
-                                                                            Visibility="{Binding HasErrors, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                        <TextBlock Text="Needs attention"
+                                                                    <Border x:Name="StatusChip"
+                                                                            Margin="10,0,0,0"
+                                                                            Padding="8,3"
+                                                                            CornerRadius="8"
+                                                                            Background="#13233E"
+                                                                            BorderBrush="#1E3454"
+                                                                            BorderThickness="1"
+                                                                            ToolTip="{Binding Message}">
+                                                                        <TextBlock x:Name="StatusChipLabel"
+                                                                                   Text="{Binding StatusLabel}"
                                                                                    FontSize="11"
-                                                                                   Foreground="#F87171"
-                                                                                   FontWeight="SemiBold"/>
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="#E2E8F0"/>
+                                                                        <Border.Style>
+                                                                            <Style TargetType="Border">
+                                                                                <Setter Property="Background" Value="#13233E"/>
+                                                                                <Setter Property="BorderBrush" Value="#1E3454"/>
+                                                                                <Setter Property="BorderThickness" Value="1"/>
+                                                                                <Setter Property="TextElement.Foreground" Value="#E2E8F0"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasErrors}" Value="True">
+                                                                                        <Setter Property="Background" Value="#3B1F2B"/>
+                                                                                        <Setter Property="BorderBrush" Value="#E11D48"/>
+                                                                                        <Setter Property="TextElement.Foreground" Value="#FEE2E2"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding IsCancellationRequested}" Value="True">
+                                                                                        <Setter Property="Background" Value="#3A2C1A"/>
+                                                                                        <Setter Property="BorderBrush" Value="#F59E0B"/>
+                                                                                        <Setter Property="TextElement.Foreground" Value="#FEF3C7"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                                        <Setter Property="Background" Value="#0E243D"/>
+                                                                                        <Setter Property="BorderBrush" Value="#38BDF8"/>
+                                                                                        <Setter Property="TextElement.Foreground" Value="#E0F2FE"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Completed">
+                                                                                        <Setter Property="Background" Value="#0F2E23"/>
+                                                                                        <Setter Property="BorderBrush" Value="#22C55E"/>
+                                                                                        <Setter Property="TextElement.Foreground" Value="#DCFCE7"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding StatusLabel}" Value="Queued">
+                                                                                        <Setter Property="Background" Value="#132A3F"/>
+                                                                                        <Setter Property="BorderBrush" Value="#60A5FA"/>
+                                                                                        <Setter Property="TextElement.Foreground" Value="#DBEAFE"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Border.Style>
                                                                     </Border>
                                                                 </StackPanel>
                                                                 <TextBlock Text="{Binding StatusLabel}"
                                                                            Margin="0,4,0,0"
                                                                            Foreground="#38BDF8"
                                                                            FontSize="12"/>
-                                                                <TextBlock Text="{Binding Message}"
-                                                                           Margin="0,6,0,0"
-                                                                           Foreground="#9FB0C7"
-                                                                           FontSize="12"
-                                                                           TextWrapping="Wrap"/>
                                                                 <StackPanel Orientation="Horizontal"
                                                                             Margin="0,8,0,0">
                                                                     <TextBlock Text="{Binding AttemptLabel}"
@@ -892,11 +951,16 @@
                                                                         VerticalAlignment="Top">
                                                                 <Button Command="{Binding DataContext.ShowOperationOutputCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                         CommandParameter="{Binding}"
-                                                                        Padding="10,4"
-                                                                        MinWidth="96"
-                                                                        Content="Show output">
+                                                                        Padding="14,6"
+                                                                        MinWidth="124">
+                                                                    <Button.Content>
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="Show output" FontWeight="SemiBold"/>
+                                                                            <TextBlock Text=">" Margin="10,0,0,0" Opacity="0.8"/>
+                                                                        </StackPanel>
+                                                                    </Button.Content>
                                                                     <Button.Style>
-                                                                        <Style TargetType="Button" BasedOn="{StaticResource EssentialsSecondaryButtonStyle}"/>
+                                                                        <Style TargetType="Button" BasedOn="{StaticResource EssentialsAccentButtonStyle}"/>
                                                                     </Button.Style>
                                                                 </Button>
                                                                 <Button Margin="12,0,0,0"

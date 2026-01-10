@@ -276,6 +276,58 @@ function Resolve-TidyCommandResult {
     return $result
 }
 
+function Test-TidyCommandAvailable {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $ActionName,
+        [string] $Details,
+        [switch] $RegisterSkip
+    )
+
+    $command = Get-Command -Name $Name -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return $true
+    }
+
+    $reason = if ([string]::IsNullOrWhiteSpace($Details)) { "Command '$Name' not available." } else { $Details }
+    $script:DiagnosticsSummary.Add($reason)
+
+    if ($RegisterSkip) {
+        Register-TidyAction -Name $ActionName -Status Skipped -Details $reason
+    }
+
+    Write-TidyOutput -Message $reason
+    return $false
+}
+
+function Test-TidyTcpProbe {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Host,
+        [Parameter(Mandatory = $true)]
+        [int] $Port,
+        [int] $TimeoutMilliseconds = 4000
+    )
+
+    try {
+        $client = [System.Net.Sockets.TcpClient]::new()
+        $async = $client.BeginConnect($Host, $Port, $null, $null)
+        $wait = $async.AsyncWaitHandle.WaitOne($TimeoutMilliseconds)
+        if (-not $wait) {
+            $client.Close()
+            return $false
+        }
+
+        $client.EndConnect($async)
+        $client.Close()
+        return $true
+    }
+    catch {
+        return $false
+    }
+}
+
 function Invoke-TidyNetworkAction {
     param(
         [Parameter(Mandatory = $true)]
@@ -481,44 +533,74 @@ try {
     }
 
     Write-TidyOutput -Message 'Capturing adapter link statistics.'
-    $adapterExit = Invoke-TidyNetworkAction -Action 'Adapter statistics snapshot' -Command { Get-NetAdapterStatistics -IncludeHidden } -Description 'Adapter statistics snapshot.'
-    if ($null -eq $adapterExit -or $adapterExit -eq 0) {
-        $script:AdapterSnapshotCaptured = $true
-    }
-    else {
-        $script:DiagnosticsSummary.Add('Unable to capture adapter statistics.')
+    if (Test-TidyCommandAvailable -Name 'Get-NetAdapterStatistics' -ActionName 'Adapter statistics snapshot' -Details 'Get-NetAdapterStatistics not available; skipping adapter snapshot.' -RegisterSkip) {
+        $adapterExit = Invoke-TidyNetworkAction -Action 'Adapter statistics snapshot' -Command { Get-NetAdapterStatistics -IncludeHidden } -Description 'Adapter statistics snapshot.'
+        if ($null -eq $adapterExit -or $adapterExit -eq 0) {
+            $script:AdapterSnapshotCaptured = $true
+        }
+        else {
+            $script:DiagnosticsSummary.Add('Unable to capture adapter statistics.')
+        }
     }
 
     if ($dnsName) {
         Write-TidyOutput -Message ("Resolving DNS for {0}" -f $dnsName)
-        try {
-            $records = Resolve-DnsName -Name $dnsName -Type A,AAAA -ErrorAction Stop
-            if ($records) {
-                foreach ($record in $records) {
-                    if ($record.IPAddress) {
-                        $script:TargetResolvedAddresses.Add($record.IPAddress)
-                    }
+        $dnsResolved = $false
+        if (Test-TidyCommandAvailable -Name 'Resolve-DnsName' -ActionName 'DNS resolution' -Details 'Resolve-DnsName not available; attempting .NET fallback.' ) {
+            try {
+                $records = Resolve-DnsName -Name $dnsName -Type A,AAAA -ErrorAction Stop
+                if ($records) {
+                    foreach ($record in $records) {
+                        if ($record.IPAddress) {
+                            $script:TargetResolvedAddresses.Add($record.IPAddress)
+                        }
 
-                    $recordText = $record | Format-List | Out-String
-                    foreach ($line in ($recordText -split '\r?\n')) {
-                        if (-not [string]::IsNullOrWhiteSpace($line)) {
-                            Write-TidyOutput -Message $line
+                        $recordText = $record | Format-List | Out-String
+                        foreach ($line in ($recordText -split '\r?\n')) {
+                            if (-not [string]::IsNullOrWhiteSpace($line)) {
+                                Write-TidyOutput -Message $line
+                            }
                         }
                     }
                 }
-            }
-            else {
-                Write-TidyOutput -Message 'No A/AAAA records returned.'
-                $script:DiagnosticsSummary.Add("DNS query returned no host records for $dnsName.")
-            }
+                else {
+                    Write-TidyOutput -Message 'No A/AAAA records returned.'
+                    $script:DiagnosticsSummary.Add("DNS query returned no host records for $dnsName.")
+                }
 
-            Register-TidyAction -Name 'DNS resolution' -Status Success
+                Register-TidyAction -Name 'DNS resolution' -Status Success
+                $dnsResolved = $true
+            }
+            catch {
+                $message = $_.Exception.Message
+                Write-TidyError -Message ("DNS resolution failed: {0}" -f $message)
+                Register-TidyAction -Name 'DNS resolution' -Status Failed -Details $message
+                $script:DiagnosticsSummary.Add("DNS resolution failed: $message")
+            }
         }
-        catch {
-            $message = $_.Exception.Message
-            Write-TidyError -Message ("DNS resolution failed: {0}" -f $message)
-            Register-TidyAction -Name 'DNS resolution' -Status Failed -Details $message
-            $script:DiagnosticsSummary.Add("DNS resolution failed: $message")
+
+        if (-not $dnsResolved) {
+            try {
+                $addresses = [System.Net.Dns]::GetHostAddresses($dnsName)
+                if ($addresses -and $addresses.Count -gt 0) {
+                    foreach ($addr in $addresses) {
+                        $script:TargetResolvedAddresses.Add($addr.IPAddressToString)
+                        Write-TidyOutput -Message ("  ↳ {0}" -f $addr.IPAddressToString)
+                    }
+
+                    Register-TidyAction -Name 'DNS resolution' -Status Success
+                    $dnsResolved = $true
+                }
+                else {
+                    throw "No addresses returned for $dnsName"
+                }
+            }
+            catch {
+                $message = $_.Exception.Message
+                Write-TidyError -Message ("DNS resolution failed (fallback): {0}" -f $message)
+                Register-TidyAction -Name 'DNS resolution' -Status Failed -Details $message
+                $script:DiagnosticsSummary.Add("DNS resolution failed: $message")
+            }
         }
     }
     else {
@@ -526,50 +608,70 @@ try {
     }
 
     Write-TidyOutput -Message ("Testing connection to {0} on TCP port {1}." -f $TargetHost, $script:EffectiveTcpPort)
-    try {
-        $testResult = Test-NetConnection -ComputerName $TargetHost -Port $script:EffectiveTcpPort -InformationLevel Detailed -ErrorAction Stop
-        $formatted = ($testResult | Format-List | Out-String)
-        foreach ($line in ($formatted -split '\r?\n')) {
-            if (-not [string]::IsNullOrWhiteSpace($line)) {
-                Write-TidyOutput -Message $line
+    $connectSucceeded = $false
+    if (Test-TidyCommandAvailable -Name 'Test-NetConnection' -ActionName 'Connectivity test' -Details 'Test-NetConnection not available; attempting TCP socket probe.' ) {
+        try {
+            $testResult = Test-NetConnection -ComputerName $TargetHost -Port $script:EffectiveTcpPort -InformationLevel Detailed -ErrorAction Stop
+            $formatted = ($testResult | Format-List | Out-String)
+            foreach ($line in ($formatted -split '\r?\n')) {
+                if (-not [string]::IsNullOrWhiteSpace($line)) {
+                    Write-TidyOutput -Message $line
+                }
             }
-        }
 
-        if ($testResult.TcpTestSucceeded) {
+            if ($testResult.TcpTestSucceeded) {
+                $script:TestConnectionSucceeded = $true
+                $connectSucceeded = $true
+            }
+            else {
+                $script:DiagnosticsSummary.Add('TCP connectivity test did not succeed.')
+            }
+
+            Register-TidyAction -Name 'Connectivity test' -Status Success
+        }
+        catch {
+            $message = $_.Exception.Message
+            Write-TidyError -Message ("Test-NetConnection failed: {0}" -f $message)
+            Register-TidyAction -Name 'Connectivity test' -Status Failed -Details $message
+            $script:DiagnosticsSummary.Add("Connectivity test failed: $message")
+        }
+    }
+
+    if (-not $connectSucceeded) {
+        $fallbackOk = Test-TidyTcpProbe -Host $TargetHost -Port $script:EffectiveTcpPort -TimeoutMilliseconds 4000
+        if ($fallbackOk) {
+            Register-TidyAction -Name 'Connectivity test' -Status Success
             $script:TestConnectionSucceeded = $true
         }
         else {
-            $script:DiagnosticsSummary.Add('TCP connectivity test did not succeed.')
+            Register-TidyAction -Name 'Connectivity test' -Status Failed -Details 'TCP socket probe failed.'
+            $script:DiagnosticsSummary.Add('TCP socket probe failed.')
         }
-
-        Register-TidyAction -Name 'Connectivity test' -Status Success
-    }
-    catch {
-        $message = $_.Exception.Message
-        Write-TidyError -Message ("Test-NetConnection failed: {0}" -f $message)
-        Register-TidyAction -Name 'Connectivity test' -Status Failed -Details $message
-        $script:DiagnosticsSummary.Add("Connectivity test failed: $message")
     }
 
-    Write-TidyOutput -Message ("Running latency sample ({0} pings)." -f $LatencySamples)
-    $script:PingExitCode = Invoke-TidyNetworkAction -Action 'Latency sweep (ping)' -Command { param($computerName, $count) ping.exe -n $count $computerName } -Arguments @($TargetHost, $LatencySamples) -Description 'ping sweep.'
-    if ($null -eq $script:PingExitCode) {
-        $script:PingExitCode = -1
-    }
-    if ($script:PingExitCode -ne 0 -and $null -ne $script:PingExitCode) {
-        Write-TidyLog -Level Warning -Message ("Ping sweep to {0} returned exit code {1}." -f $TargetHost, $script:PingExitCode)
-        $script:DiagnosticsSummary.Add("Ping sweep to $TargetHost failed (exit code $($script:PingExitCode)).")
+    if (Test-TidyCommandAvailable -Name 'ping.exe' -ActionName 'Latency sweep (ping)' -Details 'ping.exe not found; skipping latency sample.' -RegisterSkip) {
+        Write-TidyOutput -Message ("Running latency sample ({0} pings)." -f $LatencySamples)
+        $script:PingExitCode = Invoke-TidyNetworkAction -Action 'Latency sweep (ping)' -Command { param($computerName, $count) ping.exe -n $count $computerName } -Arguments @($TargetHost, $LatencySamples) -Description 'ping sweep.'
+        if ($null -eq $script:PingExitCode) {
+            $script:PingExitCode = -1
+        }
+        if ($script:PingExitCode -ne 0 -and $null -ne $script:PingExitCode) {
+            Write-TidyLog -Level Warning -Message ("Ping sweep to {0} returned exit code {1}." -f $TargetHost, $script:PingExitCode)
+            $script:DiagnosticsSummary.Add("Ping sweep to $TargetHost failed (exit code $($script:PingExitCode)).")
+        }
     }
 
     if (-not $SkipTraceroute.IsPresent) {
-        Write-TidyOutput -Message 'Tracing network route.'
-        $tracerouteArgs = @('-d', '-h', 15, '-w', 2000, $TargetHost)
-        $script:TracerouteExitCode = Invoke-TidyNetworkAction -Action 'Traceroute' -Command { param([string[]] $args) tracert.exe @args } -Arguments $tracerouteArgs -Description 'tracert execution with bounded hops and timeouts.'
-        if ($null -eq $script:TracerouteExitCode) {
-            $script:TracerouteExitCode = -1
-        }
-        if ($script:TracerouteExitCode -ne 0 -and $null -ne $script:TracerouteExitCode) {
-            $script:DiagnosticsSummary.Add('Traceroute reported errors; inspect hop details above.')
+        if (Test-TidyCommandAvailable -Name 'tracert.exe' -ActionName 'Traceroute' -Details 'tracert.exe not found; skipping traceroute.' -RegisterSkip) {
+            Write-TidyOutput -Message 'Tracing network route.'
+            $tracerouteArgs = @('-d', '-h', 15, '-w', 2000, $TargetHost)
+            $script:TracerouteExitCode = Invoke-TidyNetworkAction -Action 'Traceroute' -Command { param([string[]] $args) tracert.exe @args } -Arguments $tracerouteArgs -Description 'tracert execution with bounded hops and timeouts.'
+            if ($null -eq $script:TracerouteExitCode) {
+                $script:TracerouteExitCode = -1
+            }
+            if ($script:TracerouteExitCode -ne 0 -and $null -ne $script:TracerouteExitCode) {
+                $script:DiagnosticsSummary.Add('Traceroute reported errors; inspect hop details above.')
+            }
         }
     }
     else {
@@ -578,14 +680,16 @@ try {
     }
 
     if (-not $SkipPathPing.IsPresent) {
-        Write-TidyOutput -Message 'Running pathping for loss analysis (this can take several minutes).'
-        $pathPingArgs = @('-d', '-h', 15, '-w', 2000, $TargetHost)
-        $script:PathpingExitCode = Invoke-TidyNetworkAction -Action 'PathPing' -Command { param([string[]] $args) pathping.exe @args } -Arguments $pathPingArgs -Description 'pathping execution with bounded hops and timeouts.'
-        if ($null -eq $script:PathpingExitCode) {
-            $script:PathpingExitCode = -1
-        }
-        if ($script:PathpingExitCode -ne 0 -and $null -ne $script:PathpingExitCode) {
-            $script:DiagnosticsSummary.Add('PathPing reported transmission loss or errors.')
+        if (Test-TidyCommandAvailable -Name 'pathping.exe' -ActionName 'PathPing' -Details 'pathping.exe not found; skipping pathping.' -RegisterSkip) {
+            Write-TidyOutput -Message 'Running pathping for loss analysis (this can take several minutes).'
+            $pathPingArgs = @('-d', '-h', 15, '-w', 2000, $TargetHost)
+            $script:PathpingExitCode = Invoke-TidyNetworkAction -Action 'PathPing' -Command { param([string[]] $args) pathping.exe @args } -Arguments $pathPingArgs -Description 'pathping execution with bounded hops and timeouts.'
+            if ($null -eq $script:PathpingExitCode) {
+                $script:PathpingExitCode = -1
+            }
+            if ($script:PathpingExitCode -ne 0 -and $null -ne $script:PathpingExitCode) {
+                $script:DiagnosticsSummary.Add('PathPing reported transmission loss or errors.')
+            }
         }
     }
     else {
