@@ -1,10 +1,10 @@
 {
-  "version": "3.7.2",
+  "version": "3.7.3",
   "channel": "stable",
-  "summary": "TidyWindow – Latest Update\n\nSafety Improvements\n\nExpanded protected folder coverage to include Program Files, ProgramData, and user-profile roots.\nDefault cleanup now skips hidden, system, and recent files, with clear toggles to override.\nRecycle Bin behavior corrected <-> no silent permanent deletes, with explicit fallback handling.\nForce delete now requires manual arming, auto-disarms after use, and includes clearer warnings.\n\nDetection & Scan Enhancements\n\nAdded an independent toggle for system files instead of tying them to hidden items.\nDeep scan now supports in-flight cancellation with a live cancellation token.\n\nBrowser & Cleanup Coverage\n\nBrowser cleanup expanded beyond Edge with support for Chrome and Firefox profiles.\n\nService & Automation Reliability\n\nService control execution now uses a validated internal service name to avoid mismatches.\nManual “Run Now” works even when automation is turned off.\nUpdated service timeout logic (no fixed limit, respects disabled or slow services).\nThreat Watch now includes parent process and command-line metadata to improve triage context.\n\nTL;DR\nSafer deletes • Wider protection • Correct recycle handling\nBrowser support • Cancel scans • Reliable services\nSmarter threat intel <-> Everything tightened and fixed",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.7.2/TidyWindow-Setup-3.7.2.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.7.2",
-  "publishedAt": "2026-01-10T10:21:44Z",
-  "installerSizeBytes": 81405934,
-  "sha256": "c81a860ce1b01dac437b21912c17ff41854c2408eeb16d4ec77bf6d44c62061e"
+  "summary": "## 🚀 Latest Fixes\n\n### 🌐 Environment & Runtime\n- Fixed PATHPilot hangs by sanitizing bad/remote PATH entries and restoring them afterward.\n- All runtime probes now use the hardened lookup so detection never stalls.\n\n### 🧰 Maintenance Jobs\n- Added full cancellation support: queued/running jobs can be cancelled safely.\n- Added a `Cancelled` status + cancel buttons in UI with proper cleanup/disposal.\n- Disposal now cancels any leftover jobs automatically.\n\n### 🧨 Deep Scan\n- Force-delete toggle no longer auto-resets — user keeps control.\n\n### 📄 Catalog Paging\n- Paging now ignores rapid clicks and coalesces renders for smoother UI.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.7.3/TidyWindow-Setup-3.7.3.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.7.3",
+  "publishedAt": "2026-01-10T16:18:14Z",
+  "installerSizeBytes": 81417617,
+  "sha256": "ff0a1343ba2b2d658e4b7ab2cab73722e9572df3d11596096a420acc927111c6"
 }
