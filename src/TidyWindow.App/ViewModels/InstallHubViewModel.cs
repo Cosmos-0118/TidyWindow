@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Infrastructure;
@@ -44,6 +45,8 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
     private Task? _initializationTask;
     private bool _catalogInitialized;
     private bool _suppressFilters;
+    private bool _isCatalogPaging;
+    private bool _catalogRenderScheduled;
     private static readonly TimeSpan OverlayMinimumDuration = TimeSpan.FromMilliseconds(2000);
     private static readonly TimeSpan SearchDebounceInterval = TimeSpan.FromMilliseconds(110);
     private DateTimeOffset? _overlayActivatedAt;
@@ -686,12 +689,12 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         CatalogCurrentPage--;
-        RenderCatalogPage();
+        ScheduleRenderCatalogPage();
     }
 
     private bool CanGoToPreviousCatalogPage()
     {
-        return CatalogCurrentPage > 1;
+        return !_isCatalogPaging && CatalogCurrentPage > 1;
     }
 
     [RelayCommand(CanExecute = nameof(CanGoToNextCatalogPage))]
@@ -703,12 +706,12 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         }
 
         CatalogCurrentPage++;
-        RenderCatalogPage();
+        ScheduleRenderCatalogPage();
     }
 
     private bool CanGoToNextCatalogPage()
     {
-        return CatalogCurrentPage < CatalogTotalPages;
+        return !_isCatalogPaging && CatalogCurrentPage < CatalogTotalPages;
     }
 
     [RelayCommand]
@@ -944,11 +947,32 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
         CatalogTotalPages = totalPages;
         OnPropertyChanged(nameof(HasMultipleCatalogPages));
 
-        RenderCatalogPage();
+        ScheduleRenderCatalogPage();
     }
 
-    private void RenderCatalogPage()
+    private void ScheduleRenderCatalogPage()
     {
+        if (_catalogRenderScheduled)
+        {
+            return;
+        }
+
+        _catalogRenderScheduled = true;
+        _isCatalogPaging = true;
+
+        if (WpfApplication.Current?.Dispatcher is { } dispatcher)
+        {
+            dispatcher.InvokeAsync(RenderCatalogPageCore, DispatcherPriority.Background);
+        }
+        else
+        {
+            RenderCatalogPageCore();
+        }
+    }
+
+    private void RenderCatalogPageCore()
+    {
+        _catalogRenderScheduled = false;
         var pageSize = Math.Max(1, CatalogPageSize);
         var startIndex = (CatalogCurrentPage - 1) * pageSize;
         if (startIndex < 0)
@@ -961,6 +985,14 @@ public sealed partial class InstallHubViewModel : ViewModelBase, IDisposable
 
         OnPropertyChanged(nameof(CatalogPageSummary));
         OnPropertyChanged(nameof(CatalogPageDisplay));
+        UpdateCatalogPagingCommands();
+
+        _isCatalogPaging = false;
+        UpdateCatalogPagingCommands();
+    }
+
+    private void UpdateCatalogPagingCommands()
+    {
         PreviousCatalogPageCommand?.NotifyCanExecuteChanged();
         NextCatalogPageCommand?.NotifyCanExecuteChanged();
     }
