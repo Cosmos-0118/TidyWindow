@@ -56,10 +56,10 @@ Thanks for highlighting TidyWindow on your platform!
 ## YouTube Mentions
 
 -   Video review: https://youtu.be/qXd_q5jPEuA?si=3Dn98gH6aVFXDWPx — thankyou for your video.
+-   Xerife Tech: https://www.youtube.com/watch?v=E9NzGDCUVmU — thanks for the coverage! p.s i found few ui bugs while watching your video i'll fix it soon.
 
 If you've covered TidyWindow in a video, please reach out or open an issue—would love to include you here! 🎬
 
 ---
 
 If you wrote about TidyWindow and would like your link added, feel free to open a pull request or contact me.
-
