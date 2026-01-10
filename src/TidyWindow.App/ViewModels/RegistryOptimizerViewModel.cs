@@ -59,10 +59,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
             _isRestoringState = false;
         }
 
-        foreach (var tweak in Tweaks)
-        {
-            tweak.CommitSelection();
-        }
+        ApplyBaselineFromPreferences();
 
         UpdatePendingChanges();
         UpdateRestorePointState(_registryService.TryGetLatestRestorePoint());
@@ -199,10 +196,22 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
                 return;
             }
 
+            var appliedStates = new List<RegistryAppliedState>(Tweaks.Count);
+
             foreach (var tweak in pendingTweaks)
             {
                 tweak.CommitSelection();
             }
+
+            foreach (var tweak in Tweaks)
+            {
+                appliedStates.Add(new RegistryAppliedState(
+                    tweak.Id,
+                    tweak.IsSelected,
+                    tweak.SupportsCustomValue && tweak.CustomValueIsValid ? tweak.CustomValue?.Trim() : null));
+            }
+
+            _registryPreferenceService.SetAppliedStates(appliedStates, DateTimeOffset.UtcNow);
 
             UpdatePendingChanges();
             UpdateValidationState();
@@ -349,6 +358,19 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
 
         return Presets.FirstOrDefault(preset => preset.IsDefault) ?? Presets.FirstOrDefault();
+    }
+
+    private void ApplyBaselineFromPreferences()
+    {
+        foreach (var tweak in Tweaks)
+        {
+            var baselineState = _registryPreferenceService.TryGetAppliedTweakState(tweak.Id, out var appliedState)
+                ? appliedState
+                : tweak.DefaultState;
+
+            var appliedCustom = _registryPreferenceService.GetAppliedCustomValue(tweak.Id);
+            tweak.SetBaseline(baselineState, appliedCustom);
+        }
     }
 
     private void UpdatePendingChanges()
@@ -593,6 +615,8 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
 
     public bool IsBaselineEnabled => _baselineState;
 
+    public bool DefaultState => _definition.DefaultState;
+
     public string DefaultStateLabel => _baselineState
         ? RegistryOptimizerStrings.DefaultEnabled
         : RegistryOptimizerStrings.DefaultDisabled;
@@ -667,6 +691,28 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
         SetBaselineToCurrentCustomValue();
         OnPropertyChanged(nameof(IsBaselineEnabled));
         OnPropertyChanged(nameof(DefaultStateLabel));
+    }
+
+    public void SetBaseline(bool value, string? customValue)
+    {
+        _baselineState = value;
+
+        if (!SupportsCustomValue)
+        {
+            _baselineCustomValueRaw = null;
+            _baselineCustomValuePayload = null;
+        }
+        else if (!string.IsNullOrWhiteSpace(customValue) && TryParseCustomValue(customValue, out var payload, out _))
+        {
+            _baselineCustomValueRaw = customValue.Trim();
+            _baselineCustomValuePayload = payload;
+        }
+
+        OnPropertyChanged(nameof(IsBaselineEnabled));
+        OnPropertyChanged(nameof(DefaultStateLabel));
+        OnPropertyChanged(nameof(HasPendingChanges));
+        OnPropertyChanged(nameof(HasCustomValueChanges));
+        OnPropertyChanged(nameof(IsCustomValueBaseline));
     }
 
     public void RevertToBaseline()

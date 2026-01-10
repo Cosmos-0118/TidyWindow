@@ -22,6 +22,9 @@ public sealed class RegistryPreferenceService
     private readonly object _syncRoot = new();
     private Dictionary<string, string> _customValues;
     private Dictionary<string, bool> _tweakStates;
+    private Dictionary<string, bool> _appliedStates;
+    private Dictionary<string, string> _appliedCustomValues;
+    private DateTimeOffset? _lastAppliedUtc;
     private string? _selectedPresetId;
 
     public RegistryPreferenceService()
@@ -39,6 +42,8 @@ public sealed class RegistryPreferenceService
         _filePath = filePath;
         _customValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         _tweakStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        _appliedStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+        _appliedCustomValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         LoadFromDisk();
     }
@@ -128,6 +133,74 @@ public sealed class RegistryPreferenceService
         }
     }
 
+    public bool TryGetAppliedTweakState(string tweakId, out bool value)
+    {
+        value = default;
+        if (string.IsNullOrWhiteSpace(tweakId))
+        {
+            return false;
+        }
+
+        lock (_syncRoot)
+        {
+            return _appliedStates.TryGetValue(tweakId.Trim(), out value);
+        }
+    }
+
+    public string? GetAppliedCustomValue(string tweakId)
+    {
+        if (string.IsNullOrWhiteSpace(tweakId))
+        {
+            return null;
+        }
+
+        lock (_syncRoot)
+        {
+            return _appliedCustomValues.TryGetValue(tweakId.Trim(), out var value) ? value : null;
+        }
+    }
+
+    public DateTimeOffset? GetLastAppliedUtc()
+    {
+        lock (_syncRoot)
+        {
+            return _lastAppliedUtc;
+        }
+    }
+
+    public void SetAppliedStates(IEnumerable<RegistryAppliedState> appliedStates, DateTimeOffset appliedAtUtc)
+    {
+        if (appliedStates is null)
+        {
+            return;
+        }
+
+        lock (_syncRoot)
+        {
+            _appliedStates.Clear();
+            _appliedCustomValues.Clear();
+
+            foreach (var state in appliedStates)
+            {
+                if (string.IsNullOrWhiteSpace(state.TweakId))
+                {
+                    continue;
+                }
+
+                var id = state.TweakId.Trim();
+                _appliedStates[id] = state.State;
+
+                if (!string.IsNullOrWhiteSpace(state.CustomValue))
+                {
+                    _appliedCustomValues[id] = state.CustomValue.Trim();
+                }
+            }
+
+            _lastAppliedUtc = appliedAtUtc;
+            SaveToDiskLocked();
+        }
+    }
+
     public string? GetSelectedPresetId()
     {
         lock (_syncRoot)
@@ -177,6 +250,21 @@ public sealed class RegistryPreferenceService
                 _tweakStates = new Dictionary<string, bool>(model.TweakStates, StringComparer.OrdinalIgnoreCase);
             }
 
+            if (model.AppliedStates is not null)
+            {
+                _appliedStates = new Dictionary<string, bool>(model.AppliedStates, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (model.AppliedCustomValues is not null)
+            {
+                _appliedCustomValues = new Dictionary<string, string>(model.AppliedCustomValues, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (model.LastAppliedUtc.HasValue)
+            {
+                _lastAppliedUtc = model.LastAppliedUtc.Value;
+            }
+
             if (!string.IsNullOrWhiteSpace(model.SelectedPresetId))
             {
                 _selectedPresetId = model.SelectedPresetId;
@@ -186,6 +274,9 @@ public sealed class RegistryPreferenceService
         {
             _customValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             _tweakStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            _appliedStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            _appliedCustomValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            _lastAppliedUtc = null;
             _selectedPresetId = null;
         }
     }
@@ -204,6 +295,9 @@ public sealed class RegistryPreferenceService
             {
                 CustomValues = new Dictionary<string, string>(_customValues, StringComparer.OrdinalIgnoreCase),
                 TweakStates = new Dictionary<string, bool>(_tweakStates, StringComparer.OrdinalIgnoreCase),
+                AppliedStates = new Dictionary<string, bool>(_appliedStates, StringComparer.OrdinalIgnoreCase),
+                AppliedCustomValues = new Dictionary<string, string>(_appliedCustomValues, StringComparer.OrdinalIgnoreCase),
+                LastAppliedUtc = _lastAppliedUtc,
                 SelectedPresetId = _selectedPresetId
             };
 
@@ -222,6 +316,14 @@ public sealed class RegistryPreferenceService
 
         public Dictionary<string, bool>? TweakStates { get; set; }
 
+        public Dictionary<string, bool>? AppliedStates { get; set; }
+
+        public Dictionary<string, string>? AppliedCustomValues { get; set; }
+
+        public DateTimeOffset? LastAppliedUtc { get; set; }
+
         public string? SelectedPresetId { get; set; }
     }
 }
+
+public readonly record struct RegistryAppliedState(string TweakId, bool State, string? CustomValue);

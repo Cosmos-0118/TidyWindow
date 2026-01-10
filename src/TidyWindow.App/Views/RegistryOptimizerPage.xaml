@@ -122,8 +122,13 @@
                                       Width="2*"
                                       MinWidth="320"/>
                 </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
 
                 <StackPanel x:Name="PrimaryColumnHost"
+                            Grid.Row="0"
                             Grid.Column="0"
                             Margin="0,0,24,0">
                     <Border Style="{StaticResource RegistryCardStyle}"
@@ -641,6 +646,7 @@
                 </StackPanel>
 
                 <StackPanel x:Name="SecondaryColumnHost"
+                            Grid.Row="0"
                             Grid.Column="1">
                     <Border Style="{StaticResource RegistryCardStyle}"
                             Background="#0B1626">

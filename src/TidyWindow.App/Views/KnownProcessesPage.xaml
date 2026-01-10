@@ -619,10 +619,10 @@
                                     <ItemsControl ItemsSource="{Binding Processes}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <ux:AdaptiveTilePanel MinColumnWidth="360"
-                                                                      MaxColumnWidth="600"
+                                                <ux:AdaptiveTilePanel MinColumnWidth="420"
+                                                                      MaxColumnWidth="720"
                                                                       MinColumns="1"
-                                                                      MaxColumns="4"
+                                                                      MaxColumns="3"
                                                                       ColumnSpacing="24"
                                                                       RowSpacing="20"
                                                                       Padding="0" />
@@ -631,8 +631,8 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Style="{StaticResource ProcessCardStyle}"
-                                                    MinWidth="360"
-                                                    MaxWidth="580">
+                                                    MinWidth="420"
+                                                    MaxWidth="700">
                                                     <StackPanel TextOptions.TextFormattingMode="Display">
                                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding DisplayName, StringFormat=Process • {0}}"
@@ -684,25 +684,26 @@
                                                                            FontWeight="SemiBold" />
                                                             </Border>
                                                         </Grid>
-                                                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                                                        <WrapPanel Margin="0,12,0,0">
                                                             <Button Content="{Binding ToggleActionLabel}"
-                                                                    Margin="0,0,12,0"
-                                                                    Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                                                    Command="{Binding ToggleActionCommand}" />
+                                                                Margin="0,0,12,12"
+                                                                Style="{StaticResource ProcessPrimaryButtonStyle}"
+                                                                Command="{Binding ToggleActionCommand}" />
                                                             <Button Content="Stop"
-                                                                    Margin="0,0,12,0"
-                                                                    Style="{StaticResource ProcessDangerButtonStyle}"
-                                                                    Command="{Binding StopCommand}"
-                                                                    IsEnabled="{Binding CanControl}" />
+                                                                Margin="0,0,12,12"
+                                                                Style="{StaticResource ProcessDangerButtonStyle}"
+                                                                Command="{Binding StopCommand}"
+                                                                IsEnabled="{Binding CanControl}" />
                                                             <Button Content="Restart"
-                                                                    Margin="0,0,12,0"
-                                                                    Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                                                    Command="{Binding RestartCommand}"
-                                                                    IsEnabled="{Binding CanControl}" />
+                                                                Margin="0,0,12,12"
+                                                                Style="{StaticResource ProcessSecondaryButtonStyle}"
+                                                                Command="{Binding RestartCommand}"
+                                                                IsEnabled="{Binding CanControl}" />
                                                             <Button Content="Learn more"
-                                                                    Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                                                    Command="{Binding LearnMoreCommand}" />
-                                                        </StackPanel>
+                                                                Margin="0,0,12,12"
+                                                                Style="{StaticResource ProcessSecondaryButtonStyle}"
+                                                                Command="{Binding LearnMoreCommand}" />
+                                                        </WrapPanel>
                                                         <TextBlock Text="{Binding LastActionMessage}"
                                                                    Foreground="{StaticResource ProcessMutedBrush}"
                                                                    TextWrapping="Wrap"
