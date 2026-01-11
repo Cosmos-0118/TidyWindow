@@ -12,7 +12,6 @@ public sealed record PerformanceLabAutomationSnapshot(
     bool ApplyEtwCleanup,
     bool ApplyPagefilePreset,
     bool ApplySchedulerPreset,
-    bool ApplyIoBoosts,
     bool ApplyAutoTune,
     string ServiceTemplateId,
     string PagefilePresetId,
@@ -23,8 +22,6 @@ public sealed record PerformanceLabAutomationSnapshot(
     bool SweepPinnedApps,
     string SchedulerPresetId,
     string SchedulerProcessNames,
-    bool BoostIoPriority,
-    bool BoostThreadPriority,
     string AutoTuneProcessNames,
     string AutoTunePresetId,
     string EtwMode)
@@ -38,7 +35,6 @@ public sealed record PerformanceLabAutomationSnapshot(
         ApplyEtwCleanup: false,
         ApplyPagefilePreset: false,
         ApplySchedulerPreset: false,
-        ApplyIoBoosts: false,
         ApplyAutoTune: false,
         ServiceTemplateId: "Balanced",
         PagefilePresetId: "SystemManaged",
@@ -49,13 +45,11 @@ public sealed record PerformanceLabAutomationSnapshot(
         SweepPinnedApps: false,
         SchedulerPresetId: "Balanced",
         SchedulerProcessNames: string.Empty,
-        BoostIoPriority: true,
-        BoostThreadPriority: true,
         AutoTuneProcessNames: string.Empty,
         AutoTunePresetId: "LatencyBoost",
         EtwMode: "Minimal");
 
-    public bool HasActions => ApplyUltimatePlan || ApplyServiceTemplate || ApplyHardwareFix || ApplyKernelPreset || ApplyVbsDisable || ApplyEtwCleanup || ApplyPagefilePreset || ApplySchedulerPreset || ApplyIoBoosts || ApplyAutoTune;
+    public bool HasActions => ApplyUltimatePlan || ApplyServiceTemplate || ApplyHardwareFix || ApplyKernelPreset || ApplyVbsDisable || ApplyEtwCleanup || ApplyPagefilePreset || ApplySchedulerPreset || ApplyAutoTune;
 
     public PerformanceLabAutomationSnapshot Normalize()
     {

@@ -168,15 +168,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private bool isSchedulerSuccess;
 
     [ObservableProperty]
-    private string directStorageStatusMessage = "Detect DirectStorage readiness (NVMe, GPU, driver).";
-
-    [ObservableProperty]
-    private string directStorageStatusTimestamp = "–";
-
-    [ObservableProperty]
-    private bool isDirectStorageSuccess;
-
-    [ObservableProperty]
     private string autoTuneStatusMessage = "Start the monitoring loop to auto-apply presets.";
 
     [ObservableProperty]
@@ -193,7 +184,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public string EtwStatusSimple => IsEtwSuccess ? "In effect" : "Not applied";
     public string PagefileStatusSimple => IsPagefileSuccess ? "In effect" : "Not applied";
     public string SchedulerStatusSimple => IsSchedulerSuccess ? "In effect" : "Not applied";
-    public string DirectStorageStatusSimple => IsDirectStorageSuccess ? "In effect" : "Not applied";
     public string AutoTuneStatusSimple => IsAutoTuneSuccess ? "In effect" : "Not applied";
 
     [ObservableProperty]
@@ -225,12 +215,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     [ObservableProperty]
     private string selectedSchedulerPresetId = "LatencyBoost";
-
-    [ObservableProperty]
-    private bool boostIoPriority = true;
-
-    [ObservableProperty]
-    private bool boostThreadPriority = true;
 
     [ObservableProperty]
     private string autoTuneProcessNames = "steam;epicgameslauncher";
@@ -270,9 +254,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand DetectSchedulerCommand { get; }
     public IAsyncRelayCommand ApplySchedulerPresetCommand { get; }
     public IAsyncRelayCommand RestoreSchedulerDefaultsCommand { get; }
-    public IAsyncRelayCommand DetectDirectStorageCommand { get; }
-    public IAsyncRelayCommand ApplyIoBoostCommand { get; }
-    public IAsyncRelayCommand RestoreIoDefaultsCommand { get; }
     public IAsyncRelayCommand DetectAutoTuneCommand { get; }
     public IAsyncRelayCommand StartAutoTuneCommand { get; }
     public IAsyncRelayCommand StopAutoTuneCommand { get; }
@@ -339,9 +320,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         DetectSchedulerCommand = new AsyncRelayCommand(DetectSchedulerAsync, () => !IsBusy);
         ApplySchedulerPresetCommand = new AsyncRelayCommand(ApplySchedulerPresetAsync, () => !IsBusy);
         RestoreSchedulerDefaultsCommand = new AsyncRelayCommand(RestoreSchedulerDefaultsAsync, () => !IsBusy);
-        DetectDirectStorageCommand = new AsyncRelayCommand(DetectDirectStorageAsync, () => !IsBusy);
-        ApplyIoBoostCommand = new AsyncRelayCommand(ApplyIoBoostAsync, () => !IsBusy);
-        RestoreIoDefaultsCommand = new AsyncRelayCommand(RestoreIoDefaultsAsync, () => !IsBusy);
         DetectAutoTuneCommand = new AsyncRelayCommand(DetectAutoTuneAsync, () => !IsBusy);
         StartAutoTuneCommand = new AsyncRelayCommand(StartAutoTuneAsync, () => !IsBusy);
         StopAutoTuneCommand = new AsyncRelayCommand(StopAutoTuneAsync, () => !IsBusy);
@@ -379,9 +357,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         DetectSchedulerCommand.NotifyCanExecuteChanged();
         ApplySchedulerPresetCommand.NotifyCanExecuteChanged();
         RestoreSchedulerDefaultsCommand.NotifyCanExecuteChanged();
-        DetectDirectStorageCommand.NotifyCanExecuteChanged();
-        ApplyIoBoostCommand.NotifyCanExecuteChanged();
-        RestoreIoDefaultsCommand.NotifyCanExecuteChanged();
         DetectAutoTuneCommand.NotifyCanExecuteChanged();
         StartAutoTuneCommand.NotifyCanExecuteChanged();
         StopAutoTuneCommand.NotifyCanExecuteChanged();
@@ -471,9 +446,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
             var schedulerResult = await _service.DetectSchedulerAffinityAsync().ConfigureAwait(true);
             HandleSchedulerResult("PerformanceLab", "Scheduler state captured", schedulerResult);
-
-            var directStorageResult = await _service.DetectDirectStorageAsync().ConfigureAwait(true);
-            HandleDirectStorageResult("PerformanceLab", "DirectStorage readiness checked", directStorageResult);
 
             var autoTuneResult = await _service.DetectAutoTuneAsync().ConfigureAwait(true);
             HandleAutoTuneResult("PerformanceLab", "Auto-tune loop inspected", autoTuneResult);
@@ -685,33 +657,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         }).ConfigureAwait(false);
     }
 
-    private async Task DetectDirectStorageAsync()
-    {
-        await RunOperationAsync(async () =>
-        {
-            var result = await _service.DetectDirectStorageAsync().ConfigureAwait(true);
-            HandleDirectStorageResult("PerformanceLab", "DirectStorage readiness checked", result);
-        }).ConfigureAwait(false);
-    }
-
-    private async Task ApplyIoBoostAsync()
-    {
-        await RunOperationAsync(async () =>
-        {
-            var result = await _service.ApplyIoPriorityBoostAsync(BoostIoPriority, BoostThreadPriority).ConfigureAwait(true);
-            HandleDirectStorageResult("PerformanceLab", "I/O and thread boosts applied", result);
-        }).ConfigureAwait(false);
-    }
-
-    private async Task RestoreIoDefaultsAsync()
-    {
-        await RunOperationAsync(async () =>
-        {
-            var result = await _service.RestoreIoPriorityAsync().ConfigureAwait(true);
-            HandleDirectStorageResult("PerformanceLab", "I/O priorities restored", result);
-        }).ConfigureAwait(false);
-    }
-
     private async Task DetectAutoTuneAsync()
     {
         await RunOperationAsync(async () =>
@@ -798,7 +743,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             ApplyEtwCleanup: IsEtwSuccess,
             ApplyPagefilePreset: IsPagefileSuccess,
             ApplySchedulerPreset: IsSchedulerSuccess,
-            ApplyIoBoosts: IsDirectStorageSuccess && (BoostIoPriority || BoostThreadPriority),
             ApplyAutoTune: IsAutoTuneSuccess,
             ServiceTemplateId: SelectedTemplate?.Id ?? "Balanced",
             PagefilePresetId: SelectedPagefilePresetId ?? "SystemManaged",
@@ -809,8 +753,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             SweepPinnedApps: SweepPinnedApps,
             SchedulerPresetId: SelectedSchedulerPresetId ?? "Balanced",
             SchedulerProcessNames: SchedulerProcessNames ?? string.Empty,
-            BoostIoPriority: BoostIoPriority,
-            BoostThreadPriority: BoostThreadPriority,
             AutoTuneProcessNames: AutoTuneProcessNames ?? string.Empty,
             AutoTunePresetId: AutoTunePresetId ?? "LatencyBoost",
             EtwMode: "Minimal").Normalize();
@@ -919,7 +861,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         AppendStatus(sb, "ETW tracing", EtwStatusSimple, EtwStatusMessage);
         AppendStatus(sb, "Pagefile", PagefileStatusSimple, PagefileStatusMessage);
         AppendStatus(sb, "Scheduler & affinity", SchedulerStatusSimple, SchedulerStatusMessage);
-        AppendStatus(sb, "DirectStorage / I/O boosts", DirectStorageStatusSimple, DirectStorageStatusMessage);
         AppendStatus(sb, "Auto-tune", AutoTuneStatusSimple, AutoTuneStatusMessage);
 
         var message = sb.ToString().TrimEnd();
@@ -953,7 +894,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             "Etw" => ("ETW tracing cleanup", "Enumerates running ETW sessions and stops noisy loggers that keep disks busy or hit the CPU. This lowers background I/O and context switches, which can smooth frametimes. Restore restarts the allowlisted baseline; you can re-detect to verify."),
             "Pagefile" => ("Pagefile presets", "Detects your pagefile and applies system-managed, NVMe fixed, or custom sizes. Right-sizing on a fast drive cuts paging stalls; an optional working-set sweep frees RAM after apply. Status shows drive/size so you can verify the layout."),
             "Scheduler" => ("Scheduler & affinity", "Applies priority/affinity masks to listed processes (dwm, explorer, games) so UI threads stay responsive and workloads stick to intended cores. This reduces contention and stutter; Restore resets masks to Normal on all cores."),
-            "DirectStorage" => ("DirectStorage / I/O boosts", "Checks NVMe/GPU readiness signals; if enabled, boosts I/O and thread priority for foreground apps so asset streaming hits disks/CPUs faster. Rollback clears the boosts. Detection results stay visible so you know when it is safe."),
             "AutoTune" => ("Auto-tune loop", "Runs a watcher that detects your listed games/launchers and auto-applies the chosen scheduler preset, then logs before/after. This keeps game processes prioritized the moment they start. Stop & revert ends the watcher and restores defaults."),
             _ => ("Performance Lab", "Quick explanation for this step is not available. Please try again or refresh."),
         };
@@ -1157,28 +1097,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         SchedulerStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
-    private void HandleDirectStorageResult(string source, string successMessage, PowerShellInvocationResult result)
-    {
-        if (result.IsSuccess)
-        {
-            var details = BuildDetails(result);
-            var primary = details.FirstOrDefault(d => !d.StartsWith("exitCode", StringComparison.OrdinalIgnoreCase))
-                          ?? details.FirstOrDefault();
-            _activityLog.LogSuccess(source, successMessage, details);
-            DirectStorageStatusMessage = primary ?? successMessage;
-            IsDirectStorageSuccess = true;
-        }
-        else
-        {
-            var message = result.Errors.FirstOrDefault() ?? "Operation failed.";
-            _activityLog.LogWarning(source, message, BuildDetails(result));
-            DirectStorageStatusMessage = message;
-            IsDirectStorageSuccess = false;
-        }
-
-        DirectStorageStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
-    }
-
     private void HandleAutoTuneResult(string source, string successMessage, PowerShellInvocationResult result)
     {
         if (result.IsSuccess)
@@ -1345,11 +1263,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     partial void OnIsSchedulerSuccessChanged(bool value)
     {
         OnPropertyChanged(nameof(SchedulerStatusSimple));
-    }
-
-    partial void OnIsDirectStorageSuccessChanged(bool value)
-    {
-        OnPropertyChanged(nameof(DirectStorageStatusSimple));
     }
 
     partial void OnIsAutoTuneSuccessChanged(bool value)

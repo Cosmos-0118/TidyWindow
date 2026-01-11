@@ -57,7 +57,12 @@ function Clear-BcdMemoryCaps {
         if ($PSCmdlet.ShouldProcess("BCD {current} $setting", 'Delete value')) {
             $output = & bcdedit /deletevalue {current} $setting 2>&1
             if ($LASTEXITCODE -ne 0) {
-                Write-Warning "bcdedit deletevalue $setting returned ${LASTEXITCODE}: $output"
+                if ($LASTEXITCODE -eq 1 -and $output -like '*The parameter is incorrect*') {
+                    Write-Verbose "bcdedit deletevalue $setting not set (no change)."
+                }
+                else {
+                    Write-Warning "bcdedit deletevalue $setting returned ${LASTEXITCODE}: $output"
+                }
             }
         }
     }

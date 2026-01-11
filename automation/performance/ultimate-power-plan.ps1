@@ -203,8 +203,8 @@ if ($Enable) {
 }
 
 # Restore path
-$targetGuid = $state?.activeGuid
-$targetName = $state?.activeName
+$targetGuid = if ($state -and $state.activeGuid) { $state.activeGuid } else { $null }
+$targetName = if ($state -and $state.activeName) { $state.activeName } else { $null }
 if ([string]::IsNullOrWhiteSpace($targetGuid)) {
     $targetGuid = $balancedGuid
     $targetName = 'Balanced (fallback)'
@@ -219,6 +219,6 @@ if ($PassThru) {
         mode         = 'Restored'
         restoredGuid = $targetGuid
         restoredName = $targetName
-        statePath    = $statePath
+        statePath    = $resolvedStatePath
     }
 }

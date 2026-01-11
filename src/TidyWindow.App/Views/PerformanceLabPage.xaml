@@ -161,19 +161,6 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="DirectStorageStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsDirectStorageSuccess}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsDirectStorageSuccess}" Value="False">
-                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
         <Style x:Key="AutoTuneStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsAutoTuneSuccess}" Value="True">
@@ -758,49 +745,7 @@
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource StepBadgeStyle}">
-                                <TextBlock Text="Step 9" Foreground="#38BDF8" FontWeight="Bold" />
-                            </Border>
-                            <TextBlock Text="DirectStorage readiness &amp; I/O boosts" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <Button Content="Info"
-                                    Style="{StaticResource OutlineButtonStyle}"
-                                    Padding="10,4"
-                                    Margin="8,0,0,0"
-                                    Command="{Binding ShowStepInfoCommand}"
-                                    CommandParameter="DirectStorage" />
-                        </StackPanel>
-                        <TextBlock Margin="0,4,0,8" Text="Check NVMe/GPU readiness for DirectStorage, then optionally lift I/O and thread priorities with a safe rollback." Style="{StaticResource SubtleCaptionTextStyle}" />
-
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <CheckBox Content="Boost I/O priority" IsChecked="{Binding BoostIoPriority, Mode=TwoWay}" Foreground="#E5E7EB" />
-                            <CheckBox Content="Boost thread priority" IsChecked="{Binding BoostThreadPriority, Mode=TwoWay}" Foreground="#E5E7EB" Margin="12,0,0,0" />
-                        </StackPanel>
-
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button Content="Detect readiness" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectDirectStorageCommand}" Margin="0,0,8,0" />
-                            <Button Content="Apply boosts" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyIoBoostCommand}" Margin="0,0,8,0" />
-                            <Button Content="Rollback boosts" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreIoDefaultsCommand}" />
-                        </StackPanel>
-
-                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="Detection checks for NVMe, GPU, and driver support signals. Boosts raise I/O hints and thread priority for foreground apps; rollback restores defaults." Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" />
-                                <TextBlock Margin="0,4,0,0" Text="Use detection first to confirm readiness before applying any boosts." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" />
-                            </StackPanel>
-                        </Border>
-
-                        <WrapPanel Margin="0,10,0,0">
-                            <Border Style="{StaticResource DirectStorageStatusChipStyle}">
-                                <TextBlock Text="{Binding DirectStorageStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                            </Border>
-                        </WrapPanel>
-                    </StackPanel>
-                </Border>
-
-                <Border Style="{StaticResource CardStyle}">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border Style="{StaticResource StepBadgeStyle}">
-                                <TextBlock Text="Step 10" Foreground="#A78BFA" FontWeight="Bold" />
+                                <TextBlock Text="Step 9" Foreground="#A78BFA" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Monitoring &amp; auto-tune loop" Style="{StaticResource SectionHeaderTextStyle}" />
                             <Button Content="Info"

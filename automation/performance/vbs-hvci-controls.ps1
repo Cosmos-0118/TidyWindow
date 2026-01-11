@@ -28,8 +28,8 @@ function Get-DeviceGuardState {
         $vbsConfigured = ($dg.VirtualizationBasedSecurityStatus -eq 2)
     }
 
-    $regValue = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -Name Enabled -ErrorAction SilentlyContinue
-    if ($null -ne $regValue.Enabled) {
+    $regValue = Get-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity' -ErrorAction SilentlyContinue
+    if ($regValue -and $regValue.PSObject.Properties['Enabled']) {
         $hvciConfigured = ($regValue.Enabled -eq 1)
     }
 
@@ -121,6 +121,9 @@ switch ($intent) {
         # Detect only
     }
 }
+
+# Refresh hypervisor launch type after any changes so PassThru reflects post-operation state
+$hyperType = Get-HypervisorLaunchType
 
 $payload = [pscustomobject]@{
     action = $intent

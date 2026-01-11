@@ -122,7 +122,6 @@ public sealed class PerformanceLabAutomationSettingsStore
         public bool ApplyEtwCleanup { get; set; }
         public bool ApplyPagefilePreset { get; set; }
         public bool ApplySchedulerPreset { get; set; }
-        public bool ApplyIoBoosts { get; set; }
         public bool ApplyAutoTune { get; set; }
         public string? ServiceTemplateId { get; set; }
         public string? PagefilePresetId { get; set; }
@@ -133,8 +132,6 @@ public sealed class PerformanceLabAutomationSettingsStore
         public bool SweepPinnedApps { get; set; }
         public string? SchedulerPresetId { get; set; }
         public string? SchedulerProcessNames { get; set; }
-        public bool BoostIoPriority { get; set; }
-        public bool BoostThreadPriority { get; set; }
         public string? AutoTuneProcessNames { get; set; }
         public string? AutoTunePresetId { get; set; }
         public string? EtwMode { get; set; }
@@ -150,7 +147,6 @@ public sealed class PerformanceLabAutomationSettingsStore
                 ApplyEtwCleanup,
                 ApplyPagefilePreset,
                 ApplySchedulerPreset,
-                ApplyIoBoosts,
                 ApplyAutoTune,
                 ServiceTemplateId ?? "Balanced",
                 PagefilePresetId ?? "SystemManaged",
@@ -161,8 +157,6 @@ public sealed class PerformanceLabAutomationSettingsStore
                 SweepPinnedApps,
                 SchedulerPresetId ?? "Balanced",
                 SchedulerProcessNames ?? string.Empty,
-                BoostIoPriority,
-                BoostThreadPriority,
                 AutoTuneProcessNames ?? string.Empty,
                 AutoTunePresetId ?? "LatencyBoost",
                 EtwMode ?? "Minimal");
@@ -180,7 +174,6 @@ public sealed class PerformanceLabAutomationSettingsStore
                 ApplyEtwCleanup = snapshot.ApplyEtwCleanup,
                 ApplyPagefilePreset = snapshot.ApplyPagefilePreset,
                 ApplySchedulerPreset = snapshot.ApplySchedulerPreset,
-                ApplyIoBoosts = snapshot.ApplyIoBoosts,
                 ApplyAutoTune = snapshot.ApplyAutoTune,
                 ServiceTemplateId = snapshot.ServiceTemplateId,
                 PagefilePresetId = snapshot.PagefilePresetId,
@@ -191,8 +184,6 @@ public sealed class PerformanceLabAutomationSettingsStore
                 SweepPinnedApps = snapshot.SweepPinnedApps,
                 SchedulerPresetId = snapshot.SchedulerPresetId,
                 SchedulerProcessNames = snapshot.SchedulerProcessNames,
-                BoostIoPriority = snapshot.BoostIoPriority,
-                BoostThreadPriority = snapshot.BoostThreadPriority,
                 AutoTuneProcessNames = snapshot.AutoTuneProcessNames,
                 AutoTunePresetId = snapshot.AutoTunePresetId,
                 EtwMode = snapshot.EtwMode

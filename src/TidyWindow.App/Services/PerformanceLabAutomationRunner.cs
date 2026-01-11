@@ -196,11 +196,6 @@ public sealed class PerformanceLabAutomationRunner : IDisposable
             await AddStepAsync("Scheduler preset", () => _service.ApplySchedulerAffinityAsync(preset, processes, cancellationToken)).ConfigureAwait(false);
         }
 
-        if (snapshot.ApplyIoBoosts)
-        {
-            await AddStepAsync("I/O boosts", () => _service.ApplyIoPriorityBoostAsync(snapshot.BoostIoPriority, snapshot.BoostThreadPriority, cancellationToken)).ConfigureAwait(false);
-        }
-
         if (snapshot.ApplyAutoTune)
         {
             var preset = string.IsNullOrWhiteSpace(snapshot.AutoTunePresetId) ? "LatencyBoost" : snapshot.AutoTunePresetId;

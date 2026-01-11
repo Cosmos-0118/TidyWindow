@@ -29,9 +29,6 @@ public interface IPerformanceLabService
     Task<PowerShellInvocationResult> DetectSchedulerAffinityAsync(CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> ApplySchedulerAffinityAsync(string preset, string? processNames = null, CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> RestoreSchedulerAffinityAsync(CancellationToken cancellationToken = default);
-    Task<PowerShellInvocationResult> DetectDirectStorageAsync(CancellationToken cancellationToken = default);
-    Task<PowerShellInvocationResult> ApplyIoPriorityBoostAsync(bool boostIoPriority = true, bool boostThreadPriority = true, CancellationToken cancellationToken = default);
-    Task<PowerShellInvocationResult> RestoreIoPriorityAsync(CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> DetectAutoTuneAsync(CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> StartAutoTuneAsync(string? processNames = null, string? preset = null, CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> StopAutoTuneAsync(CancellationToken cancellationToken = default);
@@ -290,49 +287,6 @@ public sealed class PerformanceLabService : IPerformanceLabService
         return InvokeScriptAsync("scheduler-affinity.ps1", new Dictionary<string, object?>
         {
             ["RestoreDefaults"] = true,
-            ["PassThru"] = true
-        }, cancellationToken);
-    }
-
-    public Task<PowerShellInvocationResult> DetectDirectStorageAsync(CancellationToken cancellationToken = default)
-    {
-        return InvokeScriptAsync("directstorage-readiness.ps1", new Dictionary<string, object?>
-        {
-            ["Detect"] = true,
-            ["PassThru"] = true
-        }, cancellationToken);
-    }
-
-    public Task<PowerShellInvocationResult> ApplyIoPriorityBoostAsync(bool boostIoPriority = true, bool boostThreadPriority = true, CancellationToken cancellationToken = default)
-    {
-        var parameters = new Dictionary<string, object?>
-        {
-            ["PassThru"] = true
-        };
-
-        if (boostIoPriority)
-        {
-            parameters["BoostIO"] = true;
-        }
-
-        if (boostThreadPriority)
-        {
-            parameters["BoostThreads"] = true;
-        }
-
-        if (!boostIoPriority && !boostThreadPriority)
-        {
-            parameters["Detect"] = true;
-        }
-
-        return InvokeScriptAsync("directstorage-readiness.ps1", parameters, cancellationToken);
-    }
-
-    public Task<PowerShellInvocationResult> RestoreIoPriorityAsync(CancellationToken cancellationToken = default)
-    {
-        return InvokeScriptAsync("directstorage-readiness.ps1", new Dictionary<string, object?>
-        {
-            ["Restore"] = true,
             ["PassThru"] = true
         }, cancellationToken);
     }

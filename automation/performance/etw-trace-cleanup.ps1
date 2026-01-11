@@ -28,9 +28,21 @@ function Get-ActiveSessions {
         $name = $line.Trim()
         if ([string]::IsNullOrWhiteSpace($name)) { continue }
         if ($name -like 'Data Collector*' -or $name -like '----------------*') { continue }
-        # Skip headers like "Type" rows
         if ($name -match '^Type' -or $name -match '^===') { continue }
-        $sessions += $name
+        if ($name -like 'The command completed successfully*') { continue }
+        if ($name -like 'There are no trace sessions*') { continue }
+
+        $match = [regex]::Match($name, '^(?<session>.+?)\s{2,}')
+        if ($match.Success) {
+            $sessionName = $match.Groups['session'].Value.Trim()
+        }
+        else {
+            $sessionName = $name
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($sessionName)) {
+            $sessions += $sessionName
+        }
     }
 
     return $sessions
@@ -41,9 +53,8 @@ function Save-Baseline {
     if (-not (Test-Path (Split-Path $Path))) {
         New-Item -ItemType Directory -Path (Split-Path $Path) -Force | Out-Null
     }
-    if (-not (Test-Path $Path)) {
-        $Sessions | Set-Content -Path $Path -Encoding ASCII
-    }
+
+    $Sessions | Set-Content -Path $Path -Encoding ASCII
 }
 
 function Stop-Sessions {
@@ -60,6 +71,9 @@ function Stop-Sessions {
             if ($LASTEXITCODE -ne 0) {
                 if ($output -like '*Data Collector Set was not found*') {
                     $warnings += "skip $session (not found): $output"
+                }
+                elseif ($output -like '*Access is denied*') {
+                    $warnings += "skip $session (access denied): $output"
                 }
                 else {
                     $failures += "stop $session failed: $output"
@@ -78,12 +92,24 @@ function Start-Sessions {
     param([string[]] $Targets)
     $started = @()
     $failures = @()
+    $warnings = @()
     foreach ($session in $Targets) {
         $args = @('start', $session, '-ets')
         if ($PSCmdlet.ShouldProcess($session, 'logman start')) {
             $output = & logman @args 2>&1
             if ($LASTEXITCODE -ne 0) {
-                $failures += "start $session failed: $output"
+                if ($output -like '*already exists*') {
+                    $warnings += "skip $session (already running): $output"
+                }
+                elseif ($output -like '*Access is denied*') {
+                    $warnings += "skip $session (access denied): $output"
+                }
+                elseif ($output -like '*Data Collector Set was not found*') {
+                    $warnings += "skip $session (not found): $output"
+                }
+                else {
+                    $failures += "start $session failed: $output"
+                }
             }
             else {
                 $started += $session
@@ -91,7 +117,7 @@ function Start-Sessions {
         }
     }
 
-    return [pscustomobject]@{ Started = $started; Failures = $failures }
+    return [pscustomobject]@{ Started = $started; Failures = $failures; Warnings = $warnings }
 }
 
 Assert-Elevation
@@ -102,12 +128,13 @@ elseif ($RestoreDefaults) { $intent = 'RestoreDefaults' }
 
 $allowList = @(
     'NT Kernel Logger',
-    'Circular Kernel Session',
+    'Circular Kernel Context Logger',
     'EventLog-Application',
     'EventLog-System',
     'EventLog-Security',
     'DiagLog',
-    'ReadyBoot'
+    'ReadyBoot',
+    'UBPM'
 )
 
 $minimalTargets = @(
@@ -126,6 +153,7 @@ $failures = @()
 $warnings = @()
 $stopped = @()
 $started = @()
+ $note = $null
 
 switch ($intent) {
     'Detect' {
@@ -138,6 +166,9 @@ switch ($intent) {
         $stopped = $result.Stopped
         $failures += $result.Failures
         $warnings = @($warnings + $result.Warnings)
+        if ($stopped.Count -eq 0 -and $failures.Count -eq 0) {
+            $note = 'No eligible sessions to stop.'
+        }
     }
     'Stop:Aggressive' {
         Save-Baseline -Path $baselinePath -Sessions $sessions
@@ -146,22 +177,42 @@ switch ($intent) {
         $stopped = $result.Stopped
         $failures += $result.Failures
         $warnings = @($warnings + $result.Warnings)
+        if ($stopped.Count -eq 0 -and $failures.Count -eq 0) {
+            $note = 'No eligible sessions to stop.'
+        }
     }
     'RestoreDefaults' {
         if (Test-Path $baselinePath) {
             $baseline = Get-Content -Path $baselinePath | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-            $result = Start-Sessions -Targets $baseline
+            $current = $sessions
+            $targets = $baseline | Where-Object { $current -notcontains $_ }
+            $result = Start-Sessions -Targets $targets
             $started = $result.Started
             $failures += $result.Failures
+            $warnings = @($warnings + $result.Warnings)
+            if ($started.Count -eq 0 -and $failures.Count -eq 0) {
+                $note = 'All baseline sessions already running.'
+            }
         }
         else {
             # If we have no baseline, at least ensure allowlist is running
-            $result = Start-Sessions -Targets $allowList
+            $current = $sessions
+            $targets = $allowList | Where-Object { $current -notcontains $_ }
+            $result = Start-Sessions -Targets $targets
             $started = $result.Started
             $failures += $result.Failures
+            $warnings = @($warnings + $result.Warnings)
+            if ($started.Count -eq 0 -and $failures.Count -eq 0) {
+                $note = 'Allowlist sessions already running.'
+            }
         }
     }
 }
+
+$stoppedCount = $stopped.Count
+$startedCount = $started.Count
+$warningCount = $warnings.Count
+$failureCount = $failures.Count
 
 $payload = [pscustomobject]@{
     action = $intent
@@ -169,6 +220,14 @@ $payload = [pscustomobject]@{
     stopped = $stopped
     started = $started
     baseline = (Test-Path $baselinePath)
+    stoppedCount = $stoppedCount
+    startedCount = $startedCount
+    warningCount = $warningCount
+    failureCount = $failureCount
+}
+
+if ($note) {
+    $payload | Add-Member -NotePropertyName note -NotePropertyValue $note
 }
 
 if ($failures.Count -gt 0) {
