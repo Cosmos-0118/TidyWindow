@@ -1,0 +1,55 @@
+LET THE UI of this be like startup page.
+
+this page will do advance tweaks check out what are the features we will have and give it a fitting name.
+
+Enable Ultimate Power Plan
+Use PowerShell via C# Process.Start or directly in PS scripts: powercfg -duplicatescheme e9a42b02-d5df-448d-aa00-03f14749eb61; powercfg -setactive e9a42b02-d5df-448d-aa00-03f14749eb61 to unlock and activate Ultimate Performance for max CPU clocks. In C#, invoke via Process.Start("powercfg.exe", args) with Verb="runas" for elevation. Tweak further: powercfg -setacvalueindex SCHEME_CURRENT SUB_PROCESSOR PROCFREQMIN 100; powercfg -setacvalueindex SCHEME_CURRENT S
+
+Selective Service Disabling
+Dynamically disable bloat services via Get-Service | Where-Object {$_.Status -eq 'Running' -and $_.Name -notin @('Spooler','Themes','AudioSrv','RpcSs')} then Set-Service -Name $service.Name -StartupType Disabled; Stop-Service -Name $service.Name—target telemetry like DiagTrack, Xbox XblAuthManager for 5-10% CPU free-up 
+​. In C#, use ServiceController class: sc = new ServiceController("DiagTrack"); sc.Stop(); with WMI Win32_Service for bulk ops 
+​. Profile first: Get-WmiObject Win32_PerfFormattedData_PerfOS_System | Select CounterSamples to ID hogs 
+​.
+
+Fix Hardware Reserved Memory
+Query via WMI: Get-WmiObject Win32_PhysicalMemory | Measure-Object -Property Capacity -Sum vs Task Manager, then uncheck msconfig Boot > Advanced > Maximum memory (set to 0), or bcdedit /deletevalue truncatememory 
+​
+​. C# P/Invoke msconfig or wmic pagefile list /format:list to reclaim GBs wrongly reserved by BIOS/drivers, boosting available RAM for games 
+​. Disable Memory Compression: Disable-MMAgent -MemoryCompression in PS for lower latency at cost of disk I/O 
+​.
+
+Kernel & Boot Tweaks
+bcdedit /set disabledynamictick yes; bcdedit /set useplatformclock true; bcdedit /set tscsyncpolicy Enhanced disables timer coalescing for precise CPU timing/FPS stability. bcdedit /set linearaddress57 OptOut for >128GB RAM perf; bcdedit /set sos for debug but boosts stability. In C#, use NtDll P/Invoke or Process.Start("bcdedit.exe", args) with admin.
+​
+
+CPU Affinity & Stress Tools
+Set process affinity: Get-Process -Name "game.exe" | ForEach { $_.ProcessorAffinity = [IntPtr] 0xF } limits to first 4 cores for cache efficiency 
+​. Custom stress tester in PS/C#: Infinite loop with [System.Threading.Thread]::Sleep(1) per core, auto-affinity via Start-Job -ScriptBlock { while($true){$i++} } to benchmark boosts 
+​. WMI for real-time: new ManagementObjectSearcher("SELECT * FROM Win32_Processor WHERE Name LIKE '%i7%'").Get() to force turbo via policy 
+​.
+
+Implementation Pro Tips
+Bundle as PS modules invoked from C# WPF MVVM with using System.ServiceProcess; using System.Management;. Profile with Get-Counter "\Processor(*)\% Processor Time" pre/post; target your gaming setup (e.g., no Xbox services). Reversible: Export service states to JSON, restore with sc config. These yield 10-20% gains in low-end/high-end scenarios
+
+Disable VBS & HVCI Core
+Core killers: Use C# WMI to nuke Virtualization-Based Security entirely—ManagementObjectSearcher searcher = new ManagementObjectSearcher("root\\standardcimv2\\hyperv", "SELECT * FROM Msvm_ComputerSystem"); then disable via Set-WmiInstance or bcdedit /set hypervisorlaunchtype off invoked through Process. Kill Memory Integrity too: reg add "HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\DeviceGuard" /v EnableVirtualizationBasedSecurity /t REG_DWORD /d 0 /f via C# Registry, reboot required—frees 5-15% CPU cycles CPU-bound titles.
+​
+
+ETW Tracing Purge
+Event Tracing for Windows murders perf: Stop all sessions with (Get-WmiObject Win32_PerfRawData_PerfOS_System).ETWSessionCount monitoring, then logman stop "Microsoft-Windows-DiagTrack" and delete providers via C# P/Invoke to EtwTraceUnregister() for zero-trace overhead, slashing DPC latency by 20-50us. Full purge sce script: Get-WinEvent -ListProvider * | ForEach { logman stop $_.Name -ets } embedded in C# 
+​.
+
+Pagefile & Memory Deep
+Relocate pagefile to NVMe root: WMI Win32_PageFileSetting | Set-WmiInstance -Arguments @{Name="C:\\pagefile.sys"; InitialSize=4096; MaximumSize=16384} then pagefile.sys optimize with wmic pagefileset where name="C:\\pagefile.sys" set InitialSize=4096,MaximumSize=16384. C# forces trim: EmptyWorkingSet P/Invoke on all processes except game ([DllImport("psapi.dll")] static extern bool EmptyWorkingSet(IntPtr)), reclaiming 2-4GB 
+​.
+
+Scheduler & Interrupt Tweaks
+Affinity rewrite: Scan cores via Win32_Processor.Get() then $p.ProcessorAffinity = [IntPtr]::new(0xAA) (cores 1,3,5,7 for games), force ideal nodes with SetProcessIdealNode. Disable HPET: bcdedit /deletevalue useplatformclock; bcdedit /set useplatformtick yes—syncs TSC perfectly, cuts timer jitter to <1us. WMI affi affinity setter: Win32_Process | Where Name -eq "game.exe" | Invoke-WmiMethod SetProcessorAffinity.
+
+DirectStorage & I/O Nuclear
+Force DS always: Get-PnpDevice | Where-Object {$_.Class -eq "DiskDrive" -and $_.Status -eq "OK"} | ForEach { Enable-DirectStorage $_.DeviceID } (custom extension), bypass CPU I/O by 90% load times. C#: P/Invoke IoSetThreadHardErrorMode(false) + SetThreadPriorityBoost on game PID for zero preemption 
+​.
+
+Monitoring & Auto-Tune
+Real-time WMI cockpit: new ManagementEventWatcher("SELECT * FROM Win32_PerfRawData_PerfOS_Processor WHERE Name='_Total'"); plots %Idle/DPC/ISR, auto-trigger boosts when gaming detected via Get-Process | Where CPU -gt 80. Bundle with your MVVM: Live charts trigger Ultimate plan + affinity on launch 
+​. Gains: 10-28% FPS competitive edge, perfect for your RX/i7 benchmarks .

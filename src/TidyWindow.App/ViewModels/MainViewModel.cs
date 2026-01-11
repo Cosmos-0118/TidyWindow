@@ -29,6 +29,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Essentials", "Run repair automation quickly", typeof(EssentialsPage)),
             new("Processes", "Review safe auto-stop recommendations", typeof(KnownProcessesPage)),
             new("Startup", "Control Run keys, startup folders, tasks, and services", typeof(StartupControllerPage)),
+            new("Performance lab", "Guarded high-impact tweaks with rollbacks", typeof(PerformanceLabPage)),
             new("PathPilot", "Control runtime precedence and PATH backups", typeof(PathPilotPage)),
             new("Registry optimizer", "Stage registry defaults safely", typeof(RegistryOptimizerPage)),
             new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),

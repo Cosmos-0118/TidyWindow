@@ -170,3 +170,18 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 ## Driver Updates Experience (retired)
 
 > Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.
+
+## Performance Lab (Advanced Tweaks)
+
+> New launch-style page for competitive performance tuning with strict guardrails. Exclude tweaks already covered by Registry Optimizer presets (power throttling, CPU core parking, HPET toggle) to avoid duplication.
+
+[x] Step 13.1: Design `Views/PerformanceLabPage.xaml` (startup-shell layout) with hero metrics, quick actions, and per-tweak cards grouped by Power, Memory/I-O, Scheduling, and Security, plus a “test-run” dry mode that only reports expected changes.
+[x] Step 13.2: Add automation for Ultimate Performance plan enablement/restore (`powercfg -duplicatescheme` + set active) and selective service slimming templates (Xbox/DiagTrack/consumer services) with exportable pre/post service states.
+[ ] Step 13.3: Ship Hardware Reserved Memory fixer: detect misreported RAM vs physical DIMMs, expose `bcdedit /deletevalue truncatememory`, msconfig max-memory reset guidance, and disable memory compression with reversible apply.
+[ ] Step 13.4: Implement Kernel & Boot controls beyond existing HPET toggle: dynamic tick on/off, platform clock toggle, `tscsyncpolicy` presets, and `linearaddress57` for >128GB rigs, all behind restore-point gating.
+[ ] Step 13.5: Add VBS/HVCI off-ramp with detection (Core Isolation status), registry + `bcdedit /set hypervisorlaunchtype off` apply, reboot planner, and clear warnings when unsupported hardware is detected.
+[ ] Step 13.6: Build ETW tracing purge/reseal flow: list active ETW sessions/providers, allow stop/cleanup with safety tiers, and provide a one-click “re-enable defaults” button to avoid losing diagnostics.
+[ ] Step 13.7: Deliver Pagefile & Memory deep-tuning: move pagefile to NVMe with size presets, expose EmptyWorkingSet sweep (opt-out for pinned apps), and warn when system-managed is safer.
+[ ] Step 13.8: Add Scheduler & Affinity toolbox: process affinity templates, ideal-node selection, I/O and CPU priority presets, and a compact stress/benchmark harness for validation; support per-app presets saved to disk.
+[ ] Step 13.9: Wire DirectStorage & I/O readiness checks (NVMe, GPU, driver) with optional I/O priority boost and thread priority boost toggles plus rollbacks.
+[ ] Step 13.10: Build Monitoring & Auto-Tune loop: lightweight WMI/ETW sampler that triggers defined presets when gaming apps are detected, logs deltas to Activity Log, and exposes quick revert.
