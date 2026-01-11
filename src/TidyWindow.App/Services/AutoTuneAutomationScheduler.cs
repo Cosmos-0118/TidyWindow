@@ -176,8 +176,19 @@ public sealed class AutoTuneAutomationScheduler : IDisposable
 
         if (result.InvocationResult.IsSuccess)
         {
-            var summary = result.InvocationResult.Output.FirstOrDefault() ?? "Auto-tune run completed.";
-            _activityLog.LogInformation("Auto-tune automation", summary, result.InvocationResult.Output);
+            var output = result.InvocationResult.Output ?? Array.Empty<string>();
+            var hasWarnings = output.Any(line => line.Contains("warnings:", StringComparison.OrdinalIgnoreCase));
+
+            // Stay silent on successful runs (even when matches/actions occurred) unless warnings exist.
+            if (!hasWarnings)
+            {
+                return;
+            }
+
+            var summary = output.FirstOrDefault(line => line.Contains("warnings:", StringComparison.OrdinalIgnoreCase))
+                         ?? output.FirstOrDefault(line => !string.IsNullOrWhiteSpace(line))
+                         ?? "Auto-tune run completed with warnings.";
+            _activityLog.LogWarning("Auto-tune automation", summary, output);
             return;
         }
 

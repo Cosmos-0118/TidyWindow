@@ -40,6 +40,7 @@ public interface IPerformanceLabService
 public sealed class PerformanceLabService : IPerformanceLabService
 {
     private static readonly Regex ActivePlanRegex = new("GUID:\\s*([0-9a-fA-F-]{36})\\s*\\((.+)\\)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex ActivePlanListRegex = new("Power Scheme GUID:\\s*([0-9a-fA-F-]{36})\\s*\\((.+?)\\)\\s*\\*", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private const string UltimateGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
     private readonly PowerShellInvoker _invoker;
     private readonly string _automationRoot;
@@ -402,7 +403,22 @@ public sealed class PerformanceLabService : IPerformanceLabService
             name = output.Trim();
         }
 
-        var isUltimate = guid is not null && guid.Equals(UltimateGuid, StringComparison.OrdinalIgnoreCase);
+        // Fallback: powercfg /getactivescheme can be localized or formatted differently. Try /list to find the active '*' entry.
+        if (string.IsNullOrWhiteSpace(guid) || string.IsNullOrWhiteSpace(name))
+        {
+            var fromList = await TryGetActivePlanFromListAsync(cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(guid))
+            {
+                guid = fromList.Guid;
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                name = fromList.Name;
+            }
+        }
+
+        var isUltimate = !string.IsNullOrWhiteSpace(guid) && guid.Equals(UltimateGuid, StringComparison.OrdinalIgnoreCase);
         if (!isUltimate && !string.IsNullOrWhiteSpace(name))
         {
             var normalized = name.Trim();
@@ -412,7 +428,53 @@ public sealed class PerformanceLabService : IPerformanceLabService
                 isUltimate = true;
             }
         }
+
         return new PowerPlanStatus(guid, name, isUltimate, GetPowerPlanStatePath());
+    }
+
+    private static async Task<(string? Guid, string? Name)> TryGetActivePlanFromListAsync(CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "powercfg",
+            Arguments = "/list",
+            CreateNoWindow = true,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            UseShellExecute = false
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        var output = await outputTask.ConfigureAwait(false);
+        var errors = await errorTask.ConfigureAwait(false);
+
+        if (process.ExitCode != 0 && !string.IsNullOrWhiteSpace(errors))
+        {
+            return (null, null);
+        }
+
+        var lines = (output ?? string.Empty)
+            .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var activeLine = lines.FirstOrDefault(l => l.EndsWith("*", StringComparison.Ordinal));
+        if (activeLine is null)
+        {
+            return (null, null);
+        }
+
+        var match = ActivePlanListRegex.Match(activeLine);
+        if (match.Success)
+        {
+            return (match.Groups[1].Value, match.Groups[2].Value);
+        }
+
+        return (null, null);
     }
 
     public ServiceSlimmingStatus GetServiceSlimmingStatus()

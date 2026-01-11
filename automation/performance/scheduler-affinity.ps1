@@ -4,8 +4,14 @@ param(
     [string]$Preset = "Balanced",
     [string[]]$ProcessNames,
     [switch]$RestoreDefaults,
-    [switch]$PassThru
+    [switch]$PassThru,
+    [Parameter(ValueFromRemainingArguments = $true)] [string[]]$ExtraArgs
 )
+
+# Merge extra unnamed tokens and split on common separators so callers can pass
+# multiple processes as space/semicolon/comma separated values without binding errors.
+$names = @($ProcessNames) + @($ExtraArgs)
+$names = $names | ForEach-Object { $_ -split '[;,]' } | ForEach-Object { $_.Trim() } | Where-Object { $_ } | Select-Object -Unique
 
 function Get-FullMask {
     $count = [Environment]::ProcessorCount
@@ -66,20 +72,16 @@ function Apply-Preset {
 
 $warnings = @()
 $actions = @()
-$names = @()
-if ($ProcessNames) {
-    $names = $ProcessNames | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-}
 
 if ($Detect) {
     $state = [PSCustomObject]@{
-        preset     = $Preset
-        cpuCount   = [Environment]::ProcessorCount
-        fullMask   = Get-FullMask
-        halfMask   = Get-HalfMask
-        processHint= $names
-        actions    = "Detect"
-        warnings   = $warnings
+        preset      = $Preset
+        cpuCount    = [Environment]::ProcessorCount
+        fullMask    = Get-FullMask
+        halfMask    = Get-HalfMask
+        processHint = $names
+        actions     = "Detect"
+        warnings    = $warnings
     }
 
     if ($PassThru) { $state }
@@ -110,10 +112,10 @@ if ($RestoreDefaults) {
 
     if ($PassThru) {
         [PSCustomObject]@{
-            preset     = 'RestoreDefaults'
-            mask       = $mask
-            actions    = $actions
-            warnings   = $warnings
+            preset   = 'RestoreDefaults'
+            mask     = $mask
+            actions  = $actions
+            warnings = $warnings
         }
     }
     return
