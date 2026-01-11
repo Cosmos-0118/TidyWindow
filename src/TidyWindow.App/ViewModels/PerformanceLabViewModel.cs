@@ -192,6 +192,13 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            var vbsMessage = VbsStatusMessage;
+            var vbsSuccess = IsVbsSuccess;
+            var vbsTimestamp = VbsStatusTimestamp;
+            var etwMessage = EtwStatusMessage;
+            var etwSuccess = IsEtwSuccess;
+            var etwTimestamp = EtwStatusTimestamp;
+
             var existingServiceMessage = ServiceStatusMessage;
             var existingServiceSuccess = IsServiceSuccess;
 
@@ -252,6 +259,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             KernelStatusMessage = kernelStatus.Summary;
             IsKernelSuccess = kernelStatus.IsRecommended;
             KernelStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+
+            // Preserve VBS/HVCI and ETW status across refresh; these steps are not re-run during a refresh.
+            VbsStatusMessage = vbsMessage;
+            IsVbsSuccess = vbsSuccess;
+            VbsStatusTimestamp = vbsTimestamp;
+            EtwStatusMessage = etwMessage;
+            IsEtwSuccess = etwSuccess;
+            EtwStatusTimestamp = etwTimestamp;
         }
         finally
         {

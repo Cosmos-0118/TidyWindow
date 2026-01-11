@@ -50,6 +50,7 @@ function Stop-Sessions {
     param([string[]] $Targets,[string[]] $AllowList,[bool] $IsAggressive)
     $stopped = @()
     $failures = @()
+    $warnings = @()
 
     foreach ($session in $Targets) {
         if ($AllowList -contains $session) { continue }
@@ -57,7 +58,12 @@ function Stop-Sessions {
         if ($PSCmdlet.ShouldProcess($session, 'logman stop')) {
             $output = & logman @args 2>&1
             if ($LASTEXITCODE -ne 0) {
-                $failures += "stop $session failed: $output"
+                if ($output -like '*Data Collector Set was not found*') {
+                    $warnings += "skip $session (not found): $output"
+                }
+                else {
+                    $failures += "stop $session failed: $output"
+                }
             }
             else {
                 $stopped += $session
@@ -65,7 +71,7 @@ function Stop-Sessions {
         }
     }
 
-    return [pscustomobject]@{ Stopped = $stopped; Failures = $failures }
+    return [pscustomobject]@{ Stopped = $stopped; Failures = $failures; Warnings = $warnings }
 }
 
 function Start-Sessions {
@@ -117,6 +123,7 @@ $baselinePath = Join-Path $storageRoot 'etw-baseline.txt'
 
 $sessions = Get-ActiveSessions
 $failures = @()
+$warnings = @()
 $stopped = @()
 $started = @()
 
@@ -130,6 +137,7 @@ switch ($intent) {
         $result = Stop-Sessions -Targets $targets -AllowList $allowList -IsAggressive:$false
         $stopped = $result.Stopped
         $failures += $result.Failures
+        $warnings = @($warnings + $result.Warnings)
     }
     'Stop:Aggressive' {
         Save-Baseline -Path $baselinePath -Sessions $sessions
@@ -137,6 +145,7 @@ switch ($intent) {
         $result = Stop-Sessions -Targets $targets -AllowList $allowList -IsAggressive:$true
         $stopped = $result.Stopped
         $failures += $result.Failures
+        $warnings = @($warnings + $result.Warnings)
     }
     'RestoreDefaults' {
         if (Test-Path $baselinePath) {
@@ -166,8 +175,16 @@ if ($failures.Count -gt 0) {
     $payload | Add-Member -NotePropertyName failures -NotePropertyValue $failures
 }
 
+if ($warnings.Count -gt 0) {
+    $payload | Add-Member -NotePropertyName warnings -NotePropertyValue $warnings
+}
+
 if ($PassThru) {
     $payload
+}
+
+if ($warnings.Count -gt 0) {
+    foreach ($w in $warnings) { Write-Warning $w }
 }
 
 if ($failures.Count -gt 0) {

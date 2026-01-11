@@ -1,6 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
@@ -337,6 +339,7 @@ public sealed class PowerShellInvoker
             {
                 var key = kvp.Key;
                 var value = kvp.Value;
+
                 if (value is null)
                 {
                     continue;
@@ -390,17 +393,17 @@ public sealed class PowerShellInvoker
         var errors = new List<string>();
 
         var pwsh = LocatePowerShellExecutable();
-        var startInfo = new System.Diagnostics.ProcessStartInfo
+        var startInfo = new ProcessStartInfo
         {
             FileName = pwsh,
-            Arguments = string.Join(' ', args.Select(a => a.Contains(' ') ? '"' + a + '"' : a)),
+            Arguments = string.Join(' ', args.Select(a => a.Contains(' ') ? $"\"{a}\"" : a)),
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             CreateNoWindow = true
         };
 
-        using var proc = new System.Diagnostics.Process { StartInfo = startInfo };
+        using var proc = new Process { StartInfo = startInfo };
         proc.Start();
 
         using var registration = cancellationToken.Register(() =>
@@ -455,13 +458,98 @@ public sealed class PowerShellInvoker
         return new PowerShellInvocationResult(new ReadOnlyCollection<string>(output), new ReadOnlyCollection<string>(errors), exit);
     }
 
+    private static string FormatOutputValue(PSObject value)
+    {
+        try
+        {
+            if (value.BaseObject is string raw)
+            {
+                return raw;
+            }
+
+            var simplified = SimplifyValue(value.BaseObject, 0);
+            var json = JsonSerializer.Serialize(simplified, OutputSerializerOptions);
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return value.ToString() ?? string.Empty;
+            }
+
+            if (json.Length > MaxSerializedLength)
+            {
+                return json[..MaxSerializedLength] + " …";
+            }
+
+            return json;
+        }
+        catch
+        {
+            return value.ToString() ?? string.Empty;
+        }
+    }
+
+    private static object? SimplifyValue(object? value, int depth)
+    {
+        if (value is null)
+        {
+            return null;
+        }
+
+        if (depth >= MaxDetailDepth)
+        {
+            return value.ToString();
+        }
+
+        switch (value)
+        {
+            case string s:
+                return s;
+            case IDictionary dictionary:
+                {
+                    var dict = new Dictionary<string, object?>();
+                    foreach (DictionaryEntry entry in dictionary)
+                    {
+                        var key = entry.Key?.ToString() ?? "(null)";
+                        dict[key] = SimplifyValue(entry.Value, depth + 1);
+                    }
+
+                    return dict;
+                }
+            case IEnumerable enumerable when value is not string:
+                {
+                    var list = new List<object?>();
+                    foreach (var item in enumerable)
+                    {
+                        list.Add(SimplifyValue(item, depth + 1));
+                    }
+
+                    return list;
+                }
+            default:
+                {
+                    try
+                    {
+                        var psObject = value as PSObject ?? PSObject.AsPSObject(value);
+                        var props = psObject.Properties
+                            .Where(p => p is not null)
+                            .ToDictionary(p => p.Name, p => SimplifyValue(p.Value, depth + 1), StringComparer.OrdinalIgnoreCase);
+
+                        return props.Count > 0 ? props : value.ToString();
+                    }
+                    catch
+                    {
+                        return value.ToString();
+                    }
+                }
+        }
+    }
+
     private static string LocatePowerShellExecutable()
     {
         try
         {
-            var found = System.Environment.GetEnvironmentVariable("PATH")?.Split(System.IO.Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-                .Select(p => System.IO.Path.Combine(p, "pwsh.exe"))
-                .FirstOrDefault(System.IO.File.Exists);
+            var found = Environment.GetEnvironmentVariable("PATH")?.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => Path.Combine(p, "pwsh.exe"))
+                .FirstOrDefault(File.Exists);
 
             if (!string.IsNullOrEmpty(found))
             {
