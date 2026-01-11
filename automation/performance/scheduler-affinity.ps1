@@ -26,8 +26,8 @@ function Apply-Preset {
     param(
         [string]$Preset,
         [System.Diagnostics.Process[]]$Targets,
-        [ref]$Warnings,
-        [ref]$Actions
+        $Warnings,
+        $Actions
     )
 
     $maskFull = Get-FullMask
@@ -54,10 +54,10 @@ function Apply-Preset {
             if ($priority) {
                 $proc.PriorityClass = $priority
             }
-            $Actions.Value += "Applied $presetName to $($proc.ProcessName) (mask=$mask, priority=$priority)"
+            $Actions += "Applied $presetName to $($proc.ProcessName) (mask=$mask, priority=$priority)"
         }
         catch {
-            $Warnings.Value += "Failed to apply $presetName to $($proc.ProcessName): $_"
+            $Warnings += "Failed to apply $presetName to $($proc.ProcessName): $_"
         }
     }
 
@@ -130,7 +130,7 @@ else {
     $warnings += "No process names provided; preset logged only."
 }
 
-$presetResult = Apply-Preset -Preset:$Preset -Targets:$targetsToApply -Warnings:[ref]$warnings -Actions:[ref]$actions
+$presetResult = Apply-Preset -Preset:$Preset -Targets:$targetsToApply -Warnings:$warnings -Actions:$actions
 
 if ($PassThru) {
     [PSCustomObject]@{
