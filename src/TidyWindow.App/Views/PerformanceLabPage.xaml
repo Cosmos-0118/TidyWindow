@@ -337,6 +337,31 @@
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="Boot automation" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <CheckBox Content="Apply on next boot"
+                                      Margin="12,0,0,0"
+                                      Foreground="#E5E7EB"
+                                      IsChecked="{Binding IsBootAutomationEnabled, Mode=TwoWay}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,6,0,12" Text="{Binding BootAutomationStatus}" Style="{StaticResource SubtleCaptionTextStyle}" />
+                        <WrapPanel>
+                            <Button Content="Save automation"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Command="{Binding ApplyBootAutomationCommand}"
+                                    Margin="0,0,10,10" />
+                            <Button Content="Run now"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Command="{Binding RunBootAutomationNowCommand}"
+                                    Margin="0,0,0,10" />
+                        </WrapPanel>
+                        <TextBlock Text="Replays the steps currently marked In effect after each reboot using your current presets and process lists."
+                                   Style="{StaticResource SubtleCaptionTextStyle}" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource StepBadgeStyle}">
                                 <TextBlock Text="Step 1" Foreground="{StaticResource PerfAccentBrush}" FontWeight="Bold" />
                             </Border>

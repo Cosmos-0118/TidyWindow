@@ -15,7 +15,8 @@ public class PerformanceLabViewModelTests
     private static PerformanceLabViewModel CreateVm(FakePerformanceLabService fake)
     {
         var activity = new ActivityLogService();
-        return new PerformanceLabViewModel(fake, activity);
+        var automationRunner = new PerformanceLabAutomationRunner(new PerformanceLabAutomationSettingsStore(), fake, activity, new AutomationWorkTracker());
+        return new PerformanceLabViewModel(fake, activity, automationRunner);
     }
 
     [Fact]

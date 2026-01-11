@@ -112,6 +112,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<EssentialsAutomationScheduler>();
                 services.AddSingleton<MaintenanceAutomationSettingsStore>();
                 services.AddSingleton<MaintenanceAutoUpdateScheduler>();
+                services.AddSingleton<PerformanceLabAutomationSettingsStore>();
+                services.AddSingleton<PerformanceLabAutomationRunner>();
                 services.AddSingleton<IRelativeTimeTicker, RelativeTimeTicker>();
 
                 services.AddSingleton<PowerShellInvoker>();
@@ -208,6 +210,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<CleanupAutomationScheduler>();
         _ = _host.Services.GetRequiredService<EssentialsAutomationScheduler>();
         _ = _host.Services.GetRequiredService<MaintenanceAutoUpdateScheduler>();
+        _ = _host.Services.GetRequiredService<PerformanceLabAutomationRunner>();
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
         _ = _host.Services.GetRequiredService<ThreatWatchBackgroundScanner>();
         _ = _host.Services.GetRequiredService<StartupGuardBackgroundService>();

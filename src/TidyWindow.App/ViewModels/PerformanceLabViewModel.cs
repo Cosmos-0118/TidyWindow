@@ -41,6 +41,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 {
     private readonly IPerformanceLabService _service;
     private readonly ActivityLogService _activityLog;
+    private readonly PerformanceLabAutomationRunner _automationRunner;
+    private bool _suspendBootAutomationUpdate;
 
     public Action<string>? ShowStatusAction { get; set; }
 
@@ -70,6 +72,15 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     [ObservableProperty]
     private string infoDialogBody = "More information coming soon.";
+
+    [ObservableProperty]
+    private bool isBootAutomationEnabled;
+
+    [ObservableProperty]
+    private string bootAutomationStatus = "Boot automation is off.";
+
+    [ObservableProperty]
+    private DateTimeOffset? bootAutomationLastRunUtc;
 
     [ObservableProperty]
     private string powerPlanStatusMessage = "No power plan actions run yet.";
@@ -264,6 +275,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand DetectAutoTuneCommand { get; }
     public IAsyncRelayCommand StartAutoTuneCommand { get; }
     public IAsyncRelayCommand StopAutoTuneCommand { get; }
+    public IAsyncRelayCommand ApplyBootAutomationCommand { get; }
+    public IAsyncRelayCommand RunBootAutomationNowCommand { get; }
     public IRelayCommand ShowStatusCommand { get; }
     public IRelayCommand ShowStepInfoCommand => showStepInfoCommand ??= new RelayCommand<string?>(ShowStepInfo);
     public IRelayCommand CloseInfoDialogCommand => closeInfoDialogCommand ??= new RelayCommand(CloseInfoDialog);
@@ -271,10 +284,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private IRelayCommand? showStepInfoCommand;
     private IRelayCommand? closeInfoDialogCommand;
 
-    public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog)
+    public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog, PerformanceLabAutomationRunner automationRunner)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
+        _automationRunner = automationRunner ?? throw new ArgumentNullException(nameof(automationRunner));
 
         Templates = new ObservableCollection<PerformanceTemplateOption>
         {
@@ -329,7 +343,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         DetectAutoTuneCommand = new AsyncRelayCommand(DetectAutoTuneAsync, () => !IsBusy);
         StartAutoTuneCommand = new AsyncRelayCommand(StartAutoTuneAsync, () => !IsBusy);
         StopAutoTuneCommand = new AsyncRelayCommand(StopAutoTuneAsync, () => !IsBusy);
+        ApplyBootAutomationCommand = new AsyncRelayCommand(ApplyBootAutomationAsync, () => !IsBusy);
+        RunBootAutomationNowCommand = new AsyncRelayCommand(RunBootAutomationNowAsync, () => !IsBusy);
         ShowStatusCommand = new RelayCommand(ShowStatus);
+
+        LoadBootAutomationSettings(_automationRunner.CurrentSettings);
+        _automationRunner.SettingsChanged += OnBootAutomationSettingsChanged;
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -362,6 +381,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         DetectAutoTuneCommand.NotifyCanExecuteChanged();
         StartAutoTuneCommand.NotifyCanExecuteChanged();
         StopAutoTuneCommand.NotifyCanExecuteChanged();
+        ApplyBootAutomationCommand.NotifyCanExecuteChanged();
+        RunBootAutomationNowCommand.NotifyCanExecuteChanged();
     }
 
     private async Task RefreshAsync()
@@ -714,6 +735,123 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             var result = await _service.StopAutoTuneAsync().ConfigureAwait(true);
             HandleAutoTuneResult("PerformanceLab", "Auto-tune loop stopped and reverted", result);
         }).ConfigureAwait(false);
+    }
+
+    private async Task ApplyBootAutomationAsync()
+    {
+        var snapshot = BuildAutomationSnapshot();
+        var enabled = IsBootAutomationEnabled && snapshot.HasActions;
+        var settings = new PerformanceLabAutomationSettings(enabled, _automationRunner.GetCurrentBootMarker(), BootAutomationLastRunUtc, snapshot).Normalize();
+
+        await _automationRunner.ApplySettingsAsync(settings, runIfDue: false).ConfigureAwait(true);
+        LoadBootAutomationSettings(settings);
+    }
+
+    private async Task RunBootAutomationNowAsync()
+    {
+        var snapshot = BuildAutomationSnapshot();
+        var enabled = IsBootAutomationEnabled && snapshot.HasActions;
+        var settings = new PerformanceLabAutomationSettings(enabled, _automationRunner.GetCurrentBootMarker(), BootAutomationLastRunUtc, snapshot).Normalize();
+
+        await _automationRunner.ApplySettingsAsync(settings, runIfDue: false).ConfigureAwait(true);
+        var result = await _automationRunner.RunNowAsync().ConfigureAwait(true);
+        BootAutomationLastRunUtc = result.ExecutedAtUtc;
+        UpdateBootAutomationStatus(_automationRunner.CurrentSettings);
+    }
+
+    private PerformanceLabAutomationSnapshot BuildAutomationSnapshot()
+    {
+        var vbsDisabled = IsVbsSuccess && VbsStatusMessage?.Contains("disable", StringComparison.OrdinalIgnoreCase) == true;
+
+        return new PerformanceLabAutomationSnapshot(
+            ApplyUltimatePlan: IsUltimateActive,
+            ApplyServiceTemplate: IsServiceSuccess && SelectedTemplate is not null,
+            ApplyHardwareFix: IsHardwareSuccess,
+            ApplyKernelPreset: IsKernelSuccess,
+            ApplyVbsDisable: vbsDisabled,
+            ApplyEtwCleanup: IsEtwSuccess,
+            ApplyPagefilePreset: IsPagefileSuccess,
+            ApplySchedulerPreset: IsSchedulerSuccess,
+            ApplyIoBoosts: IsDirectStorageSuccess && (BoostIoPriority || BoostThreadPriority),
+            ApplyAutoTune: IsAutoTuneSuccess,
+            ServiceTemplateId: SelectedTemplate?.Id ?? "Balanced",
+            PagefilePresetId: SelectedPagefilePresetId ?? "SystemManaged",
+            TargetPagefileDrive: TargetPagefileDrive ?? "C:",
+            PagefileInitialMb: PagefileInitialMb,
+            PagefileMaxMb: PagefileMaxMb,
+            RunWorkingSetSweep: RunWorkingSetSweep,
+            SweepPinnedApps: SweepPinnedApps,
+            SchedulerPresetId: SelectedSchedulerPresetId ?? "Balanced",
+            SchedulerProcessNames: SchedulerProcessNames ?? string.Empty,
+            BoostIoPriority: BoostIoPriority,
+            BoostThreadPriority: BoostThreadPriority,
+            AutoTuneProcessNames: AutoTuneProcessNames ?? string.Empty,
+            AutoTunePresetId: AutoTunePresetId ?? "LatencyBoost",
+            EtwMode: "Minimal").Normalize();
+    }
+
+    private void LoadBootAutomationSettings(PerformanceLabAutomationSettings settings)
+    {
+        _suspendBootAutomationUpdate = true;
+        IsBootAutomationEnabled = settings.AutomationEnabled;
+        BootAutomationLastRunUtc = settings.LastRunUtc;
+        _suspendBootAutomationUpdate = false;
+        UpdateBootAutomationStatus(settings);
+    }
+
+    private void OnBootAutomationSettingsChanged(object? sender, PerformanceLabAutomationSettings settings)
+    {
+        LoadBootAutomationSettings(settings);
+    }
+
+    private void UpdateBootAutomationStatus(PerformanceLabAutomationSettings settings)
+    {
+        var hasActions = settings.Snapshot?.HasActions == true;
+        if (!settings.AutomationEnabled || !hasActions)
+        {
+            BootAutomationStatus = "Boot automation is off.";
+            return;
+        }
+
+        var lastRun = settings.LastRunUtc;
+        BootAutomationStatus = lastRun is null
+            ? "Will reapply your Performance Lab steps on the next boot."
+            : $"Will reapply your Performance Lab steps on the next boot. Last run {FormatRelative(lastRun.Value)}.";
+    }
+
+    partial void OnIsBootAutomationEnabledChanged(bool value)
+    {
+        if (_suspendBootAutomationUpdate)
+        {
+            return;
+        }
+
+        var current = _automationRunner.CurrentSettings;
+        UpdateBootAutomationStatus(current with { AutomationEnabled = value });
+    }
+
+    private static string FormatRelative(DateTimeOffset timestamp)
+    {
+        var delta = DateTimeOffset.UtcNow - timestamp;
+        if (delta < TimeSpan.FromMinutes(1))
+        {
+            return "just now";
+        }
+
+        if (delta < TimeSpan.FromHours(1))
+        {
+            var minutes = Math.Max(1, (int)Math.Round(delta.TotalMinutes));
+            return minutes == 1 ? "1 minute ago" : $"{minutes} minutes ago";
+        }
+
+        if (delta < TimeSpan.FromDays(1))
+        {
+            var hours = Math.Max(1, (int)Math.Round(delta.TotalHours));
+            return hours == 1 ? "1 hour ago" : $"{hours} hours ago";
+        }
+
+        var days = Math.Max(1, (int)Math.Round(delta.TotalDays));
+        return days == 1 ? "1 day ago" : $"{days} days ago";
     }
 
     private void ShowStatus()

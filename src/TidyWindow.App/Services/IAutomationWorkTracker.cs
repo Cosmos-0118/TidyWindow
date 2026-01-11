@@ -8,7 +8,8 @@ public enum AutomationWorkType
     Maintenance,
     Install,
     Cleanup,
-    Essentials
+    Essentials,
+    Performance
 }
 
 public sealed record AutomationWorkItem(Guid Token, AutomationWorkType Type, string Description);
