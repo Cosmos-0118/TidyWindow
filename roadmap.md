@@ -177,8 +177,8 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 
 [x] Step 13.1: Design `Views/PerformanceLabPage.xaml` (startup-shell layout) with hero metrics, quick actions, and per-tweak cards grouped by Power, Memory/I-O, Scheduling, and Security, plus a “test-run” dry mode that only reports expected changes.
 [x] Step 13.2: Add automation for Ultimate Performance plan enablement/restore (`powercfg -duplicatescheme` + set active) and selective service slimming templates (Xbox/DiagTrack/consumer services) with exportable pre/post service states.
-[ ] Step 13.3: Ship Hardware Reserved Memory fixer: detect misreported RAM vs physical DIMMs, expose `bcdedit /deletevalue truncatememory`, msconfig max-memory reset guidance, and disable memory compression with reversible apply.
-[ ] Step 13.4: Implement Kernel & Boot controls beyond existing HPET toggle: dynamic tick on/off, platform clock toggle, `tscsyncpolicy` presets, and `linearaddress57` for >128GB rigs, all behind restore-point gating.
+[x] Step 13.3: Ship Hardware Reserved Memory fixer: detect misreported RAM vs physical DIMMs, expose `bcdedit /deletevalue truncatememory`, msconfig max-memory reset guidance, and disable memory compression with reversible apply.
+[x] Step 13.4: Implement Kernel & Boot controls beyond existing HPET toggle: dynamic tick on/off, platform clock toggle, `tscsyncpolicy` presets, and `linearaddress57` for >128GB rigs, all behind restore-point gating.
 [ ] Step 13.5: Add VBS/HVCI off-ramp with detection (Core Isolation status), registry + `bcdedit /set hypervisorlaunchtype off` apply, reboot planner, and clear warnings when unsupported hardware is detected.
 [ ] Step 13.6: Build ETW tracing purge/reseal flow: list active ETW sessions/providers, allow stop/cleanup with safety tiers, and provide a one-click “re-enable defaults” button to avoid losing diagnostics.
 [ ] Step 13.7: Deliver Pagefile & Memory deep-tuning: move pagefile to NVMe with size presets, expose EmptyWorkingSet sweep (opt-out for pinned apps), and warn when system-managed is safer.

@@ -154,7 +154,7 @@ public partial class App : WpfApplication
                 services.AddSingleton<StartupGuardBackgroundService>();
                 services.AddSingleton<ThreatWatchScanService>();
                 services.AddSingleton<ThreatWatchBackgroundScanner>();
-                services.AddSingleton<PerformanceLabService>();
+                services.AddSingleton<IPerformanceLabService, PerformanceLabService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();

@@ -19,7 +19,7 @@ public sealed class PerformanceTemplateOption
 
 public sealed partial class PerformanceLabViewModel : ObservableObject
 {
-    private readonly PerformanceLabService _service;
+    private readonly IPerformanceLabService _service;
     private readonly ActivityLogService _activityLog;
 
     [ObservableProperty]
@@ -59,16 +59,34 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private string serviceStatusMessage = "No service actions run yet.";
 
     [ObservableProperty]
+    private string hardwareStatusMessage = "Detect to view reserved memory.";
+
+    [ObservableProperty]
+    private string kernelStatusMessage = "Apply the recommended preset to harden timers.";
+
+    [ObservableProperty]
     private bool isPowerPlanSuccess;
 
     [ObservableProperty]
     private bool isServiceSuccess;
 
     [ObservableProperty]
+    private bool isHardwareSuccess;
+
+    [ObservableProperty]
+    private bool isKernelSuccess;
+
+    [ObservableProperty]
     private string powerPlanStatusTimestamp = "–";
 
     [ObservableProperty]
     private string serviceStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private string hardwareStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private string kernelStatusTimestamp = "–";
 
     private static readonly Regex AnsiRegex = new("\\u001B\\[[0-9;]*m", RegexOptions.Compiled);
 
@@ -82,8 +100,13 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand RestorePowerPlanCommand { get; }
     public IAsyncRelayCommand<PerformanceTemplateOption?> ApplyServiceTemplateCommand { get; }
     public IAsyncRelayCommand RestoreServicesCommand { get; }
+    public IAsyncRelayCommand DetectHardwareReservedCommand { get; }
+    public IAsyncRelayCommand ApplyHardwareFixCommand { get; }
+    public IAsyncRelayCommand RestoreCompressionCommand { get; }
+    public IAsyncRelayCommand ApplyKernelPresetCommand { get; }
+    public IAsyncRelayCommand RestoreKernelDefaultsCommand { get; }
 
-    public PerformanceLabViewModel(PerformanceLabService service, ActivityLogService activityLog)
+    public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
@@ -100,6 +123,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         RestorePowerPlanCommand = new AsyncRelayCommand(RestorePowerPlanAsync, () => !IsBusy);
         ApplyServiceTemplateCommand = new AsyncRelayCommand<PerformanceTemplateOption?>(ApplyServiceTemplateAsync, _ => !IsBusy);
         RestoreServicesCommand = new AsyncRelayCommand(RestoreServicesAsync, () => !IsBusy);
+        DetectHardwareReservedCommand = new AsyncRelayCommand(DetectHardwareReservedAsync, () => !IsBusy);
+        ApplyHardwareFixCommand = new AsyncRelayCommand(ApplyHardwareFixAsync, () => !IsBusy);
+        RestoreCompressionCommand = new AsyncRelayCommand(RestoreCompressionAsync, () => !IsBusy);
+        ApplyKernelPresetCommand = new AsyncRelayCommand(ApplyKernelPresetAsync, () => !IsBusy);
+        RestoreKernelDefaultsCommand = new AsyncRelayCommand(RestoreKernelDefaultsAsync, () => !IsBusy);
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -108,6 +136,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         RestorePowerPlanCommand.NotifyCanExecuteChanged();
         ApplyServiceTemplateCommand.NotifyCanExecuteChanged();
         RestoreServicesCommand.NotifyCanExecuteChanged();
+        DetectHardwareReservedCommand.NotifyCanExecuteChanged();
+        ApplyHardwareFixCommand.NotifyCanExecuteChanged();
+        RestoreCompressionCommand.NotifyCanExecuteChanged();
+        ApplyKernelPresetCommand.NotifyCanExecuteChanged();
+        RestoreKernelDefaultsCommand.NotifyCanExecuteChanged();
     }
 
     private async Task RefreshAsync()
@@ -120,6 +153,9 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            var existingServiceMessage = ServiceStatusMessage;
+            var existingServiceSuccess = IsServiceSuccess;
+
             var plan = await _service.GetPowerPlanStatusAsync().ConfigureAwait(true);
             IsUltimateActive = plan.IsUltimateActive;
             PowerPlanHeadline = plan.IsUltimateActive ? "Ultimate Performance active" : "Standard plan active";
@@ -143,10 +179,21 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                 : $"Latest backup: {Path.GetFileName(services.LastBackupPath)}";
             LastServiceBackupPath = services.LastBackupPath;
             HasServiceBackup = !string.IsNullOrWhiteSpace(services.LastBackupPath);
-            ServiceStatusMessage = HasServiceBackup
-                ? $"Backup: {Path.GetFileName(services.LastBackupPath)}"
-                : "No service backup yet";
-            IsServiceSuccess = HasServiceBackup;
+            if (HasServiceBackup)
+            {
+                // Preserve the last action message (e.g., the template applied) instead of overwriting it with a generic backup note.
+                var hasCustomMessage = !string.IsNullOrWhiteSpace(existingServiceMessage)
+                    && !string.Equals(existingServiceMessage, "No service actions run yet.", StringComparison.OrdinalIgnoreCase);
+                ServiceStatusMessage = hasCustomMessage
+                    ? existingServiceMessage
+                    : $"Backup: {Path.GetFileName(services.LastBackupPath)}";
+                IsServiceSuccess = existingServiceSuccess || HasServiceBackup;
+            }
+            else
+            {
+                ServiceStatusMessage = "No service backup yet";
+                IsServiceSuccess = false;
+            }
             ServiceStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
         }
         finally
@@ -162,6 +209,51 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             var result = await _service.EnableUltimatePowerPlanAsync().ConfigureAwait(true);
             HandlePlanResult("PerformanceLab", "Ultimate Performance enabled", result);
             await RefreshAsync().ConfigureAwait(true);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task DetectHardwareReservedAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.DetectHardwareReservedMemoryAsync().ConfigureAwait(true);
+            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task ApplyHardwareFixAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.ApplyHardwareReservedFixAsync().ConfigureAwait(true);
+            HandleHardwareResult("PerformanceLab", "Cleared BCD memory caps and disabled compression", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task RestoreCompressionAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.RestoreMemoryCompressionAsync().ConfigureAwait(true);
+            HandleHardwareResult("PerformanceLab", "Memory compression restored", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task ApplyKernelPresetAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.ApplyKernelBootActionAsync("Recommended").ConfigureAwait(true);
+            HandleKernelResult("PerformanceLab", "Kernel preset applied (dynamic tick off, platform clock on, linear57 on)", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task RestoreKernelDefaultsAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.ApplyKernelBootActionAsync("RestoreDefaults", skipRestorePoint: true).ConfigureAwait(true);
+            HandleKernelResult("PerformanceLab", "Kernel boot values restored to defaults", result);
         }).ConfigureAwait(false);
     }
 
@@ -251,6 +343,46 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             IsServiceSuccess = false;
             ServiceStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
         }
+    }
+
+    private void HandleHardwareResult(string source, string successMessage, PowerShellInvocationResult result)
+    {
+        if (result.IsSuccess)
+        {
+            var details = BuildDetails(result);
+            _activityLog.LogSuccess(source, successMessage, details);
+            HardwareStatusMessage = details.FirstOrDefault() ?? successMessage;
+            IsHardwareSuccess = true;
+        }
+        else
+        {
+            var message = result.Errors.FirstOrDefault() ?? "Operation failed.";
+            _activityLog.LogWarning(source, message, BuildDetails(result));
+            HardwareStatusMessage = message;
+            IsHardwareSuccess = false;
+        }
+
+        HardwareStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    private void HandleKernelResult(string source, string successMessage, PowerShellInvocationResult result)
+    {
+        if (result.IsSuccess)
+        {
+            var details = BuildDetails(result);
+            _activityLog.LogSuccess(source, successMessage, details);
+            KernelStatusMessage = details.FirstOrDefault() ?? successMessage;
+            IsKernelSuccess = true;
+        }
+        else
+        {
+            var message = result.Errors.FirstOrDefault() ?? "Operation failed.";
+            _activityLog.LogWarning(source, message, BuildDetails(result));
+            KernelStatusMessage = message;
+            IsKernelSuccess = false;
+        }
+
+        KernelStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
     private static IReadOnlyList<string> BuildDetails(PowerShellInvocationResult result)

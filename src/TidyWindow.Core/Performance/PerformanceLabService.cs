@@ -4,7 +4,21 @@ using TidyWindow.Core.Automation;
 
 namespace TidyWindow.Core.Performance;
 
-public sealed class PerformanceLabService
+public interface IPerformanceLabService
+{
+    Task<PowerShellInvocationResult> EnableUltimatePowerPlanAsync(CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> RestorePowerPlanAsync(CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> ApplyServiceSlimmingAsync(string? templateId = null, CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> RestoreServicesAsync(string? statePath = null, CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> DetectHardwareReservedMemoryAsync(CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> ApplyHardwareReservedFixAsync(CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> RestoreMemoryCompressionAsync(CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> ApplyKernelBootActionAsync(string action, bool skipRestorePoint = false, CancellationToken cancellationToken = default);
+    Task<PowerPlanStatus> GetPowerPlanStatusAsync(CancellationToken cancellationToken = default);
+    ServiceSlimmingStatus GetServiceSlimmingStatus();
+}
+
+public sealed class PerformanceLabService : IPerformanceLabService
 {
     private static readonly Regex ActivePlanRegex = new("GUID:\\s*([0-9a-fA-F-]{36})\\s*\\((.+)\\)", RegexOptions.Compiled | RegexOptions.CultureInvariant);
     private const string UltimateGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
@@ -41,6 +55,44 @@ public sealed class PerformanceLabService
         return InvokeScriptAsync("service-slimming.ps1", new Dictionary<string, object?>
         {
             ["Template"] = template,
+            ["PassThru"] = true
+        }, cancellationToken);
+    }
+
+    public Task<PowerShellInvocationResult> DetectHardwareReservedMemoryAsync(CancellationToken cancellationToken = default)
+    {
+        return InvokeScriptAsync("hardware-memory-fixer.ps1", new Dictionary<string, object?>
+        {
+            ["Detect"] = true,
+            ["PassThru"] = true
+        }, cancellationToken);
+    }
+
+    public Task<PowerShellInvocationResult> ApplyHardwareReservedFixAsync(CancellationToken cancellationToken = default)
+    {
+        return InvokeScriptAsync("hardware-memory-fixer.ps1", new Dictionary<string, object?>
+        {
+            ["ApplyFix"] = true,
+            ["PassThru"] = true
+        }, cancellationToken);
+    }
+
+    public Task<PowerShellInvocationResult> RestoreMemoryCompressionAsync(CancellationToken cancellationToken = default)
+    {
+        return InvokeScriptAsync("hardware-memory-fixer.ps1", new Dictionary<string, object?>
+        {
+            ["RestoreCompression"] = true,
+            ["PassThru"] = true
+        }, cancellationToken);
+    }
+
+    public Task<PowerShellInvocationResult> ApplyKernelBootActionAsync(string action, bool skipRestorePoint = false, CancellationToken cancellationToken = default)
+    {
+        var effectiveAction = string.IsNullOrWhiteSpace(action) ? "Recommended" : action;
+        return InvokeScriptAsync("kernel-boot-controls.ps1", new Dictionary<string, object?>
+        {
+            ["Action"] = effectiveAction,
+            ["SkipRestorePoint"] = skipRestorePoint,
             ["PassThru"] = true
         }, cancellationToken);
     }
