@@ -15,7 +15,9 @@ public class PerformanceLabViewModelTests
     private static PerformanceLabViewModel CreateVm(FakePerformanceLabService fake)
     {
         var activity = new ActivityLogService();
-        var automationRunner = new PerformanceLabAutomationRunner(new PerformanceLabAutomationSettingsStore(), fake, activity, new AutomationWorkTracker());
+        var store = new PerformanceLabAutomationSettingsStore();
+        store.Save(PerformanceLabAutomationSettings.Default);
+        var automationRunner = new PerformanceLabAutomationRunner(store, fake, activity, new AutomationWorkTracker());
         return new PerformanceLabViewModel(fake, activity, automationRunner);
     }
 
@@ -89,6 +91,37 @@ public class PerformanceLabViewModelTests
 
         Assert.True(vm.IsEtwSuccess);
         Assert.Contains("CleanupEtw", vm.EtwStatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task ApplyBootAutomation_TurnsOnWhenSnapshotHasActions()
+    {
+        var fake = new FakePerformanceLabService();
+        var vm = CreateVm(fake);
+
+        vm.IsBootAutomationEnabled = true;
+        vm.IsUltimateActive = true;
+
+        await vm.ApplyBootAutomationCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsBootAutomationEnabled);
+        Assert.Contains("Will reapply", vm.BootAutomationStatus, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(vm.BootAutomationLastRunUtc);
+    }
+
+    [Fact]
+    public async Task RunBootAutomationNow_RecordsLastRun()
+    {
+        var fake = new FakePerformanceLabService();
+        var vm = CreateVm(fake);
+
+        vm.IsBootAutomationEnabled = true;
+        vm.IsUltimateActive = true;
+
+        await vm.RunBootAutomationNowCommand.ExecuteAsync(null);
+
+        Assert.NotNull(vm.BootAutomationLastRunUtc);
+        Assert.Contains("Last run", vm.BootAutomationStatus, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class FakePerformanceLabService : IPerformanceLabService

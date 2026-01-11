@@ -2,6 +2,7 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
+using TidyWindow.App;
 using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.Tests;
@@ -89,6 +90,11 @@ internal static class WpfTestHelper
 
         app ??= new WpfApplication();
         app.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+        // Explicitly set the resource assembly so pack URIs resolve in test runs where the generated App is not created.
+        if (WpfApplication.ResourceAssembly is null)
+        {
+            WpfApplication.ResourceAssembly = typeof(MainWindow).Assembly;
+        }
         return app;
     }
 }
