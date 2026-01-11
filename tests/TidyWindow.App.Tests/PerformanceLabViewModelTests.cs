@@ -18,7 +18,12 @@ public class PerformanceLabViewModelTests
         var store = new PerformanceLabAutomationSettingsStore();
         store.Save(PerformanceLabAutomationSettings.Default);
         var automationRunner = new PerformanceLabAutomationRunner(store, fake, activity, new AutomationWorkTracker());
-        return new PerformanceLabViewModel(fake, activity, automationRunner);
+
+        var autoTuneStore = new AutoTuneAutomationSettingsStore();
+        autoTuneStore.Save(AutoTuneAutomationSettings.Default);
+        var autoTuneScheduler = new AutoTuneAutomationScheduler(autoTuneStore, fake, activity, new AutomationWorkTracker());
+
+        return new PerformanceLabViewModel(fake, activity, automationRunner, autoTuneScheduler);
     }
 
     [Fact]

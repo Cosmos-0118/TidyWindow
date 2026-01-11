@@ -42,6 +42,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private readonly IPerformanceLabService _service;
     private readonly ActivityLogService _activityLog;
     private readonly PerformanceLabAutomationRunner _automationRunner;
+    private readonly AutoTuneAutomationScheduler _autoTuneAutomation;
     private bool _suspendBootAutomationUpdate;
 
     public Action<string>? ShowStatusAction { get; set; }
@@ -284,11 +285,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private IRelayCommand? showStepInfoCommand;
     private IRelayCommand? closeInfoDialogCommand;
 
-    public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog, PerformanceLabAutomationRunner automationRunner)
+    public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog, PerformanceLabAutomationRunner automationRunner, AutoTuneAutomationScheduler autoTuneAutomation)
     {
         _service = service ?? throw new ArgumentNullException(nameof(service));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
         _automationRunner = automationRunner ?? throw new ArgumentNullException(nameof(automationRunner));
+        _autoTuneAutomation = autoTuneAutomation ?? throw new ArgumentNullException(nameof(autoTuneAutomation));
 
         Templates = new ObservableCollection<PerformanceTemplateOption>
         {
@@ -349,6 +351,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
         LoadBootAutomationSettings(_automationRunner.CurrentSettings);
         _automationRunner.SettingsChanged += OnBootAutomationSettingsChanged;
+        _autoTuneAutomation.SettingsChanged += OnAutoTuneAutomationSettingsChanged;
+        UpdateAutoTuneAutomationStatus(_autoTuneAutomation.CurrentSettings);
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -723,8 +727,27 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         {
             var preset = string.IsNullOrWhiteSpace(AutoTunePresetId) ? "LatencyBoost" : AutoTunePresetId;
             var processes = AutoTuneProcessNames ?? string.Empty;
-            var result = await _service.StartAutoTuneAsync(processes, preset).ConfigureAwait(true);
-            HandleAutoTuneResult("PerformanceLab", $"Auto-tune loop armed ({preset})", result);
+            var settings = new AutoTuneAutomationSettings(true, processes, preset, _autoTuneAutomation.CurrentSettings.LastRunUtc);
+            var run = await _autoTuneAutomation.ApplySettingsAsync(settings, queueRunImmediately: true).ConfigureAwait(true);
+
+            if (run?.InvocationResult is { } invocation)
+            {
+                HandleAutoTuneResult("PerformanceLab", $"Auto-tune automation ran ({preset})", invocation);
+            }
+            else if (run?.WasSkipped == true)
+            {
+                AutoTuneStatusMessage = string.IsNullOrWhiteSpace(run.SkipReason)
+                    ? "Auto-tune automation armed; waiting for next window."
+                    : run.SkipReason;
+                AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+                IsAutoTuneSuccess = false;
+            }
+            else
+            {
+                AutoTuneStatusMessage = "Auto-tune automation armed; next run in 5 minutes.";
+                AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+                IsAutoTuneSuccess = true;
+            }
         }).ConfigureAwait(false);
     }
 
@@ -732,8 +755,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     {
         await RunOperationAsync(async () =>
         {
+            var disabled = _autoTuneAutomation.CurrentSettings with { AutomationEnabled = false };
+            await _autoTuneAutomation.ApplySettingsAsync(disabled, queueRunImmediately: false).ConfigureAwait(true);
+
             var result = await _service.StopAutoTuneAsync().ConfigureAwait(true);
-            HandleAutoTuneResult("PerformanceLab", "Auto-tune loop stopped and reverted", result);
+            HandleAutoTuneResult("PerformanceLab", "Auto-tune automation stopped", result);
         }).ConfigureAwait(false);
     }
 
@@ -817,6 +843,34 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         BootAutomationStatus = lastRun is null
             ? "Will reapply your Performance Lab steps on the next boot."
             : $"Will reapply your Performance Lab steps on the next boot. Last run {FormatRelative(lastRun.Value)}.";
+    }
+
+    private void OnAutoTuneAutomationSettingsChanged(object? sender, AutoTuneAutomationSettings settings)
+    {
+        AutoTuneProcessNames = settings.ProcessNames;
+        AutoTunePresetId = settings.PresetId;
+
+        if (settings.AutomationEnabled)
+        {
+            var lastRun = settings.LastRunUtc;
+            var lastLabel = lastRun is null
+                ? "First run pending."
+                : $"Last run {FormatRelative(lastRun.Value)}.";
+            AutoTuneStatusMessage = $"Auto-tune automation active (5-minute cadence). {lastLabel}";
+            AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+            return;
+        }
+
+        if (!IsAutoTuneSuccess)
+        {
+            AutoTuneStatusMessage = "Auto-tune automation is off.";
+            AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+        }
+    }
+
+    private void UpdateAutoTuneAutomationStatus(AutoTuneAutomationSettings settings)
+    {
+        OnAutoTuneAutomationSettingsChanged(this, settings);
     }
 
     partial void OnIsBootAutomationEnabledChanged(bool value)

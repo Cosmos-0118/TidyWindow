@@ -110,6 +110,8 @@ public partial class App : WpfApplication
                 services.AddSingleton<CleanupAutomationScheduler>();
                 services.AddSingleton<EssentialsAutomationSettingsStore>();
                 services.AddSingleton<EssentialsAutomationScheduler>();
+                services.AddSingleton<AutoTuneAutomationSettingsStore>();
+                services.AddSingleton<AutoTuneAutomationScheduler>();
                 services.AddSingleton<MaintenanceAutomationSettingsStore>();
                 services.AddSingleton<MaintenanceAutoUpdateScheduler>();
                 services.AddSingleton<PerformanceLabAutomationSettingsStore>();
@@ -209,6 +211,7 @@ public partial class App : WpfApplication
         _ = _host.Services.GetRequiredService<EssentialsQueueWorkObserver>();
         _ = _host.Services.GetRequiredService<CleanupAutomationScheduler>();
         _ = _host.Services.GetRequiredService<EssentialsAutomationScheduler>();
+        _ = _host.Services.GetRequiredService<AutoTuneAutomationScheduler>();
         _ = _host.Services.GetRequiredService<MaintenanceAutoUpdateScheduler>();
         _ = _host.Services.GetRequiredService<PerformanceLabAutomationRunner>();
         _ = _host.Services.GetRequiredService<ProcessAutoStopEnforcer>();
