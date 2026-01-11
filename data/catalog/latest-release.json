@@ -1,10 +1,10 @@
 {
-  "version": "3.7.3",
+  "version": "3.8.0",
   "channel": "stable",
-  "summary": "## 🚀 Latest Fixes\n\n### 🌐 Environment & Runtime\n- Fixed PATHPilot hangs by sanitizing bad/remote PATH entries and restoring them afterward.\n- All runtime probes now use the hardened lookup so detection never stalls.\n\n### 🧰 Maintenance Jobs\n- Added full cancellation support: queued/running jobs can be cancelled safely.\n- Added a `Cancelled` status + cancel buttons in UI with proper cleanup/disposal.\n- Disposal now cancels any leftover jobs automatically.\n\n### 🧨 Deep Scan\n- Force-delete toggle no longer auto-resets — user keeps control.\n\n### 📄 Catalog Paging\n- Paging now ignores rapid clicks and coalesces renders for smoother UI.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.7.3/TidyWindow-Setup-3.7.3.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.7.3",
-  "publishedAt": "2026-01-10T16:18:14Z",
-  "installerSizeBytes": 81417617,
-  "sha256": "ff0a1343ba2b2d658e4b7ab2cab73722e9572df3d11596096a420acc927111c6"
+  "summary": "## 🚦 Auto-Stop & Service Control\n\n- Auto-stop now **ignores invalid/missing catalog entries** instead of counting them as failures.\n- Skipped items log as **informational** with reasons; only actionable services affect success/warning counts.\n- Added a **runtime service resolver** to validate service IDs by service name + display name and dispose controllers correctly.\n- Auto-stop uses the resolver to stop only resolvable services and tags missing/not-installed entries as skipped.\n- Added **task-stop support**:\n  - New task controller handles wildcard matching, stop/disable via `schtasks`\n  - Auto-stop routes task-like entries to task controller\n  - DI updated to include task controller\n\n---\n\n## ⚡ Performance Lab (New)\n\n- Added a new **Performance Lab** page with guardrails, hero metrics, grouped tweak cards, and a safe “dry run” mode.\n- Ultimate Performance plan automation + **selective service slimming** with exportable before/after states.\n- **Hardware Reserved Memory fixer** (detect + reverse truncation, remove memory compression, guide misconfig resets).\n- Kernel & Boot controls: tick/clock toggles, `tscsyncpolicy` presets, `linearaddress57` support - all restore-point gated.\n- **VBS/HVCI disable path** with detection, registry/bcd commands, warnings, and reboot guidance.\n- ETW cleanup: stop/purge sessions safely, reseal defaults with one-click.\n- Pagefile & memory tuning: NVMe relocation + presets, EmptyWorkingSet sweep, and automatic safety warnings.\n- Scheduler & Affinity toolbox: per-app templates, priority/affinity presets, and built-in stress harness.\n- Monitoring & Auto-Tune loop: lightweight sampler reacts to gaming apps, applies presets, logs changes, supports revert.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.0/TidyWindow-Setup-3.8.0.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.0",
+  "publishedAt": "2026-01-11T10:59:17Z",
+  "installerSizeBytes": 81551224,
+  "sha256": "3388779153d3a87e415f69db7e725be63eb0de4fae379af9652f9ac6df16d0cc"
 }
