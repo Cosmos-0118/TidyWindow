@@ -4,6 +4,8 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
+using System.Text.Encodings.Web;
+using System.Text.Json;
 
 namespace TidyWindow.Core.Automation;
 
@@ -12,6 +14,16 @@ namespace TidyWindow.Core.Automation;
 /// </summary>
 public sealed class PowerShellInvoker
 {
+    private const int MaxDetailDepth = 4;
+    private const int MaxSerializedLength = 4096;
+
+    private static readonly JsonSerializerOptions OutputSerializerOptions = new()
+    {
+        WriteIndented = false,
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+
     public async Task<PowerShellInvocationResult> InvokeScriptAsync(
         string scriptPath,
         IReadOnlyDictionary<string, object?>? parameters = null,
@@ -75,13 +87,20 @@ public sealed class PowerShellInvoker
         using PSDataCollection<PSObject> outputCollection = new();
         outputCollection.DataAdded += (_, args) =>
         {
-            if (args.Index >= 0 && args.Index < outputCollection.Count)
+            if (args.Index < 0 || args.Index >= outputCollection.Count)
             {
-                var value = outputCollection[args.Index].ToString() ?? string.Empty;
-                lock (output)
-                {
-                    output.Add(value);
-                }
+                return;
+            }
+
+            var formatted = FormatOutputValue(outputCollection[args.Index]);
+            if (string.IsNullOrWhiteSpace(formatted))
+            {
+                return;
+            }
+
+            lock (output)
+            {
+                output.Add(formatted);
             }
         };
 

@@ -77,6 +77,18 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private bool isKernelSuccess;
 
     [ObservableProperty]
+    private string vbsStatusMessage = "Detect VBS/HVCI to view Core Isolation state.";
+
+    [ObservableProperty]
+    private string etwStatusMessage = "Detect ETW sessions to see trace load.";
+
+    [ObservableProperty]
+    private bool isVbsSuccess;
+
+    [ObservableProperty]
+    private bool isEtwSuccess;
+
+    [ObservableProperty]
     private string powerPlanStatusTimestamp = "–";
 
     [ObservableProperty]
@@ -87,6 +99,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     [ObservableProperty]
     private string kernelStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private string vbsStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private string etwStatusTimestamp = "–";
 
     private static readonly Regex AnsiRegex = new("\\u001B\\[[0-9;]*m", RegexOptions.Compiled);
 
@@ -105,6 +123,13 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand RestoreCompressionCommand { get; }
     public IAsyncRelayCommand ApplyKernelPresetCommand { get; }
     public IAsyncRelayCommand RestoreKernelDefaultsCommand { get; }
+    public IAsyncRelayCommand DetectVbsHvciCommand { get; }
+    public IAsyncRelayCommand DisableVbsHvciCommand { get; }
+    public IAsyncRelayCommand RestoreVbsHvciCommand { get; }
+    public IAsyncRelayCommand DetectEtwSessionsCommand { get; }
+    public IAsyncRelayCommand CleanupEtwMinimalCommand { get; }
+    public IAsyncRelayCommand CleanupEtwAggressiveCommand { get; }
+    public IAsyncRelayCommand RestoreEtwDefaultsCommand { get; }
 
     public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog)
     {
@@ -128,6 +153,13 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         RestoreCompressionCommand = new AsyncRelayCommand(RestoreCompressionAsync, () => !IsBusy);
         ApplyKernelPresetCommand = new AsyncRelayCommand(ApplyKernelPresetAsync, () => !IsBusy);
         RestoreKernelDefaultsCommand = new AsyncRelayCommand(RestoreKernelDefaultsAsync, () => !IsBusy);
+        DetectVbsHvciCommand = new AsyncRelayCommand(DetectVbsHvciAsync, () => !IsBusy);
+        DisableVbsHvciCommand = new AsyncRelayCommand(DisableVbsHvciAsync, () => !IsBusy);
+        RestoreVbsHvciCommand = new AsyncRelayCommand(RestoreVbsHvciAsync, () => !IsBusy);
+        DetectEtwSessionsCommand = new AsyncRelayCommand(DetectEtwTracingAsync, () => !IsBusy);
+        CleanupEtwMinimalCommand = new AsyncRelayCommand(() => CleanupEtwAsync("Minimal"), () => !IsBusy);
+        CleanupEtwAggressiveCommand = new AsyncRelayCommand(() => CleanupEtwAsync("Aggressive"), () => !IsBusy);
+        RestoreEtwDefaultsCommand = new AsyncRelayCommand(RestoreEtwDefaultsAsync, () => !IsBusy);
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -141,6 +173,13 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         RestoreCompressionCommand.NotifyCanExecuteChanged();
         ApplyKernelPresetCommand.NotifyCanExecuteChanged();
         RestoreKernelDefaultsCommand.NotifyCanExecuteChanged();
+        DetectVbsHvciCommand.NotifyCanExecuteChanged();
+        DisableVbsHvciCommand.NotifyCanExecuteChanged();
+        RestoreVbsHvciCommand.NotifyCanExecuteChanged();
+        DetectEtwSessionsCommand.NotifyCanExecuteChanged();
+        CleanupEtwMinimalCommand.NotifyCanExecuteChanged();
+        CleanupEtwAggressiveCommand.NotifyCanExecuteChanged();
+        RestoreEtwDefaultsCommand.NotifyCanExecuteChanged();
     }
 
     private async Task RefreshAsync()
@@ -195,6 +234,24 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                 IsServiceSuccess = false;
             }
             ServiceStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+
+            var detectedTemplate = await _service.DetectServiceTemplateAsync().ConfigureAwait(true);
+            if (!string.IsNullOrWhiteSpace(detectedTemplate))
+            {
+                SelectedTemplate = Templates.FirstOrDefault(t => string.Equals(t.Name, detectedTemplate, StringComparison.OrdinalIgnoreCase)) ?? SelectedTemplate;
+                ServiceStatusMessage = ServiceStatusMessage.Contains(detectedTemplate ?? string.Empty, StringComparison.OrdinalIgnoreCase)
+                    ? ServiceStatusMessage
+                    : $"Detected template: {detectedTemplate}";
+                IsServiceSuccess = true;
+            }
+
+            var hardwareResult = await _service.DetectHardwareReservedMemoryAsync().ConfigureAwait(true);
+            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", hardwareResult);
+
+            var kernelStatus = await _service.GetKernelBootStatusAsync().ConfigureAwait(true);
+            KernelStatusMessage = kernelStatus.Summary;
+            IsKernelSuccess = kernelStatus.IsRecommended;
+            KernelStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
         }
         finally
         {
@@ -254,6 +311,62 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         {
             var result = await _service.ApplyKernelBootActionAsync("RestoreDefaults", skipRestorePoint: true).ConfigureAwait(true);
             HandleKernelResult("PerformanceLab", "Kernel boot values restored to defaults", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task DetectVbsHvciAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.DetectVbsHvciAsync().ConfigureAwait(true);
+            HandleVbsResult("PerformanceLab", "VBS/HVCI status captured", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task DisableVbsHvciAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.DisableVbsHvciAsync().ConfigureAwait(true);
+            HandleVbsResult("PerformanceLab", "VBS/HVCI disabled (hypervisor off, HVCI off)", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task RestoreVbsHvciAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.RestoreVbsHvciAsync().ConfigureAwait(true);
+            HandleVbsResult("PerformanceLab", "VBS/HVCI defaults restored", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task DetectEtwTracingAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.DetectEtwTracingAsync().ConfigureAwait(true);
+            HandleEtwResult("PerformanceLab", "ETW sessions inspected", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task CleanupEtwAsync(string mode)
+    {
+        var tier = string.IsNullOrWhiteSpace(mode) ? "Minimal" : mode;
+
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.CleanupEtwTracingAsync(tier).ConfigureAwait(true);
+            HandleEtwResult("PerformanceLab", $"ETW sessions stopped ({tier})", result);
+        }).ConfigureAwait(false);
+    }
+
+    private async Task RestoreEtwDefaultsAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            var result = await _service.RestoreEtwTracingAsync().ConfigureAwait(true);
+            HandleEtwResult("PerformanceLab", "ETW defaults restored", result);
         }).ConfigureAwait(false);
     }
 
@@ -350,8 +463,10 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         if (result.IsSuccess)
         {
             var details = BuildDetails(result);
+            var primary = details.FirstOrDefault(d => !d.StartsWith("exitCode", StringComparison.OrdinalIgnoreCase))
+                          ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
-            HardwareStatusMessage = details.FirstOrDefault() ?? successMessage;
+            HardwareStatusMessage = primary ?? successMessage;
             IsHardwareSuccess = true;
         }
         else
@@ -370,8 +485,10 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         if (result.IsSuccess)
         {
             var details = BuildDetails(result);
+            var primary = details.FirstOrDefault(d => !d.StartsWith("exitCode", StringComparison.OrdinalIgnoreCase))
+                          ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
-            KernelStatusMessage = details.FirstOrDefault() ?? successMessage;
+            KernelStatusMessage = primary ?? successMessage;
             IsKernelSuccess = true;
         }
         else
@@ -383,6 +500,50 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         }
 
         KernelStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    private void HandleVbsResult(string source, string successMessage, PowerShellInvocationResult result)
+    {
+        if (result.IsSuccess)
+        {
+            var details = BuildDetails(result);
+            var primary = details.FirstOrDefault(d => !d.StartsWith("exitCode", StringComparison.OrdinalIgnoreCase))
+                          ?? details.FirstOrDefault();
+            _activityLog.LogSuccess(source, successMessage, details);
+            VbsStatusMessage = primary ?? successMessage;
+            IsVbsSuccess = true;
+        }
+        else
+        {
+            var message = result.Errors.FirstOrDefault() ?? "Operation failed.";
+            _activityLog.LogWarning(source, message, BuildDetails(result));
+            VbsStatusMessage = message;
+            IsVbsSuccess = false;
+        }
+
+        VbsStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+    }
+
+    private void HandleEtwResult(string source, string successMessage, PowerShellInvocationResult result)
+    {
+        if (result.IsSuccess)
+        {
+            var details = BuildDetails(result);
+            var primary = details.FirstOrDefault(d => !d.StartsWith("exitCode", StringComparison.OrdinalIgnoreCase))
+                          ?? details.FirstOrDefault();
+            _activityLog.LogSuccess(source, successMessage, details);
+            EtwStatusMessage = primary ?? successMessage;
+            IsEtwSuccess = true;
+        }
+        else
+        {
+            var message = result.Errors.FirstOrDefault() ?? "Operation failed.";
+            _activityLog.LogWarning(source, message, BuildDetails(result));
+            EtwStatusMessage = message;
+            IsEtwSuccess = false;
+        }
+
+        EtwStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
     private static IReadOnlyList<string> BuildDetails(PowerShellInvocationResult result)

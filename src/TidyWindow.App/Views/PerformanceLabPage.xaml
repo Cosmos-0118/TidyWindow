@@ -109,6 +109,32 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="VbsStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsVbsSuccess}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsVbsSuccess}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="EtwStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsEtwSuccess}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsEtwSuccess}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#07111D" />
             <Setter Property="Padding" Value="14,8" />
@@ -471,6 +497,75 @@
                                 <StackPanel>
                                     <TextBlock Text="{Binding KernelStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                                     <TextBlock Text="{Binding KernelStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource StepBadgeStyle}">
+                                <TextBlock Text="Step 5" Foreground="#2DD4BF" FontWeight="Bold" />
+                            </Border>
+                            <TextBlock Text="Core Isolation (VBS/HVCI)" Style="{StaticResource SectionHeaderTextStyle}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,8" Text="Detect Core Isolation status, disable VBS/HVCI for benchmarking, or restore defaults for security." Style="{StaticResource SubtleCaptionTextStyle}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Detect status" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectVbsHvciCommand}" Margin="0,0,10,0" />
+                            <Button Content="Disable VBS/HVCI" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding DisableVbsHvciCommand}" Margin="0,0,10,0" />
+                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreVbsHvciCommand}" />
+                        </StackPanel>
+
+                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Disabling uses hypervisorlaunchtype off and clears HVCI registry flags. Restoring sets hypervisor to Auto and re-enables Core Isolation if supported." Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,0" Text="Reboot is required after disable/restore. Unsupported hardware returns warnings without changes." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <WrapPanel Margin="0,10,0,0">
+                            <Border Style="{StaticResource VbsStatusChipStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding VbsStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding VbsStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource StepBadgeStyle}">
+                                <TextBlock Text="Step 6" Foreground="#60A5FA" FontWeight="Bold" />
+                            </Border>
+                            <TextBlock Text="ETW tracing cleanup" Style="{StaticResource SectionHeaderTextStyle}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,8" Text="Inspect active ETW sessions, stop noisy traces in tiers, and restore defaults from baseline." Style="{StaticResource SubtleCaptionTextStyle}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Detect sessions" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectEtwSessionsCommand}" Margin="0,0,10,0" />
+                            <Button Content="Stop (Minimal)" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CleanupEtwMinimalCommand}" Margin="0,0,10,0" />
+                            <Button Content="Stop (Aggressive)" Style="{StaticResource OutlineButtonStyle}" Command="{Binding CleanupEtwAggressiveCommand}" Margin="0,0,10,0" />
+                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreEtwDefaultsCommand}" />
+                        </StackPanel>
+
+                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Minimal stops noisy user sessions; Aggressive halts more providers. A baseline of defaults is saved to %ProgramData%/TidyWindow/PerformanceLab/etw-baseline.txt on first run." Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,0" Text="Use restore to restart allowlisted system sessions if anything important was stopped." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <WrapPanel Margin="0,10,0,0">
+                            <Border Style="{StaticResource EtwStatusChipStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding EtwStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding EtwStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
                                 </StackPanel>
                             </Border>
                         </WrapPanel>

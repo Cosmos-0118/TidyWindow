@@ -51,7 +51,7 @@ public class PerformanceLabViewModelTests
         await vm.DetectHardwareReservedCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsHardwareSuccess);
-        Assert.Contains("exitCode: 0", vm.HardwareStatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("mode: Detect", vm.HardwareStatusMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -63,7 +63,31 @@ public class PerformanceLabViewModelTests
         await vm.ApplyKernelPresetCommand.ExecuteAsync(null);
 
         Assert.True(vm.IsKernelSuccess);
-        Assert.Contains("exitCode: 0", vm.KernelStatusMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("action: Recommended", vm.KernelStatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DisableVbsHvci_ReportsStatus()
+    {
+        var fake = new FakePerformanceLabService();
+        var vm = CreateVm(fake);
+
+        await vm.DisableVbsHvciCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsVbsSuccess);
+        Assert.Contains("DisableVbsHvci", vm.VbsStatusMessage, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CleanupEtwMinimal_ReportsStatus()
+    {
+        var fake = new FakePerformanceLabService();
+        var vm = CreateVm(fake);
+
+        await vm.CleanupEtwMinimalCommand.ExecuteAsync(null);
+
+        Assert.True(vm.IsEtwSuccess);
+        Assert.Contains("CleanupEtw", vm.EtwStatusMessage, StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed class FakePerformanceLabService : IPerformanceLabService
@@ -88,6 +112,41 @@ public class PerformanceLabViewModelTests
             return Task.FromResult(SuccessResult("mode: Applied"));
         }
 
+        public Task<string?> DetectServiceTemplateAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult<string?>(TemplateOption.Id);
+        }
+
+        public Task<PowerShellInvocationResult> DetectVbsHvciAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: DetectVbsHvci"));
+        }
+
+        public Task<PowerShellInvocationResult> DisableVbsHvciAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: DisableVbsHvci"));
+        }
+
+        public Task<PowerShellInvocationResult> RestoreVbsHvciAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: RestoreVbsHvci"));
+        }
+
+        public Task<PowerShellInvocationResult> DetectEtwTracingAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: DetectEtw"));
+        }
+
+        public Task<PowerShellInvocationResult> CleanupEtwTracingAsync(string mode = "Minimal", CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult($"mode: CleanupEtw ({mode})"));
+        }
+
+        public Task<PowerShellInvocationResult> RestoreEtwTracingAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: RestoreEtw"));
+        }
+
         public Task<PowerShellInvocationResult> DetectHardwareReservedMemoryAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(SuccessResult("mode: Detect"));
@@ -96,6 +155,11 @@ public class PerformanceLabViewModelTests
         public Task<PowerPlanStatus> GetPowerPlanStatusAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(PlanStatus);
+        }
+
+        public Task<KernelBootStatus> GetKernelBootStatusAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new KernelBootStatus(true, "kernel defaults mocked", new List<string> { "mock output" }, null));
         }
 
         public ServiceSlimmingStatus GetServiceSlimmingStatus()
