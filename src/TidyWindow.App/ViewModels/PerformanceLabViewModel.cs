@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Text;
 using System.Text.RegularExpressions;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -41,6 +42,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private readonly IPerformanceLabService _service;
     private readonly ActivityLogService _activityLog;
 
+    public Action<string>? ShowStatusAction { get; set; }
+
     [ObservableProperty]
     private bool isBusy;
 
@@ -60,70 +63,79 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private string servicesDetails = "Refresh to see the latest backup.";
 
     [ObservableProperty]
-    private string? lastServiceBackupPath;
+    private bool isInfoDialogVisible;
 
     [ObservableProperty]
-    private string? lastPowerPlanBackupPath;
+    private string infoDialogTitle = "Step details";
+
+    [ObservableProperty]
+    private string infoDialogBody = "More information coming soon.";
+
+    [ObservableProperty]
+    private string powerPlanStatusMessage = "No power plan actions run yet.";
+
+    [ObservableProperty]
+    private string powerPlanStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private bool isPowerPlanSuccess;
+
+    [ObservableProperty]
+    private string serviceStatusMessage = "No service actions run yet.";
+
+    [ObservableProperty]
+    private string serviceStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private bool isServiceSuccess;
+
+    [ObservableProperty]
+    private string hardwareStatusMessage = "Detect hardware reserved memory to view details.";
+
+    [ObservableProperty]
+    private string hardwareStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private bool isHardwareSuccess;
+
+    [ObservableProperty]
+    private string kernelStatusMessage = "Detect kernel & boot state to view settings.";
+
+    [ObservableProperty]
+    private string kernelStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private bool isKernelSuccess;
+
+    [ObservableProperty]
+    private string vbsStatusMessage = "Detect Core Isolation / VBS state to view status.";
+
+    [ObservableProperty]
+    private string vbsStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private bool isVbsSuccess;
+
+    [ObservableProperty]
+    private string etwStatusMessage = "Detect ETW sessions to view active traces.";
+
+    [ObservableProperty]
+    private string etwStatusTimestamp = "–";
+
+    [ObservableProperty]
+    private bool isEtwSuccess;
+
+    [ObservableProperty]
+    private string lastPowerPlanBackupPath = string.Empty;
+
+    [ObservableProperty]
+    private string lastServiceBackupPath = string.Empty;
 
     [ObservableProperty]
     private bool hasPowerPlanBackup;
 
     [ObservableProperty]
     private bool hasServiceBackup;
-
-    [ObservableProperty]
-    private string powerPlanStatusMessage = "No power plan actions run yet.";
-
-    [ObservableProperty]
-    private string serviceStatusMessage = "No service actions run yet.";
-
-    [ObservableProperty]
-    private string hardwareStatusMessage = "Detect to view reserved memory.";
-
-    [ObservableProperty]
-    private string kernelStatusMessage = "Apply the recommended preset to harden timers.";
-
-    [ObservableProperty]
-    private bool isPowerPlanSuccess;
-
-    [ObservableProperty]
-    private bool isServiceSuccess;
-
-    [ObservableProperty]
-    private bool isHardwareSuccess;
-
-    [ObservableProperty]
-    private bool isKernelSuccess;
-
-    [ObservableProperty]
-    private string vbsStatusMessage = "Detect VBS/HVCI to view Core Isolation state.";
-
-    [ObservableProperty]
-    private string etwStatusMessage = "Detect ETW sessions to see trace load.";
-
-    [ObservableProperty]
-    private bool isVbsSuccess;
-
-    [ObservableProperty]
-    private bool isEtwSuccess;
-
-    [ObservableProperty]
-    private string powerPlanStatusTimestamp = "–";
-
-    [ObservableProperty]
-    private string serviceStatusTimestamp = "–";
-
-    [ObservableProperty]
-    private string hardwareStatusTimestamp = "–";
-
-    [ObservableProperty]
-    private string kernelStatusTimestamp = "–";
-
-    [ObservableProperty]
-    private string vbsStatusTimestamp = "–";
-
-    [ObservableProperty]
-    private string etwStatusTimestamp = "–";
 
     [ObservableProperty]
     private string pagefileStatusMessage = "Detect pagefile state to view mode.";
@@ -161,6 +173,20 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     [ObservableProperty]
     private bool isAutoTuneSuccess;
 
+    public string PowerPlanStatusSimple => IsUltimateActive ? "In effect" : "Not applied";
+    public string ServiceStatusSimple => IsServiceSuccess ? "In effect" : "Not applied";
+    public string HardwareStatusSimple => IsHardwareSuccess ? "In effect" : "Not applied";
+    public string KernelStatusSimple => IsKernelSuccess ? "In effect" : "Not applied";
+    public string VbsStatusSimple => IsVbsSuccess ? "In effect" : "Not applied";
+    public string EtwStatusSimple => IsEtwSuccess ? "In effect" : "Not applied";
+    public string PagefileStatusSimple => IsPagefileSuccess ? "In effect" : "Not applied";
+    public string SchedulerStatusSimple => IsSchedulerSuccess ? "In effect" : "Not applied";
+    public string DirectStorageStatusSimple => IsDirectStorageSuccess ? "In effect" : "Not applied";
+    public string AutoTuneStatusSimple => IsAutoTuneSuccess ? "In effect" : "Not applied";
+
+    [ObservableProperty]
+    private PagefilePresetOption? selectedPagefilePreset;
+
     [ObservableProperty]
     private string selectedPagefilePresetId = "SystemManaged";
 
@@ -181,6 +207,9 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     [ObservableProperty]
     private string schedulerProcessNames = "dwm;explorer";
+
+    [ObservableProperty]
+    private SchedulerPresetOption? selectedSchedulerPreset;
 
     [ObservableProperty]
     private string selectedSchedulerPresetId = "LatencyBoost";
@@ -235,6 +264,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand DetectAutoTuneCommand { get; }
     public IAsyncRelayCommand StartAutoTuneCommand { get; }
     public IAsyncRelayCommand StopAutoTuneCommand { get; }
+    public IRelayCommand ShowStatusCommand { get; }
+    public IRelayCommand ShowStepInfoCommand => showStepInfoCommand ??= new RelayCommand<string?>(ShowStepInfo);
+    public IRelayCommand CloseInfoDialogCommand => closeInfoDialogCommand ??= new RelayCommand(CloseInfoDialog);
+
+    private IRelayCommand? showStepInfoCommand;
+    private IRelayCommand? closeInfoDialogCommand;
 
     public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog)
     {
@@ -254,12 +289,16 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             new() { Id = "NVMePerformance", Name = "NVMe performance", Description = "Place a fixed pagefile on the fastest drive with a 3x headroom ceiling.", DefaultDrive = "C:", DefaultInitialMb = 4096, DefaultMaxMb = 16384 },
             new() { Id = "CustomFixed", Name = "Custom fixed", Description = "Use the fields below to define initial and max size explicitly.", DefaultDrive = "C:" }
         };
+        SelectedPagefilePreset = PagefilePresets.FirstOrDefault(p => string.Equals(p.Id, SelectedPagefilePresetId, StringComparison.OrdinalIgnoreCase))
+                                 ?? PagefilePresets.FirstOrDefault();
         SchedulerPresets = new ObservableCollection<SchedulerPresetOption>
         {
             new() { Id = "Balanced", Name = "Balanced", Description = "Normal priority with full-core affinity.", PriorityHint = "Normal" },
             new() { Id = "LatencyBoost", Name = "Latency boost", Description = "High priority across all cores for foreground apps.", PriorityHint = "High" },
             new() { Id = "Efficiency", Name = "Efficiency", Description = "Lower priority on first-half cores to save thermals.", PriorityHint = "BelowNormal" }
         };
+        SelectedSchedulerPreset = SchedulerPresets.FirstOrDefault(p => string.Equals(p.Id, SelectedSchedulerPresetId, StringComparison.OrdinalIgnoreCase))
+                                  ?? SchedulerPresets.FirstOrDefault();
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         EnableUltimatePlanCommand = new AsyncRelayCommand(EnableUltimatePlanAsync, () => !IsBusy);
@@ -290,6 +329,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         DetectAutoTuneCommand = new AsyncRelayCommand(DetectAutoTuneAsync, () => !IsBusy);
         StartAutoTuneCommand = new AsyncRelayCommand(StartAutoTuneAsync, () => !IsBusy);
         StopAutoTuneCommand = new AsyncRelayCommand(StopAutoTuneAsync, () => !IsBusy);
+        ShowStatusCommand = new RelayCommand(ShowStatus);
     }
 
     partial void OnIsBusyChanged(bool value)
@@ -334,13 +374,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            var vbsMessage = VbsStatusMessage;
-            var vbsSuccess = IsVbsSuccess;
-            var vbsTimestamp = VbsStatusTimestamp;
-            var etwMessage = EtwStatusMessage;
-            var etwSuccess = IsEtwSuccess;
-            var etwTimestamp = EtwStatusTimestamp;
-
             var existingServiceMessage = ServiceStatusMessage;
             var existingServiceSuccess = IsServiceSuccess;
 
@@ -350,12 +383,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             PowerPlanDetails = string.IsNullOrWhiteSpace(plan.ActiveSchemeName)
                 ? "Unable to read current scheme."
                 : $"{plan.ActiveSchemeName} ({plan.ActiveSchemeId ?? "unknown GUID"})";
-            LastPowerPlanBackupPath = plan.LastBackupPath;
-            HasPowerPlanBackup = !string.IsNullOrWhiteSpace(plan.LastBackupPath);
+            LastPowerPlanBackupPath = plan.LastBackupPath ?? string.Empty;
+            HasPowerPlanBackup = !string.IsNullOrWhiteSpace(LastPowerPlanBackupPath);
             PowerPlanStatusMessage = plan.IsUltimateActive
                 ? "Ultimate Performance is active"
                 : (!string.IsNullOrWhiteSpace(plan.ActiveSchemeName) ? $"Active: {plan.ActiveSchemeName}" : "Active plan detected");
-            IsPowerPlanSuccess = true;
+            IsPowerPlanSuccess = plan.IsUltimateActive;
             PowerPlanStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
 
             var services = _service.GetServiceSlimmingStatus();
@@ -365,8 +398,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             ServicesDetails = services.LastBackupPath is null
                 ? "Apply a template to create a baseline backup."
                 : $"Latest backup: {Path.GetFileName(services.LastBackupPath)}";
-            LastServiceBackupPath = services.LastBackupPath;
-            HasServiceBackup = !string.IsNullOrWhiteSpace(services.LastBackupPath);
+            LastServiceBackupPath = services.LastBackupPath ?? string.Empty;
+            HasServiceBackup = !string.IsNullOrWhiteSpace(LastServiceBackupPath);
             if (HasServiceBackup)
             {
                 // Preserve the last action message (e.g., the template applied) instead of overwriting it with a generic backup note.
@@ -374,7 +407,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                     && !string.Equals(existingServiceMessage, "No service actions run yet.", StringComparison.OrdinalIgnoreCase);
                 ServiceStatusMessage = hasCustomMessage
                     ? existingServiceMessage
-                    : $"Backup: {Path.GetFileName(services.LastBackupPath)}";
+                    : $"Backup: {Path.GetFileName(LastServiceBackupPath)}";
                 IsServiceSuccess = existingServiceSuccess || HasServiceBackup;
             }
             else
@@ -402,8 +435,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             IsKernelSuccess = kernelStatus.IsRecommended;
             KernelStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
 
+            var vbsResult = await _service.DetectVbsHvciAsync().ConfigureAwait(true);
+            HandleVbsResult("PerformanceLab", "VBS/HVCI status captured", vbsResult);
+
             var pagefileResult = await _service.DetectPagefileAsync().ConfigureAwait(true);
             HandlePagefileResult("PerformanceLab", "Pagefile status detected", pagefileResult);
+
+            var etwResult = await _service.DetectEtwTracingAsync().ConfigureAwait(true);
+            HandleEtwResult("PerformanceLab", "ETW sessions inspected", etwResult);
 
             var schedulerResult = await _service.DetectSchedulerAffinityAsync().ConfigureAwait(true);
             HandleSchedulerResult("PerformanceLab", "Scheduler state captured", schedulerResult);
@@ -413,14 +452,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
             var autoTuneResult = await _service.DetectAutoTuneAsync().ConfigureAwait(true);
             HandleAutoTuneResult("PerformanceLab", "Auto-tune loop inspected", autoTuneResult);
-
-            // Preserve VBS/HVCI and ETW status across refresh; these steps are not re-run during a refresh.
-            VbsStatusMessage = vbsMessage;
-            IsVbsSuccess = vbsSuccess;
-            VbsStatusTimestamp = vbsTimestamp;
-            EtwStatusMessage = etwMessage;
-            IsEtwSuccess = etwSuccess;
-            EtwStatusTimestamp = etwTimestamp;
         }
         finally
         {
@@ -685,6 +716,66 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         }).ConfigureAwait(false);
     }
 
+    private void ShowStatus()
+    {
+        var sb = new StringBuilder();
+        AppendStatus(sb, "Power plan", PowerPlanStatusSimple, PowerPlanStatusMessage);
+        AppendStatus(sb, "Services", ServiceStatusSimple, ServiceStatusMessage);
+        AppendStatus(sb, "Hardware reserved", HardwareStatusSimple, HardwareStatusMessage);
+        AppendStatus(sb, "Kernel & boot", KernelStatusSimple, KernelStatusMessage);
+        AppendStatus(sb, "Core Isolation (VBS/HVCI)", VbsStatusSimple, VbsStatusMessage);
+        AppendStatus(sb, "ETW tracing", EtwStatusSimple, EtwStatusMessage);
+        AppendStatus(sb, "Pagefile", PagefileStatusSimple, PagefileStatusMessage);
+        AppendStatus(sb, "Scheduler & affinity", SchedulerStatusSimple, SchedulerStatusMessage);
+        AppendStatus(sb, "DirectStorage / I/O boosts", DirectStorageStatusSimple, DirectStorageStatusMessage);
+        AppendStatus(sb, "Auto-tune", AutoTuneStatusSimple, AutoTuneStatusMessage);
+
+        var message = sb.ToString().TrimEnd();
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            message = "No status available.";
+        }
+
+        ShowStatusAction?.Invoke(message);
+    }
+
+    private static void AppendStatus(StringBuilder sb, string name, string simple, string detail)
+    {
+        sb.AppendLine($"{name}: {simple}");
+        if (!string.IsNullOrWhiteSpace(detail))
+        {
+            sb.AppendLine($"  {detail}");
+        }
+        sb.AppendLine();
+    }
+
+    private void ShowStepInfo(string? stepId)
+    {
+        var (title, body) = stepId switch
+        {
+            "PowerPlan" => ("Ultimate Performance plan", "Switches to the Ultimate Performance scheme so the CPU stays in higher P-states, parking is disabled, and boost stays aggressive. Expect snappier frame times and fewer downclock dips on AC power. Restore returns your old plan if you want to go back."),
+            "Services" => ("Service templates", "Backs up your service state, then disables telemetry/Xbox/updater services that wake disks or steal CPU. This trims background CPU wakeups and I/O chatter, improving game loads and latency. Restore replays the backup to undo changes."),
+            "Hardware" => ("Hardware reserved memory", "Clears truncatememory/maxmem flags so Windows can address all installed RAM and optionally disables memory compression to cut latency. More usable RAM reduces paging; disabling compression lowers CPU spikes at the cost of slightly higher memory use. Re-run detect after reboot to confirm."),
+            "Kernel" => ("Kernel & boot controls", "Sets BCD flags: disables dynamic tick, enables platform clock, sets stable tscsyncpolicy, and enables linearaddress57 on large-memory systems. These reduce timer jitter and scheduling stalls, helping frametime consistency. Reboot required; Restore removes the BCD tweaks."),
+            "Vbs" => ("Core Isolation (VBS/HVCI)", "Turns VBS/HVCI off for maximum performance or restores it for security. Disabling frees CPU cycles and reduces DPC/interrupt overhead, which can improve gaming latency. Changes persist across boots; reboot to take effect."),
+            "Etw" => ("ETW tracing cleanup", "Enumerates running ETW sessions and stops noisy loggers that keep disks busy or hit the CPU. This lowers background I/O and context switches, which can smooth frametimes. Restore restarts the allowlisted baseline; you can re-detect to verify."),
+            "Pagefile" => ("Pagefile presets", "Detects your pagefile and applies system-managed, NVMe fixed, or custom sizes. Right-sizing on a fast drive cuts paging stalls; an optional working-set sweep frees RAM after apply. Status shows drive/size so you can verify the layout."),
+            "Scheduler" => ("Scheduler & affinity", "Applies priority/affinity masks to listed processes (dwm, explorer, games) so UI threads stay responsive and workloads stick to intended cores. This reduces contention and stutter; Restore resets masks to Normal on all cores."),
+            "DirectStorage" => ("DirectStorage / I/O boosts", "Checks NVMe/GPU readiness signals; if enabled, boosts I/O and thread priority for foreground apps so asset streaming hits disks/CPUs faster. Rollback clears the boosts. Detection results stay visible so you know when it is safe."),
+            "AutoTune" => ("Auto-tune loop", "Runs a watcher that detects your listed games/launchers and auto-applies the chosen scheduler preset, then logs before/after. This keeps game processes prioritized the moment they start. Stop & revert ends the watcher and restores defaults."),
+            _ => ("Performance Lab", "Quick explanation for this step is not available. Please try again or refresh."),
+        };
+
+        InfoDialogTitle = title;
+        InfoDialogBody = body;
+        IsInfoDialogVisible = true;
+    }
+
+    private void CloseInfoDialog()
+    {
+        IsInfoDialogVisible = false;
+    }
+
     private async Task RunOperationAsync(Func<Task> action)
     {
         if (IsBusy)
@@ -710,6 +801,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             _activityLog.LogSuccess(source, successMessage, BuildDetails(result));
             PowerPlanStatusMessage = successMessage;
             IsPowerPlanSuccess = true;
+            IsUltimateActive = true;
             PowerPlanStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
         }
         else
@@ -969,6 +1061,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             return;
         }
 
+        SelectedPagefilePreset = preset;
         TargetPagefileDrive = preset.DefaultDrive;
         if (preset.DefaultInitialMb.HasValue)
         {
@@ -979,5 +1072,96 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         {
             PagefileMaxMb = preset.DefaultMaxMb.Value;
         }
+    }
+
+    partial void OnSelectedPagefilePresetChanged(PagefilePresetOption? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        SelectedPagefilePresetId = value.Id;
+    }
+
+    partial void OnSelectedSchedulerPresetIdChanged(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var preset = SchedulerPresets.FirstOrDefault(p => string.Equals(p.Id, value, StringComparison.OrdinalIgnoreCase));
+        if (preset is null)
+        {
+            return;
+        }
+
+        SelectedSchedulerPreset = preset;
+    }
+
+    partial void OnSelectedSchedulerPresetChanged(SchedulerPresetOption? value)
+    {
+        if (value is null)
+        {
+            return;
+        }
+
+        SelectedSchedulerPresetId = value.Id;
+    }
+
+    partial void OnIsUltimateActiveChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PowerPlanStatusSimple));
+    }
+
+    partial void OnIsPowerPlanSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PowerPlanStatusSimple));
+    }
+
+    partial void OnIsServiceSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ServiceStatusSimple));
+    }
+
+    partial void OnIsHardwareSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(HardwareStatusSimple));
+    }
+
+    partial void OnIsKernelSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(KernelStatusSimple));
+    }
+
+    partial void OnIsVbsSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(VbsStatusSimple));
+    }
+
+    partial void OnIsEtwSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(EtwStatusSimple));
+    }
+
+    partial void OnIsPagefileSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(PagefileStatusSimple));
+    }
+
+    partial void OnIsSchedulerSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(SchedulerStatusSimple));
+    }
+
+    partial void OnIsDirectStorageSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(DirectStorageStatusSimple));
+    }
+
+    partial void OnIsAutoTuneSuccessChanged(bool value)
+    {
+        OnPropertyChanged(nameof(AutoTuneStatusSimple));
     }
 }

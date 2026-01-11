@@ -312,30 +312,7 @@
 
                         <StackPanel>
                             <TextBlock Text="Performance Lab" Style="{StaticResource HeroTitleTextStyle}" FontSize="22" />
-                            <TextBlock Margin="0,6,0,0" Text="Guided, high-impact performance tweaks with built-in backups and safe rollbacks." Style="{StaticResource HeroBodyTextStyle}" />
-
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                                <Border Style="{StaticResource ChipStyle}" Background="#0E243D" BorderBrush="#1F3652">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Plan" Foreground="#A5F3FC" FontWeight="SemiBold" />
-                                        <TextBlock Margin="6,0,0,0" Text="status" Foreground="#A5F3FC" />
-                                        <TextBlock Margin="10,0,0,0" Text="•" Foreground="#334155" />
-                                        <TextBlock Margin="6,0,0,0" Text="{Binding PowerPlanHeadline}" Foreground="{StaticResource PerfHeroTitleBrush}" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource ChipStyle}" Background="#221A0F" BorderBrush="#3A2A1A">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Service backup" Foreground="#FACC15" FontWeight="SemiBold" />
-                                        <TextBlock Margin="8,0,0,0" Text="{Binding ServicesDetails}" Foreground="{StaticResource PerfHeroTitleBrush}" />
-                                    </StackPanel>
-                                </Border>
-                                <Border Style="{StaticResource ChipStyle}" Background="#0F2A1D" BorderBrush="#1F3A2C">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Guarded tweaks" Foreground="#6EE7B7" FontWeight="SemiBold" />
-                                        <TextBlock Margin="8,0,0,0" Text="Built-in rollbacks" Foreground="{StaticResource PerfHeroTitleBrush}" />
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
+                            <TextBlock Margin="0,6,0,0" Text="10-step performance stack: power, services, memory, kernel, security, tracing, storage, scheduler, and auto-tune—each with backups and rollbacks." Style="{StaticResource HeroBodyTextStyle}" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -345,6 +322,7 @@
                                     <TextBlock Text="Working..." Margin="8,0,0,0" Foreground="#E5E7EB" FontSize="12" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <Button Content="Refresh" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RefreshCommand}" Margin="0,0,10,0" />
+                                <Button Content="Show status" Style="{StaticResource OutlineButtonStyle}" Command="{Binding ShowStatusCommand}" Margin="0,0,10,0" />
                                 <Border Padding="10,8" CornerRadius="12" Background="#102033" BorderBrush="#1F2E46" BorderThickness="1">
                                     <TextBlock Text="Guarded tweaks only" Foreground="#C6D4EE" FontSize="12" />
                                 </Border>
@@ -354,35 +332,7 @@
                     </Grid>
                 </Border>
 
-                <Border Style="{StaticResource CardStyle}" Background="{StaticResource PerfCardOverlayBrush}" BorderBrush="#1D2A3D" Padding="16" CornerRadius="14" Margin="0,16,0,16">
-                    <StackPanel>
-                        <TextBlock Text="Feature walk-through" Style="{StaticResource SectionHeaderTextStyle}" />
-                        <TextBlock Margin="0,4,0,10" Text="Step through the guarded features in order to keep changes contained." Style="{StaticResource SubtleCaptionTextStyle}" />
-                        <UniformGrid Columns="3" Rows="1" Margin="0,4,0,0">
-                            <Border Style="{StaticResource ChipStyle}" Background="#0F1C2F" BorderBrush="#1F2E46" Padding="14">
-                                <StackPanel>
-                                    <TextBlock Text="01" Foreground="{StaticResource PerfAccentBrush}" FontWeight="Bold" />
-                                    <TextBlock Text="Power plan" Foreground="#E5E7EB" FontWeight="SemiBold" />
-                                    <TextBlock Text="Enable Ultimate Performance with an auto-backup." Style="{StaticResource SubtleCaptionTextStyle}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource ChipStyle}" Background="#0F1C2F" BorderBrush="#1F2E46" Padding="14">
-                                <StackPanel>
-                                    <TextBlock Text="02" Foreground="#A5B4FC" FontWeight="Bold" />
-                                    <TextBlock Text="Service templates" Foreground="#E5E7EB" FontWeight="SemiBold" />
-                                    <TextBlock Text="Disable noisy services; restore with snapshots." Style="{StaticResource SubtleCaptionTextStyle}" />
-                                </StackPanel>
-                            </Border>
-                            <Border Style="{StaticResource ChipStyle}" Background="#0F1C2F" BorderBrush="#1F2E46" Padding="14">
-                                <StackPanel>
-                                    <TextBlock Text="03" Foreground="#F472B6" FontWeight="Bold" />
-                                    <TextBlock Text="Rollback ready" Foreground="#E5E7EB" FontWeight="SemiBold" />
-                                    <TextBlock Text="Every change writes a backup you can roll back to." Style="{StaticResource SubtleCaptionTextStyle}" />
-                                </StackPanel>
-                            </Border>
-                        </UniformGrid>
-                    </StackPanel>
-                </Border>
+                <!-- Feature walk-through removed for a cleaner layout -->
 
                 <Border Style="{StaticResource CardStyle}">
                     <StackPanel>
@@ -391,6 +341,12 @@
                                 <TextBlock Text="Step 1" Foreground="{StaticResource PerfAccentBrush}" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Power plan" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="PowerPlan" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="{Binding PowerPlanDetails}" Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -411,10 +367,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource StatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding PowerPlanStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding PowerPlanStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding PowerPlanStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -427,6 +380,12 @@
                                 <TextBlock Text="Step 2" Foreground="#A5B4FC" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Service templates" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="Services" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Disable telemetry, Xbox, and other consumer services with reversible templates." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -479,10 +438,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource ServiceStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding ServiceStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding ServiceStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding ServiceStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -495,6 +451,12 @@
                                 <TextBlock Text="Step 3" Foreground="#F97316" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Hardware reserved memory" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="Hardware" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Detect misreported RAM, clear truncatememory/maxmem flags, and control memory compression." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -513,10 +475,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource HardwareStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding HardwareStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding HardwareStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding HardwareStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -529,6 +488,12 @@
                                 <TextBlock Text="Step 4" Foreground="#22D3EE" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Kernel &amp; boot controls" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="Kernel" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Apply timer and boot tweaks with restore-point gating: dynamic tick, platform clock, tscsyncpolicy, and linearaddress57." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -546,10 +511,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource KernelStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding KernelStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding KernelStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding KernelStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -562,6 +524,12 @@
                                 <TextBlock Text="Step 5" Foreground="#2DD4BF" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Core Isolation (VBS/HVCI)" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="Vbs" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Detect Core Isolation status, disable VBS/HVCI for benchmarking, or restore defaults for security." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -580,10 +548,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource VbsStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding VbsStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding VbsStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding VbsStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -596,6 +561,12 @@
                                 <TextBlock Text="Step 6" Foreground="#60A5FA" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="ETW tracing cleanup" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="Etw" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Inspect active ETW sessions, stop noisy traces in tiers, and restore defaults from baseline." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -615,10 +586,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource EtwStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding EtwStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding EtwStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding EtwStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -631,6 +599,12 @@
                                 <TextBlock Text="Step 7" Foreground="#C084FC" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Pagefile &amp; memory deep-tuning" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="Pagefile" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Move the pagefile to a fast drive, set fixed sizes, or sweep working sets. Defaults remain system-managed." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -638,10 +612,16 @@
                             <ComboBox Width="220"
                                       Margin="0,0,8,0"
                                       ItemsSource="{Binding PagefilePresets}"
-                                      DisplayMemberPath="Name"
-                                      SelectedValuePath="Id"
-                                      SelectedValue="{Binding SelectedPagefilePresetId, Mode=TwoWay}"
-                                      ToolTip="Choose a pagefile preset" />
+                                      SelectedItem="{Binding SelectedPagefilePreset, Mode=TwoWay}"
+                                      TextSearch.TextPath="Name"
+                                      IsEditable="False"
+                                      ToolTip="Choose a pagefile preset">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                             <Button Content="Detect pagefile" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectPagefileCommand}" Margin="0,0,8,0" />
                             <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyPagefilePresetCommand}" Margin="0,0,8,0" />
                             <Button Content="Sweep working sets" Style="{StaticResource OutlineButtonStyle}" Command="{Binding SweepWorkingSetsCommand}" />
@@ -670,8 +650,14 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="1" Orientation="Vertical">
-                                <CheckBox Content="Run working-set sweep after apply" IsChecked="{Binding RunWorkingSetSweep, Mode=TwoWay}" Foreground="#E5E7EB" />
-                                <CheckBox Content="Include pinned/always-on apps in sweep" IsChecked="{Binding SweepPinnedApps, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,6,0,0" />
+                                <CheckBox Content="Run working-set sweep after apply"
+                                          IsChecked="{Binding RunWorkingSetSweep, Mode=TwoWay}"
+                                          Foreground="#E5E7EB"
+                                          Margin="0,8,0,4" />
+                                <CheckBox Content="Include pinned/always-on apps in sweep"
+                                          IsChecked="{Binding SweepPinnedApps, Mode=TwoWay}"
+                                          Foreground="#E5E7EB"
+                                          Margin="0,0,0,6" />
                                 <TextBlock Text="System-managed is safest for most devices; fixed sizes work best on fast NVMe drives." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
                             </StackPanel>
                         </Grid>
@@ -687,10 +673,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource PagefileStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding PagefileStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding PagefileStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding PagefileStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -703,6 +686,12 @@
                                 <TextBlock Text="Step 8" Foreground="#F59E0B" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Scheduler &amp; affinity toolbox" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="Scheduler" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Apply CPU priority/affinity presets to selected processes and capture masks for inspection." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -710,9 +699,15 @@
                             <ComboBox Width="220"
                                       Margin="0,0,8,0"
                                       ItemsSource="{Binding SchedulerPresets}"
-                                      DisplayMemberPath="Name"
-                                      SelectedValuePath="Id"
-                                      SelectedValue="{Binding SelectedSchedulerPresetId, Mode=TwoWay}" />
+                                      SelectedItem="{Binding SelectedSchedulerPreset, Mode=TwoWay}"
+                                      TextSearch.TextPath="Name"
+                                      IsEditable="False">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                             <TextBox Width="220" Margin="0,0,8,0" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Text="{Binding SchedulerProcessNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Process names separated by semicolon (e.g., dwm;explorer)" />
                             <Button Content="Detect scheduler" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectSchedulerCommand}" Margin="0,0,8,0" />
                             <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplySchedulerPresetCommand}" Margin="0,0,8,0" />
@@ -728,10 +723,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource SchedulerStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding SchedulerStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding SchedulerStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding SchedulerStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -744,6 +736,12 @@
                                 <TextBlock Text="Step 9" Foreground="#38BDF8" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="DirectStorage readiness &amp; I/O boosts" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="DirectStorage" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Check NVMe/GPU readiness for DirectStorage, then optionally lift I/O and thread priorities with a safe rollback." Style="{StaticResource SubtleCaptionTextStyle}" />
 
@@ -767,10 +765,7 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource DirectStorageStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding DirectStorageStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding DirectStorageStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding DirectStorageStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
@@ -783,12 +778,29 @@
                                 <TextBlock Text="Step 10" Foreground="#A78BFA" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Monitoring &amp; auto-tune loop" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Button Content="Info"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Padding="10,4"
+                                    Margin="8,0,0,0"
+                                    Command="{Binding ShowStepInfoCommand}"
+                                    CommandParameter="AutoTune" />
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Watch for gaming apps, apply a preset automatically, log deltas, and revert in one click." Style="{StaticResource SubtleCaptionTextStyle}" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <TextBox Width="240" Margin="0,0,8,0" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Text="{Binding AutoTuneProcessNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Process names separated by semicolon (e.g., steam;game.exe)" />
-                            <ComboBox Width="200" Margin="0,0,8,0" ItemsSource="{Binding SchedulerPresets}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding AutoTunePresetId, Mode=TwoWay}" />
+                            <ComboBox Width="200"
+                                      Margin="0,0,8,0"
+                                      ItemsSource="{Binding SchedulerPresets}"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding AutoTunePresetId, Mode=TwoWay}"
+                                      TextSearch.TextPath="Name">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Name}" />
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
                             <Button Content="Detect monitor" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectAutoTuneCommand}" Margin="0,0,8,0" />
                             <Button Content="Start monitor" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartAutoTuneCommand}" Margin="0,0,8,0" />
                             <Button Content="Stop &amp; revert" Style="{StaticResource OutlineButtonStyle}" Command="{Binding StopAutoTuneCommand}" />
@@ -803,15 +815,63 @@
 
                         <WrapPanel Margin="0,10,0,0">
                             <Border Style="{StaticResource AutoTuneStatusChipStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="{Binding AutoTuneStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                                    <TextBlock Text="{Binding AutoTuneStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
-                                </StackPanel>
+                                <TextBlock Text="{Binding AutoTuneStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                             </Border>
                         </WrapPanel>
                     </StackPanel>
                 </Border>
             </StackPanel>
         </ScrollViewer>
+
+        <Grid Panel.ZIndex="9"
+              Background="#B0020617"
+              Visibility="{Binding IsInfoDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsInfoDialogVisible}">
+            <Border MaxWidth="720"
+                    Margin="32"
+                    Padding="26"
+                    Background="#0B1729"
+                    BorderBrush="#24344F"
+                    BorderThickness="1"
+                    CornerRadius="22"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="{Binding InfoDialogTitle}"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="#F8FAFC"
+                               TextWrapping="Wrap" />
+
+                    <ScrollViewer Grid.Row="1"
+                                  Margin="0,16,0,0"
+                                  MaxHeight="420"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock Text="{Binding InfoDialogBody}"
+                                   Foreground="#C5D2EA"
+                                   FontSize="13"
+                                   TextWrapping="Wrap" />
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,18,0,0">
+                        <Button Content="Close"
+                                Command="{Binding CloseInfoDialogCommand}"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                Padding="14,6"
+                                MinWidth="120" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </Page>

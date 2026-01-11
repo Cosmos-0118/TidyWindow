@@ -13,6 +13,7 @@ public partial class PerformanceLabPage : Page
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;
+        _viewModel.ShowStatusAction = message => System.Windows.MessageBox.Show(message, "Current performance status", MessageBoxButton.OK, MessageBoxImage.Information);
         Loaded += OnLoaded;
     }
 

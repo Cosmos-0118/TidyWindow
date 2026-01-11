@@ -449,6 +449,15 @@ public sealed class PerformanceLabService : IPerformanceLabService
         }
 
         var isUltimate = guid is not null && guid.Equals(UltimateGuid, StringComparison.OrdinalIgnoreCase);
+        if (!isUltimate && !string.IsNullOrWhiteSpace(name))
+        {
+            var normalized = name.Trim();
+            if (normalized.Contains("ultimate", StringComparison.OrdinalIgnoreCase)
+                && normalized.Contains("performance", StringComparison.OrdinalIgnoreCase))
+            {
+                isUltimate = true;
+            }
+        }
         return new PowerPlanStatus(guid, name, isUltimate, GetPowerPlanStatePath());
     }
 
