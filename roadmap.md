@@ -181,7 +181,7 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 [x] Step 13.4: Implement Kernel & Boot controls beyond existing HPET toggle: dynamic tick on/off, platform clock toggle, `tscsyncpolicy` presets, and `linearaddress57` for >128GB rigs, all behind restore-point gating.
 [x] Step 13.5: Add VBS/HVCI off-ramp with detection (Core Isolation status), registry + `bcdedit /set hypervisorlaunchtype off` apply, reboot planner, and clear warnings when unsupported hardware is detected.
 [x] Step 13.6: Build ETW tracing purge/reseal flow: list active ETW sessions/providers, allow stop/cleanup with safety tiers, and provide a one-click “re-enable defaults” button to avoid losing diagnostics.
-[ ] Step 13.7: Deliver Pagefile & Memory deep-tuning: move pagefile to NVMe with size presets, expose EmptyWorkingSet sweep (opt-out for pinned apps), and warn when system-managed is safer.
-[ ] Step 13.8: Add Scheduler & Affinity toolbox: process affinity templates, ideal-node selection, I/O and CPU priority presets, and a compact stress/benchmark harness for validation; support per-app presets saved to disk.
-[ ] Step 13.9: Wire DirectStorage & I/O readiness checks (NVMe, GPU, driver) with optional I/O priority boost and thread priority boost toggles plus rollbacks.
-[ ] Step 13.10: Build Monitoring & Auto-Tune loop: lightweight WMI/ETW sampler that triggers defined presets when gaming apps are detected, logs deltas to Activity Log, and exposes quick revert.
+[x] Step 13.7: Deliver Pagefile & Memory deep-tuning: move pagefile to NVMe with size presets, expose EmptyWorkingSet sweep (opt-out for pinned apps), and warn when system-managed is safer.
+[x] Step 13.8: Add Scheduler & Affinity toolbox: process affinity templates, ideal-node selection, I/O and CPU priority presets, and a compact stress/benchmark harness for validation; support per-app presets saved to disk.
+[x] Step 13.9: Wire DirectStorage & I/O readiness checks (NVMe, GPU, driver) with optional I/O priority boost and thread priority boost toggles plus rollbacks.
+[x] Step 13.10: Build Monitoring & Auto-Tune loop: lightweight WMI/ETW sampler that triggers defined presets when gaming apps are detected, logs deltas to Activity Log, and exposes quick revert.

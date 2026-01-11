@@ -147,6 +147,72 @@ public class PerformanceLabViewModelTests
             return Task.FromResult(SuccessResult("mode: RestoreEtw"));
         }
 
+        public Task<PowerShellInvocationResult> DetectDirectStorageAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: DetectDirectStorage"));
+        }
+
+        public Task<PowerShellInvocationResult> ApplyIoPriorityBoostAsync(bool boostIoPriority = true, bool boostThreadPriority = true, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult($"mode: ApplyIoBoost io:{boostIoPriority} threads:{boostThreadPriority}"));
+        }
+
+        public Task<PowerShellInvocationResult> RestoreIoPriorityAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: RestoreIoBoost"));
+        }
+
+        public Task<PowerShellInvocationResult> DetectAutoTuneAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("state: detected"));
+        }
+
+        public Task<PowerShellInvocationResult> StartAutoTuneAsync(string? processNames = null, string? preset = null, CancellationToken cancellationToken = default)
+        {
+            var presetPart = string.IsNullOrWhiteSpace(preset) ? "LatencyBoost" : preset;
+            var procPart = string.IsNullOrWhiteSpace(processNames) ? "none" : processNames;
+            return Task.FromResult(SuccessResult($"start: {presetPart} for {procPart}"));
+        }
+
+        public Task<PowerShellInvocationResult> StopAutoTuneAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: StopAutoTune"));
+        }
+
+        public Task<PowerShellInvocationResult> DetectPagefileAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: DetectPagefile"));
+        }
+
+        public Task<PowerShellInvocationResult> ApplyPagefilePresetAsync(string preset, string? targetDrive = null, int? initialMb = null, int? maxMb = null, bool sweepWorkingSets = false, bool includePinned = false, CancellationToken cancellationToken = default)
+        {
+            var presetPart = string.IsNullOrWhiteSpace(preset) ? "SystemManaged" : preset;
+            var details = $"preset: {presetPart}, drive: {targetDrive ?? "default"}, initial: {initialMb?.ToString() ?? "auto"}, max: {maxMb?.ToString() ?? "auto"}, sweep: {sweepWorkingSets}, pinned: {includePinned}";
+            return Task.FromResult(SuccessResult(details));
+        }
+
+        public Task<PowerShellInvocationResult> SweepWorkingSetsAsync(bool includePinned = false, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult($"mode: SweepWorkingSets (pinned: {includePinned})"));
+        }
+
+        public Task<PowerShellInvocationResult> DetectSchedulerAffinityAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: DetectScheduler"));
+        }
+
+        public Task<PowerShellInvocationResult> ApplySchedulerAffinityAsync(string preset, string? processNames = null, CancellationToken cancellationToken = default)
+        {
+            var presetPart = string.IsNullOrWhiteSpace(preset) ? "Balanced" : preset;
+            var procPart = string.IsNullOrWhiteSpace(processNames) ? "defaults" : processNames;
+            return Task.FromResult(SuccessResult($"mode: ApplyScheduler ({presetPart}) for {procPart}"));
+        }
+
+        public Task<PowerShellInvocationResult> RestoreSchedulerAffinityAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: RestoreScheduler"));
+        }
+
         public Task<PowerShellInvocationResult> DetectHardwareReservedMemoryAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(SuccessResult("mode: Detect"));

@@ -135,6 +135,58 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="PagefileStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsPagefileSuccess}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsPagefileSuccess}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SchedulerStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsSchedulerSuccess}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsSchedulerSuccess}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="DirectStorageStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsDirectStorageSuccess}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsDirectStorageSuccess}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="AutoTuneStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsAutoTuneSuccess}" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsAutoTuneSuccess}" Value="False">
+                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
+                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#07111D" />
             <Setter Property="Padding" Value="14,8" />
@@ -566,6 +618,194 @@
                                 <StackPanel>
                                     <TextBlock Text="{Binding EtwStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
                                     <TextBlock Text="{Binding EtwStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource StepBadgeStyle}">
+                                <TextBlock Text="Step 7" Foreground="#C084FC" FontWeight="Bold" />
+                            </Border>
+                            <TextBlock Text="Pagefile &amp; memory deep-tuning" Style="{StaticResource SectionHeaderTextStyle}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,8" Text="Move the pagefile to a fast drive, set fixed sizes, or sweep working sets. Defaults remain system-managed." Style="{StaticResource SubtleCaptionTextStyle}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <ComboBox Width="220"
+                                      Margin="0,0,8,0"
+                                      ItemsSource="{Binding PagefilePresets}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding SelectedPagefilePresetId, Mode=TwoWay}"
+                                      ToolTip="Choose a pagefile preset" />
+                            <Button Content="Detect pagefile" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectPagefileCommand}" Margin="0,0,8,0" />
+                            <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyPagefilePresetCommand}" Margin="0,0,8,0" />
+                            <Button Content="Sweep working sets" Style="{StaticResource OutlineButtonStyle}" Command="{Binding SweepWorkingSetsCommand}" />
+                        </StackPanel>
+
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0" Orientation="Vertical">
+                                <TextBlock Text="Target drive (e.g., C:)" Foreground="#9CA3AF" FontSize="12" />
+                                <TextBox Text="{Binding TargetPagefileDrive, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Margin="0,6,0,0" />
+                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                    <StackPanel Width="140">
+                                        <TextBlock Text="Initial MB" Foreground="#9CA3AF" FontSize="12" />
+                                        <TextBox Text="{Binding PagefileInitialMb, Mode=TwoWay}" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Width="140" Margin="8,0,0,0">
+                                        <TextBlock Text="Max MB" Foreground="#9CA3AF" FontSize="12" />
+                                        <TextBox Text="{Binding PagefileMaxMb, Mode=TwoWay}" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1" Orientation="Vertical">
+                                <CheckBox Content="Run working-set sweep after apply" IsChecked="{Binding RunWorkingSetSweep, Mode=TwoWay}" Foreground="#E5E7EB" />
+                                <CheckBox Content="Include pinned/always-on apps in sweep" IsChecked="{Binding SweepPinnedApps, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,6,0,0" />
+                                <TextBlock Text="System-managed is safest for most devices; fixed sizes work best on fast NVMe drives." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Presets:" Foreground="#A5F3FC" FontSize="12" />
+                                <TextBlock Text="System managed: Windows sizes automatically." Foreground="#9CA3AF" FontSize="12" />
+                                <TextBlock Text="NVMe performance: fixed file on fast drive with 4–16 GB window." Foreground="#9CA3AF" FontSize="12" />
+                                <TextBlock Text="Custom fixed: uses the fields above." Foreground="#9CA3AF" FontSize="12" />
+                            </StackPanel>
+                        </Border>
+
+                        <WrapPanel Margin="0,10,0,0">
+                            <Border Style="{StaticResource PagefileStatusChipStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PagefileStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding PagefileStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource StepBadgeStyle}">
+                                <TextBlock Text="Step 8" Foreground="#F59E0B" FontWeight="Bold" />
+                            </Border>
+                            <TextBlock Text="Scheduler &amp; affinity toolbox" Style="{StaticResource SectionHeaderTextStyle}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,8" Text="Apply CPU priority/affinity presets to selected processes and capture masks for inspection." Style="{StaticResource SubtleCaptionTextStyle}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <ComboBox Width="220"
+                                      Margin="0,0,8,0"
+                                      ItemsSource="{Binding SchedulerPresets}"
+                                      DisplayMemberPath="Name"
+                                      SelectedValuePath="Id"
+                                      SelectedValue="{Binding SelectedSchedulerPresetId, Mode=TwoWay}" />
+                            <TextBox Width="220" Margin="0,0,8,0" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Text="{Binding SchedulerProcessNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Process names separated by semicolon (e.g., dwm;explorer)" />
+                            <Button Content="Detect scheduler" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectSchedulerCommand}" Margin="0,0,8,0" />
+                            <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplySchedulerPresetCommand}" Margin="0,0,8,0" />
+                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreSchedulerDefaultsCommand}" />
+                        </StackPanel>
+
+                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Latency boost uses High priority with all cores. Efficiency keeps workloads on the first half of cores at lower priority. Provide process names to target running apps only." Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,0" Text="Defaults are untouched unless a process is matched; restore resets masks to full cores and Normal priority." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <WrapPanel Margin="0,10,0,0">
+                            <Border Style="{StaticResource SchedulerStatusChipStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding SchedulerStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding SchedulerStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource StepBadgeStyle}">
+                                <TextBlock Text="Step 9" Foreground="#38BDF8" FontWeight="Bold" />
+                            </Border>
+                            <TextBlock Text="DirectStorage readiness &amp; I/O boosts" Style="{StaticResource SectionHeaderTextStyle}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,8" Text="Check NVMe/GPU readiness for DirectStorage, then optionally lift I/O and thread priorities with a safe rollback." Style="{StaticResource SubtleCaptionTextStyle}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <CheckBox Content="Boost I/O priority" IsChecked="{Binding BoostIoPriority, Mode=TwoWay}" Foreground="#E5E7EB" />
+                            <CheckBox Content="Boost thread priority" IsChecked="{Binding BoostThreadPriority, Mode=TwoWay}" Foreground="#E5E7EB" Margin="12,0,0,0" />
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Detect readiness" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectDirectStorageCommand}" Margin="0,0,8,0" />
+                            <Button Content="Apply boosts" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyIoBoostCommand}" Margin="0,0,8,0" />
+                            <Button Content="Rollback boosts" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreIoDefaultsCommand}" />
+                        </StackPanel>
+
+                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Detection checks for NVMe, GPU, and driver support signals. Boosts raise I/O hints and thread priority for foreground apps; rollback restores defaults." Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,0" Text="Use detection first to confirm readiness before applying any boosts." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <WrapPanel Margin="0,10,0,0">
+                            <Border Style="{StaticResource DirectStorageStatusChipStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding DirectStorageStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding DirectStorageStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
+                                </StackPanel>
+                            </Border>
+                        </WrapPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Style="{StaticResource StepBadgeStyle}">
+                                <TextBlock Text="Step 10" Foreground="#A78BFA" FontWeight="Bold" />
+                            </Border>
+                            <TextBlock Text="Monitoring &amp; auto-tune loop" Style="{StaticResource SectionHeaderTextStyle}" />
+                        </StackPanel>
+                        <TextBlock Margin="0,4,0,8" Text="Watch for gaming apps, apply a preset automatically, log deltas, and revert in one click." Style="{StaticResource SubtleCaptionTextStyle}" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <TextBox Width="240" Margin="0,0,8,0" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Text="{Binding AutoTuneProcessNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Process names separated by semicolon (e.g., steam;game.exe)" />
+                            <ComboBox Width="200" Margin="0,0,8,0" ItemsSource="{Binding SchedulerPresets}" DisplayMemberPath="Name" SelectedValuePath="Id" SelectedValue="{Binding AutoTunePresetId, Mode=TwoWay}" />
+                            <Button Content="Detect monitor" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectAutoTuneCommand}" Margin="0,0,8,0" />
+                            <Button Content="Start monitor" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartAutoTuneCommand}" Margin="0,0,8,0" />
+                            <Button Content="Stop &amp; revert" Style="{StaticResource OutlineButtonStyle}" Command="{Binding StopAutoTuneCommand}" />
+                        </StackPanel>
+
+                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
+                            <StackPanel>
+                                <TextBlock Text="Sampler watches running processes; when a match is found it applies the chosen scheduler preset and writes the before/after to the Activity Log." Foreground="#9CA3AF" FontSize="12" TextWrapping="Wrap" />
+                                <TextBlock Margin="0,4,0,0" Text="Stop &amp; revert ends the watcher and restores defaults captured in the monitor state file." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </Border>
+
+                        <WrapPanel Margin="0,10,0,0">
+                            <Border Style="{StaticResource AutoTuneStatusChipStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding AutoTuneStatusMessage}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding AutoTuneStatusTimestamp}" Foreground="#9CA3AF" FontSize="11" />
                                 </StackPanel>
                             </Border>
                         </WrapPanel>
