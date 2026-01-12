@@ -24,6 +24,8 @@ public sealed class StartupControlService
         _backupStore = backupStore ?? new StartupBackupStore();
     }
 
+    public StartupBackupStore BackupStore => _backupStore;
+
     public SystemTasks.Task<StartupToggleResult> DisableAsync(StartupItem item, CancellationToken cancellationToken = default)
     {
         EnsureElevated();
@@ -203,6 +205,15 @@ public sealed class StartupControlService
 
         var valueName = ExtractValueName(item);
         var backup = _backupStore.Get(item.Id);
+
+        if (backup is null || string.IsNullOrWhiteSpace(backup.RegistryValueData))
+        {
+            var fallback = _backupStore.FindLatestByValueName(valueName);
+            if (fallback is not null)
+            {
+                backup = fallback;
+            }
+        }
 
         try
         {

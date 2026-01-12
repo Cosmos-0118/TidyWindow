@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Runtime.Versioning;
 using System.Security.Principal;
 using System.Threading.Tasks;
 using Microsoft.Win32;
@@ -8,6 +9,7 @@ using Xunit;
 
 namespace TidyWindow.Core.Tests;
 
+[SupportedOSPlatform("windows")]
 public sealed class StartupControlServiceTests
 {
     [Fact]

@@ -169,7 +169,7 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 
 ## Driver Updates Experience (retired)
 
-> Removed in November 2025 due to inconsistent automation output and low usage. Scripts remain archived in `automation/essentials/driver-update-detect.ps1` for future experimentation, but the WPF surface and related services have been dropped from the product plan.
+> Removed in November 2025 due to inconsistent automation output and low usage.
 
 ## Performance Lab (Advanced Tweaks)
 

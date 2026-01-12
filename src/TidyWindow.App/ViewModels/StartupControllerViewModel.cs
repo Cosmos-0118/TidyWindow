@@ -95,7 +95,6 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private readonly StartupDelayService _delay;
     private readonly ActivityLogService _activityLog;
     private readonly UserPreferencesService _preferences;
-    private readonly StartupBackupStore _backupStore = new();
     private readonly StartupGuardService _guardService;
     private readonly List<StartupEntryItemViewModel> _filteredEntries = new();
 
@@ -231,6 +230,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 entry.IsAutoGuardEnabled = guarded.Contains(entry.Item.Id, StringComparer.OrdinalIgnoreCase);
             }
 
+            CacheRunBackups(mapped);
             await AutoReDisableAsync(mapped).ConfigureAwait(true);
             Entries = new ObservableCollection<StartupEntryItemViewModel>(mapped);
             BaselineDisabledCount = mapped.Count(item => !item.IsEnabled);
@@ -244,6 +244,113 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             }
             IsBusy = false;
         }
+    }
+
+    private void CacheRunBackups(IEnumerable<StartupEntryItemViewModel> entries)
+    {
+        foreach (var entry in entries)
+        {
+            var item = entry.Item;
+            if (item.SourceKind is not (StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce))
+            {
+                continue;
+            }
+
+            if (_control.BackupStore.Get(item.Id) is not null)
+            {
+                continue; // Backup already exists (likely from a prior disable action).
+            }
+
+            if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+            {
+                continue;
+            }
+
+            var valueName = ExtractValueName(item);
+            var data = item.RawCommand ?? BuildCommand(item.ExecutablePath, item.Arguments);
+
+            if (string.IsNullOrWhiteSpace(valueName) || string.IsNullOrWhiteSpace(data))
+            {
+                continue;
+            }
+
+            var backup = new StartupEntryBackup(
+                item.Id,
+                item.SourceKind,
+                root,
+                subKey,
+                valueName,
+                data,
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+
+            _control.BackupStore.Save(backup);
+        }
+    }
+
+    private static bool TryParseRegistryLocation(string? location, out string rootName, out string subKey)
+    {
+        rootName = string.Empty;
+        subKey = string.Empty;
+
+        if (string.IsNullOrWhiteSpace(location))
+        {
+            return false;
+        }
+
+        var parts = location.Split(new[] { '\\' }, 2, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+        {
+            return false;
+        }
+
+        rootName = parts[0].ToUpperInvariant() switch
+        {
+            "HKCU" or "HKEY_CURRENT_USER" => "HKCU",
+            "HKLM" or "HKEY_LOCAL_MACHINE" => "HKLM",
+            _ => parts[0]
+        };
+
+        subKey = parts[1];
+        return true;
+    }
+
+    private static string ExtractValueName(StartupItem item)
+    {
+        if (!string.IsNullOrWhiteSpace(item.Id) && item.Id.Contains(':', StringComparison.Ordinal))
+        {
+            return item.Id[(item.Id.LastIndexOf(':') + 1)..];
+        }
+
+        if (!string.IsNullOrWhiteSpace(item.Name))
+        {
+            return item.Name;
+        }
+
+        return "StartupItem";
+    }
+
+    private static string BuildCommand(string executablePath, string? arguments)
+    {
+        if (string.IsNullOrWhiteSpace(executablePath))
+        {
+            return string.Empty;
+        }
+
+        if (string.IsNullOrWhiteSpace(arguments))
+        {
+            return executablePath;
+        }
+
+        return executablePath.Contains(' ', StringComparison.Ordinal)
+            ? $"\"{executablePath}\" {arguments}"
+            : $"{executablePath} {arguments}";
     }
 
     private async Task ToggleAsync(StartupEntryItemViewModel? item)
@@ -271,8 +378,9 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 item.UpdateFrom(result.Item);
                 _activityLog.LogSuccess(
                     "StartupController",
-                    $"{(result.Item.IsEnabled ? "Enabled" : "Disabled")} {result.Item.Name}",
-                    BuildToggleDetails(result));
+                    BuildActionMessage(result.Item, result.Item.IsEnabled ? "Enabled" : "Disabled"),
+                    BuildUserFacingDetails(result));
+                RefreshAfterStateChange();
             }
             else
             {
@@ -311,8 +419,9 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 item.UpdateFrom(result.Item);
                 _activityLog.LogSuccess(
                     "StartupController",
-                    $"Enabled {result.Item.Name}",
-                    BuildToggleDetails(result));
+                    BuildActionMessage(result.Item, "Enabled"),
+                    BuildUserFacingDetails(result));
+                RefreshAfterStateChange();
             }
             else
             {
@@ -351,8 +460,9 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 item.UpdateFrom(result.Item);
                 _activityLog.LogSuccess(
                     "StartupController",
-                    $"Disabled {result.Item.Name}",
-                    BuildToggleDetails(result));
+                    BuildActionMessage(result.Item, "Disabled"),
+                    BuildUserFacingDetails(result));
+                RefreshAfterStateChange();
             }
             else
             {
@@ -372,6 +482,47 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         finally
         {
             item.IsBusy = false;
+        }
+    }
+
+    private void RefreshAfterStateChange()
+    {
+        RefreshVisibleCounters();
+        RefreshCommandStates();
+        RefreshPagedEntries(raisePageChanged: false);
+    }
+
+    private static string BuildActionMessage(StartupItem item, string action)
+    {
+        var name = string.IsNullOrWhiteSpace(item.Name) ? "(unnamed)" : item.Name;
+        var source = string.IsNullOrWhiteSpace(item.SourceTag) ? item.SourceKind.ToString() : item.SourceTag;
+        var context = string.IsNullOrWhiteSpace(item.UserContext) ? "User" : item.UserContext;
+        var location = string.IsNullOrWhiteSpace(item.EntryLocation) ? "(no location)" : item.EntryLocation;
+
+        return $"{action} {name}\nSource: {source} • {context}\nLocation: {location}";
+    }
+
+    private static IEnumerable<object?> BuildUserFacingDetails(StartupToggleResult result)
+    {
+        var item = result.Item;
+        var source = string.IsNullOrWhiteSpace(item.SourceTag) ? item.SourceKind.ToString() : item.SourceTag;
+        var context = string.IsNullOrWhiteSpace(item.UserContext) ? "User" : item.UserContext;
+        var location = string.IsNullOrWhiteSpace(item.EntryLocation) ? "(no location)" : item.EntryLocation;
+        var command = item.RawCommand ?? BuildCommand(item.ExecutablePath, item.Arguments);
+
+        yield return $"Action: {(item.IsEnabled ? "Enabled" : "Disabled")}";
+        yield return $"Name: {(!string.IsNullOrWhiteSpace(item.Name) ? item.Name : "(unnamed)")}";
+        yield return $"Source: {source}";
+        yield return $"User: {context}";
+        yield return $"Location: {location}";
+        if (!string.IsNullOrWhiteSpace(command))
+        {
+            yield return $"Command: {command}";
+        }
+
+        foreach (var detail in BuildToggleDetails(result))
+        {
+            yield return detail;
         }
     }
 

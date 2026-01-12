@@ -53,6 +53,23 @@ public sealed class StartupBackupStore
         }
     }
 
+    public StartupEntryBackup? FindLatestByValueName(string valueName)
+    {
+        if (string.IsNullOrWhiteSpace(valueName))
+        {
+            return null;
+        }
+
+        lock (_lock)
+        {
+            var map = ReadAll();
+            return map.Values
+                .Where(b => string.Equals(b.RegistryValueName, valueName, StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(b => b.CreatedAtUtc)
+                .FirstOrDefault();
+        }
+    }
+
     public void Save(StartupEntryBackup backup)
     {
         if (backup is null)
