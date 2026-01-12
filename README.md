@@ -4,7 +4,7 @@ Windows maintenance companion for builders who prioritize safety, repeatability,
 
 ## At a Glance
 
--   Latest stable: **3.7.3** ([data/catalog/latest-release.json](data/catalog/latest-release.json))
+-   Latest stable: **3.8.2** ([data/catalog/latest-release.json](data/catalog/latest-release.json))
 -   Docs: [docs/](docs)
 -   Roadmap: [roadmap.md](roadmap.md)
 -   Press: [Press-and-Reviews.md](Press-and-Reviews.md)
