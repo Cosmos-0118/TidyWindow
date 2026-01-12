@@ -8,6 +8,10 @@ on:
                 required: false
                 type: string
 
+defaults:
+  run:
+    working-directory: .
+
 jobs:
     build:
         runs-on: windows-latest
@@ -31,17 +35,34 @@ jobs:
               run: dotnet test src/TidyWindow.sln --configuration Release --no-build
 
             - name: Publish packaging snapshot
-              run: dotnet publish src/TidyWindow.App/TidyWindow.App.csproj --configuration Release --runtime win-x64 --self-contained false --no-restore
+              run: |
+                  $repoRoot = $env:GITHUB_WORKSPACE
+                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+                    throw "GITHUB_WORKSPACE is not available."
+                  }
+
+                  $publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
+
+                  dotnet publish src/TidyWindow.App/TidyWindow.App.csproj `
+                    --configuration Release `
+                    --runtime win-x64 `
+                    --self-contained false `
+                    --no-restore `
+                    --output $publishDir
 
             - name: Verify packaged automation assets
               shell: pwsh
               run: |
-                  $publishDir = "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish"
+                  $repoRoot = $env:GITHUB_WORKSPACE
+                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+                    throw "GITHUB_WORKSPACE is not available."
+                  }
+
+                  $publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
                   if (-not (Test-Path $publishDir)) {
                     throw "Publish directory not found: $publishDir"
                   }
 
-                  $repoRoot = (Get-Location).Path
                   $assetRoots = @(
                     @{ Source = Join-Path $repoRoot "automation"; Target = Join-Path $publishDir "automation"; Label = "automation" },
                     @{ Source = Join-Path $repoRoot "data"; Target = Join-Path $publishDir "data"; Label = "data" }
@@ -68,4 +89,3 @@ jobs:
                     $details = $missing | ForEach-Object { " - $_" }
                     throw "Missing packaged assets:`n$($details -join [Environment]::NewLine)"
                   }
-

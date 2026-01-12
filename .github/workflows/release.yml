@@ -5,6 +5,10 @@ on:
         tags:
             - "v*"
 
+defaults:
+  run:
+    working-directory: .
+
 permissions:
     contents: write
 
@@ -69,10 +73,18 @@ jobs:
                     throw "RELEASE_VERSION is not set."
                   }
 
+                  $repoRoot = $env:GITHUB_WORKSPACE
+                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+                    throw "GITHUB_WORKSPACE is not available."
+                  }
+
+                  $publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
+
                   dotnet publish src/TidyWindow.App/TidyWindow.App.csproj `
                     --configuration Release `
                     --runtime win-x64 `
                     --self-contained true `
+                    --output $publishDir `
                     /p:PublishReadyToRun=true `
                     /p:DebugType=None `
                     /p:DebugSymbols=false `
@@ -84,12 +96,16 @@ jobs:
             - name: Verify packaged automation assets
               shell: pwsh
               run: |
-                  $publishDir = "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish"
+                  $repoRoot = $env:GITHUB_WORKSPACE
+                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+                    throw "GITHUB_WORKSPACE is not available."
+                  }
+
+                  $publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
                   if (-not (Test-Path $publishDir)) {
                     throw "Publish directory not found: $publishDir"
                   }
 
-                  $repoRoot = (Get-Location).Path
                   $assetRoots = @(
                     @{ Source = Join-Path $repoRoot "automation"; Target = Join-Path $publishDir "automation"; Label = "automation" },
                     @{ Source = Join-Path $repoRoot "data"; Target = Join-Path $publishDir "data"; Label = "data" }
@@ -120,7 +136,12 @@ jobs:
             - name: Prepare portable bundle
               shell: pwsh
               run: |
-                  $publishDir = "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish"
+                  $repoRoot = $env:GITHUB_WORKSPACE
+                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+                    throw "GITHUB_WORKSPACE is not available."
+                  }
+
+                  $publishDir = Join-Path $repoRoot "artifacts/publish/win-x64"
                   if (-not (Test-Path $publishDir)) {
                     throw "Publish directory not found: $publishDir"
                   }
@@ -142,7 +163,12 @@ jobs:
             - name: Build installer
               shell: pwsh
               run: |
-                  $publishDir = (Resolve-Path "src/TidyWindow.App/bin/Release/net8.0-windows/win-x64/publish").Path
+                  $repoRoot = $env:GITHUB_WORKSPACE
+                  if ([string]::IsNullOrWhiteSpace($repoRoot)) {
+                    throw "GITHUB_WORKSPACE is not available."
+                  }
+
+                  $publishDir = (Resolve-Path (Join-Path $repoRoot "artifacts/publish/win-x64")).Path
                   $version = $env:RELEASE_VERSION
                   $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
                   if (-not (Test-Path $iscc)) {
