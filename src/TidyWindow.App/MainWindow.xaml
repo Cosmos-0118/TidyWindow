@@ -275,29 +275,18 @@
                         </ListBox.ItemContainerStyle>
                         <ListBox.ItemTemplate>
                             <DataTemplate DataType="{x:Type vm:NavigationItemViewModel}">
-                                <StackPanel Margin="16,10">
-                                    <TextBlock Text="{Binding Title}"
+                                <StackPanel Margin="16,10" ToolTipService.ToolTip="{Binding Description}" Orientation="Horizontal">
+                                    <TextBlock Text="{Binding IconGlyph}"
+                                               FontSize="16"
+                                               FontFamily="Segoe MDL2 Assets"
+                                               VerticalAlignment="Center"
+                                               Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}"/>
+                                    <TextBlock Margin="8,0,0,0"
+                                               Text="{Binding Title}"
                                                FontSize="15"
                                                FontFamily="Segoe UI Semibold"
+                                               VerticalAlignment="Center"
                                                Foreground="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=Foreground}"/>
-                                    <TextBlock Text="{Binding Description}"
-                                               FontSize="12"
-                                               TextWrapping="Wrap"
-                                               Margin="0,6,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Foreground"
-                                                        Value="{DynamicResource NavMutedBrush}"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListBoxItem}, Path=IsSelected}"
-                                                                 Value="True">
-                                                        <Setter Property="Foreground"
-                                                                Value="{DynamicResource NavSelectedTextBrush}"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>

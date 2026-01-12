@@ -24,19 +24,19 @@ public sealed partial class MainViewModel : ViewModelBase
 
         NavigationItems = new ObservableCollection<NavigationItemViewModel>
         {
-            new("Bootstrap", "Verify package managers and get ready", typeof(BootstrapPage)),
-            new("Install hub", "Curated package bundles and install queue", typeof(InstallHubPage)),
-            new("Essentials", "Run repair automation quickly", typeof(EssentialsPage)),
-            new("Processes", "Review safe auto-stop recommendations", typeof(KnownProcessesPage)),
-            new("Startup", "Control Run keys, startup folders, tasks, and services", typeof(StartupControllerPage)),
-            new("Performance lab", "10-step stack: power, services, memory, kernel, security, tracing, storage, scheduler, auto-tune", typeof(PerformanceLabPage)),
-            new("PathPilot", "Control runtime precedence and PATH backups", typeof(PathPilotPage)),
-            new("Registry optimizer", "Stage registry defaults safely", typeof(RegistryOptimizerPage)),
-            new("Maintenance", "Review installed packages, updates, and removals", typeof(PackageMaintenancePage)),
-            new("Deep scan", "Scan to surface files fast", typeof(DeepScanPage)),
-            new("Cleanup", "Preview clutter before removing files", typeof(CleanupPage)),
-            new("Logs", "Inspect activity across automation features", typeof(LogsPage)),
-            new("Settings", "Configure preferences and integrations", typeof(SettingsPage))
+            new("Bootstrap", "Verify package managers and get ready", "\uE9D2", typeof(BootstrapPage)),
+            new("Install hub", "Curated package bundles and install queue", "\uE896", typeof(InstallHubPage)),
+            new("Essentials", "Run repair automation quickly", "\uE9ED", typeof(EssentialsPage)),
+            new("Processes", "Review safe auto-stop recommendations", "\uEDA2", typeof(KnownProcessesPage)),
+            new("Startup", "Control Run keys, startup folders, tasks, and services", "\uE7E7", typeof(StartupControllerPage)),
+            new("Performance lab", "Lean 8-step stack: power, services, hardware, kernel, security, tracing, scheduler, auto-tune", "\uE945", typeof(PerformanceLabPage)),
+            new("PathPilot", "Control runtime precedence and PATH backups", "\uE71B", typeof(PathPilotPage)),
+            new("Registry optimizer", "Stage registry defaults safely", "\uE9C3", typeof(RegistryOptimizerPage)),
+            new("Maintenance", "Review installed packages, updates, and removals", "\uE90A", typeof(PackageMaintenancePage)),
+            new("Deep scan", "Scan to surface files fast", "\uE721", typeof(DeepScanPage)),
+            new("Cleanup", "Preview clutter before removing files", "\uE74D", typeof(CleanupPage)),
+            new("Logs", "Inspect activity across automation features", "\uE90E", typeof(LogsPage)),
+            new("Settings", "Configure preferences and integrations", "\uE713", typeof(SettingsPage))
         };
     }
 

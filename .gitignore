@@ -10,3 +10,6 @@ Thumbs.db
 makeitperfect.txt
 .fake
 .venv
+
+# Ignore Windows ETW/perf trace captures that can land in repo root
+*.etl

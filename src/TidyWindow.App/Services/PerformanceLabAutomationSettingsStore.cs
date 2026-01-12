@@ -120,16 +120,9 @@ public sealed class PerformanceLabAutomationSettingsStore
         public bool ApplyKernelPreset { get; set; }
         public bool ApplyVbsDisable { get; set; }
         public bool ApplyEtwCleanup { get; set; }
-        public bool ApplyPagefilePreset { get; set; }
         public bool ApplySchedulerPreset { get; set; }
         public bool ApplyAutoTune { get; set; }
         public string? ServiceTemplateId { get; set; }
-        public string? PagefilePresetId { get; set; }
-        public string? TargetPagefileDrive { get; set; }
-        public int? PagefileInitialMb { get; set; }
-        public int? PagefileMaxMb { get; set; }
-        public bool RunWorkingSetSweep { get; set; }
-        public bool SweepPinnedApps { get; set; }
         public string? SchedulerPresetId { get; set; }
         public string? SchedulerProcessNames { get; set; }
         public string? AutoTuneProcessNames { get; set; }
@@ -145,16 +138,9 @@ public sealed class PerformanceLabAutomationSettingsStore
                 ApplyKernelPreset,
                 ApplyVbsDisable,
                 ApplyEtwCleanup,
-                ApplyPagefilePreset,
                 ApplySchedulerPreset,
                 ApplyAutoTune,
                 ServiceTemplateId ?? "Balanced",
-                PagefilePresetId ?? "SystemManaged",
-                TargetPagefileDrive ?? "C:",
-                PagefileInitialMb,
-                PagefileMaxMb,
-                RunWorkingSetSweep,
-                SweepPinnedApps,
                 SchedulerPresetId ?? "Balanced",
                 SchedulerProcessNames ?? string.Empty,
                 AutoTuneProcessNames ?? string.Empty,
@@ -172,16 +158,9 @@ public sealed class PerformanceLabAutomationSettingsStore
                 ApplyKernelPreset = snapshot.ApplyKernelPreset,
                 ApplyVbsDisable = snapshot.ApplyVbsDisable,
                 ApplyEtwCleanup = snapshot.ApplyEtwCleanup,
-                ApplyPagefilePreset = snapshot.ApplyPagefilePreset,
                 ApplySchedulerPreset = snapshot.ApplySchedulerPreset,
                 ApplyAutoTune = snapshot.ApplyAutoTune,
                 ServiceTemplateId = snapshot.ServiceTemplateId,
-                PagefilePresetId = snapshot.PagefilePresetId,
-                TargetPagefileDrive = snapshot.TargetPagefileDrive,
-                PagefileInitialMb = snapshot.PagefileInitialMb,
-                PagefileMaxMb = snapshot.PagefileMaxMb,
-                RunWorkingSetSweep = snapshot.RunWorkingSetSweep,
-                SweepPinnedApps = snapshot.SweepPinnedApps,
                 SchedulerPresetId = snapshot.SchedulerPresetId,
                 SchedulerProcessNames = snapshot.SchedulerProcessNames,
                 AutoTuneProcessNames = snapshot.AutoTuneProcessNames,

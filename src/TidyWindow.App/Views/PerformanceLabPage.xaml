@@ -135,19 +135,6 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="PagefileStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsPagefileSuccess}" Value="True">
-                    <Setter Property="Background" Value="{StaticResource PerfChipSuccessBrush}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderSuccess}" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsPagefileSuccess}" Value="False">
-                    <Setter Property="Background" Value="{StaticResource PerfChipWarningBrush}" />
-                    <Setter Property="BorderBrush" Value="{StaticResource PerfChipBorderWarning}" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
         <Style x:Key="SchedulerStatusChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsSchedulerSuccess}" Value="True">
@@ -299,7 +286,8 @@
 
                         <StackPanel>
                             <TextBlock Text="Performance Lab" Style="{StaticResource HeroTitleTextStyle}" FontSize="22" />
-                            <TextBlock Margin="0,6,0,0" Text="10-step performance stack: power, services, memory, kernel, security, tracing, storage, scheduler, and auto-tune—each with backups and rollbacks." Style="{StaticResource HeroBodyTextStyle}" />
+                            <TextBlock Margin="0,6,0,0" Text="Lean 8-step stack: power, services, hardware reserved, kernel, security, tracing, scheduler, and auto-tune—each backed up and reversible." Style="{StaticResource HeroBodyTextStyle}" />
+                            <TextBlock Margin="0,12,0,0" Text="Status updates appear in each section below after you run an action." Style="{StaticResource HeroBodyTextStyle}" />
                         </StackPanel>
 
                         <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center">
@@ -309,7 +297,6 @@
                                     <TextBlock Text="Working..." Margin="8,0,0,0" Foreground="#E5E7EB" FontSize="12" VerticalAlignment="Center" />
                                 </StackPanel>
                                 <Button Content="Refresh" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RefreshCommand}" Margin="0,0,10,0" />
-                                <Button Content="Show status" Style="{StaticResource OutlineButtonStyle}" Command="{Binding ShowStatusCommand}" Margin="0,0,10,0" />
                                 <Border Padding="10,8" CornerRadius="12" Background="#102033" BorderBrush="#1F2E46" BorderThickness="1">
                                     <TextBlock Text="Guarded tweaks only" Foreground="#C6D4EE" FontSize="12" />
                                 </Border>
@@ -317,6 +304,24 @@
                             <TextBlock Margin="0,8,0,0" Text="Follow the steps below. Each feature is isolated, backed up, and reversible." Style="{StaticResource HeroBodyTextStyle}" />
                         </StackPanel>
                     </Grid>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
+                            <CheckBox Content="Arm tweaks (session)"
+                                      IsChecked="{Binding IsApplyArmed, Mode=TwoWay}"
+                                      Foreground="#E5E7EB"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,12,0" />
+                            <Button Content="Disable automation"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Command="{Binding DisableAutomationCommand}"
+                                    Padding="14,8" />
+                        </StackPanel>
+                        <TextBlock Margin="0,2,0,0" Text="{Binding ApplyGuardStatus}" Style="{StaticResource SubtleCaptionTextStyle}" />
+                        <TextBlock Margin="0,2,0,0" Text="Detection and refresh are always safe; apply buttons stay locked until armed." Style="{StaticResource SubtleCaptionTextStyle}" />
+                    </StackPanel>
                 </Border>
 
                 <!-- Feature walk-through removed for a cleaner layout -->
@@ -331,6 +336,17 @@
                                       IsChecked="{Binding IsBootAutomationEnabled, Mode=TwoWay}" />
                         </StackPanel>
                         <TextBlock Margin="0,6,0,12" Text="{Binding BootAutomationStatus}" Style="{StaticResource SubtleCaptionTextStyle}" />
+                        <TextBlock Text="Pick the steps to replay automatically:" Style="{StaticResource SubtleCaptionTextStyle}" Margin="0,0,0,6" />
+                        <WrapPanel Margin="0,0,0,10">
+                            <CheckBox Content="Power plan" IsChecked="{Binding AutoApplyPowerPlan, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                            <CheckBox Content="Services" IsChecked="{Binding AutoApplyServices, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                            <CheckBox Content="Hardware reserved" IsChecked="{Binding AutoApplyHardware, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                            <CheckBox Content="Kernel &amp; boot" IsChecked="{Binding AutoApplyKernel, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                            <CheckBox Content="VBS/HVCI" IsChecked="{Binding AutoApplyVbs, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                            <CheckBox Content="ETW cleanup" IsChecked="{Binding AutoApplyEtw, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                            <CheckBox Content="Scheduler" IsChecked="{Binding AutoApplyScheduler, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                            <CheckBox Content="Auto-tune" IsChecked="{Binding AutoApplyAutoTune, Mode=TwoWay}" Foreground="#E5E7EB" Margin="0,0,12,6" />
+                        </WrapPanel>
                         <WrapPanel>
                             <Button Content="Save automation"
                                     Style="{StaticResource PrimaryButtonStyle}"
@@ -339,6 +355,7 @@
                             <Button Content="Run now"
                                     Style="{StaticResource OutlineButtonStyle}"
                                     Command="{Binding RunBootAutomationNowCommand}"
+                                    IsEnabled="{Binding IsApplyArmed}"
                                     Margin="0,0,0,10" />
                         </WrapPanel>
                         <TextBlock Text="Replays the steps currently marked In effect after each reboot using your current presets and process lists."
@@ -363,8 +380,8 @@
                         <TextBlock Margin="0,4,0,8" Text="{Binding PowerPlanDetails}" Style="{StaticResource SubtleCaptionTextStyle}" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button Content="Enable Ultimate plan" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding EnableUltimatePlanCommand}" Margin="0,0,10,0" />
-                            <Button Content="Restore previous plan" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestorePowerPlanCommand}" />
+                            <Button Content="Enable Ultimate plan" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding EnableUltimatePlanCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,10,0" />
+                            <Button Content="Restore previous plan" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestorePowerPlanCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,12,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
@@ -437,8 +454,8 @@
                         </ListBox>
 
                         <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                            <Button Content="Apply template" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyServiceTemplateCommand}" CommandParameter="{Binding SelectedTemplate}" Margin="0,0,10,0" />
-                            <Button Content="Restore services" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreServicesCommand}" />
+                            <Button Content="Apply template" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyServiceTemplateCommand}" CommandParameter="{Binding SelectedTemplate}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,10,0" />
+                            <Button Content="Restore services" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreServicesCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
@@ -474,8 +491,8 @@
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="Detect reserved memory" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectHardwareReservedCommand}" Margin="0,0,10,0" />
-                            <Button Content="Apply fixer" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyHardwareFixCommand}" Margin="0,0,10,0" />
-                            <Button Content="Restore compression" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreCompressionCommand}" />
+                            <Button Content="Apply fixer" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyHardwareFixCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,10,0" />
+                            <Button Content="Restore compression" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreCompressionCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
@@ -510,8 +527,8 @@
                         <TextBlock Margin="0,4,0,8" Text="Apply timer and boot tweaks with restore-point gating: dynamic tick, platform clock, tscsyncpolicy, and linearaddress57." Style="{StaticResource SubtleCaptionTextStyle}" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <Button Content="Apply recommended preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyKernelPresetCommand}" Margin="0,0,10,0" />
-                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreKernelDefaultsCommand}" />
+                            <Button Content="Apply recommended preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyKernelPresetCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,10,0" />
+                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreKernelDefaultsCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
@@ -547,8 +564,8 @@
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="Detect status" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectVbsHvciCommand}" Margin="0,0,10,0" />
-                            <Button Content="Disable VBS/HVCI" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding DisableVbsHvciCommand}" Margin="0,0,10,0" />
-                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreVbsHvciCommand}" />
+                            <Button Content="Disable VBS/HVCI" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding DisableVbsHvciCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,10,0" />
+                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreVbsHvciCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
@@ -584,9 +601,9 @@
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="Detect sessions" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectEtwSessionsCommand}" Margin="0,0,10,0" />
-                            <Button Content="Stop (Minimal)" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CleanupEtwMinimalCommand}" Margin="0,0,10,0" />
-                            <Button Content="Stop (Aggressive)" Style="{StaticResource OutlineButtonStyle}" Command="{Binding CleanupEtwAggressiveCommand}" Margin="0,0,10,0" />
-                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreEtwDefaultsCommand}" />
+                            <Button Content="Stop (Minimal)" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding CleanupEtwMinimalCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,10,0" />
+                            <Button Content="Stop (Aggressive)" Style="{StaticResource OutlineButtonStyle}" Command="{Binding CleanupEtwAggressiveCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,10,0" />
+                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreEtwDefaultsCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
@@ -608,94 +625,7 @@
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource StepBadgeStyle}">
-                                <TextBlock Text="Step 7" Foreground="#C084FC" FontWeight="Bold" />
-                            </Border>
-                            <TextBlock Text="Pagefile &amp; memory deep-tuning" Style="{StaticResource SectionHeaderTextStyle}" />
-                            <Button Content="Info"
-                                    Style="{StaticResource OutlineButtonStyle}"
-                                    Padding="10,4"
-                                    Margin="8,0,0,0"
-                                    Command="{Binding ShowStepInfoCommand}"
-                                    CommandParameter="Pagefile" />
-                        </StackPanel>
-                        <TextBlock Margin="0,4,0,8" Text="Move the pagefile to a fast drive, set fixed sizes, or sweep working sets. Defaults remain system-managed." Style="{StaticResource SubtleCaptionTextStyle}" />
-
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <ComboBox Width="220"
-                                      Margin="0,0,8,0"
-                                      ItemsSource="{Binding PagefilePresets}"
-                                      SelectedItem="{Binding SelectedPagefilePreset, Mode=TwoWay}"
-                                      TextSearch.TextPath="Name"
-                                      IsEditable="False"
-                                      ToolTip="Choose a pagefile preset">
-                                <ComboBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <TextBlock Text="{Binding Name}" />
-                                    </DataTemplate>
-                                </ComboBox.ItemTemplate>
-                            </ComboBox>
-                            <Button Content="Detect pagefile" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectPagefileCommand}" Margin="0,0,8,0" />
-                            <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplyPagefilePresetCommand}" Margin="0,0,8,0" />
-                            <Button Content="Sweep working sets" Style="{StaticResource OutlineButtonStyle}" Command="{Binding SweepWorkingSetsCommand}" />
-                        </StackPanel>
-
-                        <Grid Margin="0,10,0,0">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-
-                            <StackPanel Grid.Column="0" Orientation="Vertical">
-                                <TextBlock Text="Target drive (e.g., C:)" Foreground="#9CA3AF" FontSize="12" />
-                                <TextBox Text="{Binding TargetPagefileDrive, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                         Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Margin="0,6,0,0" />
-                                <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                                    <StackPanel Width="140">
-                                        <TextBlock Text="Initial MB" Foreground="#9CA3AF" FontSize="12" />
-                                        <TextBox Text="{Binding PagefileInitialMb, Mode=TwoWay}" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Margin="0,6,0,0" />
-                                    </StackPanel>
-                                    <StackPanel Width="140" Margin="8,0,0,0">
-                                        <TextBlock Text="Max MB" Foreground="#9CA3AF" FontSize="12" />
-                                        <TextBox Text="{Binding PagefileMaxMb, Mode=TwoWay}" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Margin="0,6,0,0" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </StackPanel>
-
-                            <StackPanel Grid.Column="1" Orientation="Vertical">
-                                <CheckBox Content="Run working-set sweep after apply"
-                                          IsChecked="{Binding RunWorkingSetSweep, Mode=TwoWay}"
-                                          Foreground="#E5E7EB"
-                                          Margin="0,8,0,4" />
-                                <CheckBox Content="Include pinned/always-on apps in sweep"
-                                          IsChecked="{Binding SweepPinnedApps, Mode=TwoWay}"
-                                          Foreground="#E5E7EB"
-                                          Margin="0,0,0,6" />
-                                <TextBlock Text="System-managed is safest for most devices; fixed sizes work best on fast NVMe drives." Foreground="#6B7280" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
-                            </StackPanel>
-                        </Grid>
-
-                        <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
-                            <StackPanel>
-                                <TextBlock Text="Presets:" Foreground="#A5F3FC" FontSize="12" />
-                                <TextBlock Text="System managed: Windows sizes automatically." Foreground="#9CA3AF" FontSize="12" />
-                                <TextBlock Text="NVMe performance: fixed file on fast drive with 4–16 GB window." Foreground="#9CA3AF" FontSize="12" />
-                                <TextBlock Text="Custom fixed: uses the fields above." Foreground="#9CA3AF" FontSize="12" />
-                            </StackPanel>
-                        </Border>
-
-                        <WrapPanel Margin="0,10,0,0">
-                            <Border Style="{StaticResource PagefileStatusChipStyle}">
-                                <TextBlock Text="{Binding PagefileStatusSimple}" Foreground="#C6D4EE" FontSize="12" TextWrapping="Wrap" />
-                            </Border>
-                        </WrapPanel>
-                    </StackPanel>
-                </Border>
-
-                <Border Style="{StaticResource CardStyle}">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Border Style="{StaticResource StepBadgeStyle}">
-                                <TextBlock Text="Step 8" Foreground="#F59E0B" FontWeight="Bold" />
+                                <TextBlock Text="Step 7" Foreground="#F59E0B" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Scheduler &amp; affinity toolbox" Style="{StaticResource SectionHeaderTextStyle}" />
                             <Button Content="Info"
@@ -722,8 +652,8 @@
                             </ComboBox>
                             <TextBox Width="220" Margin="0,0,8,0" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Text="{Binding SchedulerProcessNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Process names separated by semicolon (e.g., dwm;explorer)" />
                             <Button Content="Detect scheduler" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectSchedulerCommand}" Margin="0,0,8,0" />
-                            <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplySchedulerPresetCommand}" Margin="0,0,8,0" />
-                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreSchedulerDefaultsCommand}" />
+                            <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplySchedulerPresetCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,8,0" />
+                            <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreSchedulerDefaultsCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
@@ -745,7 +675,7 @@
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <Border Style="{StaticResource StepBadgeStyle}">
-                                <TextBlock Text="Step 9" Foreground="#A78BFA" FontWeight="Bold" />
+                                <TextBlock Text="Step 8" Foreground="#A78BFA" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Monitoring &amp; auto-tune loop" Style="{StaticResource SectionHeaderTextStyle}" />
                             <Button Content="Info"
@@ -772,8 +702,8 @@
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
                             <Button Content="Detect monitor" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectAutoTuneCommand}" Margin="0,0,8,0" />
-                            <Button Content="Start monitor" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartAutoTuneCommand}" Margin="0,0,8,0" />
-                            <Button Content="Stop &amp; revert" Style="{StaticResource OutlineButtonStyle}" Command="{Binding StopAutoTuneCommand}" />
+                            <Button Content="Start monitor" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding StartAutoTuneCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,8,0" />
+                            <Button Content="Stop &amp; revert" Style="{StaticResource OutlineButtonStyle}" Command="{Binding StopAutoTuneCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">

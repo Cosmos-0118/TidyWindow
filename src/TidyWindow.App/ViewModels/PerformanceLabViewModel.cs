@@ -19,16 +19,6 @@ public sealed class PerformanceTemplateOption
     public int ServiceCount { get; init; }
 }
 
-public sealed class PagefilePresetOption
-{
-    public string Id { get; init; } = string.Empty;
-    public string Name { get; init; } = string.Empty;
-    public string Description { get; init; } = string.Empty;
-    public string DefaultDrive { get; init; } = "C:";
-    public int? DefaultInitialMb { get; init; }
-    public int? DefaultMaxMb { get; init; }
-}
-
 public sealed class SchedulerPresetOption
 {
     public string Id { get; init; } = string.Empty;
@@ -75,7 +65,37 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private string infoDialogBody = "More information coming soon.";
 
     [ObservableProperty]
+    private bool isApplyArmed;
+
+    [ObservableProperty]
+    private string applyGuardStatus = "Write actions are locked. Arm tweaks to enable apply buttons.";
+
+    [ObservableProperty]
     private bool isBootAutomationEnabled;
+
+    [ObservableProperty]
+    private bool autoApplyPowerPlan;
+
+    [ObservableProperty]
+    private bool autoApplyServices;
+
+    [ObservableProperty]
+    private bool autoApplyHardware;
+
+    [ObservableProperty]
+    private bool autoApplyKernel;
+
+    [ObservableProperty]
+    private bool autoApplyVbs;
+
+    [ObservableProperty]
+    private bool autoApplyEtw;
+
+    [ObservableProperty]
+    private bool autoApplyScheduler;
+
+    [ObservableProperty]
+    private bool autoApplyAutoTune;
 
     [ObservableProperty]
     private string bootAutomationStatus = "Boot automation is off.";
@@ -84,7 +104,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private DateTimeOffset? bootAutomationLastRunUtc;
 
     [ObservableProperty]
-    private string powerPlanStatusMessage = "No power plan actions run yet.";
+    private string powerPlanStatusMessage = "Ultimate Performance is not active.";
 
     [ObservableProperty]
     private string powerPlanStatusTimestamp = "–";
@@ -102,7 +122,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private bool isServiceSuccess;
 
     [ObservableProperty]
-    private string hardwareStatusMessage = "Detect hardware reserved memory to view details.";
+    private string hardwareStatusMessage = "Detect hardware reserved memory to view status.";
 
     [ObservableProperty]
     private string hardwareStatusTimestamp = "–";
@@ -138,27 +158,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private bool isEtwSuccess;
 
     [ObservableProperty]
-    private string lastPowerPlanBackupPath = string.Empty;
-
-    [ObservableProperty]
-    private string lastServiceBackupPath = string.Empty;
-
-    [ObservableProperty]
-    private bool hasPowerPlanBackup;
-
-    [ObservableProperty]
-    private bool hasServiceBackup;
-
-    [ObservableProperty]
-    private string pagefileStatusMessage = "Detect pagefile state to view mode.";
-
-    [ObservableProperty]
-    private string pagefileStatusTimestamp = "–";
-
-    [ObservableProperty]
-    private bool isPagefileSuccess;
-
-    [ObservableProperty]
     private string schedulerStatusMessage = "Detect scheduler state to view affinity masks.";
 
     [ObservableProperty]
@@ -176,36 +175,26 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     [ObservableProperty]
     private bool isAutoTuneSuccess;
 
-    public string PowerPlanStatusSimple => IsUltimateActive ? "In effect" : "Not applied";
-    public string ServiceStatusSimple => IsServiceSuccess ? "In effect" : "Not applied";
-    public string HardwareStatusSimple => IsHardwareSuccess ? "In effect" : "Not applied";
-    public string KernelStatusSimple => IsKernelSuccess ? "In effect" : "Not applied";
-    public string VbsStatusSimple => IsVbsSuccess ? "In effect" : "Not applied";
-    public string EtwStatusSimple => IsEtwSuccess ? "In effect" : "Not applied";
-    public string PagefileStatusSimple => IsPagefileSuccess ? "In effect" : "Not applied";
-    public string SchedulerStatusSimple => IsSchedulerSuccess ? "In effect" : "Not applied";
-    public string AutoTuneStatusSimple => IsAutoTuneSuccess ? "In effect" : "Not applied";
+    [ObservableProperty]
+    private string lastPowerPlanBackupPath = string.Empty;
 
     [ObservableProperty]
-    private PagefilePresetOption? selectedPagefilePreset;
+    private string lastServiceBackupPath = string.Empty;
 
     [ObservableProperty]
-    private string selectedPagefilePresetId = "SystemManaged";
+    private bool hasPowerPlanBackup;
 
     [ObservableProperty]
-    private string targetPagefileDrive = "C:";
+    private bool hasServiceBackup;
 
-    [ObservableProperty]
-    private int pagefileInitialMb = 4096;
-
-    [ObservableProperty]
-    private int pagefileMaxMb = 12288;
-
-    [ObservableProperty]
-    private bool runWorkingSetSweep = true;
-
-    [ObservableProperty]
-    private bool sweepPinnedApps;
+    public string PowerPlanStatusSimple => BuildSimpleStatus(IsUltimateActive, PowerPlanStatusMessage, "Ultimate Performance active");
+    public string ServiceStatusSimple => BuildSimpleStatus(IsServiceSuccess, ServiceStatusMessage, "Service template applied");
+    public string HardwareStatusSimple => BuildSimpleStatus(IsHardwareSuccess, HardwareStatusMessage, "Hardware reserved fix applied");
+    public string KernelStatusSimple => BuildSimpleStatus(IsKernelSuccess, KernelStatusMessage, "Kernel preset applied");
+    public string VbsStatusSimple => BuildSimpleStatus(IsVbsSuccess, VbsStatusMessage, "VBS/HVCI disabled");
+    public string EtwStatusSimple => BuildSimpleStatus(IsEtwSuccess, EtwStatusMessage, "ETW cleanup applied");
+    public string SchedulerStatusSimple => BuildSimpleStatus(IsSchedulerSuccess, SchedulerStatusMessage, "Scheduler preset applied");
+    public string AutoTuneStatusSimple => BuildSimpleStatus(IsAutoTuneSuccess, AutoTuneStatusMessage, "Auto-tune monitor active");
 
     [ObservableProperty]
     private string schedulerProcessNames = "dwm;explorer";
@@ -225,7 +214,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private static readonly Regex AnsiRegex = new("\\u001B\\[[0-9;]*m", RegexOptions.Compiled);
 
     public ObservableCollection<PerformanceTemplateOption> Templates { get; }
-    public ObservableCollection<PagefilePresetOption> PagefilePresets { get; }
     public ObservableCollection<SchedulerPresetOption> SchedulerPresets { get; }
 
     [ObservableProperty]
@@ -248,9 +236,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand CleanupEtwMinimalCommand { get; }
     public IAsyncRelayCommand CleanupEtwAggressiveCommand { get; }
     public IAsyncRelayCommand RestoreEtwDefaultsCommand { get; }
-    public IAsyncRelayCommand DetectPagefileCommand { get; }
-    public IAsyncRelayCommand ApplyPagefilePresetCommand { get; }
-    public IAsyncRelayCommand SweepWorkingSetsCommand { get; }
     public IAsyncRelayCommand DetectSchedulerCommand { get; }
     public IAsyncRelayCommand ApplySchedulerPresetCommand { get; }
     public IAsyncRelayCommand RestoreSchedulerDefaultsCommand { get; }
@@ -259,6 +244,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand StopAutoTuneCommand { get; }
     public IAsyncRelayCommand ApplyBootAutomationCommand { get; }
     public IAsyncRelayCommand RunBootAutomationNowCommand { get; }
+    public IAsyncRelayCommand DisableAutomationCommand { get; }
     public IRelayCommand ShowStatusCommand { get; }
     public IRelayCommand ShowStepInfoCommand => showStepInfoCommand ??= new RelayCommand<string?>(ShowStepInfo);
     public IRelayCommand CloseInfoDialogCommand => closeInfoDialogCommand ??= new RelayCommand(CloseInfoDialog);
@@ -280,14 +266,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         };
         SelectedTemplate = Templates.FirstOrDefault();
 
-        PagefilePresets = new ObservableCollection<PagefilePresetOption>
-        {
-            new() { Id = "SystemManaged", Name = "System managed", Description = "Let Windows size the pagefile automatically (recommended for most).", DefaultDrive = "C:" },
-            new() { Id = "NVMePerformance", Name = "NVMe performance", Description = "Place a fixed pagefile on the fastest drive with a 3x headroom ceiling.", DefaultDrive = "C:", DefaultInitialMb = 4096, DefaultMaxMb = 16384 },
-            new() { Id = "CustomFixed", Name = "Custom fixed", Description = "Use the fields below to define initial and max size explicitly.", DefaultDrive = "C:" }
-        };
-        SelectedPagefilePreset = PagefilePresets.FirstOrDefault(p => string.Equals(p.Id, SelectedPagefilePresetId, StringComparison.OrdinalIgnoreCase))
-                                 ?? PagefilePresets.FirstOrDefault();
         SchedulerPresets = new ObservableCollection<SchedulerPresetOption>
         {
             new() { Id = "Balanced", Name = "Balanced", Description = "Normal priority with full-core affinity.", PriorityHint = "Normal" },
@@ -298,33 +276,31 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                                   ?? SchedulerPresets.FirstOrDefault();
 
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
-        EnableUltimatePlanCommand = new AsyncRelayCommand(EnableUltimatePlanAsync, () => !IsBusy);
-        RestorePowerPlanCommand = new AsyncRelayCommand(RestorePowerPlanAsync, () => !IsBusy);
-        ApplyServiceTemplateCommand = new AsyncRelayCommand<PerformanceTemplateOption?>(ApplyServiceTemplateAsync, _ => !IsBusy);
-        RestoreServicesCommand = new AsyncRelayCommand(RestoreServicesAsync, () => !IsBusy);
+        EnableUltimatePlanCommand = new AsyncRelayCommand(EnableUltimatePlanAsync, CanRunApplyAction);
+        RestorePowerPlanCommand = new AsyncRelayCommand(RestorePowerPlanAsync, CanRunApplyAction);
+        ApplyServiceTemplateCommand = new AsyncRelayCommand<PerformanceTemplateOption?>(ApplyServiceTemplateAsync, _ => CanRunApplyAction());
+        RestoreServicesCommand = new AsyncRelayCommand(RestoreServicesAsync, CanRunApplyAction);
         DetectHardwareReservedCommand = new AsyncRelayCommand(DetectHardwareReservedAsync, () => !IsBusy);
-        ApplyHardwareFixCommand = new AsyncRelayCommand(ApplyHardwareFixAsync, () => !IsBusy);
-        RestoreCompressionCommand = new AsyncRelayCommand(RestoreCompressionAsync, () => !IsBusy);
-        ApplyKernelPresetCommand = new AsyncRelayCommand(ApplyKernelPresetAsync, () => !IsBusy);
-        RestoreKernelDefaultsCommand = new AsyncRelayCommand(RestoreKernelDefaultsAsync, () => !IsBusy);
+        ApplyHardwareFixCommand = new AsyncRelayCommand(ApplyHardwareFixAsync, CanRunApplyAction);
+        RestoreCompressionCommand = new AsyncRelayCommand(RestoreCompressionAsync, CanRunApplyAction);
+        ApplyKernelPresetCommand = new AsyncRelayCommand(ApplyKernelPresetAsync, CanRunApplyAction);
+        RestoreKernelDefaultsCommand = new AsyncRelayCommand(RestoreKernelDefaultsAsync, CanRunApplyAction);
         DetectVbsHvciCommand = new AsyncRelayCommand(DetectVbsHvciAsync, () => !IsBusy);
-        DisableVbsHvciCommand = new AsyncRelayCommand(DisableVbsHvciAsync, () => !IsBusy);
-        RestoreVbsHvciCommand = new AsyncRelayCommand(RestoreVbsHvciAsync, () => !IsBusy);
+        DisableVbsHvciCommand = new AsyncRelayCommand(DisableVbsHvciAsync, CanRunApplyAction);
+        RestoreVbsHvciCommand = new AsyncRelayCommand(RestoreVbsHvciAsync, CanRunApplyAction);
         DetectEtwSessionsCommand = new AsyncRelayCommand(DetectEtwTracingAsync, () => !IsBusy);
-        CleanupEtwMinimalCommand = new AsyncRelayCommand(() => CleanupEtwAsync("Minimal"), () => !IsBusy);
-        CleanupEtwAggressiveCommand = new AsyncRelayCommand(() => CleanupEtwAsync("Aggressive"), () => !IsBusy);
-        RestoreEtwDefaultsCommand = new AsyncRelayCommand(RestoreEtwDefaultsAsync, () => !IsBusy);
-        DetectPagefileCommand = new AsyncRelayCommand(DetectPagefileAsync, () => !IsBusy);
-        ApplyPagefilePresetCommand = new AsyncRelayCommand(ApplyPagefilePresetAsync, () => !IsBusy);
-        SweepWorkingSetsCommand = new AsyncRelayCommand(SweepWorkingSetsAsync, () => !IsBusy);
+        CleanupEtwMinimalCommand = new AsyncRelayCommand(() => CleanupEtwAsync("Minimal"), CanRunApplyAction);
+        CleanupEtwAggressiveCommand = new AsyncRelayCommand(() => CleanupEtwAsync("Aggressive"), CanRunApplyAction);
+        RestoreEtwDefaultsCommand = new AsyncRelayCommand(RestoreEtwDefaultsAsync, CanRunApplyAction);
         DetectSchedulerCommand = new AsyncRelayCommand(DetectSchedulerAsync, () => !IsBusy);
-        ApplySchedulerPresetCommand = new AsyncRelayCommand(ApplySchedulerPresetAsync, () => !IsBusy);
-        RestoreSchedulerDefaultsCommand = new AsyncRelayCommand(RestoreSchedulerDefaultsAsync, () => !IsBusy);
+        ApplySchedulerPresetCommand = new AsyncRelayCommand(ApplySchedulerPresetAsync, CanRunApplyAction);
+        RestoreSchedulerDefaultsCommand = new AsyncRelayCommand(RestoreSchedulerDefaultsAsync, CanRunApplyAction);
         DetectAutoTuneCommand = new AsyncRelayCommand(DetectAutoTuneAsync, () => !IsBusy);
-        StartAutoTuneCommand = new AsyncRelayCommand(StartAutoTuneAsync, () => !IsBusy);
+        StartAutoTuneCommand = new AsyncRelayCommand(StartAutoTuneAsync, CanRunApplyAction);
         StopAutoTuneCommand = new AsyncRelayCommand(StopAutoTuneAsync, () => !IsBusy);
         ApplyBootAutomationCommand = new AsyncRelayCommand(ApplyBootAutomationAsync, () => !IsBusy);
-        RunBootAutomationNowCommand = new AsyncRelayCommand(RunBootAutomationNowAsync, () => !IsBusy);
+        RunBootAutomationNowCommand = new AsyncRelayCommand(RunBootAutomationNowAsync, CanRunApplyAction);
+        DisableAutomationCommand = new AsyncRelayCommand(DisableAutomationAsync, () => !IsBusy);
         ShowStatusCommand = new RelayCommand(ShowStatus);
 
         LoadBootAutomationSettings(_automationRunner.CurrentSettings);
@@ -333,7 +309,36 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         UpdateAutoTuneAutomationStatus(_autoTuneAutomation.CurrentSettings);
     }
 
-    partial void OnIsBusyChanged(bool value)
+    private bool CanRunApplyAction() => IsApplyArmed && !IsBusy;
+
+    private bool EnsureApplyArmed(string reason)
+    {
+        if (IsApplyArmed)
+        {
+            return true;
+        }
+
+        ApplyGuardStatus = reason;
+        return false;
+    }
+
+    private static string BuildSimpleStatus(bool isSuccess, string detail, string appliedLabel)
+    {
+        if (isSuccess)
+        {
+            return string.IsNullOrWhiteSpace(detail) ? appliedLabel : detail;
+        }
+
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            return "Not applied";
+        }
+
+        // If the detail is just a detect/readout, keep it, but still report as not applied.
+        return detail;
+    }
+
+    private void NotifyCommandStates()
     {
         EnableUltimatePlanCommand.NotifyCanExecuteChanged();
         RestorePowerPlanCommand.NotifyCanExecuteChanged();
@@ -351,9 +356,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         CleanupEtwMinimalCommand.NotifyCanExecuteChanged();
         CleanupEtwAggressiveCommand.NotifyCanExecuteChanged();
         RestoreEtwDefaultsCommand.NotifyCanExecuteChanged();
-        DetectPagefileCommand.NotifyCanExecuteChanged();
-        ApplyPagefilePresetCommand.NotifyCanExecuteChanged();
-        SweepWorkingSetsCommand.NotifyCanExecuteChanged();
         DetectSchedulerCommand.NotifyCanExecuteChanged();
         ApplySchedulerPresetCommand.NotifyCanExecuteChanged();
         RestoreSchedulerDefaultsCommand.NotifyCanExecuteChanged();
@@ -362,6 +364,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         StopAutoTuneCommand.NotifyCanExecuteChanged();
         ApplyBootAutomationCommand.NotifyCanExecuteChanged();
         RunBootAutomationNowCommand.NotifyCanExecuteChanged();
+        DisableAutomationCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnIsBusyChanged(bool value)
+    {
+        NotifyCommandStates();
     }
 
     private async Task RefreshAsync()
@@ -420,7 +428,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             var detectedTemplate = await _service.DetectServiceTemplateAsync().ConfigureAwait(true);
             if (!string.IsNullOrWhiteSpace(detectedTemplate))
             {
-                SelectedTemplate = Templates.FirstOrDefault(t => string.Equals(t.Name, detectedTemplate, StringComparison.OrdinalIgnoreCase)) ?? SelectedTemplate;
                 ServiceStatusMessage = ServiceStatusMessage.Contains(detectedTemplate ?? string.Empty, StringComparison.OrdinalIgnoreCase)
                     ? ServiceStatusMessage
                     : $"Detected template: {detectedTemplate}";
@@ -428,7 +435,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             }
 
             var hardwareResult = await _service.DetectHardwareReservedMemoryAsync().ConfigureAwait(true);
-            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", hardwareResult);
+            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", hardwareResult, markApplied: false);
 
             var kernelStatus = await _service.GetKernelBootStatusAsync().ConfigureAwait(true);
             KernelStatusMessage = kernelStatus.Summary;
@@ -436,19 +443,16 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             KernelStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
 
             var vbsResult = await _service.DetectVbsHvciAsync().ConfigureAwait(true);
-            HandleVbsResult("PerformanceLab", "VBS/HVCI status captured", vbsResult);
-
-            var pagefileResult = await _service.DetectPagefileAsync().ConfigureAwait(true);
-            HandlePagefileResult("PerformanceLab", "Pagefile status detected", pagefileResult);
+            HandleVbsResult("PerformanceLab", "VBS/HVCI status captured", vbsResult, markApplied: false);
 
             var etwResult = await _service.DetectEtwTracingAsync().ConfigureAwait(true);
-            HandleEtwResult("PerformanceLab", "ETW sessions inspected", etwResult);
+            HandleEtwResult("PerformanceLab", "ETW sessions inspected", etwResult, markApplied: false);
 
             var schedulerResult = await _service.DetectSchedulerAffinityAsync().ConfigureAwait(true);
-            HandleSchedulerResult("PerformanceLab", "Scheduler state captured", schedulerResult);
+            HandleSchedulerResult("PerformanceLab", "Scheduler state captured", schedulerResult, markApplied: false);
 
             var autoTuneResult = await _service.DetectAutoTuneAsync().ConfigureAwait(true);
-            HandleAutoTuneResult("PerformanceLab", "Auto-tune loop inspected", autoTuneResult);
+            HandleAutoTuneResult("PerformanceLab", "Auto-tune loop inspected", autoTuneResult, markApplied: false);
         }
         finally
         {
@@ -458,10 +462,15 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task EnableUltimatePlanAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to apply or restore power plans."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.EnableUltimatePowerPlanAsync().ConfigureAwait(true);
-            HandlePlanResult("PerformanceLab", "Ultimate Performance enabled", result);
+            HandlePlanResult("PerformanceLab", "Ultimate Performance enabled", result, ultimateActiveOnSuccess: true);
             await RefreshAsync().ConfigureAwait(true);
         }).ConfigureAwait(false);
     }
@@ -471,12 +480,17 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         await RunOperationAsync(async () =>
         {
             var result = await _service.DetectHardwareReservedMemoryAsync().ConfigureAwait(true);
-            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", result);
+            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", result, markApplied: false);
         }).ConfigureAwait(false);
     }
 
     private async Task ApplyHardwareFixAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to change hardware reserved memory."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.ApplyHardwareReservedFixAsync().ConfigureAwait(true);
@@ -486,6 +500,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RestoreCompressionAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to restore memory compression."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.RestoreMemoryCompressionAsync().ConfigureAwait(true);
@@ -495,6 +514,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task ApplyKernelPresetAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to change kernel and boot flags."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.ApplyKernelBootActionAsync("Recommended").ConfigureAwait(true);
@@ -504,6 +528,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RestoreKernelDefaultsAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to restore kernel defaults."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.ApplyKernelBootActionAsync("RestoreDefaults", skipRestorePoint: true).ConfigureAwait(true);
@@ -516,12 +545,17 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         await RunOperationAsync(async () =>
         {
             var result = await _service.DetectVbsHvciAsync().ConfigureAwait(true);
-            HandleVbsResult("PerformanceLab", "VBS/HVCI status captured", result);
+            HandleVbsResult("PerformanceLab", "VBS/HVCI status captured", result, markApplied: false);
         }).ConfigureAwait(false);
     }
 
     private async Task DisableVbsHvciAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to change VBS/HVCI."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.DisableVbsHvciAsync().ConfigureAwait(true);
@@ -531,6 +565,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RestoreVbsHvciAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to change VBS/HVCI."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.RestoreVbsHvciAsync().ConfigureAwait(true);
@@ -543,13 +582,18 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         await RunOperationAsync(async () =>
         {
             var result = await _service.DetectEtwTracingAsync().ConfigureAwait(true);
-            HandleEtwResult("PerformanceLab", "ETW sessions inspected", result);
+            HandleEtwResult("PerformanceLab", "ETW sessions inspected", result, markApplied: false);
         }).ConfigureAwait(false);
     }
 
     private async Task CleanupEtwAsync(string mode)
     {
         var tier = string.IsNullOrWhiteSpace(mode) ? "Minimal" : mode;
+
+        if (!EnsureApplyArmed("Arm tweaks to stop or restore ETW sessions."))
+        {
+            return;
+        }
 
         await RunOperationAsync(async () =>
         {
@@ -560,6 +604,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RestoreEtwDefaultsAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to stop or restore ETW sessions."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.RestoreEtwTracingAsync().ConfigureAwait(true);
@@ -569,16 +618,26 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RestorePowerPlanAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to apply or restore power plans."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.RestorePowerPlanAsync().ConfigureAwait(true);
-            HandlePlanResult("PerformanceLab", "Power plan restored", result);
+            HandlePlanResult("PerformanceLab", "Power plan restored", result, ultimateActiveOnSuccess: false);
             await RefreshAsync().ConfigureAwait(true);
         }).ConfigureAwait(false);
     }
 
     private async Task ApplyServiceTemplateAsync(PerformanceTemplateOption? option)
     {
+        if (!EnsureApplyArmed("Arm tweaks to change services."))
+        {
+            return;
+        }
+
         var template = option ?? SelectedTemplate ?? Templates.First();
 
         await RunOperationAsync(async () =>
@@ -591,6 +650,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RestoreServicesAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to change services."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.RestoreServicesAsync(LastServiceBackupPath).ConfigureAwait(true);
@@ -599,46 +663,22 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         }).ConfigureAwait(false);
     }
 
-    private async Task DetectPagefileAsync()
-    {
-        await RunOperationAsync(async () =>
-        {
-            var result = await _service.DetectPagefileAsync().ConfigureAwait(true);
-            HandlePagefileResult("PerformanceLab", "Pagefile status detected", result);
-        }).ConfigureAwait(false);
-    }
-
-    private async Task ApplyPagefilePresetAsync()
-    {
-        await RunOperationAsync(async () =>
-        {
-            var preset = string.IsNullOrWhiteSpace(SelectedPagefilePresetId) ? "SystemManaged" : SelectedPagefilePresetId;
-            var drive = string.IsNullOrWhiteSpace(TargetPagefileDrive) ? "C:" : TargetPagefileDrive;
-            var result = await _service.ApplyPagefilePresetAsync(preset, drive, PagefileInitialMb, PagefileMaxMb, RunWorkingSetSweep, SweepPinnedApps).ConfigureAwait(true);
-            HandlePagefileResult("PerformanceLab", $"Pagefile preset applied ({preset})", result);
-        }).ConfigureAwait(false);
-    }
-
-    private async Task SweepWorkingSetsAsync()
-    {
-        await RunOperationAsync(async () =>
-        {
-            var result = await _service.SweepWorkingSetsAsync(SweepPinnedApps).ConfigureAwait(true);
-            HandlePagefileResult("PerformanceLab", "Working sets swept", result);
-        }).ConfigureAwait(false);
-    }
-
     private async Task DetectSchedulerAsync()
     {
         await RunOperationAsync(async () =>
         {
             var result = await _service.DetectSchedulerAffinityAsync().ConfigureAwait(true);
-            HandleSchedulerResult("PerformanceLab", "Scheduler state captured", result);
+            HandleSchedulerResult("PerformanceLab", "Scheduler state captured", result, markApplied: false);
         }).ConfigureAwait(false);
     }
 
     private async Task ApplySchedulerPresetAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to change scheduler presets."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var preset = string.IsNullOrWhiteSpace(SelectedSchedulerPresetId) ? "Balanced" : SelectedSchedulerPresetId;
@@ -650,6 +690,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RestoreSchedulerDefaultsAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to change scheduler presets."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var result = await _service.RestoreSchedulerAffinityAsync().ConfigureAwait(true);
@@ -662,12 +707,17 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         await RunOperationAsync(async () =>
         {
             var result = await _service.DetectAutoTuneAsync().ConfigureAwait(true);
-            HandleAutoTuneResult("PerformanceLab", "Auto-tune loop inspected", result);
+            HandleAutoTuneResult("PerformanceLab", "Auto-tune loop inspected", result, markApplied: false);
         }).ConfigureAwait(false);
     }
 
     private async Task StartAutoTuneAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to start the auto-tune monitor."))
+        {
+            return;
+        }
+
         await RunOperationAsync(async () =>
         {
             var preset = string.IsNullOrWhiteSpace(AutoTunePresetId) ? "LatencyBoost" : AutoTunePresetId;
@@ -704,7 +754,30 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             await _autoTuneAutomation.ApplySettingsAsync(disabled, queueRunImmediately: false).ConfigureAwait(true);
 
             var result = await _service.StopAutoTuneAsync().ConfigureAwait(true);
-            HandleAutoTuneResult("PerformanceLab", "Auto-tune automation stopped", result);
+            HandleAutoTuneResult("PerformanceLab", "Auto-tune automation stopped", result, markApplied: false);
+            IsAutoTuneSuccess = false;
+        }).ConfigureAwait(false);
+    }
+
+    private async Task DisableAutomationAsync()
+    {
+        await RunOperationAsync(async () =>
+        {
+            // Disable boot automation and auto-tune monitoring in one click.
+            var bootOff = PerformanceLabAutomationSettings.Default;
+            await _automationRunner.ApplySettingsAsync(bootOff, runIfDue: false).ConfigureAwait(true);
+            LoadBootAutomationSettings(bootOff);
+
+            var tuneOff = AutoTuneAutomationSettings.Default;
+            await _autoTuneAutomation.ApplySettingsAsync(tuneOff, queueRunImmediately: false).ConfigureAwait(true);
+            UpdateAutoTuneAutomationStatus(tuneOff);
+
+            var result = await _service.StopAutoTuneAsync().ConfigureAwait(true);
+            HandleAutoTuneResult("PerformanceLab", "Auto-tune automation stopped", result, markApplied: false);
+            IsAutoTuneSuccess = false;
+            AutoTuneStatusMessage = "Auto-tune automation is off.";
+            AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+            ApplyGuardStatus = "All automation disabled. Arm tweaks to re-enable actions.";
         }).ConfigureAwait(false);
     }
 
@@ -712,6 +785,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     {
         var snapshot = BuildAutomationSnapshot();
         var enabled = IsBootAutomationEnabled && snapshot.HasActions;
+
+        if (enabled && !EnsureApplyArmed("Arm tweaks to enable boot automation."))
+        {
+            return;
+        }
+
         var settings = new PerformanceLabAutomationSettings(enabled, _automationRunner.GetCurrentBootMarker(), BootAutomationLastRunUtc, snapshot).Normalize();
 
         await _automationRunner.ApplySettingsAsync(settings, runIfDue: false).ConfigureAwait(true);
@@ -720,6 +799,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private async Task RunBootAutomationNowAsync()
     {
+        if (!EnsureApplyArmed("Arm tweaks to run automation now."))
+        {
+            return;
+        }
+
         var snapshot = BuildAutomationSnapshot();
         var enabled = IsBootAutomationEnabled && snapshot.HasActions;
         var settings = new PerformanceLabAutomationSettings(enabled, _automationRunner.GetCurrentBootMarker(), BootAutomationLastRunUtc, snapshot).Normalize();
@@ -732,25 +816,16 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private PerformanceLabAutomationSnapshot BuildAutomationSnapshot()
     {
-        var vbsDisabled = IsVbsSuccess && VbsStatusMessage?.Contains("disable", StringComparison.OrdinalIgnoreCase) == true;
-
         return new PerformanceLabAutomationSnapshot(
-            ApplyUltimatePlan: IsUltimateActive,
-            ApplyServiceTemplate: IsServiceSuccess && SelectedTemplate is not null,
-            ApplyHardwareFix: IsHardwareSuccess,
-            ApplyKernelPreset: IsKernelSuccess,
-            ApplyVbsDisable: vbsDisabled,
-            ApplyEtwCleanup: IsEtwSuccess,
-            ApplyPagefilePreset: IsPagefileSuccess,
-            ApplySchedulerPreset: IsSchedulerSuccess,
-            ApplyAutoTune: IsAutoTuneSuccess,
+            ApplyUltimatePlan: AutoApplyPowerPlan,
+            ApplyServiceTemplate: AutoApplyServices,
+            ApplyHardwareFix: AutoApplyHardware,
+            ApplyKernelPreset: AutoApplyKernel,
+            ApplyVbsDisable: AutoApplyVbs,
+            ApplyEtwCleanup: AutoApplyEtw,
+            ApplySchedulerPreset: AutoApplyScheduler,
+            ApplyAutoTune: AutoApplyAutoTune,
             ServiceTemplateId: SelectedTemplate?.Id ?? "Balanced",
-            PagefilePresetId: SelectedPagefilePresetId ?? "SystemManaged",
-            TargetPagefileDrive: TargetPagefileDrive ?? "C:",
-            PagefileInitialMb: PagefileInitialMb,
-            PagefileMaxMb: PagefileMaxMb,
-            RunWorkingSetSweep: RunWorkingSetSweep,
-            SweepPinnedApps: SweepPinnedApps,
             SchedulerPresetId: SelectedSchedulerPresetId ?? "Balanced",
             SchedulerProcessNames: SchedulerProcessNames ?? string.Empty,
             AutoTuneProcessNames: AutoTuneProcessNames ?? string.Empty,
@@ -763,6 +838,15 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         _suspendBootAutomationUpdate = true;
         IsBootAutomationEnabled = settings.AutomationEnabled;
         BootAutomationLastRunUtc = settings.LastRunUtc;
+        var snapshot = settings.Snapshot ?? PerformanceLabAutomationSnapshot.Empty;
+        AutoApplyPowerPlan = snapshot.ApplyUltimatePlan;
+        AutoApplyServices = snapshot.ApplyServiceTemplate;
+        AutoApplyHardware = snapshot.ApplyHardwareFix;
+        AutoApplyKernel = snapshot.ApplyKernelPreset;
+        AutoApplyVbs = snapshot.ApplyVbsDisable;
+        AutoApplyEtw = snapshot.ApplyEtwCleanup;
+        AutoApplyScheduler = snapshot.ApplySchedulerPreset;
+        AutoApplyAutoTune = snapshot.ApplyAutoTune;
         _suspendBootAutomationUpdate = false;
         UpdateBootAutomationStatus(settings);
     }
@@ -775,9 +859,15 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private void UpdateBootAutomationStatus(PerformanceLabAutomationSettings settings)
     {
         var hasActions = settings.Snapshot?.HasActions == true;
-        if (!settings.AutomationEnabled || !hasActions)
+        if (!settings.AutomationEnabled)
         {
             BootAutomationStatus = "Boot automation is off.";
+            return;
+        }
+
+        if (!hasActions)
+        {
+            BootAutomationStatus = "Select steps to replay, then save automation.";
             return;
         }
 
@@ -813,6 +903,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private void UpdateAutoTuneAutomationStatus(AutoTuneAutomationSettings settings)
     {
         OnAutoTuneAutomationSettingsChanged(this, settings);
+    }
+
+    partial void OnIsApplyArmedChanged(bool value)
+    {
+        ApplyGuardStatus = value
+            ? "Write actions armed for this session."
+            : "Write actions are locked. Arm tweaks to enable apply buttons.";
+        NotifyCommandStates();
     }
 
     partial void OnIsBootAutomationEnabledChanged(bool value)
@@ -859,7 +957,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         AppendStatus(sb, "Kernel & boot", KernelStatusSimple, KernelStatusMessage);
         AppendStatus(sb, "Core Isolation (VBS/HVCI)", VbsStatusSimple, VbsStatusMessage);
         AppendStatus(sb, "ETW tracing", EtwStatusSimple, EtwStatusMessage);
-        AppendStatus(sb, "Pagefile", PagefileStatusSimple, PagefileStatusMessage);
         AppendStatus(sb, "Scheduler & affinity", SchedulerStatusSimple, SchedulerStatusMessage);
         AppendStatus(sb, "Auto-tune", AutoTuneStatusSimple, AutoTuneStatusMessage);
 
@@ -892,7 +989,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             "Kernel" => ("Kernel & boot controls", "Sets BCD flags: disables dynamic tick, enables platform clock, sets stable tscsyncpolicy, and enables linearaddress57 on large-memory systems. These reduce timer jitter and scheduling stalls, helping frametime consistency. Reboot required; Restore removes the BCD tweaks."),
             "Vbs" => ("Core Isolation (VBS/HVCI)", "Turns VBS/HVCI off for maximum performance or restores it for security. Disabling frees CPU cycles and reduces DPC/interrupt overhead, which can improve gaming latency. Changes persist across boots; reboot to take effect."),
             "Etw" => ("ETW tracing cleanup", "Enumerates running ETW sessions and stops noisy loggers that keep disks busy or hit the CPU. This lowers background I/O and context switches, which can smooth frametimes. Restore restarts the allowlisted baseline; you can re-detect to verify."),
-            "Pagefile" => ("Pagefile presets", "Detects your pagefile and applies system-managed, NVMe fixed, or custom sizes. Right-sizing on a fast drive cuts paging stalls; an optional working-set sweep frees RAM after apply. Status shows drive/size so you can verify the layout."),
             "Scheduler" => ("Scheduler & affinity", "Applies priority/affinity masks to listed processes (dwm, explorer, games) so UI threads stay responsive and workloads stick to intended cores. This reduces contention and stutter; Restore resets masks to Normal on all cores."),
             "AutoTune" => ("Auto-tune loop", "Runs a watcher that detects your listed games/launchers and auto-applies the chosen scheduler preset, then logs before/after. This keeps game processes prioritized the moment they start. Stop & revert ends the watcher and restores defaults."),
             _ => ("Performance Lab", "Quick explanation for this step is not available. Please try again or refresh."),
@@ -926,14 +1022,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         }
     }
 
-    private void HandlePlanResult(string source, string successMessage, PowerShellInvocationResult result)
+    private void HandlePlanResult(string source, string successMessage, PowerShellInvocationResult result, bool ultimateActiveOnSuccess)
     {
         if (result.IsSuccess)
         {
             _activityLog.LogSuccess(source, successMessage, BuildDetails(result));
             PowerPlanStatusMessage = successMessage;
-            IsPowerPlanSuccess = true;
-            IsUltimateActive = true;
+            IsPowerPlanSuccess = ultimateActiveOnSuccess;
+            IsUltimateActive = ultimateActiveOnSuccess;
             PowerPlanStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
         }
         else
@@ -965,7 +1061,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         }
     }
 
-    private void HandleHardwareResult(string source, string successMessage, PowerShellInvocationResult result)
+    private void HandleHardwareResult(string source, string successMessage, PowerShellInvocationResult result, bool markApplied = true)
     {
         if (result.IsSuccess)
         {
@@ -974,7 +1070,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                           ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
             HardwareStatusMessage = primary ?? successMessage;
-            IsHardwareSuccess = true;
+            IsHardwareSuccess = markApplied && result.IsSuccess;
         }
         else
         {
@@ -987,7 +1083,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         HardwareStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
-    private void HandleKernelResult(string source, string successMessage, PowerShellInvocationResult result)
+    private void HandleKernelResult(string source, string successMessage, PowerShellInvocationResult result, bool markApplied = true)
     {
         if (result.IsSuccess)
         {
@@ -996,7 +1092,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                           ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
             KernelStatusMessage = primary ?? successMessage;
-            IsKernelSuccess = true;
+            IsKernelSuccess = markApplied && result.IsSuccess;
         }
         else
         {
@@ -1009,7 +1105,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         KernelStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
-    private void HandleVbsResult(string source, string successMessage, PowerShellInvocationResult result)
+    private void HandleVbsResult(string source, string successMessage, PowerShellInvocationResult result, bool markApplied = true)
     {
         if (result.IsSuccess)
         {
@@ -1018,7 +1114,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                           ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
             VbsStatusMessage = primary ?? successMessage;
-            IsVbsSuccess = true;
+            IsVbsSuccess = markApplied && result.IsSuccess;
         }
         else
         {
@@ -1031,7 +1127,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         VbsStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
-    private void HandleEtwResult(string source, string successMessage, PowerShellInvocationResult result)
+    private void HandleEtwResult(string source, string successMessage, PowerShellInvocationResult result, bool markApplied = true)
     {
         if (result.IsSuccess)
         {
@@ -1040,7 +1136,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                           ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
             EtwStatusMessage = primary ?? successMessage;
-            IsEtwSuccess = true;
+            IsEtwSuccess = markApplied && result.IsSuccess;
         }
         else
         {
@@ -1053,29 +1149,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         EtwStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
-    private void HandlePagefileResult(string source, string successMessage, PowerShellInvocationResult result)
-    {
-        if (result.IsSuccess)
-        {
-            var details = BuildDetails(result);
-            var primary = details.FirstOrDefault(d => !d.StartsWith("exitCode", StringComparison.OrdinalIgnoreCase))
-                          ?? details.FirstOrDefault();
-            _activityLog.LogSuccess(source, successMessage, details);
-            PagefileStatusMessage = primary ?? successMessage;
-            IsPagefileSuccess = true;
-        }
-        else
-        {
-            var message = result.Errors.FirstOrDefault() ?? "Operation failed.";
-            _activityLog.LogWarning(source, message, BuildDetails(result));
-            PagefileStatusMessage = message;
-            IsPagefileSuccess = false;
-        }
-
-        PagefileStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
-    }
-
-    private void HandleSchedulerResult(string source, string successMessage, PowerShellInvocationResult result)
+    private void HandleSchedulerResult(string source, string successMessage, PowerShellInvocationResult result, bool markApplied = true)
     {
         if (result.IsSuccess)
         {
@@ -1084,7 +1158,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                           ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
             SchedulerStatusMessage = primary ?? successMessage;
-            IsSchedulerSuccess = true;
+            IsSchedulerSuccess = markApplied && result.IsSuccess;
         }
         else
         {
@@ -1097,7 +1171,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         SchedulerStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
     }
 
-    private void HandleAutoTuneResult(string source, string successMessage, PowerShellInvocationResult result)
+    private void HandleAutoTuneResult(string source, string successMessage, PowerShellInvocationResult result, bool markApplied = true)
     {
         if (result.IsSuccess)
         {
@@ -1106,7 +1180,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
                           ?? details.FirstOrDefault();
             _activityLog.LogSuccess(source, successMessage, details);
             AutoTuneStatusMessage = primary ?? successMessage;
-            IsAutoTuneSuccess = true;
+            IsAutoTuneSuccess = markApplied && result.IsSuccess;
         }
         else
         {
@@ -1158,42 +1232,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         return AnsiRegex.Replace(value, string.Empty).TrimEnd();
     }
 
-    partial void OnSelectedPagefilePresetIdChanged(string value)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return;
-        }
-
-        var preset = PagefilePresets.FirstOrDefault(p => string.Equals(p.Id, value, StringComparison.OrdinalIgnoreCase));
-        if (preset is null)
-        {
-            return;
-        }
-
-        SelectedPagefilePreset = preset;
-        TargetPagefileDrive = preset.DefaultDrive;
-        if (preset.DefaultInitialMb.HasValue)
-        {
-            PagefileInitialMb = preset.DefaultInitialMb.Value;
-        }
-
-        if (preset.DefaultMaxMb.HasValue)
-        {
-            PagefileMaxMb = preset.DefaultMaxMb.Value;
-        }
-    }
-
-    partial void OnSelectedPagefilePresetChanged(PagefilePresetOption? value)
-    {
-        if (value is null)
-        {
-            return;
-        }
-
-        SelectedPagefilePresetId = value.Id;
-    }
-
     partial void OnSelectedSchedulerPresetIdChanged(string value)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -1218,6 +1256,46 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         }
 
         SelectedSchedulerPresetId = value.Id;
+    }
+
+    partial void OnPowerPlanStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(PowerPlanStatusSimple));
+    }
+
+    partial void OnServiceStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(ServiceStatusSimple));
+    }
+
+    partial void OnHardwareStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(HardwareStatusSimple));
+    }
+
+    partial void OnKernelStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(KernelStatusSimple));
+    }
+
+    partial void OnVbsStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(VbsStatusSimple));
+    }
+
+    partial void OnEtwStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(EtwStatusSimple));
+    }
+
+    partial void OnSchedulerStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(SchedulerStatusSimple));
+    }
+
+    partial void OnAutoTuneStatusMessageChanged(string value)
+    {
+        OnPropertyChanged(nameof(AutoTuneStatusSimple));
     }
 
     partial void OnIsUltimateActiveChanged(bool value)
@@ -1253,11 +1331,6 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     partial void OnIsEtwSuccessChanged(bool value)
     {
         OnPropertyChanged(nameof(EtwStatusSimple));
-    }
-
-    partial void OnIsPagefileSuccessChanged(bool value)
-    {
-        OnPropertyChanged(nameof(PagefileStatusSimple));
     }
 
     partial void OnIsSchedulerSuccessChanged(bool value)

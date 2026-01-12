@@ -182,13 +182,6 @@ public sealed class PerformanceLabAutomationRunner : IDisposable
             await AddStepAsync("ETW cleanup", () => _service.CleanupEtwTracingAsync(mode, cancellationToken)).ConfigureAwait(false);
         }
 
-        if (snapshot.ApplyPagefilePreset)
-        {
-            var preset = string.IsNullOrWhiteSpace(snapshot.PagefilePresetId) ? "SystemManaged" : snapshot.PagefilePresetId;
-            var drive = string.IsNullOrWhiteSpace(snapshot.TargetPagefileDrive) ? "C:" : snapshot.TargetPagefileDrive;
-            await AddStepAsync("Pagefile preset", () => _service.ApplyPagefilePresetAsync(preset, drive, snapshot.PagefileInitialMb, snapshot.PagefileMaxMb, snapshot.RunWorkingSetSweep, snapshot.SweepPinnedApps, cancellationToken)).ConfigureAwait(false);
-        }
-
         if (snapshot.ApplySchedulerPreset)
         {
             var preset = string.IsNullOrWhiteSpace(snapshot.SchedulerPresetId) ? "Balanced" : snapshot.SchedulerPresetId;
