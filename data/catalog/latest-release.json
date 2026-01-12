@@ -1,10 +1,10 @@
 {
-  "version": "3.8.1",
+  "version": "3.8.3",
   "channel": "stable",
-  "summary": "## ⚙️ Auto-Tune & Performance Lab Polishing\n\n- Auto-Tune logging stays **silent on no-op runs**, only logging real actions or warnings.\n- Scheduler/Affinity script now handles **multiple process names** (spaces/commas/semicolons) without parameter errors.\n- Power plan detection falls back to `powercfg /list` when `/getactivescheme` fails or is localized, improving\n  **Ultimate Performance status accuracy** in the UI.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.1/TidyWindow-Setup-3.8.1.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.1",
-  "publishedAt": "2026-01-11T11:51:43Z",
-  "installerSizeBytes": 81553229,
-  "sha256": "907f12f5026146ea4fe5e6966bb73a58b4e8d02d734292e8f48d1ee71bbf357c"
+  "summary": "## Fixed the build error.\n\n##  Startup Control & Performance Lab UX\n\n###  Startup Backup & Restore\n- Added **proactive backups** for Run/RunOnce entries so they can always be restored, even if deleted or renamed.\n- UI and service now share the **same backup store**, preventing mismatched or missing restore sources.\n- Added helpers that recover entries by **value name**, not just ID, improving restore reliability.\n- Startup enable falls back to the backup store before failing - no more “No data to restore.”\n- Toggle actions now **refresh commands, counters, and paging instantly**, so you can re-toggle without manual refresh.\n\n###  Visibility & Messaging\n- Logging now includes **action, entry name, source tag, user context, and registry/task path** for immediate clarity.\n- Status chips now distinguish “detected” vs “in effect” - detects stay visible without falsely reporting success.\n\n###  Guardrails & Automation\n- Added **DisableAutomationCommand** to turn off boot automation + auto-tune monitoring in one click.\n- Introduced “**arm tweaks**” guard and automation kill switch UI - apply buttons stay locked until armed.\n- Boot automation “Run Now” and all tweak actions now require the guard lock to prevent accidental changes.\n- All write/restore actions are **guard-locked**, with updated `CanExecute` logic for safe UI flow.\n\n###  UI Touch-Up\n- Improved side-bar.",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.3/TidyWindow-Setup-3.8.3.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.3",
+  "publishedAt": "2026-01-12T13:41:04Z",
+  "installerSizeBytes": 90734375,
+  "sha256": "5fa9988e5ef92d0b8f73d68883a80dbcbc5afc7f8879fa329ceeee39f73a3fab"
 }
