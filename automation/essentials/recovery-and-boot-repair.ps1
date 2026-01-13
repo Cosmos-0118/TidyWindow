@@ -139,6 +139,24 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Resolve-BootrecPath {
+    $candidates = @(
+        (Join-Path -Path $env:SystemRoot -ChildPath 'System32\bootrec.exe'),
+        'C:\Windows\System32\bootrec.exe'
+    )
+
+    foreach ($path in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+
+        $full = [System.IO.Path]::GetFullPath($path)
+        if (Test-Path -LiteralPath $full) {
+            return $full
+        }
+    }
+
+    return $null
+}
+
 function Exit-SafeMode {
     try {
         Write-TidyOutput -Message 'Removing SafeBoot configuration from current BCD entry (if present).'
@@ -152,14 +170,23 @@ function Exit-SafeMode {
 
 function Run-BootrecFixes {
     try {
+        $bootrecPath = Resolve-BootrecPath
+        if (-not $bootrecPath) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message 'bootrec.exe not found in System32. Run this sequence from WinRE or ensure bootrec is present.'
+            return
+        }
+
+        Write-TidyOutput -Message ("Running bootrec from {0}" -f $bootrecPath)
+
         Write-TidyOutput -Message 'Running bootrec /fixmbr.'
-        Invoke-TidyCommand -Command { bootrec /fixmbr } -Description 'bootrec /fixmbr' -RequireSuccess
+        Invoke-TidyCommand -Command { param($path) & $path /fixmbr } -Arguments @($bootrecPath) -Description 'bootrec /fixmbr' -RequireSuccess
 
         Write-TidyOutput -Message 'Running bootrec /fixboot.'
-        Invoke-TidyCommand -Command { bootrec /fixboot } -Description 'bootrec /fixboot' -AcceptableExitCodes @(0,1,2)
+        Invoke-TidyCommand -Command { param($path) & $path /fixboot } -Arguments @($bootrecPath) -Description 'bootrec /fixboot' -AcceptableExitCodes @(0,1,2)
 
         Write-TidyOutput -Message 'Running bootrec /rebuildbcd.'
-        Invoke-TidyCommand -Command { bootrec /rebuildbcd } -Description 'bootrec /rebuildbcd' -AcceptableExitCodes @(0,1)
+        Invoke-TidyCommand -Command { param($path) & $path /rebuildbcd } -Arguments @($bootrecPath) -Description 'bootrec /rebuildbcd' -AcceptableExitCodes @(0,1)
     }
     catch {
         $script:OperationSucceeded = $false

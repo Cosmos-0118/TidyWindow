@@ -159,8 +159,56 @@ function Reregister-SecurityHealthUi {
             Write-TidyOutput -Message 'SecurityHealthService not found. Skipping service restart.'
         }
         else {
-            Write-TidyOutput -Message 'Restarting SecurityHealthService.'
-            Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -Force -ErrorAction Stop } -Arguments @($service.Name) -Description 'Restarting SecurityHealthService.' -RequireSuccess
+            $serviceName = $service.Name
+            $waited = $false
+
+            function Wait-TidyServiceRunning {
+                param(
+                    [Parameter(Mandatory = $true)]
+                    [string] $Name,
+                    [int] $TimeoutSeconds = 10
+                )
+
+                $sw = [System.Diagnostics.Stopwatch]::StartNew()
+                while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+                    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+                    if ($svc -and $svc.Status -eq 'Running') { return $true }
+                    Start-Sleep -Milliseconds 300
+                }
+
+                return $false
+            }
+
+            if ($service.Status -eq 'Stopped') {
+                Write-TidyOutput -Message 'SecurityHealthService is stopped; attempting start instead of restart.'
+                try {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($serviceName) -Description 'Starting SecurityHealthService.' -RequireSuccess
+                }
+                catch {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("Failed to start SecurityHealthService: {0}" -f $_.Exception.Message)
+                }
+            }
+            else {
+                Write-TidyOutput -Message 'Restarting SecurityHealthService.'
+                try {
+                    Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -Force -ErrorAction Stop } -Arguments @($serviceName) -Description 'Restarting SecurityHealthService.' -RequireSuccess
+                }
+                catch {
+                    Write-TidyOutput -Message ("Restart was blocked; verifying service state instead: {0}" -f $_.Exception.Message)
+                }
+            }
+
+            if (-not (Wait-TidyServiceRunning -Name $serviceName -TimeoutSeconds 12)) {
+                # Try one more start if the restart path didn't yield running state.
+                try {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($serviceName) -Description 'Ensuring SecurityHealthService is running.'
+                }
+                catch {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("SecurityHealthService not running after retry: {0}" -f $_.Exception.Message)
+                }
+            }
         }
     }
     catch {

@@ -266,16 +266,25 @@ function Refresh-TrayShell {
         Start-Sleep -Milliseconds 500
 
         $hostExe = Resolve-ShellExperienceHostExecutable
-        if ($hostExe) {
+        $launched = $false
+
+        if ($hostExe -and (Test-Path -Path $hostExe)) {
             $workingDir = Split-Path -Path $hostExe -Parent
             Write-TidyOutput -Message ("Starting ShellExperienceHost from '{0}'." -f $hostExe)
-            Invoke-TidyCommand -Command { param($path, $wd) Start-Process -FilePath $path -WorkingDirectory $wd } -Arguments @($hostExe, $workingDir) -Description 'Starting ShellExperienceHost (exe).' -RequireSuccess
+            try {
+                Invoke-TidyCommand -Command { param($path, $wd) Start-Process -FilePath $path -WorkingDirectory $wd } -Arguments @($hostExe, $workingDir) -Description 'Starting ShellExperienceHost (exe).' -RequireSuccess
+                $launched = $true
+            }
+            catch {
+                Write-TidyOutput -Message ("Direct launch failed, will retry via AppsFolder: {0}" -f $_.Exception.Message)
+            }
         }
-        else {
+
+        if (-not $launched) {
             $pkg = Get-AppxPackage -AllUsers -Name 'Microsoft.Windows.ShellExperienceHost' -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1
             $family = if ($pkg) { $pkg.PackageFamilyName } else { 'Microsoft.Windows.ShellExperienceHost_cw5n1h2txyewy' }
             $shellUri = "shell:AppsFolder\$family!App"
-            Write-TidyOutput -Message ("ShellExperienceHost.exe not found on disk. Launching via AppsFolder: {0}" -f $shellUri)
+            Write-TidyOutput -Message ("ShellExperienceHost.exe not found or direct start failed. Launching via AppsFolder: {0}" -f $shellUri)
             Invoke-TidyCommand -Command { param($uri) Start-Process -FilePath 'explorer.exe' -ArgumentList $uri -WindowStyle Hidden } -Arguments @($shellUri) -Description 'Starting ShellExperienceHost (AppsFolder).' -RequireSuccess
         }
 

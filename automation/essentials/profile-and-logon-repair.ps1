@@ -136,6 +136,27 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Wait-TidyServiceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $DesiredStatus = 'Running',
+        [int] $TimeoutSeconds = 12
+    )
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq $DesiredStatus) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 300
+    }
+
+    return $false
+}
+
 function Audit-StartupRunKeys {
     $runPaths = @(
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',
@@ -239,8 +260,36 @@ function Reset-ProfSvcAndUserinit {
             Write-TidyOutput -Message 'User Profile Service (ProfSvc) not found. Skipping restart.'
         }
         else {
-            Write-TidyOutput -Message 'Restarting User Profile Service (ProfSvc).'
-            Invoke-TidyCommand -Command { Restart-Service -Name 'ProfSvc' -Force -ErrorAction Stop } -Description 'Restarting ProfSvc.' -RequireSuccess
+            $serviceName = $service.Name
+            if ($service.Status -ne 'Running') {
+                Write-TidyOutput -Message 'ProfSvc is not running; attempting start.'
+                try {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($serviceName) -Description 'Starting ProfSvc.' -RequireSuccess
+                }
+                catch {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("ProfSvc start failed: {0}" -f $_.Exception.Message)
+                }
+            }
+            else {
+                Write-TidyOutput -Message 'Restarting User Profile Service (ProfSvc).'
+                try {
+                    Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -ErrorAction Stop } -Arguments @($serviceName) -Description 'Restarting ProfSvc.' -RequireSuccess
+                }
+                catch {
+                    Write-TidyOutput -Message ("Restart was blocked or timed out; ensuring service remains running: {0}" -f $_.Exception.Message)
+                }
+            }
+
+            if (-not (Wait-TidyServiceState -Name $serviceName -DesiredStatus 'Running' -TimeoutSeconds 15)) {
+                try {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($serviceName) -Description 'Ensuring ProfSvc is running.'
+                }
+                catch {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("ProfSvc not running after retry: {0}" -f $_.Exception.Message)
+                }
+            }
         }
     }
     catch {
