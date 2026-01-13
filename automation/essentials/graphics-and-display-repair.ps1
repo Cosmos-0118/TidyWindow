@@ -137,6 +137,27 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Wait-TidyServiceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $DesiredStatus = 'Running',
+        [int] $TimeoutSeconds = 10
+    )
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq $DesiredStatus) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 300
+    }
+
+    return $false
+}
+
 function Reset-DisplayAdapter {
     try {
         $devices = Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId }
@@ -170,8 +191,38 @@ function Restart-DisplayServices {
                 continue
             }
 
+            if ($service.StartType -eq 'Disabled') {
+                Write-TidyOutput -Message ("Service {0} is disabled. Skipping restart." -f $svc)
+                continue
+            }
+
             Write-TidyOutput -Message ("Restarting display service {0}." -f $svc)
-            Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -Force -ErrorAction Stop } -Arguments @($svc) -Description ("Restarting {0}." -f $svc) -RequireSuccess
+            $started = $false
+            try {
+                if ($service.Status -eq 'Stopped') {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description ("Starting {0}." -f $svc)
+                }
+                else {
+                    Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description ("Restarting {0}." -f $svc)
+                }
+                $started = $true
+            }
+            catch {
+                Write-TidyOutput -Message ("Primary restart/start for {0} failed or was blocked: {1}" -f $svc, $_.Exception.Message)
+                try {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description ("Ensuring {0} is running." -f $svc)
+                    $started = $true
+                }
+                catch {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $svc, $_.Exception.Message)
+                }
+            }
+
+            if ($started -and -not (Wait-TidyServiceState -Name $svc -DesiredStatus 'Running' -TimeoutSeconds 12)) {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Service {0} did not reach Running state after restart attempt." -f $svc)
+            }
         }
         catch {
             $script:OperationSucceeded = $false
@@ -183,7 +234,22 @@ function Restart-DisplayServices {
 function Refresh-HdrNightLight {
     try {
         Write-TidyOutput -Message 'Refreshing display enhancement service to re-apply HDR/night light policies.'
-        Invoke-TidyCommand -Command { Restart-Service -Name DisplayEnhancementService -Force -ErrorAction Stop } -Description 'Restarting DisplayEnhancementService.' -RequireSuccess
+        $service = Get-Service -Name 'DisplayEnhancementService' -ErrorAction SilentlyContinue
+        if ($null -eq $service) {
+            Write-TidyOutput -Message 'DisplayEnhancementService not found. Skipping HDR/night light refresh.'
+            return
+        }
+
+        if ($service.StartType -eq 'Disabled') {
+            Write-TidyOutput -Message 'DisplayEnhancementService is disabled. Skipping HDR/night light refresh.'
+            return
+        }
+
+        Invoke-TidyCommand -Command { Restart-Service -Name DisplayEnhancementService -ErrorAction Stop } -Description 'Restarting DisplayEnhancementService.'
+        if (-not (Wait-TidyServiceState -Name 'DisplayEnhancementService' -DesiredStatus 'Running' -TimeoutSeconds 10)) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message 'DisplayEnhancementService did not reach Running state after restart.'
+        }
     }
     catch {
         $script:OperationSucceeded = $false

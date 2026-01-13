@@ -190,6 +190,59 @@ function Reset-BluetoothAvctp {
     }
 }
 
+function Wait-TidyPnpDeviceHealthy {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $InstanceId,
+        [int] $TimeoutSeconds = 6
+    )
+
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $dev = Get-PnpDevice -InstanceId $InstanceId -ErrorAction SilentlyContinue
+        if ($dev -and ($dev.Status -match '^OK$' -or $dev.ConfigManagerErrorCode -eq 0)) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 300
+    }
+
+    return $false
+}
+
+function Restart-PnpDevice {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $InstanceId,
+        [string] $Label
+    )
+
+    try {
+        Write-TidyOutput -Message ("Disabling {0}" -f $Label)
+        Invoke-TidyCommand -Command { param($id) Disable-PnpDevice -InstanceId $id -Confirm:$false -ErrorAction Stop } -Arguments @($InstanceId) -Description ("Disabling {0}" -f $Label)
+        Start-Sleep -Milliseconds 400
+
+        Write-TidyOutput -Message ("Enabling {0}" -f $Label)
+        Invoke-TidyCommand -Command { param($id) Enable-PnpDevice -InstanceId $id -Confirm:$false -ErrorAction Stop } -Arguments @($InstanceId) -Description ("Enabling {0}" -f $Label)
+    }
+    catch {
+        Write-TidyOutput -Message ("Primary disable/enable path failed for {0}: {1}" -f $Label, $_.Exception.Message)
+        try {
+            Write-TidyOutput -Message ("Attempting pnputil restart-device for {0}" -f $Label)
+            Invoke-TidyCommand -Command { param($id) pnputil /restart-device $id } -Arguments @($InstanceId) -Description ("Restarting {0} via pnputil" -f $Label) -AcceptableExitCodes @(0,259,3010)
+        }
+        catch {
+            $script:OperationSucceeded = $false
+            throw
+        }
+    }
+
+    if (-not (Wait-TidyPnpDeviceHealthy -InstanceId $InstanceId -TimeoutSeconds 8)) {
+        $script:OperationSucceeded = $false
+        throw ("{0} did not return to a healthy state after restart." -f $Label)
+    }
+}
+
 function Reset-UsbHubs {
     try {
         $devices = @(Get-PnpDevice -Class USB -ErrorAction SilentlyContinue)
@@ -197,15 +250,20 @@ function Reset-UsbHubs {
             Write-TidyOutput -Message 'No USB class devices found for reset.'
         }
         else {
-            $problemDevices = $devices | Where-Object { $_.Status -and $_.Status -notmatch '^OK$' }
-            foreach ($dev in $problemDevices) {
-                try {
-                    Write-TidyOutput -Message ("Enabling USB device {0}" -f $dev.InstanceId)
-                    Invoke-TidyCommand -Command { param($id) Enable-PnpDevice -InstanceId $id -Confirm:$false -ErrorAction Stop } -Arguments @($dev.InstanceId) -Description ("Enabling USB device {0}" -f $dev.InstanceId)
-                }
-                catch {
-                    $script:OperationSucceeded = $false
-                    Write-TidyError -Message ("Unable to enable USB device {0}: {1}" -f $dev.InstanceId, $_.Exception.Message)
+            $problemDevices = $devices | Where-Object { ($_.Status -and $_.Status -notmatch '^OK$') -or ($_.ConfigManagerErrorCode -ne 0) }
+            if (-not $problemDevices -or $problemDevices.Count -eq 0) {
+                Write-TidyOutput -Message 'No unhealthy USB devices detected; performing a PnP rescan only.'
+            }
+            else {
+                foreach ($dev in $problemDevices) {
+                    $label = if ($dev.FriendlyName) { $dev.FriendlyName } elseif ($dev.Name) { $dev.Name } else { $dev.InstanceId }
+                    try {
+                        Restart-PnpDevice -InstanceId $dev.InstanceId -Label $label
+                    }
+                    catch {
+                        $script:OperationSucceeded = $false
+                        Write-TidyError -Message ("Unable to restart USB device {0}: {1}" -f $dev.InstanceId, $_.Exception.Message)
+                    }
                 }
             }
         }

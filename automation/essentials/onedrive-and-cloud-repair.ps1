@@ -137,11 +137,13 @@ function Test-TidyAdmin {
 }
 
 function Resolve-OneDriveExecutable {
-    $candidates = @(
-        Join-Path $env:LOCALAPPDATA 'Microsoft\\OneDrive\\OneDrive.exe'),
-        Join-Path ${env:ProgramFiles} 'Microsoft OneDrive\\OneDrive.exe',
-        Join-Path ${env:ProgramFiles(x86)} 'Microsoft OneDrive\\OneDrive.exe'
-    ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $raw = @(
+        (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\OneDrive\OneDrive.exe'),
+        (Join-Path -Path ${env:ProgramFiles} -ChildPath 'Microsoft OneDrive\OneDrive.exe'),
+        (Join-Path -Path ${env:ProgramFiles(x86)} -ChildPath 'Microsoft OneDrive\OneDrive.exe')
+    )
+
+    $candidates = $raw | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
     foreach ($path in $candidates) {
         if (Test-Path -LiteralPath $path) {

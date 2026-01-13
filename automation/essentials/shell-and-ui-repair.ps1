@@ -208,12 +208,89 @@ function Recycle-Explorer {
     }
 }
 
+function Resolve-ShellExperienceHostExecutable {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+
+    $packages = @(Get-AppxPackage -AllUsers -Name 'Microsoft.Windows.ShellExperienceHost' -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending)
+    foreach ($package in $packages) {
+        if (-not [string]::IsNullOrWhiteSpace($package.InstallLocation)) {
+            $candidates.Add((Join-Path -Path $package.InstallLocation -ChildPath 'ShellExperienceHost.exe'))
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($package.PackageFamilyName)) {
+            $systemApps = Join-Path -Path $env:SystemRoot -ChildPath 'SystemApps'
+            $candidates.Add((Join-Path -Path $systemApps -ChildPath ("{0}\ShellExperienceHost.exe" -f $package.PackageFamilyName)))
+        }
+    }
+
+    # Fallback to the canonical SystemApps location used by most builds.
+    $defaultSystemApps = Join-Path -Path $env:SystemRoot -ChildPath 'SystemApps'
+    $candidates.Add((Join-Path -Path $defaultSystemApps -ChildPath 'ShellExperienceHost_cw5n1h2txyewy\ShellExperienceHost.exe'))
+
+    foreach ($path in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+
+        $fullPath = [System.IO.Path]::GetFullPath($path)
+        if (Test-Path -Path $fullPath) {
+            return $fullPath
+        }
+    }
+
+    return $null
+}
+
+function Wait-TidyProcessStart {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [int] $TimeoutSeconds = 5
+    )
+
+    $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($stopwatch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $process = Get-Process -Name $Name -ErrorAction SilentlyContinue
+        if ($process) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 250
+    }
+
+    return $false
+}
+
 function Refresh-TrayShell {
     try {
         Write-TidyOutput -Message 'Refreshing ShellExperienceHost to reload tray/UI components.'
         Invoke-TidyCommand -Command { Stop-Process -Name ShellExperienceHost -Force -ErrorAction SilentlyContinue } -Description 'Stopping ShellExperienceHost.'
         Start-Sleep -Milliseconds 500
-        Invoke-TidyCommand -Command { Start-Process ShellExperienceHost.exe } -Description 'Starting ShellExperienceHost.'
+
+        $hostExe = Resolve-ShellExperienceHostExecutable
+        $launched = $false
+
+        if ($hostExe -and (Test-Path -Path $hostExe)) {
+            $workingDir = Split-Path -Path $hostExe -Parent
+            Write-TidyOutput -Message ("Starting ShellExperienceHost from '{0}'." -f $hostExe)
+            try {
+                Invoke-TidyCommand -Command { param($path, $wd) Start-Process -FilePath $path -WorkingDirectory $wd } -Arguments @($hostExe, $workingDir) -Description 'Starting ShellExperienceHost (exe).' -RequireSuccess
+                $launched = $true
+            }
+            catch {
+                Write-TidyOutput -Message ("Direct launch failed, will retry via AppsFolder: {0}" -f $_.Exception.Message)
+            }
+        }
+
+        if (-not $launched) {
+            $pkg = Get-AppxPackage -AllUsers -Name 'Microsoft.Windows.ShellExperienceHost' -ErrorAction SilentlyContinue | Sort-Object -Property Version -Descending | Select-Object -First 1
+            $family = if ($pkg) { $pkg.PackageFamilyName } else { 'Microsoft.Windows.ShellExperienceHost_cw5n1h2txyewy' }
+            $shellUri = "shell:AppsFolder\$family!App"
+            Write-TidyOutput -Message ("ShellExperienceHost.exe not found or direct start failed. Launching via AppsFolder: {0}" -f $shellUri)
+            Invoke-TidyCommand -Command { param($uri) Start-Process -FilePath 'explorer.exe' -ArgumentList $uri -WindowStyle Hidden } -Arguments @($shellUri) -Description 'Starting ShellExperienceHost (AppsFolder).' -RequireSuccess
+        }
+
+        if (-not (Wait-TidyProcessStart -Name 'ShellExperienceHost' -TimeoutSeconds 8)) {
+            throw 'ShellExperienceHost did not start within the expected time window.'
+        }
     }
     catch {
         $script:OperationSucceeded = $false

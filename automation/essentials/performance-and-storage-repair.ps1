@@ -174,6 +174,8 @@ function Configure-Pagefile {
     param([bool] $UseManualSizing)
 
     try {
+        $computerSystem = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+
         if ($UseManualSizing) {
             if ($PagefileInitialMB -gt $PagefileMaximumMB) {
                 throw 'PagefileInitialMB cannot exceed PagefileMaximumMB.'
@@ -181,7 +183,7 @@ function Configure-Pagefile {
 
             Write-TidyOutput -Message ("Enabling manual pagefile sizing: {0} MB initial, {1} MB maximum." -f $PagefileInitialMB, $PagefileMaximumMB)
 
-            Invoke-TidyCommand -Command { Set-CimInstance -ClassName Win32_ComputerSystem -Property @{ AutomaticManagedPagefile = $false } -ErrorAction Stop } -Description 'Disabling automatic pagefile management.' -RequireSuccess
+            Invoke-TidyCommand -Command { param($cs) Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $false } -ErrorAction Stop } -Arguments @($computerSystem) -Description 'Disabling automatic pagefile management.' -RequireSuccess
 
             $pagefileName = 'C:\\pagefile.sys'
             $settings = Get-CimInstance -ClassName Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { $_.Name -ieq $pagefileName }
@@ -198,7 +200,7 @@ function Configure-Pagefile {
         }
         else {
             Write-TidyOutput -Message 'Enabling automatic managed pagefile sizing.'
-            Invoke-TidyCommand -Command { Set-CimInstance -ClassName Win32_ComputerSystem -Property @{ AutomaticManagedPagefile = $true } -ErrorAction Stop } -Description 'Setting automatic managed pagefile.' -RequireSuccess
+            Invoke-TidyCommand -Command { param($cs) Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $true } -ErrorAction Stop } -Arguments @($computerSystem) -Description 'Setting automatic managed pagefile.' -RequireSuccess
             Write-TidyOutput -Message 'Automatic pagefile management enabled.'
         }
     }
