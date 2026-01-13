@@ -2,6 +2,7 @@ param(
     [switch] $SkipTaskCacheRebuild,
     [switch] $SkipUsoTaskEnable,
     [switch] $SkipScheduleReset,
+    [switch] $SkipUsoTaskRebuild,
     [string] $ResultPath
 )
 
@@ -30,6 +31,7 @@ $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:UsoTaskRebuildRequested = $false
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -62,6 +64,44 @@ function Save-TidyResult {
     Set-Content -Path $ResultPath -Value $json -Encoding UTF8
 }
 
+function Invoke-TidyCommand {
+    param(
+        [Parameter(Mandatory = $true)][scriptblock] $Command,
+        [string] $Description = 'Running command.',
+        [object[]] $Arguments = @(),
+        [switch] $RequireSuccess
+    )
+
+    Write-TidyLog -Level Information -Message $Description
+
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
+
+    $output = & $Command @Arguments 2>&1
+
+    $exitCode = 0
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $exitCode = $LASTEXITCODE
+    }
+
+    foreach ($entry in @($output)) {
+        if ($null -eq $entry) { continue }
+        if ($entry -is [System.Management.Automation.ErrorRecord]) {
+            Write-TidyError -Message $entry
+        }
+        else {
+            Write-TidyOutput -Message $entry
+        }
+    }
+
+    if ($RequireSuccess -and $exitCode -ne 0) {
+        throw "$Description failed with exit code $exitCode."
+    }
+
+    return $exitCode
+}
+
 function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
@@ -79,10 +119,39 @@ function Wait-TidyServiceState {
 
 function Restart-ScheduleService {
     try {
+        $svc = Get-Service -Name 'Schedule' -ErrorAction SilentlyContinue
+        if ($null -eq $svc) {
+            Write-TidyOutput -Message 'Schedule service not found; skipping restart.'
+            return
+        }
+
         Write-TidyOutput -Message 'Restarting Task Scheduler (Schedule) service.'
-        Invoke-TidyCommand -Command { Restart-Service -Name 'Schedule' -Force -ErrorAction Stop } -Description 'Restarting Schedule service.' -RequireSuccess | Out-Null
+        try {
+            if ($svc.Status -eq 'Running') {
+                Invoke-TidyCommand -Command { Restart-Service -Name 'Schedule' -Force -ErrorAction Stop } -Description 'Restarting Schedule service.' -RequireSuccess | Out-Null
+            }
+            else {
+                Invoke-TidyCommand -Command { Start-Service -Name 'Schedule' -ErrorAction Stop } -Description 'Starting Schedule service.' -RequireSuccess | Out-Null
+            }
+        }
+        catch {
+            Write-TidyOutput -Message ('Direct restart failed: {0}. Attempting start only.' -f $_.Exception.Message)
+            try {
+                Invoke-TidyCommand -Command { Start-Service -Name 'Schedule' -ErrorAction Stop } -Description 'Starting Schedule service (fallback).' -RequireSuccess | Out-Null
+            }
+            catch {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Failed to restart Schedule service: {0}" -f $_.Exception.Message)
+                return
+            }
+        }
+
         if (-not (Wait-TidyServiceState -Name 'Schedule' -DesiredStatus 'Running' -TimeoutSeconds 20)) {
             Write-TidyOutput -Message 'Schedule service did not reach Running state after restart.'
+        }
+        else {
+            $status = (Get-Service -Name 'Schedule' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Status)
+            Write-TidyOutput -Message ("Schedule service status: {0}" -f $status)
         }
     }
     catch {
@@ -147,23 +216,374 @@ function Rebuild-TaskCache {
     }
 }
 
+function Get-BaselineUsoTasks {
+    $startBoundary = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ')
+
+        return @(
+                @{
+                        Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'
+                        Name = 'Schedule Scan'
+                        Xml  = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+    <RegistrationInfo>
+        <Description>Scans for available Windows updates.</Description>
+    </RegistrationInfo>
+    <Triggers>
+        <CalendarTrigger>
+            <StartBoundary>$startBoundary</StartBoundary>
+            <Enabled>true</Enabled>
+            <ScheduleByDay>
+                <DaysInterval>1</DaysInterval>
+            </ScheduleByDay>
+        </CalendarTrigger>
+    </Triggers>
+    <Principals>
+        <Principal id="Author">
+            <UserId>S-1-5-18</UserId>
+            <RunLevel>HighestAvailable</RunLevel>
+            <LogonType>ServiceAccount</LogonType>
+        </Principal>
+    </Principals>
+    <Settings>
+        <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+        <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+        <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+        <AllowHardTerminate>true</AllowHardTerminate>
+        <StartWhenAvailable>true</StartWhenAvailable>
+        <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+        <IdleSettings>
+            <StopOnIdleEnd>false</StopOnIdleEnd>
+            <RestartOnIdle>false</RestartOnIdle>
+        </IdleSettings>
+        <Enabled>true</Enabled>
+        <Hidden>false</Hidden>
+        <RunOnlyIfIdle>false</RunOnlyIfIdle>
+        <WakeToRun>false</WakeToRun>
+        <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+        <Priority>7</Priority>
+    </Settings>
+    <Actions Context="Author">
+        <Exec>
+            <Command>%SystemRoot%\system32\usoclient.exe</Command>
+            <Arguments>StartScan</Arguments>
+        </Exec>
+    </Actions>
+</Task>
+"@
+                }
+                @{
+                        Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'
+                        Name = 'UpdateModel'
+                        Xml  = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+    <RegistrationInfo>
+        <Description>Maintains Windows Update orchestration.</Description>
+    </RegistrationInfo>
+    <Triggers>
+        <BootTrigger>
+            <Enabled>true</Enabled>
+            <Delay>PT5M</Delay>
+        </BootTrigger>
+    </Triggers>
+    <Principals>
+        <Principal id="Author">
+            <UserId>S-1-5-18</UserId>
+            <RunLevel>HighestAvailable</RunLevel>
+            <LogonType>ServiceAccount</LogonType>
+        </Principal>
+    </Principals>
+    <Settings>
+        <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+        <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+        <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+        <AllowHardTerminate>true</AllowHardTerminate>
+        <StartWhenAvailable>true</StartWhenAvailable>
+        <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+        <IdleSettings>
+            <StopOnIdleEnd>false</StopOnIdleEnd>
+            <RestartOnIdle>false</RestartOnIdle>
+        </IdleSettings>
+        <Enabled>true</Enabled>
+        <Hidden>false</Hidden>
+        <RunOnlyIfIdle>false</RunOnlyIfIdle>
+        <WakeToRun>false</WakeToRun>
+        <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+        <Priority>7</Priority>
+    </Settings>
+    <Actions Context="Author">
+        <Exec>
+            <Command>%SystemRoot%\system32\usoclient.exe</Command>
+            <Arguments>StartScan</Arguments>
+        </Exec>
+    </Actions>
+</Task>
+"@
+                }
+                @{
+                        Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'
+                        Name = 'Universal Orchestrator Start'
+                        Xml  = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+    <RegistrationInfo>
+        <Description>Starts the Windows Update Orchestrator service.</Description>
+    </RegistrationInfo>
+    <Triggers>
+        <BootTrigger>
+            <Enabled>true</Enabled>
+            <Delay>PT2M</Delay>
+        </BootTrigger>
+    </Triggers>
+    <Principals>
+        <Principal id="Author">
+            <UserId>S-1-5-18</UserId>
+            <RunLevel>HighestAvailable</RunLevel>
+            <LogonType>ServiceAccount</LogonType>
+        </Principal>
+    </Principals>
+    <Settings>
+        <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+        <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+        <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+        <AllowHardTerminate>true</AllowHardTerminate>
+        <StartWhenAvailable>true</StartWhenAvailable>
+        <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+        <IdleSettings>
+            <StopOnIdleEnd>false</StopOnIdleEnd>
+            <RestartOnIdle>false</RestartOnIdle>
+        </IdleSettings>
+        <Enabled>true</Enabled>
+        <Hidden>false</Hidden>
+        <RunOnlyIfIdle>false</RunOnlyIfIdle>
+        <WakeToRun>false</WakeToRun>
+        <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+        <Priority>7</Priority>
+    </Settings>
+    <Actions Context="Author">
+        <Exec>
+            <Command>%SystemRoot%\system32\sc.exe</Command>
+            <Arguments>start UsoSvc</Arguments>
+        </Exec>
+    </Actions>
+</Task>
+"@
+                }
+                @{
+                        Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'
+                        Name = 'USO_UxBroker'
+                        Xml  = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+    <RegistrationInfo>
+        <Description>Handles Windows Update UX brokering.</Description>
+    </RegistrationInfo>
+    <Triggers>
+        <LogonTrigger>
+            <Enabled>true</Enabled>
+        </LogonTrigger>
+    </Triggers>
+    <Principals>
+        <Principal id="Author">
+            <UserId>S-1-5-18</UserId>
+            <RunLevel>HighestAvailable</RunLevel>
+            <LogonType>ServiceAccount</LogonType>
+        </Principal>
+    </Principals>
+    <Settings>
+        <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+        <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+        <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+        <AllowHardTerminate>true</AllowHardTerminate>
+        <StartWhenAvailable>true</StartWhenAvailable>
+        <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+        <IdleSettings>
+            <StopOnIdleEnd>false</StopOnIdleEnd>
+            <RestartOnIdle>false</RestartOnIdle>
+        </IdleSettings>
+        <Enabled>true</Enabled>
+        <Hidden>false</Hidden>
+        <RunOnlyIfIdle>false</RunOnlyIfIdle>
+        <WakeToRun>false</WakeToRun>
+        <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+        <Priority>7</Priority>
+    </Settings>
+    <Actions Context="Author">
+        <Exec>
+            <Command>%SystemRoot%\system32\usoclient.exe</Command>
+            <Arguments>StartScan</Arguments>
+        </Exec>
+    </Actions>
+</Task>
+"@
+                }
+                @{
+                        Path = '\\Microsoft\\Windows\\WindowsUpdate\\'
+                        Name = 'Scheduled Start'
+                        Xml  = @"
+<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.3" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+    <RegistrationInfo>
+        <Description>Starts Windows Update scheduled maintenance.</Description>
+    </RegistrationInfo>
+    <Triggers>
+        <CalendarTrigger>
+            <StartBoundary>$startBoundary</StartBoundary>
+            <Enabled>true</Enabled>
+            <ScheduleByDay>
+                <DaysInterval>1</DaysInterval>
+            </ScheduleByDay>
+        </CalendarTrigger>
+    </Triggers>
+    <Principals>
+        <Principal id="Author">
+            <UserId>S-1-5-18</UserId>
+            <RunLevel>HighestAvailable</RunLevel>
+            <LogonType>ServiceAccount</LogonType>
+        </Principal>
+    </Principals>
+    <Settings>
+        <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+        <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+        <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+        <AllowHardTerminate>true</AllowHardTerminate>
+        <StartWhenAvailable>true</StartWhenAvailable>
+        <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>
+        <IdleSettings>
+            <StopOnIdleEnd>false</StopOnIdleEnd>
+            <RestartOnIdle>false</RestartOnIdle>
+        </IdleSettings>
+        <Enabled>true</Enabled>
+        <Hidden>false</Hidden>
+        <RunOnlyIfIdle>false</RunOnlyIfIdle>
+        <WakeToRun>false</WakeToRun>
+        <ExecutionTimeLimit>PT1H</ExecutionTimeLimit>
+        <Priority>7</Priority>
+    </Settings>
+    <Actions Context="Author">
+        <Exec>
+            <Command>%SystemRoot%\system32\usoclient.exe</Command>
+            <Arguments>StartScan</Arguments>
+        </Exec>
+    </Actions>
+</Task>
+"@
+                }
+        )
+}
+
+function Restore-UsoTasksFromBaseline {
+        param(
+                [Parameter(Mandatory = $true)]
+                [object[]] $Tasks
+        )
+
+        $tempFiles = @()
+        try {
+            foreach ($task in $Tasks) {
+                $tempFile = [System.IO.Path]::Combine([System.IO.Path]::GetTempPath(), [System.IO.Path]::GetRandomFileName() + '.xml')
+                Set-Content -LiteralPath $tempFile -Value $task.Xml -Encoding Unicode
+                $tn = "$($task.Path)$($task.Name)"
+                Write-TidyOutput -Message ("Creating scheduled task from baseline: {0}" -f $tn)
+
+                $process = Start-Process -FilePath 'schtasks.exe' -ArgumentList @('/create','/f','/tn', $tn, '/xml', $tempFile) -PassThru -WindowStyle Hidden -Wait -ErrorAction SilentlyContinue
+                $exit = if ($process) { $process.ExitCode } else { 1 }
+                $tempFiles += $tempFile
+
+                if ($exit -ne 0) {
+                    Write-TidyOutput -Message ("Baseline creation for {0} exited with {1}." -f $tn, $exit)
+                    continue
+                }
+
+                Write-TidyOutput -Message ("Created task {0}." -f $tn)
+            }
+            return $true
+        }
+        catch {
+            Write-TidyOutput -Message ("Task baseline restore encountered an error: {0}" -f $_.Exception.Message)
+            return $false
+        }
+        finally {
+                foreach ($f in $tempFiles) {
+                        if (Test-Path -LiteralPath $f) {
+                                Remove-Item -LiteralPath $f -Force -ErrorAction SilentlyContinue
+                        }
+                }
+        }
+}
+
 function Enable-UsoTasks {
     $targets = @(
-        'Microsoft\\Windows\\UpdateOrchestrator\\Schedule Scan',
-        'Microsoft\\Windows\\UpdateOrchestrator\\UpdateModel',
-        'Microsoft\\Windows\\UpdateOrchestrator\\Universal Orchestrator Start',
-        'Microsoft\\Windows\\UpdateOrchestrator\\USO_UxBroker',
-        'Microsoft\\Windows\\WindowsUpdate\\Scheduled Start'
+        @{ Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'; Name = 'Schedule Scan' },
+        @{ Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'; Name = 'UpdateModel' },
+        @{ Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'; Name = 'Universal Orchestrator Start' },
+        @{ Path = '\\Microsoft\\Windows\\UpdateOrchestrator\\'; Name = 'USO_UxBroker' },
+        @{ Path = '\\Microsoft\\Windows\\WindowsUpdate\\'; Name = 'Scheduled Start' }
     )
 
+    $baselineTasks = Get-BaselineUsoTasks
+
+    $uoTasks = Get-ScheduledTask -TaskPath '\\Microsoft\\Windows\\UpdateOrchestrator\\' -ErrorAction SilentlyContinue
+    $wuTasks = Get-ScheduledTask -TaskPath '\\Microsoft\\Windows\\WindowsUpdate\\' -ErrorAction SilentlyContinue
+    if (-not $uoTasks -and -not $wuTasks) {
+        Write-TidyOutput -Message 'UpdateOrchestrator/WindowsUpdate task folders not found. Tasks may be removed or policy-disabled.'
+        if ($script:UsoTaskRebuildRequested) {
+            Restore-UsoTasksFromBaseline -Tasks $baselineTasks
+            $uoTasks = Get-ScheduledTask -TaskPath '\\Microsoft\\Windows\\UpdateOrchestrator\\' -ErrorAction SilentlyContinue
+            $wuTasks = Get-ScheduledTask -TaskPath '\\Microsoft\\Windows\\WindowsUpdate\\' -ErrorAction SilentlyContinue
+            if (-not $uoTasks -and -not $wuTasks) {
+                Write-TidyOutput -Message 'Baseline task restore attempted but no tasks were created.'
+                return
+            }
+        }
+        else {
+            return
+        }
+    }
+
     foreach ($task in $targets) {
+        $path = $task.Path
+        $name = $task.Name
+
+        $exists = Get-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction SilentlyContinue
+        if (-not $exists) {
+            if ($script:UsoTaskRebuildRequested) {
+                $baseline = $baselineTasks | Where-Object { $_.Path -eq $path -and $_.Name -eq $name } | Select-Object -First 1
+                if ($baseline) {
+                    Write-TidyOutput -Message ("Task {0}{1} missing; creating from baseline." -f $path, $name)
+                    if (-not (Restore-UsoTasksFromBaseline -Tasks @($baseline))) {
+                        Write-TidyOutput -Message ("Baseline creation failed for task {0}{1}." -f $path, $name)
+                        continue
+                    }
+                    $exists = Get-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction SilentlyContinue
+                    if (-not $exists) {
+                        Write-TidyOutput -Message ("Task {0}{1} still not present after baseline creation." -f $path, $name)
+                        continue
+                    }
+                }
+                else {
+                    Write-TidyOutput -Message ("No baseline found for task {0}{1}. Skipping." -f $path, $name)
+                    continue
+                }
+            }
+            else {
+                Write-TidyOutput -Message ("Task {0}{1} not found. Skipping enable." -f $path, $name)
+                continue
+            }
+        }
+
+        if ($exists.State -eq 'Disabled') {
+            Write-TidyOutput -Message ("Task {0}{1} is disabled; enabling." -f $path, $name)
+        }
+
         try {
-            Write-TidyOutput -Message ("Enabling scheduled task {0}." -f $task)
-            Enable-ScheduledTask -TaskName $task -TaskPath '\\' -ErrorAction Stop | Out-Null
+            Write-TidyOutput -Message ("Enabling scheduled task {0}{1}." -f $path, $name)
+            Enable-ScheduledTask -TaskPath $path -TaskName $name -ErrorAction Stop | Out-Null
         }
         catch {
             $script:OperationSucceeded = $false
-            Write-TidyError -Message ("Failed to enable task {0}: {1}" -f $task, $_.Exception.Message)
+            Write-TidyError -Message ("Failed to enable task {0}{1}: {2}" -f $path, $name, $_.Exception.Message)
         }
     }
 }
@@ -174,6 +594,11 @@ try {
     }
 
     Write-TidyLog -Level Information -Message 'Starting Task Scheduler and automation repair pack.'
+
+    if (-not $SkipUsoTaskEnable.IsPresent -and -not $SkipUsoTaskRebuild.IsPresent) {
+        # Default to rebuild missing update tasks unless explicitly skipped.
+        $script:UsoTaskRebuildRequested = $true
+    }
 
     if (-not $SkipTaskCacheRebuild.IsPresent) {
         Rebuild-TaskCache

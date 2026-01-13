@@ -7,6 +7,7 @@ param(
     [switch] $RestartStoreServices,
     [switch] $ReinstallStoreIfMissing,
     [switch] $ResetCapabilityAccess,
+    [switch] $RepairWslState,
     [string[]] $PackageNames,
     [switch] $IncludeFrameworks,
     [switch] $ConfigureLicensingServices,
@@ -103,7 +104,8 @@ function Invoke-TidyCommand {
         [scriptblock] $Command,
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
-        [switch] $RequireSuccess
+        [switch] $RequireSuccess,
+        [int[]] $AcceptableExitCodes = @()
     )
 
     Write-TidyLog -Level Information -Message $Description
@@ -142,7 +144,14 @@ function Invoke-TidyCommand {
     }
 
     if ($RequireSuccess -and $exitCode -ne 0) {
-        throw "$Description failed with exit code $exitCode."
+        $acceptsExitCode = $false
+        if ($AcceptableExitCodes -and ($AcceptableExitCodes -contains $exitCode)) {
+            $acceptsExitCode = $true
+        }
+
+        if (-not $acceptsExitCode) {
+            throw "$Description failed with exit code $exitCode."
+        }
     }
 
     return $exitCode
@@ -216,6 +225,31 @@ function Wait-TidyServiceState {
     }
 
     return $false
+}
+
+function Test-StoreConnectivity {
+    $storePresent = $false
+    try {
+        $pkg = Get-AppxPackage -Name 'Microsoft.WindowsStore' -ErrorAction SilentlyContinue | Select-Object -First 1
+        $storePresent = [bool]$pkg
+    }
+    catch {
+        Write-TidyOutput -Message 'Unable to query Microsoft Store package presence.'
+    }
+
+    $netOk = $false
+    $probe = Test-NetConnection -ComputerName 'www.microsoft.com' -Port 443 -WarningAction SilentlyContinue -ErrorAction SilentlyContinue
+    if ($probe -and $probe.PSObject.Properties['TcpTestSucceeded']) {
+        $netOk = [bool]$probe.TcpTestSucceeded
+    }
+
+    if (-not $netOk) {
+        Write-TidyOutput -Message 'Network connectivity to www.microsoft.com:443 unavailable. Store repair may fail; check WAN/firewall.'
+    }
+
+    if (-not $storePresent) {
+        Write-TidyOutput -Message 'Microsoft Store package not detected. Will attempt reinstall from WindowsApps payload if available.'
+    }
 }
 
 function Invoke-TidyWsReset {
@@ -345,7 +379,7 @@ function Invoke-ProvisionedAppxReRegistration {
     }
 
     foreach ($pkg in $provisioned) {
-        $family = $pkg.PackageFamilyName
+        $family = if ($pkg.PSObject.Properties['PackageFamilyName']) { $pkg.PackageFamilyName } else { $pkg.PackageName }
         $manifest = $null
 
         $installed = Get-AppxPackage -AllUsers -Name $pkg.PackageName -ErrorAction SilentlyContinue | Select-Object -First 1
@@ -481,10 +515,29 @@ function Ensure-StorePresence {
     }
 }
 
+function Invoke-LicensingHealthCheck {
+    $slmgr = Join-Path -Path $env:WINDIR -ChildPath 'System32\slmgr.vbs'
+    if (-not (Test-Path -LiteralPath $slmgr)) {
+        Write-TidyOutput -Message 'Licensing health check skipped: slmgr.vbs not found.'
+        return
+    }
+
+    try {
+        $exitCode = Invoke-TidyCommand -Command { param($path) cscript.exe //Nologo $path '/dlv' } -Arguments @($slmgr) -Description 'Checking licensing health (slmgr /dlv).' -AcceptableExitCodes @(0)
+        Write-TidyOutput -Message ("Licensing health check exit code: {0}" -f $exitCode)
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Licensing health check failed: {0}" -f $_.Exception.Message)
+    }
+}
+
 function Invoke-LicensingRepair {
     if (-not $ConfigureLicensingServices.IsPresent) {
         return
     }
+
+    Invoke-LicensingHealthCheck
 
     Write-TidyOutput -Message 'Restarting Store licensing services.'
     $services = @('ClipSVC', 'AppXSvc', 'LicenseManager', 'WinStoreSvc')
@@ -542,17 +595,51 @@ function Reset-CapabilityAccessPolicies {
     }
 
     $timestamp = Get-Date -Format 'yyyyMMddHHmmss'
-    $backup = "$path.bak.$timestamp"
+    $parent = Split-Path -Parent $path
+    $backupName = "ConsentStore.bak.$timestamp"
+    $backup = Join-Path -Path $parent -ChildPath $backupName
 
     try {
         Write-TidyOutput -Message ("Resetting capability access policies by backing up {0}." -f $path)
-        Rename-Item -LiteralPath $path -NewName $backup -Force -ErrorAction Stop
+        Copy-Item -LiteralPath $path -Destination $backup -Recurse -Force -ErrorAction Stop
         Write-TidyOutput -Message ("Original consent store backed up to {0}." -f $backup)
+        Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+        Write-TidyOutput -Message 'Consent store removed; defaults will be recreated by apps as needed.'
         $script:CapabilityAccessReset = $true
     }
     catch {
         $script:OperationSucceeded = $false
         Write-TidyError -Message ("Failed to reset capability access policies: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Repair-WslState {
+    if (-not $RepairWslState.IsPresent) {
+        return
+    }
+
+    $wsl = Get-Command -Name 'wsl.exe' -ErrorAction SilentlyContinue
+    if (-not $wsl) {
+        Write-TidyOutput -Message 'WSL not installed; skipping WSL state repair.'
+        return
+    }
+
+    try {
+        $statusExit = Invoke-TidyCommand -Command { wsl --status } -Description 'Checking WSL status.' -AcceptableExitCodes @(0) -SkipLog
+        Write-TidyOutput -Message ("WSL status exit code: {0}" -f $statusExit)
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("WSL status check failed: {0}" -f $_.Exception.Message)
+    }
+
+    try {
+        Invoke-TidyCommand -Command { wsl --shutdown } -Description 'Refreshing WSL by shutdown.' -AcceptableExitCodes @(0) -SkipLog | Out-Null
+        Write-TidyOutput -Message 'WSL shutdown issued to refresh state.'
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("WSL shutdown failed: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -605,7 +692,7 @@ function Write-TidyRepairSummary {
 
 $script:IncludeAllUsers = -not $CurrentUserOnly.IsPresent
 
-if (-not ($ResetStoreCache -or $ReRegisterStore -or $ReRegisterAppInstaller -or $ReRegisterPackages -or $ReRegisterProvisioned -or $RestartStoreServices -or $ReinstallStoreIfMissing -or $ResetCapabilityAccess -or $IncludeFrameworks -or $ConfigureLicensingServices)) {
+if (-not ($ResetStoreCache -or $ReRegisterStore -or $ReRegisterAppInstaller -or $ReRegisterPackages -or $ReRegisterProvisioned -or $RestartStoreServices -or $ReinstallStoreIfMissing -or $ResetCapabilityAccess -or $RepairWslState -or $IncludeFrameworks -or $ConfigureLicensingServices)) {
     $ResetStoreCache = $true
     $ReRegisterStore = $true
     $ReRegisterAppInstaller = $true
@@ -616,6 +703,7 @@ if (-not ($ResetStoreCache -or $ReRegisterStore -or $ReRegisterAppInstaller -or 
     $IncludeFrameworks = $true
     $ConfigureLicensingServices = $true
     $ResetCapabilityAccess = $true
+    $RepairWslState = $true
 }
 
 if (-not $PackageNames -and $ReRegisterPackages.IsPresent) {
@@ -659,6 +747,8 @@ try {
 
     Write-TidyLog -Level Information -Message 'Starting Microsoft Store and AppX repair sequence.'
 
+    Test-StoreConnectivity
+
     if ($ResetStoreCache.IsPresent) {
         Invoke-TidyWsReset
     }
@@ -693,6 +783,10 @@ try {
 
     if ($ReinstallStoreIfMissing.IsPresent) {
         Ensure-StorePresence
+    }
+
+    if ($RepairWslState.IsPresent) {
+        Repair-WslState
     }
 
     if ($ResetCapabilityAccess.IsPresent) {

@@ -941,6 +941,13 @@ public sealed class EssentialsTaskCatalog
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
                         description: "Re-enables common UpdateOrchestrator tasks like Schedule Scan and UpdateModel."),
                     new EssentialsTaskOptionDefinition(
+                        id: "skip-uso-rebuild",
+                        label: "Skip rebuild of missing USO tasks",
+                        parameterName: "SkipUsoTaskRebuild",
+                        defaultValue: false,
+                        description: "Avoid recreating missing UpdateOrchestrator/WindowsUpdate tasks from baseline; only enable tasks that already exist.",
+                        mode: EssentialsTaskOptionMode.EmitWhenTrue),
+                    new EssentialsTaskOptionDefinition(
                         id: "restart-schedule",
                         label: "Restart Schedule service",
                         parameterName: "SkipScheduleReset",
