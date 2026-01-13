@@ -3,6 +3,9 @@ param(
     [switch] $SkipStaleDriverCleanup,
     [switch] $SkipPnPStackRestart,
     [switch] $SkipSelectiveSuspendDisable,
+    [int] $UnusedDriverAgeDays = 30,
+    [string] $DriverBackupPath,
+    [int] $DriverBackupRetentionDays = 30,
     [string] $ResultPath
 )
 
@@ -31,9 +34,24 @@ $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:DriverBackupRoot = $null
+$script:DriverBackupRetentionDays = if ($DriverBackupRetentionDays -lt 1) { 30 } else { $DriverBackupRetentionDays }
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+}
+
+if (-not [string]::IsNullOrWhiteSpace($DriverBackupPath)) {
+    try {
+        $script:DriverBackupRoot = [System.IO.Path]::GetFullPath($DriverBackupPath)
+        New-Item -Path $script:DriverBackupRoot -ItemType Directory -Force | Out-Null
+        Write-TidyOutput -Message ("Driver backup enabled. Exporting removed packages to {0}." -f $script:DriverBackupRoot)
+        Cleanup-DriverBackups -BackupRoot $script:DriverBackupRoot -RetentionDays $script:DriverBackupRetentionDays
+    }
+    catch {
+        Write-TidyOutput -Message ("Driver backup path could not be created; backups disabled. Details: {0}" -f $_.Exception.Message)
+        $script:DriverBackupRoot = $null
+    }
 }
 
 function Write-TidyOutput {
@@ -237,6 +255,199 @@ function Test-TidyOffline {
     }
 }
 
+function Get-DriverBindings {
+    param(
+        [Parameter(Mandatory = $true)][string] $PublishedName
+    )
+
+    $bindings = [System.Collections.Generic.List[pscustomobject]]::new()
+    $canFilterByDriver = Test-PnputilDriverFilterSupport
+    $isOffline = Test-TidyOffline
+
+    if (-not $isOffline -and $canFilterByDriver) {
+        try {
+            $enumOutput = & pnputil /enum-devices /driver $PublishedName 2>&1
+            $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+            $looksLikeHelp = ($enumOutput -match '^PNPUTIL \[/add-driver') -or (($enumOutput -match '/add-driver') -and -not ($enumOutput -match 'Instance ID'))
+            if ($exitCode -ne 0 -or $looksLikeHelp) {
+                Write-TidyOutput -Message ("pnputil /enum-devices /driver unsupported or returned help for {0} (exit {1}); falling back to WMI." -f $PublishedName, $exitCode)
+            }
+            else {
+                foreach ($line in @($enumOutput)) { Write-TidyOutput -Message $line }
+                foreach ($line in @($enumOutput)) {
+                    if ($line -match 'Instance ID\s*:\s*(.+)$') {
+                        $id = $matches[1].Trim()
+                        if (-not [string]::IsNullOrWhiteSpace($id)) {
+                            $bindings.Add([pscustomobject]@{ InstanceId = $id; Source = 'pnputil' })
+                        }
+                    }
+                }
+            }
+        }
+        catch {
+            Write-TidyOutput -Message ("pnputil device enumeration for {0} failed: {1}" -f $PublishedName, $_.Exception.Message)
+        }
+    }
+
+    if ($bindings.Count -eq 0) {
+        try {
+            $filterName = $PublishedName.Replace("'", "''")
+            $signedDrivers = Get-CimInstance -ClassName Win32_PnPSignedDriver -Filter ("InfName = '{0}'" -f $filterName) -ErrorAction Stop
+            foreach ($drv in @($signedDrivers)) {
+                $instanceId = $null
+                if ($drv.PSObject.Properties['DeviceID']) { $instanceId = $drv.DeviceID }
+                elseif ($drv.PSObject.Properties['InstanceID']) { $instanceId = $drv.InstanceID }
+                $deviceName = $null
+                if ($drv.PSObject.Properties['DeviceName']) { $deviceName = $drv.DeviceName }
+
+                if ([string]::IsNullOrWhiteSpace($instanceId) -and [string]::IsNullOrWhiteSpace($deviceName)) { continue }
+
+                $bindings.Add([pscustomobject]@{
+                        InstanceId = $instanceId
+                        DeviceName = $deviceName
+                        Source     = 'Win32_PnPSignedDriver'
+                    })
+            }
+        }
+        catch {
+            Write-TidyOutput -Message ("Win32_PnPSignedDriver lookup for {0} failed: {1}" -f $PublishedName, $_.Exception.Message)
+        }
+    }
+
+    # Filter out any accidental non-object entries that lack usable identifiers
+    $bindings = @($bindings | Where-Object {
+        ($_ -is [psobject]) -and (
+            ($_.PSObject.Properties['InstanceId'] -and -not [string]::IsNullOrWhiteSpace($_.InstanceId)) -or
+            ($_.PSObject.Properties['DeviceName'] -and -not [string]::IsNullOrWhiteSpace($_.DeviceName))
+        )
+    })
+
+    return ,$bindings
+}
+
+function Test-DriverBindingsPresent {
+    param(
+        [Parameter(Mandatory = $true)][psobject[]] $Bindings
+    )
+
+    $present = $false
+    foreach ($binding in @($Bindings)) {
+        $instanceId = $null
+        if ($binding.PSObject.Properties['InstanceId']) { $instanceId = $binding.InstanceId }
+        if ([string]::IsNullOrWhiteSpace($instanceId)) { continue }
+
+        try {
+            $dev = Get-PnpDevice -InstanceId $instanceId -ErrorAction SilentlyContinue
+            if ($dev -and $dev.PSObject.Properties['Present'] -and $dev.Present) {
+                $present = $true
+                break
+            }
+        }
+        catch {
+            # If we cannot resolve presence, err on the side of caution by treating as present
+            $present = $true
+            break
+        }
+    }
+
+    return $present
+}
+
+function Get-DriverMetadata {
+    param(
+        [Parameter(Mandatory = $true)][string] $PublishedName
+    )
+
+    try {
+        $filterName = $PublishedName.Replace("'", "''")
+        $drivers = Get-CimInstance -ClassName Win32_PnPSignedDriver -Filter ("InfName = '{0}'" -f $filterName) -ErrorAction Stop
+        if (-not $drivers) { return $null }
+
+        $selected = $drivers | Sort-Object -Property DriverDate -Descending | Select-Object -First 1
+        $driverDate = $null
+        if ($selected.PSObject.Properties['DriverDate']) {
+            try { $driverDate = [System.Management.ManagementDateTimeConverter]::ToDateTime($selected.DriverDate) } catch { $driverDate = $null }
+        }
+
+        $driverVersion = $null
+        if ($selected.PSObject.Properties['DriverVersion']) { $driverVersion = $selected.DriverVersion }
+
+        return [pscustomobject]@{
+            DriverDate    = $driverDate
+            DriverVersion = $driverVersion
+            Provider      = if ($selected.PSObject.Properties['DriverProviderName']) { $selected.DriverProviderName } else { $null }
+            Class         = if ($selected.PSObject.Properties['DeviceClass']) { $selected.DeviceClass } else { $null }
+        }
+    }
+    catch {
+        Write-TidyOutput -Message ("Metadata lookup failed for {0}: {1}" -f $PublishedName, $_.Exception.Message)
+        return $null
+    }
+}
+
+function Backup-DriverPackage {
+    param(
+        [Parameter(Mandatory = $true)][string] $PublishedName,
+        [Parameter(Mandatory = $true)][string] $BackupRoot
+    )
+
+    if ([string]::IsNullOrWhiteSpace($BackupRoot)) { return $false }
+
+    $targetDir = Join-Path -Path $BackupRoot -ChildPath ($PublishedName -replace '\\','_' -replace '/','_')
+    try {
+        New-Item -Path $targetDir -ItemType Directory -Force | Out-Null
+    }
+    catch {
+        Write-TidyOutput -Message ("Could not create backup directory for {0}: {1}" -f $PublishedName, $_.Exception.Message)
+        return $false
+    }
+
+    try {
+        $exit = Invoke-TidyCommand -Command { param($pn,$dest) pnputil /export-driver $pn $dest } -Arguments @($PublishedName, $targetDir) -Description ("Exporting driver {0} to backup" -f $PublishedName) -AcceptableExitCodes @(0)
+        if ($exit -ne 0) {
+            Write-TidyOutput -Message ("pnputil /export-driver for {0} returned exit {1}; backup may be incomplete." -f $PublishedName, $exit)
+            return $false
+        }
+        Write-TidyOutput -Message ("Driver package {0} exported to {1}." -f $PublishedName, $targetDir)
+        return $true
+    }
+    catch {
+        Write-TidyOutput -Message ("Driver backup for {0} failed: {1}" -f $PublishedName, $_.Exception.Message)
+        return $false
+    }
+}
+
+function Cleanup-DriverBackups {
+    param(
+        [Parameter(Mandatory = $true)][string] $BackupRoot,
+        [Parameter(Mandatory = $true)][int] $RetentionDays
+    )
+
+    if ([string]::IsNullOrWhiteSpace($BackupRoot)) { return }
+    if (-not (Test-Path -Path $BackupRoot)) { return }
+
+    $days = [Math]::Max(1, $RetentionDays)
+    $threshold = (Get-Date).AddDays(-$days)
+    try {
+        $dirs = Get-ChildItem -Path $BackupRoot -Directory -ErrorAction SilentlyContinue
+        foreach ($dir in @($dirs)) {
+            $last = if ($dir.LastWriteTime -gt $dir.CreationTime) { $dir.LastWriteTime } else { $dir.CreationTime }
+            if ($last -gt $threshold) { continue }
+
+            try {
+                Remove-Item -Path $dir.FullName -Recurse -Force -ErrorAction Stop
+                Write-TidyOutput -Message ("Removed backup folder older than {0} days: {1}" -f $days, $dir.FullName)
+            }
+            catch {
+                Write-TidyOutput -Message ("Could not remove backup folder {0}: {1}" -f $dir.FullName, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        Write-TidyOutput -Message ("Backup cleanup failed: {0}" -f $_.Exception.Message)
+    }
+}
+
 function Cleanup-StaleDrivers {
     try {
         $entries = Get-OemDriverEntries
@@ -251,42 +462,67 @@ function Cleanup-StaleDrivers {
 
         $removed = 0
         $inUse = 0
+        $skippedDueToBindings = 0
+        $skippedTooRecent = 0
+        $skippedNoDate = 0
         $attempted = if ($candidates) { $candidates.Count } else { 0 }
-        $canFilterByDriver = Test-PnputilDriverFilterSupport
         $isOffline = Test-TidyOffline
+        $ageDays = if ($UnusedDriverAgeDays -lt 1) { 30 } else { $UnusedDriverAgeDays }
+        $thresholdDate = (Get-Date).AddDays(-[Math]::Max(1, $ageDays))
+        Write-TidyOutput -Message ("Drivers with no present bindings and older than {0} days will be removed." -f ([Math]::Max(1,$ageDays)))
         if ($isOffline) {
-            Write-TidyOutput -Message 'Network appears offline; skipping per-driver device listing for speed. Removal attempts will continue.'
+            Write-TidyOutput -Message 'Network appears offline; skipping pnputil filter help probe; will still use CIM fallback for bindings.'
         }
         foreach ($entry in $candidates) {
             $name = $entry.PublishedName
-            $listed = $false
-            try {
-                if (-not $isOffline) {
-                    Write-TidyOutput -Message ("Devices using {0}:" -f $name)
-                    if ($canFilterByDriver) {
-                        $enumExit = Invoke-TidyCommand -Command { param($pn) pnputil /enum-devices /driver $pn } -Arguments @($name) -Description ("Listing devices for {0}" -f $name) -AcceptableExitCodes @(0,1)
-                        $listed = ($enumExit -eq 0)
-                    }
 
-                    if (-not $listed) {
-                        Write-TidyOutput -Message 'Using Get-PnpDevice fallback for device listing.'
-                        $devices = Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Driver -eq $name }
-                        if (-not $devices) {
-                            Write-TidyOutput -Message 'No present devices currently bound to this driver.'
-                        }
-                        else {
-                            foreach ($dev in $devices) {
-                                Write-TidyOutput -Message ("{0} [{1}]" -f $dev.FriendlyName, $dev.InstanceId)
-                            }
-                        }
-                    }
+            Write-TidyOutput -Message ("Devices using {0}:" -f $name)
+            $bindings = @(Get-DriverBindings -PublishedName $name)
+            if (-not $bindings -or $bindings.Count -eq 0) {
+                Write-TidyOutput -Message 'No bindings detected for this driver package.'
+            }
+            else {
+                foreach ($binding in $bindings | Select-Object -First 5) {
+                    $hasDeviceName = $binding -and $binding.PSObject -and $binding.PSObject.Properties['DeviceName'] -and -not [string]::IsNullOrWhiteSpace($binding.DeviceName)
+                    $hasInstanceId = $binding -and $binding.PSObject -and $binding.PSObject.Properties['InstanceId'] -and -not [string]::IsNullOrWhiteSpace($binding.InstanceId)
+                    $label = if ($hasDeviceName) { $binding.DeviceName }
+                        elseif ($hasInstanceId) { $binding.InstanceId }
+                        else { ($binding | Out-String).Trim() }
+                    $sourceLabel = if ($binding -and $binding.PSObject -and $binding.PSObject.Properties['Source']) { $binding.Source } else { 'unknown' }
+                    Write-TidyOutput -Message ("{0} (source: {1})" -f $label, $sourceLabel)
+                }
+                if ($bindings.Count -gt 5) {
+                    Write-TidyOutput -Message ("...and {0} more bindings" -f ($bindings.Count - 5))
+                }
+                $bindingsPresent = Test-DriverBindingsPresent -Bindings $bindings
+                if ($bindingsPresent) {
+                    Write-TidyOutput -Message ("Driver package {0} has present devices bound ({1}); skipping removal to avoid impacting active hardware." -f $name, $bindings.Count)
+                    $skippedDueToBindings++
+                    continue
+                }
+                else {
+                    Write-TidyOutput -Message ("Driver package {0} bindings are non-present; safe to attempt removal." -f $name)
                 }
             }
-            catch {
-                Write-TidyOutput -Message ("Could not enumerate devices for {0}: {1}" -f $name, $_.Exception.Message)
+
+            $meta = Get-DriverMetadata -PublishedName $name
+            if (-not $meta -or -not $meta.DriverDate) {
+                Write-TidyOutput -Message ("Driver package {0} has no reliable driver date; skipping removal for safety." -f $name)
+                $skippedNoDate++
+                continue
+            }
+
+            if ($meta.DriverDate -gt $thresholdDate) {
+                Write-TidyOutput -Message ("Driver package {0} is newer than threshold ({1:yyyy-MM-dd}); skipping removal." -f $name, $meta.DriverDate)
+                $skippedTooRecent++
+                continue
             }
 
             try {
+                if ($script:DriverBackupRoot) {
+                    [void](Backup-DriverPackage -PublishedName $name -BackupRoot $script:DriverBackupRoot)
+                }
+
                 Invoke-TidyCommand -Command { param($pn) pnputil /delete-driver $pn /force } -Arguments @($name) -Description ("Removing driver package {0}" -f $name) -RequireSuccess
                 $removed++
                 $providerLabel = if ($entry.PSObject.Properties['Provider']) { $entry.Provider } else { '' }
@@ -299,8 +535,8 @@ function Cleanup-StaleDrivers {
             }
         }
 
-        Write-TidyOutput -Message ("Driver cleanup summary: attempted {0}, in-use/protected {1}, removed {2}." -f $attempted, $inUse, $removed)
-        Write-TidyOutput -Message 'Guidance: remove only when devices are absent or unused (e.g., no present bindings) and ideally after 30+ days of inactivity.'
+        Write-TidyOutput -Message ("Driver cleanup summary: candidates {0}, skipped (bindings) {1}, skipped (no date) {2}, skipped (too recent) {3}, in-use/protected {4}, removed {5}." -f $attempted, $skippedDueToBindings, $skippedNoDate, $skippedTooRecent, $inUse, $removed)
+        Write-TidyOutput -Message 'Guidance: removal performed automatically for non-present drivers older than the threshold; recent or dated-unknown drivers are skipped for safety.'
     }
     catch {
         $script:OperationSucceeded = $false
