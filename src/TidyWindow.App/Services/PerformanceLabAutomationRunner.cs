@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Automation;
@@ -13,6 +15,9 @@ namespace TidyWindow.App.Services;
 /// </summary>
 public sealed class PerformanceLabAutomationRunner : IDisposable
 {
+    private const string UltimateSchemeGuid = "e9a42b02-d5df-448d-aa00-03f14749eb61";
+    private static readonly Regex GuidRegex = new("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private readonly PerformanceLabAutomationSettingsStore _store;
     private readonly IPerformanceLabService _service;
     private readonly ActivityLogService _activityLog;
@@ -152,7 +157,7 @@ public sealed class PerformanceLabAutomationRunner : IDisposable
 
         if (snapshot.ApplyUltimatePlan)
         {
-            await AddStepAsync("Ultimate Performance plan", () => _service.EnableUltimatePowerPlanAsync(cancellationToken)).ConfigureAwait(false);
+            actions.Add(await ApplyUltimatePlanWithVerificationAsync(cancellationToken).ConfigureAwait(false));
         }
 
         if (snapshot.ApplyServiceTemplate)
@@ -214,6 +219,116 @@ public sealed class PerformanceLabAutomationRunner : IDisposable
 
         var error = result.Errors?.FirstOrDefault() ?? "Operation failed.";
         return new PerformanceLabAutomationActionResult(name, false, error);
+    }
+
+    private async Task<PerformanceLabAutomationActionResult> ApplyUltimatePlanWithVerificationAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var initialStatus = await _service.GetPowerPlanStatusAsync(cancellationToken).ConfigureAwait(false);
+        if (initialStatus.IsUltimateActive)
+        {
+            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, "Ultimate plan already active.");
+        }
+
+        var primary = await InvokeSafelyAsync(() => _service.EnableUltimatePowerPlanAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
+        var postPrimaryStatus = await _service.GetPowerPlanStatusAsync(cancellationToken).ConfigureAwait(false);
+        if (postPrimaryStatus.IsUltimateActive)
+        {
+            var message = primary?.IsSuccess == false
+                ? primary.Errors?.FirstOrDefault() ?? "Ultimate plan activated after initial warnings."
+                : "Ultimate plan activated.";
+            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, message);
+        }
+
+        var forced = await ForceUltimatePlanAsync(cancellationToken).ConfigureAwait(false);
+        if (forced.Succeeded)
+        {
+            return forced;
+        }
+
+        var failureMessages = new List<string>();
+        if (primary is { IsSuccess: false })
+        {
+            var primaryError = primary.Errors?.FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(primaryError))
+            {
+                failureMessages.Add(primaryError);
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(forced.Message))
+        {
+            failureMessages.Add(forced.Message);
+        }
+
+        var detail = failureMessages.Count == 0
+            ? "Failed to enforce Ultimate Performance plan."
+            : string.Join(" | ", failureMessages);
+
+        return new PerformanceLabAutomationActionResult("Ultimate Performance plan", false, detail);
+    }
+
+    private async Task<PerformanceLabAutomationActionResult> ForceUltimatePlanAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var activate = await RunPowerCfgAsync($"-setactive {UltimateSchemeGuid}", cancellationToken).ConfigureAwait(false);
+
+            if (activate.ExitCode != 0)
+            {
+                var duplicate = await RunPowerCfgAsync($"-duplicatescheme {UltimateSchemeGuid}", cancellationToken).ConfigureAwait(false);
+                var duplicatedGuid = GuidRegex.Match(duplicate.Output ?? string.Empty).Value;
+                var target = string.IsNullOrWhiteSpace(duplicatedGuid) ? UltimateSchemeGuid : duplicatedGuid;
+                activate = await RunPowerCfgAsync($"-setactive {target}", cancellationToken).ConfigureAwait(false);
+            }
+
+            var status = await _service.GetPowerPlanStatusAsync(cancellationToken).ConfigureAwait(false);
+            if (status.IsUltimateActive)
+            {
+                var message = activate.ExitCode == 0 ? "Ultimate plan forced via powercfg." : "Ultimate plan forced after duplicate creation.";
+                return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, message);
+            }
+
+            var errorMessage = string.IsNullOrWhiteSpace(activate.Errors)
+                ? "powercfg fallback failed to activate Ultimate plan."
+                : activate.Errors.Trim();
+
+            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", false, errorMessage);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", false, ex.Message);
+        }
+    }
+
+    private static async Task<(int ExitCode, string Output, string Errors)> RunPowerCfgAsync(string arguments, CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "powercfg",
+            Arguments = arguments,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+
+        await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
+        var output = await outputTask.ConfigureAwait(false);
+        var errors = await errorTask.ConfigureAwait(false);
+
+        return (process.ExitCode, output, errors);
     }
 
     private static async Task<PowerShellInvocationResult> InvokeSafelyAsync(Func<Task<PowerShellInvocationResult>> action, CancellationToken cancellationToken)

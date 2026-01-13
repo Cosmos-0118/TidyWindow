@@ -91,17 +91,34 @@ public sealed class PerformanceLabService : IPerformanceLabService
                 .ToArray(), cancellationToken).ConfigureAwait(false);
 
             var missingBalanced = svcData.Where(s => BalancedServices.Contains(s.Name) && s.Service is null).Any();
-            var minimalDisabled = svcData.Where(s => MinimalExtras.Contains(s.Name) && s.Service is not null)
-                .All(s => string.Equals(GetStartMode(s.Service), "Disabled", StringComparison.OrdinalIgnoreCase));
-            var balancedManual = svcData.Where(s => BalancedServices.Contains(s.Name) && s.Service is not null)
-                .All(s => string.Equals(GetStartMode(s.Service), "Manual", StringComparison.OrdinalIgnoreCase) || string.Equals(GetStartMode(s.Service), "Disabled", StringComparison.OrdinalIgnoreCase));
+            if (missingBalanced)
+            {
+                return null;
+            }
 
-            if (!missingBalanced && minimalDisabled)
+            var balancedStates = svcData.Where(s => BalancedServices.Contains(s.Name) && s.Service is not null)
+                .Select(s => GetStartMode(s.Service))
+                .ToArray();
+
+            var minimalStates = svcData.Where(s => MinimalExtras.Contains(s.Name) && s.Service is not null)
+                .Select(s => GetStartMode(s.Service))
+                .ToArray();
+
+            bool IsManualOrDisabled(string? mode) => string.Equals(mode, "Manual", StringComparison.OrdinalIgnoreCase) || string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase);
+            bool IsDisabled(string? mode) => string.Equals(mode, "Disabled", StringComparison.OrdinalIgnoreCase);
+
+            var balancedManualish = balancedStates.Length > 0 && balancedStates.All(IsManualOrDisabled);
+            var balancedAllDisabled = balancedStates.Length > 0 && balancedStates.All(IsDisabled);
+            var minimalExtrasDisabled = minimalStates.Length > 0 && minimalStates.All(IsDisabled);
+
+            // Strong minimal signal: both balanced set and extras are fully disabled (what the Minimal template does).
+            if (balancedAllDisabled && minimalExtrasDisabled)
             {
                 return "Minimal";
             }
 
-            if (!missingBalanced && balancedManual)
+            // Default to reporting Balanced when the core set is manual/disabled, even if extras stay disabled from a prior run.
+            if (balancedManualish)
             {
                 return "Balanced";
             }
