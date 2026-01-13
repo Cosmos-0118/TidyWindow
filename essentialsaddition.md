@@ -31,13 +31,13 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   slmgr activation/rearm helpers, activation DLL re-registration
 -   [x] TPM, BitLocker, Secure Boot Repair Pack — `automation/essentials/tpm-bitlocker-secureboot-repair.ps1`
     -   TPM clear, BitLocker suspend/resume, Secure Boot key reset guidance, device encryption prerequisites
--   [ ] PowerShell Environment Repair Pack — `automation/essentials/powershell-environment-repair.ps1`
+-   [x] PowerShell Environment Repair Pack — `automation/essentials/powershell-environment-repair.ps1`
     -   Execution policy set, profile reset, WinRM/PSRemoting enable
--   [ ] Store and AppX Repair Pack (extended) — extend `automation/essentials/app-repair-helper.ps1` (add Store/AppX block; no new script file)
+-   [x] Store and AppX Repair Pack (extended) — extend `automation/essentials/app-repair-helper.ps1` (add Store/AppX block; no new script file)
     -   wsreset + UwpSvc restart, AppX re-register, Store reinstall, capability access reset (extends App Repair Helper)
--   [ ] Task Scheduler and Automation Repair Pack — `automation/essentials/task-scheduler-repair.ps1`
+-   [x] Task Scheduler and Automation Repair Pack — `automation/essentials/task-scheduler-repair.ps1`
     -   Task DB rebuild, USO task re-enable, trigger reset + Schedule service restart
--   [ ] Time and Region Repair Pack — `automation/essentials/time-and-region-repair.ps1`
+-   [x] Time and Region Repair Pack — `automation/essentials/time-and-region-repair.ps1`
     -   Time zone + NTP resync, locale and language reset
 -   [ ] File Explorer and Context Menu Repair Pack — `automation/essentials/explorer-and-context-repair.ps1`
     -   Shell extension cleanup, file association repair, library restore, mouse double-click and explorer tweaks

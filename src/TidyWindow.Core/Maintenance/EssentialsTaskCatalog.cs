@@ -383,7 +383,81 @@ public sealed class EssentialsTaskCatalog
                         label: "Refresh device encryption prerequisites",
                         parameterName: "SkipDeviceEncryptionPrereqs",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Enables Device Encryption and BitLocker registry keys and prepares required services."))),
+                        description: "Enables Device Encryption and BitLocker registry keys and prepares required services."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "show-tpm-status",
+                        label: "Show TPM status (verbose)",
+                        parameterName: "ShowTpmStatus",
+                        defaultValue: false,
+                        description: "Outputs Get-Tpm details (ready state, lockout, manufacturer, PCR banks with SHA1 warning)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "show-bitlocker-status",
+                        label: "Show BitLocker status",
+                        parameterName: "ShowBitLockerStatus",
+                        defaultValue: false,
+                        description: "Runs manage-bde -status on system drive and summarizes protection, conversion, and key protectors."))),
+
+            new EssentialsTaskDefinition(
+                "powershell-environment-repair",
+                "PowerShell environment repair",
+                "Shell",
+                "Sets execution policy to RemoteSigned, resets user profiles, and enables PSRemoting/WinRM with service readiness checks.",
+                ImmutableArray.Create(
+                    "Sets execution policy to RemoteSigned at LocalMachine scope",
+                    "Resets user PowerShell profiles and enables PSRemoting"),
+                "automation/essentials/powershell-environment-repair.ps1",
+                DurationHint: "Approx. 3-8 minutes (Enable-PSRemoting may restart WinRM)",
+                DetailedDescription: "Repairs a broken PowerShell environment by enforcing RemoteSigned at LocalMachine scope, backing up and recreating current user profiles (all hosts and current host), and enabling PSRemoting with WinRM service startup/validation plus firewall exception setup.",
+                DocumentationLink: "essentialsaddition.md#powershell-environment-3-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "set-execution-policy",
+                        label: "Set execution policy (RemoteSigned)",
+                        parameterName: "SkipExecutionPolicy",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Sets LocalMachine execution policy to RemoteSigned with -Force."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-profiles",
+                        label: "Reset user profiles",
+                        parameterName: "SkipProfileReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Backs up and recreates CurrentUser profiles (all hosts and current host)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "enable-remoting",
+                        label: "Enable PSRemoting/WinRM",
+                        parameterName: "SkipRemotingEnable",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Runs Enable-PSRemoting -Force/-SkipNetworkProfileCheck and ensures WinRM service is running."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "validate-psmodulepath",
+                        label: "Validate PSModulePath entries",
+                        parameterName: "RepairPsModulePath",
+                        defaultValue: false,
+                        description: "Removes missing PSModulePath entries and deduplicates remaining paths."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-system-profiles",
+                        label: "Repair system profiles (PSHOME)",
+                        parameterName: "RepairSystemProfiles",
+                        defaultValue: false,
+                        description: "Backs up unreadable $PSHOME profile scripts and recreates safe stubs."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "clear-runspace-cache",
+                        label: "Clear runspace caches",
+                        parameterName: "ClearRunspaceCaches",
+                        defaultValue: false,
+                        description: "Removes LocalAppData PowerShell Runspaces/RunspaceConfiguration caches."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-implicit-remoting",
+                        label: "Reset implicit remoting cache",
+                        parameterName: "ResetImplicitRemotingCache",
+                        defaultValue: false,
+                        description: "Clears TransportConnectionCache/RemoteSessions folders for remoting cache reset."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-wsman-provider",
+                        label: "Repair WSMan provider",
+                        parameterName: "RepairWsmanProvider",
+                        defaultValue: false,
+                        description: "Attempts WSMan provider re-import, winrm quickconfig, and validation against localhost."))),
 
             new EssentialsTaskDefinition(
                 "profile-logon-repair",
@@ -685,6 +759,18 @@ public sealed class EssentialsTaskCatalog
                         label: "Re-register built-in apps",
                         parameterName: "ReRegisterPackages"),
                     new EssentialsTaskOptionDefinition(
+                        id: "re-register-provisioned",
+                        label: "Re-register provisioned apps",
+                        parameterName: "ReRegisterProvisioned",
+                        defaultValue: false,
+                        description: "Re-registers all provisioned AppX packages from WindowsApps payloads."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "restart-store-services",
+                        label: "Restart Store services (UwpSvc/InstallService)",
+                        parameterName: "RestartStoreServices",
+                        defaultValue: false,
+                        description: "Restarts UwpSvc and InstallService to clear stuck deployments."),
+                    new EssentialsTaskOptionDefinition(
                         id: "refresh-frameworks",
                         label: "Refresh AppX frameworks",
                         parameterName: "IncludeFrameworks"),
@@ -692,6 +778,18 @@ public sealed class EssentialsTaskCatalog
                         id: "repair-licensing",
                         label: "Repair licensing services",
                         parameterName: "ConfigureLicensingServices"),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reinstall-store",
+                        label: "Attempt Store reinstall if missing",
+                        parameterName: "ReinstallStoreIfMissing",
+                        defaultValue: false,
+                        description: "Registers Microsoft.WindowsStore from WindowsApps when absent."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-capability-access",
+                        label: "Reset capability access policies",
+                        parameterName: "ResetCapabilityAccess",
+                        defaultValue: false,
+                        description: "Backs up and resets CapabilityAccessManager ConsentStore for UWP permissions."),
                     new EssentialsTaskOptionDefinition(
                         id: "current-user-only",
                         label: "Limit repairs to current user",
@@ -816,6 +914,82 @@ public sealed class EssentialsTaskCatalog
                         id: "reset-network",
                         label: "Reset network stack",
                         parameterName: "ResetNetwork"))),
+
+            new EssentialsTaskDefinition(
+                "task-scheduler-repair",
+                "Task Scheduler & automation repair",
+                "Automation",
+                "Rebuilds Task Scheduler cache, re-enables USO/Windows Update tasks, and restarts Schedule service to refresh triggers.",
+                ImmutableArray.Create(
+                    "Backs up TaskCache and lets Schedule rebuild metadata",
+                    "Re-enables key UpdateOrchestrator tasks and restarts Schedule"),
+                "automation/essentials/task-scheduler-repair.ps1",
+                DurationHint: "Approx. 3-8 minutes (TaskCache rebuild may pause scheduled tasks briefly)",
+                DetailedDescription: "Stops Schedule when needed, backs up the TaskCache directory to force a metadata rebuild from existing Tasks, re-enables common UpdateOrchestrator/WindowsUpdate tasks, and restarts the Schedule service to refresh triggers and registrations with logging for each step.",
+                DocumentationLink: "essentialsaddition.md#task-scheduler-and-automation-3-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "rebuild-task-cache",
+                        label: "Rebuild TaskCache metadata",
+                        parameterName: "SkipTaskCacheRebuild",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Stops Schedule, backs up TaskCache, and lets it rebuild from Tasks tree."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "enable-uso-tasks",
+                        label: "Enable USO/Windows Update tasks",
+                        parameterName: "SkipUsoTaskEnable",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Re-enables common UpdateOrchestrator tasks like Schedule Scan and UpdateModel."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "restart-schedule",
+                        label: "Restart Schedule service",
+                        parameterName: "SkipScheduleReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Restarts Schedule to refresh triggers after repairs."))),
+
+            new EssentialsTaskDefinition(
+                "time-region-repair",
+                "Time & region repair",
+                "System",
+                "Sets time zone, forces NTP resync, repairs Windows Time service, and resets locale/language defaults.",
+                ImmutableArray.Create(
+                    "Applies target time zone and re-syncs against time.windows.com",
+                    "Repairs W32Time and resets system locale/user language list"),
+                "automation/essentials/time-and-region-repair.ps1",
+                DurationHint: "Approx. 3-8 minutes (language list reset may prompt component download)",
+                DetailedDescription: "Applies the requested or current time zone, configures time.windows.com peers with an immediate resync, repairs and restarts the Windows Time service, and resets system locale/culture plus the user language list to en-US (overrideable via parameters).",
+                DocumentationLink: "essentialsaddition.md#time-region-and-ntp-3-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "set-timezone",
+                        label: "Set time zone and resync NTP",
+                        parameterName: "SkipTimeZoneSync",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Validates target time zone (defaults to current/UTC), configures time.windows.com peers, and forces NTP resync."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-locale",
+                        label: "Reset locale and languages",
+                        parameterName: "SkipLocaleReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Sets system locale/culture and user language list to en-US unless overridden."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-w32time",
+                        label: "Repair Windows Time service",
+                        parameterName: "SkipTimeServiceRepair",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Registers, sets Automatic startup, restarts W32Time, and enforces NTP peers before resync."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "fallback-ntp",
+                        label: "Use fallback NTP peers",
+                        parameterName: "UseFallbackNtpPeers",
+                        defaultValue: false,
+                        description: "If primary NTP sync fails, retry with time.google.com, pool.ntp.org, and time.nist.gov."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "report-clock-offset",
+                        label: "Report clock offset",
+                        parameterName: "ReportClockOffset",
+                        defaultValue: false,
+                        description: "Runs w32tm /stripchart against the primary peer to show current clock drift."))),
 
             new EssentialsTaskDefinition(
                 "defender-repair",

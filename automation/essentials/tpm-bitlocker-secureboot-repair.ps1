@@ -3,6 +3,8 @@ param(
     [switch] $SkipBitLockerCycle,
     [switch] $SkipSecureBootGuidance,
     [switch] $SkipDeviceEncryptionPrereqs,
+    [switch] $ShowTpmStatus,
+    [switch] $ShowBitLockerStatus,
     [string] $ResultPath
 )
 
@@ -283,6 +285,11 @@ function Request-TpmClear {
         return
     }
 
+    if (-not $tpm.TpmReady) {
+        Write-TidyOutput -Message 'TPM is not fully provisioned/ready; skipping Clear-Tpm to avoid failing the run. Initialize TPM in firmware, then retry if needed.'
+        return
+    }
+
     Write-TidyOutput -Message 'Requesting TPM clear. A reboot and owner confirmation may be required; backup recovery keys first.'
 
     try {
@@ -291,8 +298,120 @@ function Request-TpmClear {
         Write-TidyOutput -Message $clearStatus
     }
     catch {
+        $message = $_.Exception.Message
+        if ($message -match '0x80290401' -or $message -match 'Platform Crypto Device is currently not ready') {
+            Write-TidyOutput -Message ('TPM clear skipped: TPM not ready/provisioned ({0}). Initialize TPM in firmware, then retry.' -f $message)
+            return
+        }
+
         $script:OperationSucceeded = $false
-        Write-TidyError -Message ("TPM clear failed: {0}" -f $_.Exception.Message)
+        Write-TidyError -Message ("TPM clear failed: {0}" -f $message)
+    }
+}
+
+function Show-TpmStatusVerbose {
+    try {
+        $tpm = Get-Tpm -ErrorAction Stop
+    }
+    catch {
+        Write-TidyOutput -Message ("Unable to query TPM status: {0}" -f $_.Exception.Message)
+        return
+    }
+
+    Write-TidyOutput -Message ("TPM Present: {0}; Ready: {1}; LockedOut: {2}; OwnerClearDisabled: {3}" -f $tpm.TpmPresent, $tpm.TpmReady, $tpm.LockedOut, $tpm.OwnerClearDisabled)
+
+    if ($tpm.ManagedAuthLevel) {
+        Write-TidyOutput -Message ("ManagedAuthLevel: {0}" -f $tpm.ManagedAuthLevel)
+    }
+
+    $manufacturer = $tpm | Select-Object -First 1 -Property ManufacturerIdTxt, SpecVersion
+    if ($manufacturer) {
+        $mfg = if ($manufacturer.ManufacturerIdTxt) { $manufacturer.ManufacturerIdTxt } else { 'Unknown' }
+        $spec = if ($manufacturer.PSObject.Properties['SpecVersion']) { $manufacturer.SpecVersion } else { 'Unknown' }
+        Write-TidyOutput -Message ("Manufacturer: {0}; SpecVersion: {1}" -f $mfg, $spec)
+    }
+
+    if ($tpm.PSObject.Properties['ActivePcrBanks'] -and $tpm.ActivePcrBanks) {
+        $banks = ($tpm.ActivePcrBanks -join ', ')
+        Write-TidyOutput -Message ("Active PCR banks: {0}" -f $banks)
+        if ($tpm.ActivePcrBanks -contains 'SHA1') {
+            Write-TidyOutput -Message 'Warning: SHA1 PCR bank is active; prefer SHA256 when available.'
+        }
+    }
+
+    if (-not $tpm.TpmReady) {
+        Write-TidyOutput -Message 'TPM is present but not ready/provisioned; initialize in firmware/Windows before requesting a clear.'
+    }
+}
+
+function Show-BitLockerStatus {
+    param(
+        [string] $MountPoint = $env:SystemDrive
+    )
+
+    try {
+        Write-TidyOutput -Message ("Querying BitLocker status for {0}." -f $MountPoint)
+        $output = & manage-bde -status $MountPoint 2>&1
+        $exitCode = $LASTEXITCODE
+        if ($exitCode -ne 0) {
+            Write-TidyOutput -Message ("manage-bde -status returned exit code {0}." -f $exitCode)
+        }
+    }
+    catch {
+        Write-TidyOutput -Message ("Unable to query BitLocker status: {0}" -f $_.Exception.Message)
+        return
+    }
+
+    if ($null -eq $output) { return }
+
+    $parsed = [ordered]@{}
+    $collectorKeys = @('Conversion Status', 'Percentage Encrypted', 'Protection Status', 'Lock Status', 'Key Protectors')
+    $currentKey = $null
+    $protectors = @()
+
+    foreach ($line in $output) {
+        if (-not $line) { continue }
+
+        foreach ($key in $collectorKeys) {
+            $pattern = "^\s*{0}:\s*(.+)$" -f [regex]::Escape($key)
+            if ($line -match $pattern) {
+                $value = $Matches[1].Trim()
+                if ($key -eq 'Key Protectors') {
+                    $currentKey = 'Key Protectors'
+                    continue
+                }
+
+                $parsed[$key] = $value
+                $currentKey = $null
+                break
+            }
+        }
+
+        if ($currentKey -eq 'Key Protectors') {
+            if ($line -match '^\s+([A-Za-z].+)$') {
+                $protectors += $Matches[1].Trim()
+            }
+        }
+    }
+
+    if ($protectors.Count -gt 0) {
+        $parsed['Key Protectors'] = ($protectors -join '; ')
+    }
+
+    if ($parsed.Count -eq 0) {
+        Write-TidyOutput -Message 'BitLocker status query returned no parsable data.'
+        return
+    }
+
+    foreach ($kvp in $parsed.GetEnumerator()) {
+        Write-TidyOutput -Message ("BitLocker {0}: {1}" -f $kvp.Key, $kvp.Value)
+    }
+
+    if ($parsed.Contains('Protection Status') -and $parsed['Protection Status'] -match 'Off') {
+        Write-TidyOutput -Message 'BitLocker protection is off/suspended on the target volume.'
+    }
+    if ($parsed.Contains('Conversion Status') -and $parsed['Conversion Status'] -notmatch 'Fully Encrypted') {
+        Write-TidyOutput -Message 'BitLocker conversion is not fully encrypted; investigate to ensure protection is complete.'
     }
 }
 
@@ -316,7 +435,7 @@ function Publish-SecureBootGuidance {
             Write-TidyOutput -Message 'Secure Boot state could not be queried (BIOS or permission limitation).'
         }
 
-        Write-TidyOutput -Message "To reseed Secure Boot keys, use firmware setup (often called \"Restore Factory Keys\"), then save and reboot."
+        Write-TidyOutput -Message 'To reseed Secure Boot keys, use firmware setup (often called "Restore Factory Keys"), then save and reboot.'
         Write-TidyOutput -Message "Shortcut to firmware menus: run 'shutdown /r /fw /t 0' in an elevated terminal (does not execute automatically here)."
     }
     catch {
@@ -373,6 +492,14 @@ try {
     }
 
     Write-TidyLog -Level Information -Message 'Starting TPM, BitLocker, and Secure Boot repair pack.'
+
+    if ($ShowTpmStatus.IsPresent) {
+        Show-TpmStatusVerbose
+    }
+
+    if ($ShowBitLockerStatus.IsPresent) {
+        Show-BitLockerStatus
+    }
 
     if (-not $SkipBitLockerCycle.IsPresent) {
         Cycle-BitLockerProtectors

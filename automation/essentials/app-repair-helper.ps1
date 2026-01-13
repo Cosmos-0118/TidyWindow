@@ -3,6 +3,10 @@ param(
     [switch] $ReRegisterStore,
     [switch] $ReRegisterAppInstaller,
     [switch] $ReRegisterPackages,
+    [switch] $ReRegisterProvisioned,
+    [switch] $RestartStoreServices,
+    [switch] $ReinstallStoreIfMissing,
+    [switch] $ResetCapabilityAccess,
     [string[]] $PackageNames,
     [switch] $IncludeFrameworks,
     [switch] $ConfigureLicensingServices,
@@ -42,6 +46,7 @@ $script:RestartedServices = [System.Collections.Generic.List[string]]::new()
 $script:WsResetAttempted = $false
 $script:WsResetSucceeded = $false
 $script:LicensingCacheCleared = $false
+$script:CapabilityAccessReset = $false
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -143,8 +148,74 @@ function Invoke-TidyCommand {
     return $exitCode
 }
 
+function Restart-StoreServiceSafe {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name
+    )
+
+    $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($null -eq $svc) {
+        Write-TidyOutput -Message ("Service {0} not found. Skipping." -f $Name)
+        return
+    }
+
+    $description = if ($svc.Status -eq 'Running') { "Restarting service {0}." -f $Name } else { "Starting service {0}." -f $Name }
+    Write-TidyOutput -Message $description
+
+    try {
+        $command = if ($svc.Status -eq 'Running') { { param($serviceName) Restart-Service -Name $serviceName -Force -ErrorAction Stop } } else { { param($serviceName) Start-Service -Name $serviceName -ErrorAction Stop } }
+        Invoke-TidyCommand -Command $command -Arguments @($Name) -Description $description -RequireSuccess | Out-Null
+    }
+    catch {
+        Write-TidyError -Message ("Service {0} restart/start failed: {1}" -f $Name, $_.Exception.Message)
+        $script:OperationSucceeded = $false
+        return
+    }
+
+    if (-not (Wait-TidyServiceState -Name $Name -DesiredStatus 'Running' -TimeoutSeconds 12)) {
+        Write-TidyOutput -Message ("Service {0} did not reach Running state after restart." -f $Name)
+    }
+
+    if (-not $script:RestartedServices.Contains($Name)) {
+        $script:RestartedServices.Add($Name)
+    }
+}
+
+function Restart-StoreServices {
+    if (-not $RestartStoreServices.IsPresent) {
+        return
+    }
+
+    $targets = @('UwpSvc', 'InstallService')
+    foreach ($svc in $targets) {
+        Restart-StoreServiceSafe -Name $svc
+    }
+}
+
 function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Wait-TidyServiceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $DesiredStatus = 'Running',
+        [int] $TimeoutSeconds = 12
+    )
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq $DesiredStatus) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 300
+    }
+
+    return $false
 }
 
 function Invoke-TidyWsReset {
@@ -260,6 +331,70 @@ function Invoke-AppxReRegistration {
     }
 }
 
+function Invoke-ProvisionedAppxReRegistration {
+    if (-not $ReRegisterProvisioned.IsPresent) {
+        return
+    }
+
+    Write-TidyOutput -Message 'Re-registering provisioned AppX packages (all users baseline).'
+
+    $provisioned = Get-AppxProvisionedPackage -Online -ErrorAction SilentlyContinue
+    if (-not $provisioned) {
+        Write-TidyOutput -Message 'No provisioned packages found to re-register.'
+        return
+    }
+
+    foreach ($pkg in $provisioned) {
+        $family = $pkg.PackageFamilyName
+        $manifest = $null
+
+        $installed = Get-AppxPackage -AllUsers -Name $pkg.PackageName -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($installed -and $installed.InstallLocation) {
+            $manifest = Join-Path -Path $installed.InstallLocation -ChildPath 'AppxManifest.xml'
+        }
+
+        if (-not $manifest) {
+            $root = "$env:ProgramFiles\WindowsApps"
+            $candidate = Get-ChildItem -Path $root -Filter "$family*" -Directory -ErrorAction SilentlyContinue | Sort-Object -Property Name -Descending | Select-Object -First 1
+            if ($candidate) {
+                $manifest = Join-Path -Path $candidate.FullName -ChildPath 'AppxManifest.xml'
+            }
+        }
+
+        if (-not $manifest -or -not (Test-Path -LiteralPath $manifest)) {
+            Write-TidyOutput -Message ("Provisioned package {0} manifest not found. Skipping." -f $family)
+            if (-not $script:SkippedPackages.Contains($family)) {
+                $script:SkippedPackages.Add($family)
+            }
+            continue
+        }
+
+        Write-TidyOutput -Message ("Re-registering provisioned package {0}." -f $family)
+        try {
+            Add-AppxPackage -DisableDevelopmentMode -Register $manifest -ErrorAction Stop
+            if (-not $script:RepairedPackages.Contains($family)) {
+                $script:RepairedPackages.Add($family)
+            }
+        }
+        catch {
+            if (Test-TidyAppxRegistrationBenignFailure -Exception $_.Exception) {
+                Write-TidyOutput -Message ("Provisioned package {0} already present at equal/newer version." -f $family)
+                if (-not $script:SkippedPackages.Contains($family)) {
+                    $script:SkippedPackages.Add($family)
+                }
+                continue
+            }
+
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("Provisioned package {0} failed re-registration: {1}" -f $family, $_.Exception.Message)
+            if (-not $script:FailedPackages.Contains($family)) {
+                $script:FailedPackages.Add($family)
+            }
+        }
+    }
+}
+
+
 function Test-TidyAppxRegistrationBenignFailure {
     param(
         [Parameter(Mandatory = $true)]
@@ -307,6 +442,42 @@ function Invoke-AppxFrameworkRefresh {
 
     foreach ($filter in $filters) {
         Invoke-AppxReRegistration -PackageName $filter -AllUsers:$script:IncludeAllUsers
+    }
+}
+
+function Ensure-StorePresence {
+    if (-not $ReinstallStoreIfMissing.IsPresent) {
+        return
+    }
+
+    $store = Get-AppxPackage -AllUsers -Name 'Microsoft.WindowsStore' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if ($store -and $store.InstallLocation) {
+        Write-TidyOutput -Message 'Microsoft Store is present. Skipping reinstall step.'
+        return
+    }
+
+    Write-TidyOutput -Message 'Microsoft Store not detected; attempting reinstall from WindowsApps payload.'
+    $root = "$env:ProgramFiles\WindowsApps"
+    $candidate = Get-ChildItem -Path $root -Filter 'Microsoft.WindowsStore_*_8wekyb3d8bbwe' -Directory -ErrorAction SilentlyContinue | Sort-Object -Property Name -Descending | Select-Object -First 1
+
+    if (-not $candidate) {
+        Write-TidyOutput -Message 'No Store payload found under WindowsApps. Reinstall not attempted.'
+        return
+    }
+
+    $manifest = Join-Path -Path $candidate.FullName -ChildPath 'AppxManifest.xml'
+    if (-not (Test-Path -LiteralPath $manifest)) {
+        Write-TidyOutput -Message ("Store manifest not found at {0}. Reinstall not attempted." -f $manifest)
+        return
+    }
+
+    try {
+        Add-AppxPackage -DisableDevelopmentMode -Register $manifest -ErrorAction Stop
+        Write-TidyOutput -Message 'Microsoft Store reinstall attempt completed.'
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Microsoft Store reinstall failed: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -359,6 +530,32 @@ function Invoke-LicensingRepair {
     }
 }
 
+function Reset-CapabilityAccessPolicies {
+    if (-not $ResetCapabilityAccess.IsPresent) {
+        return
+    }
+
+    $path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore'
+    if (-not (Test-Path -LiteralPath $path)) {
+        Write-TidyOutput -Message 'CapabilityAccessManager ConsentStore not present. Nothing to reset.'
+        return
+    }
+
+    $timestamp = Get-Date -Format 'yyyyMMddHHmmss'
+    $backup = "$path.bak.$timestamp"
+
+    try {
+        Write-TidyOutput -Message ("Resetting capability access policies by backing up {0}." -f $path)
+        Rename-Item -LiteralPath $path -NewName $backup -Force -ErrorAction Stop
+        Write-TidyOutput -Message ("Original consent store backed up to {0}." -f $backup)
+        $script:CapabilityAccessReset = $true
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Failed to reset capability access policies: {0}" -f $_.Exception.Message)
+    }
+}
+
 function Write-TidyRepairSummary {
     Write-TidyOutput -Message '--- Repair summary ---'
 
@@ -391,40 +588,49 @@ function Write-TidyRepairSummary {
     if ($ConfigureLicensingServices.IsPresent) {
         $cacheStatus = if ($script:LicensingCacheCleared) { 'Cleared' } else { 'Not modified' }
         Write-TidyOutput -Message ("Licensing cache: {0}" -f $cacheStatus)
+    }
 
-        if ($script:RestartedServices.Count -gt 0) {
-            Write-TidyOutput -Message ("Services restarted ({0}):" -f $script:RestartedServices.Count)
-            foreach ($service in $script:RestartedServices | Sort-Object -Unique) {
-                Write-TidyOutput -Message ("  ↳ {0}" -f $service)
-            }
+    if ($script:RestartedServices.Count -gt 0) {
+        Write-TidyOutput -Message ("Services restarted ({0}):" -f $script:RestartedServices.Count)
+        foreach ($service in $script:RestartedServices | Sort-Object -Unique) {
+            Write-TidyOutput -Message ("  ↳ {0}" -f $service)
         }
+    }
+
+    if ($ResetCapabilityAccess.IsPresent) {
+        $status = if ($script:CapabilityAccessReset) { 'Reset (backed up previous consent store)' } else { 'Not modified' }
+        Write-TidyOutput -Message ("Capability access policies: {0}" -f $status)
     }
 }
 
 $script:IncludeAllUsers = -not $CurrentUserOnly.IsPresent
 
-if (-not ($ResetStoreCache -or $ReRegisterStore -or $ReRegisterAppInstaller -or $ReRegisterPackages -or $IncludeFrameworks -or $ConfigureLicensingServices)) {
+if (-not ($ResetStoreCache -or $ReRegisterStore -or $ReRegisterAppInstaller -or $ReRegisterPackages -or $ReRegisterProvisioned -or $RestartStoreServices -or $ReinstallStoreIfMissing -or $ResetCapabilityAccess -or $IncludeFrameworks -or $ConfigureLicensingServices)) {
     $ResetStoreCache = $true
     $ReRegisterStore = $true
     $ReRegisterAppInstaller = $true
     $ReRegisterPackages = $true
+    $ReRegisterProvisioned = $true
+    $RestartStoreServices = $true
+    $ReinstallStoreIfMissing = $true
     $IncludeFrameworks = $true
     $ConfigureLicensingServices = $true
+    $ResetCapabilityAccess = $true
 }
 
 if (-not $PackageNames -and $ReRegisterPackages.IsPresent) {
     $PackageNames = @(
-        'Microsoft.DesktopAppInstaller',
-        'Microsoft.WindowsStore',
-        'Microsoft.WindowsCalculator',
-        'Microsoft.WindowsCamera',
-        'Microsoft.Windows.Photos',
-        'Microsoft.WindowsSoundRecorder',
-        'Microsoft.WindowsNotepad',
-        'Microsoft.WindowsCommunicationApps',
-        'Microsoft.WindowsTerminal',
-        'Microsoft.ZuneVideo',
-        'Microsoft.ZuneMusic'
+            'Microsoft.DesktopAppInstaller',
+            'Microsoft.WindowsStore',
+            'Microsoft.WindowsCalculator',
+            'Microsoft.WindowsCamera',
+            'Microsoft.Windows.Photos',
+            'Microsoft.WindowsSoundRecorder',
+            'Microsoft.WindowsNotepad',
+            'Microsoft.WindowsCommunicationApps',
+            'Microsoft.WindowsTerminal',
+            'Microsoft.ZuneVideo',
+            'Microsoft.ZuneMusic'
     )
 }
 
@@ -457,6 +663,11 @@ try {
         Invoke-TidyWsReset
     }
 
+    if ($RestartStoreServices.IsPresent) {
+        Write-TidyOutput -Message 'Restarting Store deployment services (UwpSvc, InstallService).'
+        Restart-StoreServices
+    }
+
     if ($ReRegisterStore.IsPresent) {
         Write-TidyOutput -Message 'Re-registering Microsoft Store and dependencies.'
         Invoke-StoreReRegistration
@@ -467,6 +678,10 @@ try {
         Invoke-AppInstallerRepair
     }
 
+    if ($ReRegisterProvisioned.IsPresent) {
+        Invoke-ProvisionedAppxReRegistration
+    }
+
     if ($ReRegisterPackages.IsPresent -and $PackageNames) {
         foreach ($name in $PackageNames) {
             Invoke-AppxReRegistration -PackageName $name -AllUsers:$script:IncludeAllUsers
@@ -475,6 +690,14 @@ try {
 
     Invoke-AppxFrameworkRefresh
     Invoke-LicensingRepair
+
+    if ($ReinstallStoreIfMissing.IsPresent) {
+        Ensure-StorePresence
+    }
+
+    if ($ResetCapabilityAccess.IsPresent) {
+        Reset-CapabilityAccessPolicies
+    }
 
     Write-TidyRepairSummary
 

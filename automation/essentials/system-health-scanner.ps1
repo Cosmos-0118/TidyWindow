@@ -5,6 +5,8 @@ param(
     [switch] $SkipRestoreHealth,
     [switch] $ComponentCleanup,
     [switch] $AnalyzeComponentStore,
+    [int] $SfcTimeoutSeconds = 3600,
+    [switch] $PreferDismBeforeSfc,
     [string] $ResultPath,
 
     # New safety/automation options
@@ -296,6 +298,42 @@ elseif ($SkipRestoreHealth.IsPresent) {
     $shouldRunRestoreHealth = $false
 }
 
+function Invoke-DismHealthPass {
+    if (-not $SkipDism.IsPresent) {
+        $dismPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\dism.exe'
+
+        Write-TidyOutput -Message 'Checking Windows component store health.'
+        Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /CheckHealth' -Description 'DISM CheckHealth' -TimeoutSeconds 900 -AcceptableExitCodes @(0) | Out-Null
+
+        Write-TidyOutput -Message 'Scanning Windows component store for corruption.'
+        Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /ScanHealth' -Description 'DISM ScanHealth' -TimeoutSeconds 1800 -AcceptableExitCodes @(0) | Out-Null
+
+        if ($shouldRunRestoreHealth) {
+            Write-TidyOutput -Message 'Repairing Windows component store corruption (RestoreHealth, limit network sources).'
+            $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth /LimitAccess' -Description 'DISM RestoreHealth' -TimeoutSeconds 2700 -AcceptableExitCodes @(0,3010)
+            if ($restoreExit -eq 3010) {
+                Write-TidyOutput -Message 'DISM RestoreHealth completed and requested a reboot (3010).'
+            }
+        }
+        else {
+            Write-TidyOutput -Message 'Skipping RestoreHealth per operator request.'
+        }
+
+        if ($ComponentCleanup.IsPresent) {
+            Write-TidyOutput -Message 'Cleaning up superseded components.'
+            Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /StartComponentCleanup' -Description 'DISM StartComponentCleanup' -TimeoutSeconds 1200 -AcceptableExitCodes @(0) | Out-Null
+        }
+
+        if ($AnalyzeComponentStore.IsPresent) {
+            Write-TidyOutput -Message 'Analyzing component store (provides size and reclaim recommendations).'
+            Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /AnalyzeComponentStore' -Description 'DISM AnalyzeComponentStore' -TimeoutSeconds 900 -AcceptableExitCodes @(0) | Out-Null
+        }
+    }
+    else {
+        Write-TidyOutput -Message 'Skipping DISM checks per operator request.'
+    }
+}
+
 try {
     # Start transcript and logging
     try {
@@ -320,52 +358,27 @@ try {
         $script:RestorePointCreated = New-SystemRestorePointSafe -Description 'TidyWindow pre-scan snapshot'
     }
 
+    if ($PreferDismBeforeSfc.IsPresent) {
+        Invoke-DismHealthPass
+    }
+
     if (-not $SkipSfc.IsPresent) {
-        Write-TidyOutput -Message 'Running System File Checker (this can take 5-20 minutes).'
+        Write-TidyOutput -Message ("Running System File Checker (timeout {0}s; can take 5-20+ minutes)." -f $SfcTimeoutSeconds)
         $sfcPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\sfc.exe'
-        $sfcExit = Invoke-NativeWithTimeout -FilePath $sfcPath -Arguments '/scannow' -Description 'Running SFC /scannow.' -TimeoutSeconds 1800 -AcceptableExitCodes @(0,1)
+        $sfcExit = Invoke-NativeWithTimeout -FilePath $sfcPath -Arguments '/scannow' -Description 'Running SFC /scannow.' -TimeoutSeconds $SfcTimeoutSeconds -AcceptableExitCodes @(0,1,2)
 
         switch ($sfcExit) {
             0 { Write-TidyOutput -Message 'SFC completed without finding integrity violations.' }
             1 { Write-TidyOutput -Message 'SFC found and repaired integrity violations.' }
+            2 { Write-TidyOutput -Message 'SFC found integrity violations it could not repair. See CBS.log for details.' }
         }
     }
     else {
         Write-TidyOutput -Message 'Skipping SFC scan per operator request.'
     }
 
-    if (-not $SkipDism.IsPresent) {
-        $dismPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\dism.exe'
-
-        Write-TidyOutput -Message 'Checking Windows component store health.'
-        Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /CheckHealth' -Description 'DISM CheckHealth' -TimeoutSeconds 900 -AcceptableExitCodes @(0) | Out-Null
-
-        Write-TidyOutput -Message 'Scanning Windows component store for corruption.'
-        Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /ScanHealth' -Description 'DISM ScanHealth' -TimeoutSeconds 1800 -AcceptableExitCodes @(0) | Out-Null
-
-        if ($shouldRunRestoreHealth) {
-            Write-TidyOutput -Message 'Repairing Windows component store corruption (RestoreHealth, limit network sources).' 
-            $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth /LimitAccess' -Description 'DISM RestoreHealth' -TimeoutSeconds 2700 -AcceptableExitCodes @(0,3010)
-            if ($restoreExit -eq 3010) {
-                Write-TidyOutput -Message 'DISM RestoreHealth completed and requested a reboot (3010).'
-            }
-        }
-        else {
-            Write-TidyOutput -Message 'Skipping RestoreHealth per operator request.'
-        }
-
-        if ($ComponentCleanup.IsPresent) {
-            Write-TidyOutput -Message 'Cleaning up superseded components.'
-            Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /StartComponentCleanup' -Description 'DISM StartComponentCleanup' -TimeoutSeconds 1200 -AcceptableExitCodes @(0) | Out-Null
-        }
-
-        if ($AnalyzeComponentStore.IsPresent) {
-            Write-TidyOutput -Message 'Analyzing component store (provides size and reclaim recommendations).'
-            Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /AnalyzeComponentStore' -Description 'DISM AnalyzeComponentStore' -TimeoutSeconds 900 -AcceptableExitCodes @(0) | Out-Null
-        }
-    }
-    else {
-        Write-TidyOutput -Message 'Skipping DISM checks per operator request.'
+    if (-not $PreferDismBeforeSfc.IsPresent) {
+        Invoke-DismHealthPass
     }
 
     Write-TidyOutput -Message 'System health scan completed.'
