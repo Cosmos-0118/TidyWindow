@@ -93,7 +93,8 @@ public sealed class EssentialsTaskCatalog
                         id: "post-restore-point",
                         label: "Create restore point after repairs",
                         parameterName: "CreateSystemRestorePoint",
-                        defaultValue: false))),
+                        defaultValue: false)),
+                IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(
                 "disk-check",
@@ -182,7 +183,8 @@ public sealed class EssentialsTaskCatalog
                         label: "Enable High Performance plan",
                         parameterName: "ActivateHighPerformancePlan",
                         defaultValue: false,
-                        description: "After resetting schemes, activate scheme_min for maximum performance."))),
+                        description: "After resetting schemes, activate scheme_min for maximum performance.")),
+                IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(
                 "audio-peripheral-repair",
@@ -756,7 +758,8 @@ public sealed class EssentialsTaskCatalog
                         id: "toggle-sysmain",
                         label: "Pause SysMain during purge",
                         parameterName: "SkipSysMainToggle",
-                        mode: EssentialsTaskOptionMode.EmitWhenFalse))),
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse)),
+                IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(
                 "restore-manager",
@@ -769,7 +772,8 @@ public sealed class EssentialsTaskCatalog
                 "automation/essentials/system-restore-manager.ps1",
                 DurationHint: "Approx. 4-8 minutes when creating a new restore point",
                 DetailedDescription: "Validates System Restore configuration, enables protection per drive, creates fresh checkpoints, lists historical restore points, and prunes by age or quota in one run.",
-                DocumentationLink: "docs/essentials-overview.md#5-system-restore-snapshot-manager"),
+                DocumentationLink: "docs/essentials-overview.md#5-system-restore-snapshot-manager",
+                IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(
                 "network-fix",
@@ -1028,7 +1032,8 @@ public sealed class EssentialsTaskCatalog
                         label: "Restart Schedule service",
                         parameterName: "SkipScheduleReset",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Restarts Schedule to refresh triggers after repairs."))),
+                        description: "Restarts Schedule to refresh triggers after repairs.")),
+                IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(
                 "time-region-repair",
@@ -1072,7 +1077,8 @@ public sealed class EssentialsTaskCatalog
                         label: "Report clock offset",
                         parameterName: "ReportClockOffset",
                         defaultValue: false,
-                        description: "Runs w32tm /stripchart against the primary peer to show current clock drift."))),
+                        description: "Runs w32tm /stripchart against the primary peer to show current clock drift.")),
+                IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(
                 "defender-repair",
@@ -1085,7 +1091,8 @@ public sealed class EssentialsTaskCatalog
                 "automation/essentials/windows-defender-repair-and-deep-scan.ps1",
                 DurationHint: "Approx. 15-30 minutes (full scans or large path sets extend runtime)",
                 DetailedDescription: "Heals Microsoft Defender by restarting critical services, forcing signature and engine refreshes, optionally re-enabling real-time protection, and executing quick, full, or custom scans while producing transcripts and JSON run summaries for the UI.",
-                DocumentationLink: "docs/essentials-overview.md#10-windows-defender-repair--deep-scan"),
+                DocumentationLink: "docs/essentials-overview.md#10-windows-defender-repair--deep-scan",
+                IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(
                 "print-spooler-recovery",

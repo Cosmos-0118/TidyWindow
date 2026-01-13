@@ -396,6 +396,8 @@ public sealed partial class EssentialsAutomationTaskToggleViewModel : Observable
 
     public string? DurationHint => Definition.DurationHint;
 
+    public bool IsRecommended => Definition.IsRecommendedForAutomation;
+
     [ObservableProperty]
     private bool _isSelected;
 }

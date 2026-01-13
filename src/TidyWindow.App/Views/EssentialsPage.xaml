@@ -1160,9 +1160,31 @@
                                                                            FontSize="15"
                                                                            FontWeight="SemiBold"
                                                                            Foreground="#F8FAFC"/>
-                                                                <TextBlock Text="{Binding Category}"
-                                                                           Foreground="#94A3B8"
-                                                                           FontSize="12"/>
+                                                                <WrapPanel Margin="0,4,0,0"
+                                                                           VerticalAlignment="Center">
+                                                                    <Border Background="#1B2A44"
+                                                                            BorderBrush="#243552"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="6"
+                                                                            Padding="8,2">
+                                                                        <TextBlock Text="{Binding Category}"
+                                                                                   Foreground="#94A3B8"
+                                                                                   FontSize="12"/>
+                                                                    </Border>
+                                                                    <Border Background="#0F2E23"
+                                                                            BorderBrush="#16A34A"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="6"
+                                                                            Padding="8,2"
+                                                                            Margin="8,0,0,0"
+                                                                            Visibility="{Binding IsRecommended, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                            ToolTip="Reliable to run on a schedule; pairs well with other maintenance flows.">
+                                                                        <TextBlock Text="Recommended"
+                                                                                   Foreground="#BBF7D0"
+                                                                                   FontSize="12"
+                                                                                   FontWeight="SemiBold"/>
+                                                                    </Border>
+                                                                </WrapPanel>
                                                             </StackPanel>
                                                         </StackPanel>
                                                         <TextBlock Text="{Binding Summary}"

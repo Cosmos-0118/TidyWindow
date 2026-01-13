@@ -17,7 +17,8 @@ public sealed record EssentialsTaskDefinition(
     string? DurationHint = null,
     string? DetailedDescription = null,
     string? DocumentationLink = null,
-    ImmutableArray<EssentialsTaskOptionDefinition> Options = default)
+    ImmutableArray<EssentialsTaskOptionDefinition> Options = default,
+    bool IsRecommendedForAutomation = false)
 {
     public string ResolveScriptPath()
     {
