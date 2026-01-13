@@ -19,7 +19,7 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   ShellExperienceHost/StartMenu re-register, search indexer reset, explorer recycle, settings re-register, tray refresh
 -   [x] Security and Credentials Repair Pack — `automation/essentials/security-and-credential-repair.ps1`
     -   Firewall reset, SecurityHealth service/UI re-register, credential vault rebuild, EnableLUA enforcement
--   [ ] Profile and Logon Repair Pack — `automation/essentials/profile-and-logon-repair.ps1`
+-   [x] Profile and Logon Repair Pack — `automation/essentials/profile-and-logon-repair.ps1`
     -   Startup audit/trim, ProfileImagePath repair, ProfSvc restart/userinit check, stale profile cleanup
 -   [ ] Recovery and Boot Repair Pack — `automation/essentials/recovery-and-boot-repair.ps1`
     -   Safe mode exit, bootrec fixes, DISM from recovery guidance, testsigning toggle, time sync repair, WMI salvage/reset, dump + driver scan helper

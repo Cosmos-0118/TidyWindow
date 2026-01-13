@@ -312,6 +312,44 @@ public sealed class EssentialsTaskCatalog
                         description: "Sets EnableLUA to 1; logoff or reboot may be required."))),
 
             new EssentialsTaskDefinition(
+                "profile-logon-repair",
+                "Profile & logon repair",
+                "Accounts",
+                "Audits startup entries, repairs ProfileImagePath, restarts ProfSvc with userinit verification, and moves stale temp profiles.",
+                ImmutableArray.Create(
+                    "Audits startup Run keys and removes broken entries",
+                    "Repairs ProfileImagePath/ProfSvc and cleans stale .000/.bak profiles"),
+                "automation/essentials/profile-and-logon-repair.ps1",
+                DurationHint: "Approx. 6-15 minutes (profile moves may add time)",
+                DetailedDescription: "Performs a profile/logon health pass by auditing HKLM/HKCU Run entries and removing broken targets, ensuring the current user's ProfileImagePath matches USERPROFILE with ProfSvc set to Automatic, restarting ProfSvc while correcting the Winlogon Userinit value, and relocating stale temp profiles (.000/.bak/Temp) into a backup folder for cleanup.",
+                DocumentationLink: "essentialsaddition.md#login-and-profile-4-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "audit-startup",
+                        label: "Audit startup Run keys",
+                        parameterName: "SkipStartupAudit",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Logs Run entries and removes ones pointing to missing executables."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-profileimagepath",
+                        label: "Repair ProfileImagePath",
+                        parameterName: "SkipProfilePathRepair",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Aligns ProfileImagePath with USERPROFILE and sets ProfSvc to Automatic."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-profswc-userinit",
+                        label: "Restart ProfSvc and fix Userinit",
+                        parameterName: "SkipProfSvcReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Restarts ProfSvc and enforces Winlogon Userinit to userinit.exe."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "cleanup-stale-profiles",
+                        label: "Cleanup stale temp profiles",
+                        parameterName: "SkipStaleProfileCleanup",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Moves .000/.bak/Temp profiles to a backup folder under C:\\Users."))),
+
+            new EssentialsTaskDefinition(
                 "ram-purge",
                 "RAM purge",
                 "Performance",
