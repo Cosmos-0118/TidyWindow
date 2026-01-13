@@ -485,7 +485,7 @@ public sealed class StartupControlService
         }
     }
 
-    private static bool TryParseRegistryLocation(string location, out RegistryKey root, out string subKey)
+    private static bool TryParseRegistryLocation(string? location, out RegistryKey root, out string subKey)
     {
         root = Registry.CurrentUser;
         subKey = string.Empty;
