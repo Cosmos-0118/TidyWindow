@@ -21,9 +21,9 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   Firewall reset, SecurityHealth service/UI re-register, credential vault rebuild, EnableLUA enforcement
 -   [x] Profile and Logon Repair Pack — `automation/essentials/profile-and-logon-repair.ps1`
     -   Startup audit/trim, ProfileImagePath repair, ProfSvc restart/userinit check, stale profile cleanup
--   [ ] Recovery and Boot Repair Pack — `automation/essentials/recovery-and-boot-repair.ps1`
+-   [x] Recovery and Boot Repair Pack — `automation/essentials/recovery-and-boot-repair.ps1`
     -   Safe mode exit, bootrec fixes, DISM from recovery guidance, testsigning toggle, time sync repair, WMI salvage/reset, dump + driver scan helper
--   [ ] Graphics and Display Repair Pack — `automation/essentials/graphics-and-display-repair.ps1`
+-   [x] Graphics and Display Repair Pack — `automation/essentials/graphics-and-display-repair.ps1`
     -   Display adapter disable/enable, display services restart, HDR/night light toggle, resolution/refresh apply, EDID/stack refresh
 -   [ ] OneDrive and Cloud Sync Repair Pack — `automation/essentials/onedrive-and-cloud-repair.ps1`
     -   OneDrive reset, sync services restart, KFM mapping repair, autorun/task recreate

@@ -350,6 +350,100 @@ public sealed class EssentialsTaskCatalog
                         description: "Moves .000/.bak/Temp profiles to a backup folder under C:\\Users."))),
 
             new EssentialsTaskDefinition(
+                "recovery-boot-repair",
+                "Recovery & boot repair",
+                "Recovery",
+                "Exits Safe Mode, runs bootrec repairs, provides offline DISM guidance, toggles testsigning off, repairs time sync, resets WMI, and captures dumps/driver inventory.",
+                ImmutableArray.Create(
+                    "Clears safeboot flags and runs bootrec fixes",
+                    "Offers DISM recovery guidance and repairs time sync/WMI"),
+                "automation/essentials/recovery-and-boot-repair.ps1",
+                DurationHint: "Approx. 6-18 minutes (bootrec/WMI steps may add time)",
+                DetailedDescription: "Automates recovery basics by clearing safeboot to exit Safe Mode, running bootrec /fixmbr /fixboot /rebuildbcd, surfacing offline DISM guidance, disabling testsigning, repairing time sync, salvaging/resetting the WMI repository with Winmgmt restart, and collecting recent minidumps plus driver inventory for triage.",
+                DocumentationLink: "essentialsaddition.md#mission-critical-recovery-7-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "exit-safemode",
+                        label: "Exit Safe Mode",
+                        parameterName: "SkipSafeModeExit",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "bootrec-fixes",
+                        label: "Run bootrec repairs",
+                        parameterName: "SkipBootrecFixes",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "dism-guidance",
+                        label: "Show offline DISM guidance",
+                        parameterName: "SkipDismGuidance",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "toggle-testsigning",
+                        label: "Disable testsigning",
+                        parameterName: "SkipTestSigningToggle",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-timesync",
+                        label: "Repair time sync",
+                        parameterName: "SkipTimeSyncRepair",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-wmi",
+                        label: "Repair WMI repository",
+                        parameterName: "SkipWmiRepair",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "dump-driver-scan",
+                        label: "Collect dumps and driver inventory",
+                        parameterName: "SkipDumpAndDriverScan",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Lists recent minidumps and runs driverquery /v for triage."))),
+
+            new EssentialsTaskDefinition(
+                "graphics-display-repair",
+                "Graphics & display repair",
+                "Display",
+                "Resets display adapters, restarts display services, refreshes HDR/night light, reapplies display configuration, and triggers EDID/PnP rescans.",
+                ImmutableArray.Create(
+                    "Disables/re-enables the primary display adapter",
+                    "Restarts display enhancement services and re-applies display mode"),
+                "automation/essentials/graphics-and-display-repair.ps1",
+                DurationHint: "Approx. 4-12 minutes (adapter reset may blink screens)",
+                DetailedDescription: "Runs a graphics/display health pass by disabling and re-enabling the primary display adapter, restarting DisplayEnhancementService/UdkUserSvc, refreshing HDR/night light policies, reapplying the current display configuration via DisplaySwitch, and forcing a PnP rescan to refresh EDID/stack state.",
+                DocumentationLink: "essentialsaddition.md#graphics-and-display-5-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "adapter-reset",
+                        label: "Reset display adapter",
+                        parameterName: "SkipAdapterReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Disables and re-enables the primary display adapter."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "restart-display-services",
+                        label: "Restart display services",
+                        parameterName: "SkipDisplayServicesRestart",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Restarts DisplayEnhancementService and UdkUserSvc."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "refresh-hdr-nightlight",
+                        label: "Refresh HDR/night light",
+                        parameterName: "SkipHdrNightLightRefresh",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Restarts DisplayEnhancementService to re-apply HDR/night light policies."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reapply-resolution",
+                        label: "Reapply current resolution",
+                        parameterName: "SkipResolutionReapply",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Runs DisplaySwitch /internal to reapply the active display mode."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "refresh-edid",
+                        label: "Refresh EDID/PnP",
+                        parameterName: "SkipEdidRefresh",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Triggers pnputil /scan-devices for display stack refresh."))),
+
+            new EssentialsTaskDefinition(
                 "ram-purge",
                 "RAM purge",
                 "Performance",
