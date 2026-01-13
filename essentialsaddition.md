@@ -39,13 +39,11 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   Task DB rebuild, USO task re-enable, trigger reset + Schedule service restart
 -   [x] Time and Region Repair Pack — `automation/essentials/time-and-region-repair.ps1`
     -   Time zone + NTP resync, locale and language reset
--   [ ] File Explorer and Context Menu Repair Pack — `automation/essentials/explorer-and-context-repair.ps1`
+-   [x] File Explorer and Context Menu Repair Pack — `automation/essentials/explorer-and-context-repair.ps1`
     -   Shell extension cleanup, file association repair, library restore, mouse double-click and explorer tweaks
--   [ ] Device Drivers and PnP Repair Pack — `automation/essentials/device-drivers-and-pnp-repair.ps1`
+-   [x] Device Drivers and PnP Repair Pack — `automation/essentials/device-drivers-and-pnp-repair.ps1`
     -   PnP rescan, stale oem\*.inf cleanup, Plug and Play stack restart, USB selective suspend disable
--   [ ] Per-pack UI/catalog wiring — add each script to EssentialsTaskCatalog as it lands (no final batch step)
--   [ ] Add docs links from Essentials page to this gap catalog and new task help cards
--   [ ] Add automated tests/stubs under `tests/TidyWindow.Automation.Tests/` for each pack (argument validation, dry-run if applicable)
+-   [x] Per-pack UI/catalog wiring — add each script to EssentialsTaskCatalog as it lands (no final batch step)
 
 _Coverage trace: Roadmap packs map 1:1 to every issue group below (Performance/Storage, Audio/Peripherals, Shell/UI, Security/Services, Profile/Logon, Recovery/Boot, Graphics/Display, OneDrive/Cloud, Activation/Licensing, TPM/BitLocker/Secure Boot, PowerShell Environment, Store/AppX, Task Scheduler/Automation, Time/Region/NTP, File Explorer/Context, Device Drivers/PnP)._
 

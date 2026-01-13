@@ -276,6 +276,82 @@ public sealed class EssentialsTaskCatalog
                         mode: EssentialsTaskOptionMode.EmitWhenFalse))),
 
             new EssentialsTaskDefinition(
+                "explorer-context-repair",
+                "File Explorer & context repair",
+                "Shell",
+                "Cleans stale shell extensions, repairs .exe/.lnk associations, restores default libraries, and resets Explorer double-click policies.",
+                ImmutableArray.Create(
+                    "Blocks missing shell extensions and prunes Approved entries",
+                    "Repairs .exe/.lnk associations, restores default libraries, and resets Explorer inputs"),
+                "automation/essentials/explorer-and-context-repair.ps1",
+                DurationHint: "Approx. 4-10 minutes (library regeneration can add a minute)",
+                DetailedDescription: "Refreshes core Explorer behaviors by blocking stale Approved shell extensions whose handlers are missing, resetting .exe/.lnk associations to defaults, restoring the Documents/Music/Pictures/Videos libraries from templates or safe fallbacks, clearing restrictive Explorer policy keys, resetting double-click thresholds, and restarting explorer to apply changes.",
+                DocumentationLink: "essentialsaddition.md#file-explorer-and-context-menu-4-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "clean-shell-extensions",
+                        label: "Clean stale shell extensions",
+                        parameterName: "SkipShellExtensionCleanup",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Blocks shell extensions in Approved whose handlers are missing on disk."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-file-associations",
+                        label: "Repair .exe/.lnk associations",
+                        parameterName: "SkipFileAssociationRepair",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Resets .exe/.lnk associations to defaults and clears UserChoice overrides."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "restore-default-libraries",
+                        label: "Restore default libraries",
+                        parameterName: "SkipLibraryRestore",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Recreates Documents/Music/Pictures/Videos libraries from templates or safe defaults."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-doubleclick",
+                        label: "Reset double-click and Explorer policies",
+                        parameterName: "SkipDoubleClickReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Resets double-click thresholds, clears restrictive Explorer policy keys, and restarts explorer."))),
+
+            new EssentialsTaskDefinition(
+                "device-drivers-pnp-repair",
+                "Device drivers & PnP repair",
+                "Devices",
+                "Runs PnP rescans, removes stale oem*.inf packages (non-Microsoft), restarts key PnP services, and disables USB selective suspend.",
+                ImmutableArray.Create(
+                    "Triggers pnputil device rescan and refreshes PnP services",
+                    "Removes non-Microsoft oem*.inf packages and disables USB selective suspend"),
+                "automation/essentials/device-drivers-and-pnp-repair.ps1",
+                DurationHint: "Approx. 4-10 minutes (driver deletions may prompt retries)",
+                DetailedDescription: "Addresses PnP and driver drift by triggering pnputil /scan-devices, attempting removal of non-Microsoft oem*.inf packages no longer in use, restarting PlugPlay/DPS/WudfSvc services, and disabling USB selective suspend (AC/DC) before reapplying the active scheme.",
+                DocumentationLink: "essentialsaddition.md#device-drivers-and-pnp-4-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "pnp-rescan",
+                        label: "Trigger PnP rescan",
+                        parameterName: "SkipPnPRescan",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Runs pnputil /scan-devices to rescan Plug and Play devices."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "cleanup-stale-drivers",
+                        label: "Clean stale oem*.inf drivers",
+                        parameterName: "SkipStaleDriverCleanup",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Attempts to delete non-Microsoft oem*.inf packages not in use."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "restart-pnp-stack",
+                        label: "Restart PnP services",
+                        parameterName: "SkipPnPStackRestart",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Restarts PlugPlay, DPS, and WudfSvc; DcomLaunch is intentionally not restarted."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "disable-usb-selective-suspend",
+                        label: "Disable USB selective suspend",
+                        parameterName: "SkipSelectiveSuspendDisable",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Sets USB selective suspend to disabled for AC/DC and reapplies the active scheme."))),
+
+            new EssentialsTaskDefinition(
                 "security-credential-repair",
                 "Security & credentials repair",
                 "Security",
