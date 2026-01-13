@@ -132,6 +132,150 @@ public sealed class EssentialsTaskCatalog
                         mode: EssentialsTaskOptionMode.EmitWhenFalse))),
 
             new EssentialsTaskDefinition(
+                "performance-storage-repair",
+                "Performance & storage repair",
+                "Performance",
+                "Disables SysMain, tunes pagefile policy, purges caches, trims event logs, and resets power plans.",
+                ImmutableArray.Create(
+                    "Disables SysMain to reduce disk thrash",
+                    "Sets pagefile policy, clears temp/prefetch, trims event logs, resets power schemes"),
+                "automation/essentials/performance-and-storage-repair.ps1",
+                DurationHint: "Approx. 6-12 minutes (log trims may add a minute)",
+                DetailedDescription: "Disables SysMain, applies automatic or manual pagefile sizing, clears TEMP and Prefetch caches, trims System/Application/Setup event logs to 32 MB, and restores power schemes with optional High Performance activation.",
+                DocumentationLink: "essentialsaddition.md#performance-and-storage-6-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "disable-sysmain",
+                        label: "Disable SysMain service",
+                        parameterName: "SkipSysMainDisable",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Stops SysMain and sets startup type to Disabled."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "automatic-pagefile",
+                        label: "Enable automatic pagefile management",
+                        parameterName: "SkipPagefileTune",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Sets AutomaticManagedPagefile to true unless you prefer manual sizing."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "manual-pagefile",
+                        label: "Use 1-4 GB manual pagefile",
+                        parameterName: "UseManualPagefileSizing",
+                        defaultValue: false,
+                        description: "Creates/updates C:\\pagefile.sys with 1024-4096 MB sizing and disables automatic management."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "clear-caches",
+                        label: "Clear temp and Prefetch caches",
+                        parameterName: "SkipCacheCleanup",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "trim-event-logs",
+                        label: "Trim System/Application/Setup logs",
+                        parameterName: "SkipEventLogTrim",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-power-plans",
+                        label: "Reset power plans",
+                        parameterName: "SkipPowerPlanReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "enable-high-performance",
+                        label: "Enable High Performance plan",
+                        parameterName: "ActivateHighPerformancePlan",
+                        defaultValue: false,
+                        description: "After resetting schemes, activate scheme_min for maximum performance."))),
+
+            new EssentialsTaskDefinition(
+                "audio-peripheral-repair",
+                "Audio & peripheral repair",
+                "Devices",
+                "Restarts audio stack, rescans endpoints, resets Bluetooth AVCTP, refreshes USB hubs, and re-enables mic/camera devices.",
+                ImmutableArray.Create(
+                    "Restarts AudioSrv/AudioEndpointBuilder",
+                    "Runs pnputil rescans plus Bluetooth/USB device refresh"),
+                "automation/essentials/audio-and-peripheral-repair.ps1",
+                DurationHint: "Approx. 4-10 minutes (rescans can vary)",
+                DetailedDescription: "Restarts core audio services, enumerates and rescans audio endpoints, restarts the Bluetooth AVCTP stack, refreshes USB hub devices, and re-enables disabled audio endpoints or camera services with PnP rescans for recovery.",
+                DocumentationLink: "essentialsaddition.md#audio-and-peripherals-6-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "restart-audio-stack",
+                        label: "Restart audio services",
+                        parameterName: "SkipAudioStackRestart",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Restarts AudioSrv and AudioEndpointBuilder."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "rescan-endpoints",
+                        label: "Rescan audio endpoints",
+                        parameterName: "SkipEndpointRescan",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Runs pnputil enum/scan for AudioEndpoint devices."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-bluetooth-avctp",
+                        label: "Reset Bluetooth AVCTP service",
+                        parameterName: "SkipBluetoothReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-usb-hubs",
+                        label: "Reset USB hubs and rescan",
+                        parameterName: "SkipUsbHubReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "enable-microphones",
+                        label: "Enable audio endpoints",
+                        parameterName: "SkipMicEnable",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Enables non-OK AudioEndpoint devices."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-camera",
+                        label: "Reset camera service and rescan",
+                        parameterName: "SkipCameraReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse))),
+
+            new EssentialsTaskDefinition(
+                "shell-ui-repair",
+                "Shell & UI repair",
+                "Shell",
+                "Re-registers ShellExperienceHost/StartMenu, resets search indexer, recycles explorer, refreshes tray, and re-registers Settings.",
+                ImmutableArray.Create(
+                    "Re-registers ShellExperienceHost and StartMenuExperienceHost",
+                    "Resets search indexer and recycles explorer"),
+                "automation/essentials/shell-and-ui-repair.ps1",
+                DurationHint: "Approx. 6-15 minutes (AppX re-registers add a few minutes)",
+                DetailedDescription: "Repairs common shell failures by re-registering ShellExperienceHost and StartMenuExperienceHost for all users, restarting and resetting the Windows Search indexer, recycling explorer, re-registering the Settings app, and refreshing the tray by restarting ShellExperienceHost.",
+                DocumentationLink: "essentialsaddition.md#shell-and-ui-issues-6-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "reregister-shell",
+                        label: "Re-register ShellExperienceHost",
+                        parameterName: "SkipShellReregister",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reregister-startmenu",
+                        label: "Re-register StartMenuExperienceHost",
+                        parameterName: "SkipStartMenuReregister",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-search",
+                        label: "Reset search indexer",
+                        parameterName: "SkipSearchReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "recycle-explorer",
+                        label: "Recycle explorer.exe",
+                        parameterName: "SkipExplorerRecycle",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reregister-settings",
+                        label: "Re-register Settings app",
+                        parameterName: "SkipSettingsReregister",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "refresh-tray",
+                        label: "Refresh tray (ShellExperienceHost restart)",
+                        parameterName: "SkipTrayRefresh",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse))),
+
+            new EssentialsTaskDefinition(
                 "ram-purge",
                 "RAM purge",
                 "Performance",

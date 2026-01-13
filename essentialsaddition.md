@@ -11,11 +11,11 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
 
 ## Implementation Roadmap (bundle -> script)
 
--   [ ] Performance and Storage Repair Pack — `automation/essentials/performance-and-storage-repair.ps1`
+-   [x] Performance and Storage Repair Pack — `automation/essentials/performance-and-storage-repair.ps1`
     -   SysMain disable, pagefile sizing, temp/prefetch purge, event-log trim, power plan reset
--   [ ] Audio and Peripheral Repair Pack — `automation/essentials/audio-and-peripheral-repair.ps1`
+-   [x] Audio and Peripheral Repair Pack — `automation/essentials/audio-and-peripheral-repair.ps1`
     -   Audio stack restart, endpoint rescan, Bluetooth AVCTP reset, USB hub reset, mic/camera enable
--   [ ] Shell and UI Repair Pack — `automation/essentials/shell-and-ui-repair.ps1`
+-   [x] Shell and UI Repair Pack — `automation/essentials/shell-and-ui-repair.ps1`
     -   ShellExperienceHost/StartMenu re-register, search indexer reset, explorer recycle, settings re-register, tray refresh
 -   [ ] Security and Credentials Repair Pack — `automation/essentials/security-and-credential-repair.ps1`
     -   Firewall reset, SecurityHealth service/UI re-register, credential vault rebuild, EnableLUA enforcement
@@ -43,7 +43,7 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   Shell extension cleanup, file association repair, library restore, mouse double-click and explorer tweaks
 -   [ ] Device Drivers and PnP Repair Pack — `automation/essentials/device-drivers-and-pnp-repair.ps1`
     -   PnP rescan, stale oem\*.inf cleanup, Plug and Play stack restart, USB selective suspend disable
--   [ ] Wire into EssentialsTaskCatalog — add sixteen task definitions (15 new scripts + Store/AppX extension) with options, durations, categories
+-   [ ] Per-pack UI/catalog wiring — add each script to EssentialsTaskCatalog as it lands (no final batch step)
 -   [ ] Add docs links from Essentials page to this gap catalog and new task help cards
 -   [ ] Add automated tests/stubs under `tests/TidyWindow.Automation.Tests/` for each pack (argument validation, dry-run if applicable)
 
