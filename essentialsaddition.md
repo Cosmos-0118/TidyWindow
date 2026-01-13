@@ -25,7 +25,7 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   Safe mode exit, bootrec fixes, DISM from recovery guidance, testsigning toggle, time sync repair, WMI salvage/reset, dump + driver scan helper
 -   [x] Graphics and Display Repair Pack — `automation/essentials/graphics-and-display-repair.ps1`
     -   Display adapter disable/enable, display services restart, HDR/night light toggle, resolution/refresh apply, EDID/stack refresh
--   [ ] OneDrive and Cloud Sync Repair Pack — `automation/essentials/onedrive-and-cloud-repair.ps1`
+-   [x] OneDrive and Cloud Sync Repair Pack — `automation/essentials/onedrive-and-cloud-repair.ps1`
     -   OneDrive reset, sync services restart, KFM mapping repair, autorun/task recreate
 -   [ ] Activation and Licensing Repair Pack — `automation/essentials/activation-and-licensing-repair.ps1`
     -   slmgr activation/rearm helpers, activation DLL re-registration

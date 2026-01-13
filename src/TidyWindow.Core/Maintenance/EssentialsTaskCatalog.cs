@@ -444,6 +444,44 @@ public sealed class EssentialsTaskCatalog
                         description: "Triggers pnputil /scan-devices for display stack refresh."))),
 
             new EssentialsTaskDefinition(
+                "onedrive-cloud-repair",
+                "OneDrive & cloud sync repair",
+                "Cloud",
+                "Resets OneDrive client, restarts sync services, repairs KFM mappings back to local profiles, and restores autorun startup for OneDrive.",
+                ImmutableArray.Create(
+                    "Resets OneDrive client and restarts sync services",
+                    "Repairs KFM shell folder mappings and autorun startup"),
+                "automation/essentials/onedrive-and-cloud-repair.ps1",
+                DurationHint: "Approx. 4-12 minutes (reset may re-download headers)",
+                DetailedDescription: "Refreshes OneDrive/consumer sync by issuing OneDrive.exe /reset and relaunching in background, restarting OneSync/FileSync services, restoring known folder mappings back to local profile paths when they point to OneDrive, and recreating the OneDrive autorun entry in HKCU Run for startup consistency.",
+                DocumentationLink: "essentialsaddition.md#onedrive-and-cloud-sync-4-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-onedrive",
+                        label: "Reset OneDrive client",
+                        parameterName: "SkipOneDriveReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Runs OneDrive.exe /reset then relaunches /background."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "restart-sync-services",
+                        label: "Restart sync services",
+                        parameterName: "SkipSyncServicesRestart",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Restarts OneSyncSvc, FileSyncProvider, and FileSyncSvc if present."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-kfm",
+                        label: "Repair KFM mappings",
+                        parameterName: "SkipKfmMappingRepair",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Resets Desktop/Documents/Pictures/Music/Videos shell folders to local profile paths when pointed at OneDrive."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "recreate-autorun",
+                        label: "Restore OneDrive autorun",
+                        parameterName: "SkipAutorunTaskRecreate",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Ensures HKCU Run has OneDrive /background for startup."))),
+
+            new EssentialsTaskDefinition(
                 "ram-purge",
                 "RAM purge",
                 "Performance",
