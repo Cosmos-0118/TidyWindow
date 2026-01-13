@@ -182,51 +182,85 @@ function Reset-DisplayAdapter {
 }
 
 function Restart-DisplayServices {
-    $services = @('DisplayEnhancementService', 'UdkUserSvc')
-    foreach ($svc in $services) {
+    # Handle template services that have per-user instances (e.g., UdkUserSvc_xxxxx) and skip disabled templates cleanly.
+    $serviceGroups = @(
+        @{ BaseName = 'DisplayEnhancementService'; Pattern = 'DisplayEnhancementService' },
+        @{ BaseName = 'UdkUserSvc'; Pattern = 'UdkUserSvc*' }
+    )
+
+    foreach ($group in $serviceGroups) {
         try {
-            $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
-            if ($null -eq $service) {
-                Write-TidyOutput -Message ("Service {0} not found. Skipping." -f $svc)
+            $candidates = Get-Service -Name $group.Pattern -ErrorAction SilentlyContinue | Sort-Object -Property Name -Unique
+            if (-not $candidates) {
+                Write-TidyOutput -Message ("Service {0} not found. Skipping." -f $group.BaseName)
                 continue
             }
 
-            if ($service.StartType -eq 'Disabled') {
-                Write-TidyOutput -Message ("Service {0} is disabled. Skipping restart." -f $svc)
-                continue
-            }
+            $attempted = $false
+            $succeeded = $false
 
-            Write-TidyOutput -Message ("Restarting display service {0}." -f $svc)
-            $started = $false
-            try {
-                if ($service.Status -eq 'Stopped') {
-                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description ("Starting {0}." -f $svc)
+            foreach ($service in $candidates) {
+                $svcName = $service.Name
+
+                $startMode = $null
+                $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='$svcName'" -ErrorAction SilentlyContinue
+                if ($serviceInfo) {
+                    $startMode = $serviceInfo.StartMode
                 }
-                else {
-                    Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description ("Restarting {0}." -f $svc)
+
+                if ($startMode -and $startMode -eq 'Disabled') {
+                    Write-TidyOutput -Message ("Service {0} ({1}) is disabled. Skipping restart." -f $group.BaseName, $svcName)
+                    continue
                 }
-                $started = $true
-            }
-            catch {
-                Write-TidyOutput -Message ("Primary restart/start for {0} failed or was blocked: {1}" -f $svc, $_.Exception.Message)
+
+                $attempted = $true
+                $actionDescription = if ($service.Status -eq 'Stopped') { ("Starting {0} ({1})." -f $group.BaseName, $svcName) } else { ("Restarting {0} ({1})." -f $group.BaseName, $svcName) }
+                Write-TidyOutput -Message $actionDescription
+
+                $started = $false
                 try {
-                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description ("Ensuring {0} is running." -f $svc)
+                    if ($service.Status -eq 'Stopped') {
+                        Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svcName) -Description $actionDescription
+                    }
+                    else {
+                        Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -ErrorAction Stop } -Arguments @($svcName) -Description $actionDescription
+                    }
                     $started = $true
                 }
                 catch {
-                    $script:OperationSucceeded = $false
-                    Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $svc, $_.Exception.Message)
+                    Write-TidyOutput -Message ("Primary restart/start for {0} ({1}) failed or was blocked: {2}" -f $group.BaseName, $svcName, $_.Exception.Message)
+                    try {
+                        Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svcName) -Description ("Ensuring {0} ({1}) is running." -f $group.BaseName, $svcName)
+                        $started = $true
+                    }
+                    catch {
+                        $script:OperationSucceeded = $false
+                        Write-TidyError -Message ("Failed to restart service {0} ({1}): {2}" -f $group.BaseName, $svcName, $_.Exception.Message)
+                    }
+                }
+
+                if ($started) {
+                    if (Wait-TidyServiceState -Name $svcName -DesiredStatus 'Running' -TimeoutSeconds 15) {
+                        $succeeded = $true
+                    }
+                    else {
+                        $script:OperationSucceeded = $false
+                        Write-TidyError -Message ("Service {0} ({1}) did not reach Running state after restart attempt." -f $group.BaseName, $svcName)
+                    }
                 }
             }
 
-            if ($started -and -not (Wait-TidyServiceState -Name $svc -DesiredStatus 'Running' -TimeoutSeconds 12)) {
+            if ($attempted -and -not $succeeded) {
                 $script:OperationSucceeded = $false
-                Write-TidyError -Message ("Service {0} did not reach Running state after restart attempt." -f $svc)
+                Write-TidyError -Message ("No {0} instances reached Running state. Verify the service is enabled and available." -f $group.BaseName)
+            }
+            elseif (-not $attempted) {
+                Write-TidyOutput -Message ("All discovered instances of {0} are disabled; leaving unchanged." -f $group.BaseName)
             }
         }
         catch {
             $script:OperationSucceeded = $false
-            Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $svc, $_.Exception.Message)
+            Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $group.BaseName, $_.Exception.Message)
         }
     }
 }

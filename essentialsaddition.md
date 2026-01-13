@@ -27,7 +27,7 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   Display adapter disable/enable, display services restart, HDR/night light toggle, resolution/refresh apply, EDID/stack refresh
 -   [x] OneDrive and Cloud Sync Repair Pack — `automation/essentials/onedrive-and-cloud-repair.ps1`
     -   OneDrive reset, sync services restart, KFM mapping repair, autorun/task recreate
--   [ ] Activation and Licensing Repair Pack — `automation/essentials/activation-and-licensing-repair.ps1`
+-   [x] Activation and Licensing Repair Pack — `automation/essentials/activation-and-licensing-repair.ps1`
     -   slmgr activation/rearm helpers, activation DLL re-registration
 -   [ ] TPM, BitLocker, Secure Boot Repair Pack — `automation/essentials/tpm-bitlocker-secureboot-repair.ps1`
     -   TPM clear, BitLocker suspend/resume, Secure Boot key reset guidance, device encryption prerequisites
@@ -200,4 +200,3 @@ _Implementation: extend `automation/essentials/app-repair-helper.ps1` with a Sto
 | Stale driver packages piling up      | Remove unused `oem*.inf` via `pnputil /delete-driver`                   | 3              | Medium | No               |
 | Driver install service stuck         | Restart Plug and Play stack: `PlugPlay`, `DPS`, `Wudfsvc`, `DcomLaunch` | 3              | Medium | Yes              |
 | USB selective suspend breaking ports | Disable power save on hubs and restart USB controllers                  | 2              | Low    | No               |
-

@@ -138,6 +138,42 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Wait-TidyServiceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $DesiredStatus = 'Running',
+        [int] $TimeoutSeconds = 12
+    )
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq $DesiredStatus) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 300
+    }
+
+    return $false
+}
+
+function Resolve-SearchIndexerDllPath {
+    $candidates = @(
+        (Join-Path -Path $env:SystemRoot -ChildPath 'System32\searchindexer.dll'),
+        (Join-Path -Path $env:SystemRoot -ChildPath 'SysWOW64\searchindexer.dll')
+    )
+
+    foreach ($path in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+        $full = [System.IO.Path]::GetFullPath($path)
+        if (Test-Path -LiteralPath $full) { return $full }
+    }
+
+    return $null
+}
+
 function ReRegister-AppxPackage {
     param(
         [Parameter(Mandatory = $true)]
@@ -171,23 +207,69 @@ function ReRegister-AppxPackage {
 
 function Reset-SearchIndexer {
     try {
-        Write-TidyOutput -Message 'Restarting Windows Search service.'
-        Invoke-TidyCommand -Command { param($svc) Restart-Service -Name $svc -Force -ErrorAction Stop } -Arguments @('WSearch') -Description 'Restarting WSearch service.' -RequireSuccess
+        $svc = Get-Service -Name 'WSearch' -ErrorAction SilentlyContinue
+        if ($null -eq $svc) {
+            Write-TidyOutput -Message 'WSearch service not found. Skipping search reset.'
+            return
+        }
+
+        $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='WSearch'" -ErrorAction SilentlyContinue
+        if ($serviceInfo -and $serviceInfo.StartMode -eq 'Disabled') {
+            Write-TidyOutput -Message 'WSearch service is disabled. Skipping search reset.'
+            return
+        }
+
+        $actionDescription = if ($svc.Status -eq 'Stopped') { 'Starting Windows Search service.' } else { 'Restarting Windows Search service.' }
+        Write-TidyOutput -Message $actionDescription
+
+        try {
+            if ($svc.Status -eq 'Stopped') {
+                Invoke-TidyCommand -Command { Start-Service -Name 'WSearch' -ErrorAction Stop } -Description $actionDescription -RequireSuccess
+            }
+            else {
+                Invoke-TidyCommand -Command { Restart-Service -Name 'WSearch' -Force -ErrorAction Stop } -Description $actionDescription -RequireSuccess
+            }
+        }
+        catch {
+            Write-TidyOutput -Message ("Primary start/restart for WSearch failed or was blocked: {0}" -f $_.Exception.Message)
+            try {
+                Invoke-TidyCommand -Command { Start-Service -Name 'WSearch' -ErrorAction Stop } -Description 'Ensuring WSearch is running.' -RequireSuccess
+            }
+            catch {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Search service restart failed: {0}" -f $_.Exception.Message)
+                return
+            }
+        }
+
+        if (-not (Wait-TidyServiceState -Name 'WSearch' -DesiredStatus 'Running' -TimeoutSeconds 15)) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message 'WSearch did not reach Running state after restart.'
+            return
+        }
     }
     catch {
         $script:OperationSucceeded = $false
         Write-TidyError -Message ("Search service restart failed: {0}" -f $_.Exception.Message)
+        return
     }
 
     try {
-        Write-TidyOutput -Message 'Triggering indexer reset (searchindexer.dll,Reset).'
+        $dllPath = Resolve-SearchIndexerDllPath
+        if (-not $dllPath) {
+            Write-TidyOutput -Message 'searchindexer.dll not found; skipping rundll32 reset to avoid user-facing error. Service restart completed.'
+            return
+        }
+
+        Write-TidyOutput -Message ("Triggering indexer reset via rundll32 ({0},Reset)." -f $dllPath)
         Invoke-TidyCommand -Command {
+            param($dll)
             $exe = Join-Path -Path $env:SystemRoot -ChildPath 'System32\rundll32.exe'
-            $args = 'searchindexer.dll,Reset'
+            $args = ("{0},Reset" -f $dll)
             $process = Start-Process -FilePath $exe -ArgumentList $args -PassThru -WindowStyle Hidden
             $process.WaitForExit()
             return $process.ExitCode
-        } -Description 'Resetting search indexer.' -RequireSuccess -AcceptableExitCodes @(0)
+        } -Arguments @($dllPath) -Description 'Resetting search indexer.' -AcceptableExitCodes @(0)
     }
     catch {
         $script:OperationSucceeded = $false

@@ -136,6 +136,27 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Wait-TidyServiceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $DesiredStatus = 'Running',
+        [int] $TimeoutSeconds = 15
+    )
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq $DesiredStatus) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 350
+    }
+
+    return $false
+}
+
 function Resolve-OneDriveExecutable {
     $raw = @(
         (Join-Path -Path $env:LOCALAPPDATA -ChildPath 'Microsoft\OneDrive\OneDrive.exe'),
@@ -162,13 +183,44 @@ function Reset-OneDriveClient {
             return
         }
 
-        Write-TidyOutput -Message ("Resetting OneDrive via {0} /reset." -f $exe)
-        Invoke-TidyCommand -Command { param($path) Start-Process -FilePath $path -ArgumentList '/reset' -WindowStyle Hidden -Wait } -Arguments @($exe) -Description 'Issuing OneDrive reset.'
+        Write-TidyOutput -Message 'Stopping existing OneDrive processes before reset.'
+        Invoke-TidyCommand -Command { Stop-Process -Name OneDrive -Force -ErrorAction SilentlyContinue } -Description 'Stopping existing OneDrive processes.'
+
+        Write-TidyOutput -Message ("Resetting OneDrive via {0} /reset (with timeout)." -f $exe)
+        $resetSucceeded = $false
+        try {
+            $resetExit = Invoke-TidyCommand -Command {
+                param($path)
+                $global:LASTEXITCODE = 0
+                $p = Start-Process -FilePath $path -ArgumentList '/reset' -WindowStyle Hidden -PassThru
+                if (-not ($p | Wait-Process -Timeout 60 -ErrorAction SilentlyContinue)) {
+                    try { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue } catch {}
+                    $global:LASTEXITCODE = 408
+                    return
+                }
+
+                $global:LASTEXITCODE = $p.ExitCode
+            } -Arguments @($exe) -Description 'Issuing OneDrive reset.' -AcceptableExitCodes @(0,408)
+
+            if ($resetExit -eq 0) {
+                $resetSucceeded = $true
+            }
+            elseif ($resetExit -eq 408) {
+                Write-TidyOutput -Message 'OneDrive /reset timed out at 60s; process was terminated and will continue with restart.'
+            }
+        }
+        catch {
+            Write-TidyOutput -Message ("OneDrive /reset threw an exception: {0}" -f $_.Exception.Message)
+        }
 
         Start-Sleep -Seconds 3
 
         Write-TidyOutput -Message 'Starting OneDrive client in background.'
         Invoke-TidyCommand -Command { param($path) Start-Process -FilePath $path -ArgumentList '/background' -WindowStyle Hidden } -Arguments @($exe) -Description 'Starting OneDrive client.'
+
+        if (-not $resetSucceeded) {
+            Write-TidyOutput -Message 'OneDrive reset may have been partial or timed out; client restart was still issued.'
+        }
     }
     catch {
         $script:OperationSucceeded = $false
@@ -177,21 +229,63 @@ function Reset-OneDriveClient {
 }
 
 function Restart-SyncServices {
-    $services = @('OneSyncSvc', 'FileSyncProvider', 'FileSyncSvc')
-    foreach ($svc in $services) {
+    $serviceGroups = @(
+        @{ BaseName = 'OneSyncSvc'; Pattern = 'OneSyncSvc*' },
+        @{ BaseName = 'FileSyncProvider'; Pattern = 'FileSyncProvider' },
+        @{ BaseName = 'FileSyncSvc'; Pattern = 'FileSyncSvc' }
+    )
+
+    foreach ($group in $serviceGroups) {
         try {
-            $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
-            if ($null -eq $service) {
-                Write-TidyOutput -Message ("Service {0} not found. Skipping." -f $svc)
+            $candidates = Get-Service -Name $group.Pattern -ErrorAction SilentlyContinue | Sort-Object -Property Name -Unique
+            if (-not $candidates) {
+                Write-TidyOutput -Message ("Service {0} not found. Skipping." -f $group.BaseName)
                 continue
             }
 
-            Write-TidyOutput -Message ("Restarting sync service {0}." -f $svc)
-            Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -Force -ErrorAction Stop } -Arguments @($svc) -Description ("Restarting {0}." -f $svc) -RequireSuccess
+            foreach ($service in $candidates) {
+                $svcName = $service.Name
+
+                $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='$svcName'" -ErrorAction SilentlyContinue
+                if ($serviceInfo -and $serviceInfo.StartMode -eq 'Disabled') {
+                    Write-TidyOutput -Message ("Service {0} ({1}) is disabled. Skipping restart." -f $group.BaseName, $svcName)
+                    continue
+                }
+
+                $actionDescription = if ($service.Status -eq 'Stopped') { ("Starting sync service {0} ({1})." -f $group.BaseName, $svcName) } else { ("Restarting sync service {0} ({1})." -f $group.BaseName, $svcName) }
+                Write-TidyOutput -Message $actionDescription
+
+                $started = $false
+                try {
+                    if ($service.Status -eq 'Stopped') {
+                        Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svcName) -Description $actionDescription -RequireSuccess
+                    }
+                    else {
+                        Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -ErrorAction Stop } -Arguments @($svcName) -Description $actionDescription -RequireSuccess
+                    }
+                    $started = $true
+                }
+                catch {
+                    Write-TidyOutput -Message ("Primary restart/start for {0} ({1}) failed or was blocked: {2}" -f $group.BaseName, $svcName, $_.Exception.Message)
+                    try {
+                        Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svcName) -Description ("Ensuring sync service {0} ({1}) is running." -f $group.BaseName, $svcName)
+                        $started = $true
+                    }
+                    catch {
+                        $script:OperationSucceeded = $false
+                        Write-TidyError -Message ("Failed to restart service {0} ({1}): {2}" -f $group.BaseName, $svcName, $_.Exception.Message)
+                    }
+                }
+
+                if ($started -and -not (Wait-TidyServiceState -Name $svcName -DesiredStatus 'Running' -TimeoutSeconds 15)) {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("Service {0} ({1}) did not reach Running state after restart attempt." -f $group.BaseName, $svcName)
+                }
+            }
         }
         catch {
             $script:OperationSucceeded = $false
-            Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $svc, $_.Exception.Message)
+            Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $group.BaseName, $_.Exception.Message)
         }
     }
 }

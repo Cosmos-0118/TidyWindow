@@ -136,6 +136,27 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Wait-TidyServiceState {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $DesiredStatus = 'Running',
+        [int] $TimeoutSeconds = 12
+    )
+
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($svc -and $svc.Status -eq $DesiredStatus) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 300
+    }
+
+    return $false
+}
+
 function Reset-WindowsFirewall {
     try {
         Write-TidyOutput -Message 'Resetting Windows Firewall to defaults.'
@@ -252,8 +273,41 @@ function Rebuild-CredentialVault {
                 continue
             }
 
-            Write-TidyOutput -Message ("Restarting service {0}." -f $svc)
-            Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -Force -ErrorAction Stop } -Arguments @($svc) -Description ("Restarting service {0}." -f $svc) -RequireSuccess
+            $serviceInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='$svc'" -ErrorAction SilentlyContinue
+            if ($serviceInfo -and $serviceInfo.StartMode -eq 'Disabled') {
+                Write-TidyOutput -Message ("Service {0} is disabled. Skipping restart." -f $svc)
+                continue
+            }
+
+            $actionDescription = if ($service.Status -eq 'Stopped') { ("Starting service {0}." -f $svc) } else { ("Restarting service {0}." -f $svc) }
+            Write-TidyOutput -Message $actionDescription
+
+            $started = $false
+            try {
+                if ($service.Status -eq 'Stopped') {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description $actionDescription -RequireSuccess
+                }
+                else {
+                    Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description $actionDescription -RequireSuccess
+                }
+                $started = $true
+            }
+            catch {
+                Write-TidyOutput -Message ("Primary restart/start for {0} failed or was blocked: {1}" -f $svc, $_.Exception.Message)
+                try {
+                    Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($svc) -Description ("Ensuring service {0} is running." -f $svc)
+                    $started = $true
+                }
+                catch {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("Failed to restart service {0}: {1}" -f $svc, $_.Exception.Message)
+                }
+            }
+
+            if ($started -and -not (Wait-TidyServiceState -Name $svc -DesiredStatus 'Running' -TimeoutSeconds 15)) {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Service {0} did not reach Running state after restart attempt." -f $svc)
+            }
         }
         catch {
             $script:OperationSucceeded = $false
