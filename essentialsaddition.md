@@ -17,7 +17,7 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   Audio stack restart, endpoint rescan, Bluetooth AVCTP reset, USB hub reset, mic/camera enable
 -   [x] Shell and UI Repair Pack — `automation/essentials/shell-and-ui-repair.ps1`
     -   ShellExperienceHost/StartMenu re-register, search indexer reset, explorer recycle, settings re-register, tray refresh
--   [ ] Security and Credentials Repair Pack — `automation/essentials/security-and-credential-repair.ps1`
+-   [x] Security and Credentials Repair Pack — `automation/essentials/security-and-credential-repair.ps1`
     -   Firewall reset, SecurityHealth service/UI re-register, credential vault rebuild, EnableLUA enforcement
 -   [ ] Profile and Logon Repair Pack — `automation/essentials/profile-and-logon-repair.ps1`
     -   Startup audit/trim, ProfileImagePath repair, ProfSvc restart/userinit check, stale profile cleanup

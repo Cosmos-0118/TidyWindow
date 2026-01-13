@@ -276,6 +276,42 @@ public sealed class EssentialsTaskCatalog
                         mode: EssentialsTaskOptionMode.EmitWhenFalse))),
 
             new EssentialsTaskDefinition(
+                "security-credential-repair",
+                "Security & credentials repair",
+                "Security",
+                "Resets Windows Firewall, re-registers Windows Security, rebuilds the credential vault, and enforces UAC prompts.",
+                ImmutableArray.Create(
+                    "Resets firewall defaults and re-enables profiles",
+                    "Restarts SecurityHealthService, rebuilds credential vault, enforces EnableLUA"),
+                "automation/essentials/security-and-credential-repair.ps1",
+                DurationHint: "Approx. 5-12 minutes (AppX re-register may add a few minutes)",
+                DetailedDescription: "Resets Windows Firewall to defaults with all profiles enabled, restarts SecurityHealthService and re-registers the Windows Security (SecHealthUI) app for all users, backs up and recreates the credential vault after restarting VaultSvc/Schedule, and enforces EnableLUA=1 to restore UAC prompts.",
+                DocumentationLink: "essentialsaddition.md#security-and-services-4-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-firewall",
+                        label: "Reset Windows Firewall",
+                        parameterName: "SkipFirewallReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reregister-security-ui",
+                        label: "Re-register Windows Security app",
+                        parameterName: "SkipSecurityUiReregister",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "rebuild-credential-vault",
+                        label: "Rebuild credential vault",
+                        parameterName: "SkipCredentialVaultRebuild",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Backs up %LOCALAPPDATA%\\Microsoft\\Credentials and recreates it after restarting vault services."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "enforce-enablelua",
+                        label: "Enforce UAC (EnableLUA=1)",
+                        parameterName: "SkipEnableLuaEnforcement",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Sets EnableLUA to 1; logoff or reboot may be required."))),
+
+            new EssentialsTaskDefinition(
                 "ram-purge",
                 "RAM purge",
                 "Performance",
