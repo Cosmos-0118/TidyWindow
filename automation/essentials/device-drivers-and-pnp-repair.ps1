@@ -207,6 +207,36 @@ function Get-OemDriverEntries {
     return $entries
 }
 
+$script:PnputilDriverFilterSupported = $null
+function Test-PnputilDriverFilterSupport {
+    if ($null -ne $script:PnputilDriverFilterSupported) {
+        return $script:PnputilDriverFilterSupported
+    }
+
+    try {
+        $help = & pnputil /enum-devices /? 2>&1
+        $script:PnputilDriverFilterSupported = ($help -match '/driver')
+    }
+    catch {
+        $script:PnputilDriverFilterSupported = $false
+    }
+
+    return $script:PnputilDriverFilterSupported
+}
+
+function Test-TidyOffline {
+    try {
+        $profile = Get-NetConnectionProfile -ErrorAction SilentlyContinue | Where-Object { $_.IPv4Connectivity -eq 'Internet' -or $_.IPv6Connectivity -eq 'Internet' }
+        if ($profile) { return $false }
+
+        $ping = Test-Connection -ComputerName 1.1.1.1 -Count 1 -Quiet -ErrorAction SilentlyContinue
+        return -not $ping
+    }
+    catch {
+        return $true
+    }
+}
+
 function Cleanup-StaleDrivers {
     try {
         $entries = Get-OemDriverEntries
@@ -220,8 +250,42 @@ function Cleanup-StaleDrivers {
         }
 
         $removed = 0
+        $inUse = 0
+        $attempted = if ($candidates) { $candidates.Count } else { 0 }
+        $canFilterByDriver = Test-PnputilDriverFilterSupport
+        $isOffline = Test-TidyOffline
+        if ($isOffline) {
+            Write-TidyOutput -Message 'Network appears offline; skipping per-driver device listing for speed. Removal attempts will continue.'
+        }
         foreach ($entry in $candidates) {
             $name = $entry.PublishedName
+            $listed = $false
+            try {
+                if (-not $isOffline) {
+                    Write-TidyOutput -Message ("Devices using {0}:" -f $name)
+                    if ($canFilterByDriver) {
+                        $enumExit = Invoke-TidyCommand -Command { param($pn) pnputil /enum-devices /driver $pn } -Arguments @($name) -Description ("Listing devices for {0}" -f $name) -AcceptableExitCodes @(0,1)
+                        $listed = ($enumExit -eq 0)
+                    }
+
+                    if (-not $listed) {
+                        Write-TidyOutput -Message 'Using Get-PnpDevice fallback for device listing.'
+                        $devices = Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Driver -eq $name }
+                        if (-not $devices) {
+                            Write-TidyOutput -Message 'No present devices currently bound to this driver.'
+                        }
+                        else {
+                            foreach ($dev in $devices) {
+                                Write-TidyOutput -Message ("{0} [{1}]" -f $dev.FriendlyName, $dev.InstanceId)
+                            }
+                        }
+                    }
+                }
+            }
+            catch {
+                Write-TidyOutput -Message ("Could not enumerate devices for {0}: {1}" -f $name, $_.Exception.Message)
+            }
+
             try {
                 Invoke-TidyCommand -Command { param($pn) pnputil /delete-driver $pn /force } -Arguments @($name) -Description ("Removing driver package {0}" -f $name) -RequireSuccess
                 $removed++
@@ -230,16 +294,13 @@ function Cleanup-StaleDrivers {
                 Write-TidyOutput -Message ("Removed driver package {0} (Provider: {1}; Class: {2})." -f $name, $providerLabel, $classLabel)
             }
             catch {
-                Write-TidyOutput -Message ("Driver package {0} could not be removed or is in use: {1}" -f $name, $_.Exception.Message)
+                $inUse++
+                Write-TidyOutput -Message ("Driver package {0} is in use or protected; removal skipped. Details: {1}" -f $name, $_.Exception.Message)
             }
         }
 
-        if ($removed -eq 0) {
-            Write-TidyOutput -Message 'Did not remove any driver packages (likely in use or protected).'
-        }
-        else {
-            Write-TidyOutput -Message ("Removed {0} driver package(s)." -f $removed)
-        }
+        Write-TidyOutput -Message ("Driver cleanup summary: attempted {0}, in-use/protected {1}, removed {2}." -f $attempted, $inUse, $removed)
+        Write-TidyOutput -Message 'Guidance: remove only when devices are absent or unused (e.g., no present bindings) and ideally after 30+ days of inactivity.'
     }
     catch {
         $script:OperationSucceeded = $false
@@ -286,14 +347,29 @@ function Disable-UsbSelectiveSuspend {
         $subUsb = '2a737441-1930-4402-8d77-b2bebba308a3' # SUB_USB
         $usbSelective = '4faab71a-92e5-4726-b531-224559672d19' # USBSELECTIVE SUSPEND
 
+        $planList = powercfg /list 2>&1
+        $highPerfGuid = '8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c'
+        $ultimateGuid = 'e9a42b02-d5df-448d-aa00-03f14749eb61'
+        $hasPerfPlan = $planList -match [regex]::Escape($highPerfGuid) -or $planList -match [regex]::Escape($ultimateGuid)
+        if (-not $hasPerfPlan) {
+            Write-TidyOutput -Message 'High Performance or Ultimate plan not present; skipping USB selective suspend tweak.'
+            return
+        }
+
         $activeScheme = (powercfg /getactivescheme 2>&1 | Select-Object -First 1) -replace '.*GUID:\s*([0-9a-fA-F-]+).*','$1'
         if ([string]::IsNullOrWhiteSpace($activeScheme) -or -not ($activeScheme -match '^[0-9a-fA-F-]{36}$')) {
             Write-TidyOutput -Message 'Could not resolve active power scheme GUID; skipping USB selective suspend change.'
             return
         }
 
-        $acExit = Invoke-TidyCommand -Command { param($scheme, $sub, $setting) powercfg /setacvalueindex $scheme $sub $setting 0 } -Arguments @($activeScheme, $subUsb, $usbSelective) -Description 'Disabling USB selective suspend (AC).' -AcceptableExitCodes @(0)
-        $dcExit = Invoke-TidyCommand -Command { param($scheme, $sub, $setting) powercfg /setdcvalueindex $scheme $sub $setting 0 } -Arguments @($activeScheme, $subUsb, $usbSelective) -Description 'Disabling USB selective suspend (DC).' -AcceptableExitCodes @(0)
+        $hasSetting = (Invoke-TidyCommand -Command { param($scheme, $sub, $setting) & cmd /c "powercfg /q $scheme $sub $setting 2>&1" } -Arguments @($activeScheme, $subUsb, $usbSelective) -Description 'Validating USB selective suspend setting presence.' -AcceptableExitCodes @(0,1)) -eq 0
+        if (-not $hasSetting) {
+            Write-TidyOutput -Message 'USB selective suspend setting not found for active plan; skipping tweak.'
+            return
+        }
+
+        $acExit = Invoke-TidyCommand -Command { param($scheme, $sub, $setting) & cmd /c "powercfg /setacvalueindex $scheme $sub $setting 0 2>&1" } -Arguments @($activeScheme, $subUsb, $usbSelective) -Description 'Disabling USB selective suspend (AC).' -AcceptableExitCodes @(0)
+        $dcExit = Invoke-TidyCommand -Command { param($scheme, $sub, $setting) & cmd /c "powercfg /setdcvalueindex $scheme $sub $setting 0 2>&1" } -Arguments @($activeScheme, $subUsb, $usbSelective) -Description 'Disabling USB selective suspend (DC).' -AcceptableExitCodes @(0)
 
         if ($acExit -ne 0 -or $dcExit -ne 0) {
             Write-TidyOutput -Message "powercfg reported errors while setting USB selective suspend (AC exit $acExit, DC exit $dcExit). Skipping commit; settings likely unsupported on this platform."
