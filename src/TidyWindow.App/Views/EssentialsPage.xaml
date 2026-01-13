@@ -523,7 +523,7 @@
                 <controls:PageTitleBar Grid.Row="0"
                                        Title="Essentials automation"
                                        Subtitle="{Binding Headline}"
-                                       IconGlyph="🛠️"
+                                       IconGlyph="👑"
                                        BadgeText="Core automations"
                                        Margin="0,0,0,28">
                     <controls:PageTitleBar.BodyContent>
@@ -647,9 +647,41 @@
                                         </StackPanel>
                                     </StackPanel>
 
+                                    <StackPanel Orientation="Vertical"
+                                                Margin="0,18,0,0">
+                                        <TextBlock Text="Smart search"
+                                                   FontSize="12"
+                                                   Foreground="#8CA0BF"
+                                                   Margin="0,0,0,6"/>
+                                        <Border Background="#0E1930"
+                                                BorderBrush="#1F2F4C"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="12,8">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0"
+                                                           Text="🔍"
+                                                           FontSize="14"
+                                                           VerticalAlignment="Center"
+                                                           Margin="0,0,8,0"/>
+                                                <TextBox Grid.Column="1"
+                                                         BorderThickness="0"
+                                                         Background="Transparent"
+                                                         Foreground="#E2E8F0"
+                                                         FontSize="13"
+                                                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged, Delay=150}"
+                                                         ToolTip="Type any symptom, category, or partial name to find a repair."/>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+
                                     <ListBox x:Name="TasksListBox"
                                              Margin="0,24,0,0"
-                                             ItemsSource="{Binding Tasks}"
+                                             ItemsSource="{Binding TasksView}"
                                              Background="Transparent"
                                              BorderThickness="0"
                                              ScrollViewer.VerticalScrollBarVisibility="Disabled"

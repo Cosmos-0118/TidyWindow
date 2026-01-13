@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
+using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using System.Windows.Media;
@@ -33,6 +35,7 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     private readonly Dictionary<Guid, EssentialsQueueOperationSnapshot> _snapshotCache = new();
     private readonly Dictionary<string, EssentialsTaskItemViewModel> _taskLookup = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int> _activeTaskCounts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ICollectionView _tasksView;
     private bool _isDisposed;
     private SystemRestoreGuardPrompt? _activeRestoreGuardPrompt;
 
@@ -60,6 +63,9 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
             Tasks.Add(vm);
             _taskLookup[definition.Id] = vm;
         }
+
+        _tasksView = System.Windows.Data.CollectionViewSource.GetDefaultView(Tasks);
+        _tasksView.Filter = FilterTask;
 
         foreach (var snapshot in _queue.GetSnapshot())
         {
@@ -89,6 +95,8 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<EssentialsTaskItemViewModel> Tasks { get; }
 
+    public ICollectionView TasksView => _tasksView;
+
     public ObservableCollection<EssentialsOperationItemViewModel> Operations { get; }
 
     public EssentialsAutomationViewModel Automation { get; }
@@ -99,9 +107,49 @@ public sealed partial class EssentialsViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private bool _hasActiveOperations;
 
+    [ObservableProperty]
+    private string _searchText = string.Empty;
+
     partial void OnHasActiveOperationsChanged(bool value)
     {
         StopActiveRunCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSearchTextChanged(string value)
+    {
+        _tasksView.Refresh();
+    }
+
+    private bool FilterTask(object? candidate)
+    {
+        if (candidate is not EssentialsTaskItemViewModel task)
+        {
+            return false;
+        }
+
+        var query = SearchText;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return true;
+        }
+
+        var words = query.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (words.Length == 0)
+        {
+            return true;
+        }
+
+        var haystack = task.SearchIndex;
+
+        foreach (var word in words)
+        {
+            if (haystack.IndexOf(word, StringComparison.OrdinalIgnoreCase) < 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     [ObservableProperty]
@@ -716,6 +764,7 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     private static readonly SolidColorBrush WaitingChipBrush = new(MediaColor.FromRgb(250, 204, 21));
     private static readonly SolidColorBrush SuccessChipBrush = new(MediaColor.FromRgb(34, 197, 94));
     private static readonly SolidColorBrush ErrorChipBrush = new(MediaColor.FromRgb(248, 113, 113));
+    private readonly string _searchIndex;
 
     public EssentialsTaskItemViewModel(EssentialsTaskDefinition definition)
     {
@@ -729,6 +778,8 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
         {
             Options = definition.Options.Select(option => new EssentialsTaskOptionViewModel(option)).ToList();
         }
+
+        _searchIndex = BuildSearchIndex();
     }
 
     public EssentialsTaskDefinition Definition { get; }
@@ -754,6 +805,8 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     public IReadOnlyList<EssentialsTaskOptionViewModel> Options { get; }
 
     public bool HasOptions => Options.Count > 0;
+
+    public string SearchIndex => _searchIndex;
 
     [ObservableProperty]
     private bool _useFullScan;
@@ -821,6 +874,39 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
                 ? null
                 : $"Approx. time: {text}";
         }
+    }
+
+    private string BuildSearchIndex()
+    {
+        var builder = new StringBuilder();
+
+        void Append(string? value)
+        {
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                if (builder.Length > 0)
+                {
+                    builder.Append(' ');
+                }
+                builder.Append(value);
+            }
+        }
+
+        Append(Title);
+        Append(Category);
+        Append(Summary);
+        Append(DurationHint);
+        Append(DetailedDescription);
+
+        if (Highlights.Length > 0)
+        {
+            foreach (var highlight in Highlights)
+            {
+                Append(highlight);
+            }
+        }
+
+        return builder.ToString();
     }
 
     public void UpdateQueueState(int activeCount, string? status, EssentialsQueueStatus? queueStatus)

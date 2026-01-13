@@ -26,7 +26,7 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             new("Bootstrap", "Verify package managers and get ready", "\uE9D2", typeof(BootstrapPage)),
             new("Install hub", "Curated package bundles and install queue", "\uE896", typeof(InstallHubPage)),
-            new("Essentials", "Run repair automation quickly", "\uE9ED", typeof(EssentialsPage)),
+            new("Essentials", "Run repair automation quickly", "\uED5A", typeof(EssentialsPage)),
             new("Processes", "Review safe auto-stop recommendations", "\uEDA2", typeof(KnownProcessesPage)),
             new("Startup", "Control Run keys, startup folders, tasks, and services", "\uE7E7", typeof(StartupControllerPage)),
             new("Performance lab", "Lean 8-step stack: power, services, hardware, kernel, security, tracing, scheduler, auto-tune", "\uE945", typeof(PerformanceLabPage)),
