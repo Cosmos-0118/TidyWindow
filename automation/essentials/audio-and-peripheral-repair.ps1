@@ -223,6 +223,12 @@ function Restart-PnpDevice {
         [int] $MaxAttempts = 4
     )
 
+    $device = Get-PnpDevice -InstanceId $InstanceId -ErrorAction SilentlyContinue
+    if ($device -and ($device.ConfigManagerErrorCode -eq 45 -or ($device.Status -and $device.Status -match 'not connected|Disconnected'))) {
+        Write-TidyOutput -Message ("{0} appears to be disconnected (CM error 45 or status not connected); skipping restart attempts." -f $Label)
+        return
+    }
+
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         $attemptLabel = "{0} (attempt {1}/{2})" -f $Label, $attempt, $MaxAttempts
         try {
@@ -234,7 +240,13 @@ function Restart-PnpDevice {
             Invoke-TidyCommand -Command { param($id) Enable-PnpDevice -InstanceId $id -Confirm:$false -ErrorAction Stop } -Arguments @($InstanceId) -Description ("Enabling {0}" -f $attemptLabel)
         }
         catch {
-            Write-TidyOutput -Message ("Primary disable/enable path failed for {0}: {1}" -f $attemptLabel, $_.Exception.Message)
+            $msg = $_.Exception.Message
+            if ($msg -match 'not connected' -or $msg -match '\b1167\b') {
+                Write-TidyOutput -Message ("{0} reports not connected; aborting further attempts." -f $attemptLabel)
+                return
+            }
+
+            Write-TidyOutput -Message ("Primary disable/enable path failed for {0}: {1}" -f $attemptLabel, $msg)
             try {
                 Write-TidyOutput -Message ("Attempting pnputil restart-device for {0}" -f $attemptLabel)
                 Invoke-TidyCommand -Command { param($id) pnputil /restart-device $id } -Arguments @($InstanceId) -Description ("Restarting {0} via pnputil" -f $attemptLabel) -AcceptableExitCodes @(0,259,3010)
@@ -265,7 +277,10 @@ function Reset-UsbHubs {
             Write-TidyOutput -Message 'No USB class devices found for reset.'
         }
         else {
-            $problemDevices = $devices | Where-Object { ($_.Status -and $_.Status -notmatch '^OK$') -or ($_.ConfigManagerErrorCode -ne 0) }
+            $problemDevices = $devices | Where-Object {
+                ($_.ConfigManagerErrorCode -ne 0 -and $_.ConfigManagerErrorCode -ne 45) -or
+                ($_.Status -and $_.Status -notmatch '^OK$' -and $_.Status -notmatch 'not connected|Disconnected')
+            }
             if (-not $problemDevices -or $problemDevices.Count -eq 0) {
                 Write-TidyOutput -Message 'No unhealthy USB devices detected; performing a PnP rescan only.'
             }
@@ -288,7 +303,9 @@ function Reset-UsbHubs {
 
 function Enable-Microphones {
     try {
-        $targets = @(Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue | Where-Object { $_.Status -and $_.Status -notmatch '^OK$' })
+        $targets = @(Get-PnpDevice -Class AudioEndpoint -ErrorAction SilentlyContinue | Where-Object {
+            ($_.ConfigManagerErrorCode -ne 0 -and $_.ConfigManagerErrorCode -ne 45) -or ($_.Status -and $_.Status -match 'Disabled|Error')
+        })
         if (-not $targets -or $targets.Count -eq 0) {
             Write-TidyOutput -Message 'No disabled or error audio endpoints detected.'
             return

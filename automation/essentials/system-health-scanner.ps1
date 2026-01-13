@@ -163,6 +163,65 @@ function Invoke-TidyCommand {
     return $exitCode
 }
 
+# Runs native executables with a hard timeout and captures stdout/stderr.
+# Avoids rare DISM/SFC hangs (e.g., stuck contacting Windows Update or AV scanning) by killing the process if it exceeds the timeout.
+function Invoke-NativeWithTimeout {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $FilePath,
+        [Parameter(Mandatory = $true)]
+        [string] $Arguments,
+        [string] $Description = 'Running native command.',
+        [int] $TimeoutSeconds = 1800,
+        [int[]] $AcceptableExitCodes = @(0)
+    )
+
+    if ($script:DryRunMode) {
+        Write-TidyOutput -Message ("[DryRun] Would run: {0} {1}" -f $FilePath, $Arguments)
+        return 0
+    }
+
+    if (-not (Test-Path -LiteralPath $FilePath)) {
+        throw "Command not found: $FilePath"
+    }
+
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = $FilePath
+    $psi.Arguments = $Arguments
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+
+    $proc = New-Object System.Diagnostics.Process
+    $proc.StartInfo = $psi
+
+    Write-TidyOutput -Message $Description
+
+    if (-not $proc.Start()) {
+        throw "$Description failed to start."
+    }
+
+    $exited = $proc.WaitForExit($TimeoutSeconds * 1000)
+    if (-not $exited) {
+        try { $proc.Kill() } catch {}
+        throw "$Description timed out after $TimeoutSeconds seconds and was terminated."
+    }
+
+    $stdout = $proc.StandardOutput.ReadToEnd()
+    $stderr = $proc.StandardError.ReadToEnd()
+
+    foreach ($line in ($stdout -split "`r?`n")) { if ($line) { Write-TidyOutput -Message $line } }
+    foreach ($line in ($stderr -split "`r?`n")) { if ($line) { Write-TidyError -Message $line } }
+
+    $exitCode = $proc.ExitCode
+    if ($AcceptableExitCodes -and -not ($AcceptableExitCodes -contains $exitCode)) {
+        throw "$Description failed with exit code $exitCode."
+    }
+
+    return $exitCode
+}
+
 function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
@@ -262,8 +321,9 @@ try {
     }
 
     if (-not $SkipSfc.IsPresent) {
-        Write-TidyOutput -Message 'Running System File Checker (this can take 5-15 minutes).'
-        $sfcExit = Invoke-TidyCommand -Command { sfc /scannow } -Description 'Running SFC /scannow.' -RequireSuccess -AcceptableExitCodes @(1)
+        Write-TidyOutput -Message 'Running System File Checker (this can take 5-20 minutes).'
+        $sfcPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\sfc.exe'
+        $sfcExit = Invoke-NativeWithTimeout -FilePath $sfcPath -Arguments '/scannow' -Description 'Running SFC /scannow.' -TimeoutSeconds 1800 -AcceptableExitCodes @(0,1)
 
         switch ($sfcExit) {
             0 { Write-TidyOutput -Message 'SFC completed without finding integrity violations.' }
@@ -275,15 +335,20 @@ try {
     }
 
     if (-not $SkipDism.IsPresent) {
+        $dismPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\dism.exe'
+
         Write-TidyOutput -Message 'Checking Windows component store health.'
-        Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /CheckHealth } -Description 'DISM CheckHealth' -RequireSuccess | Out-Null
+        Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /CheckHealth' -Description 'DISM CheckHealth' -TimeoutSeconds 900 -AcceptableExitCodes @(0) | Out-Null
 
         Write-TidyOutput -Message 'Scanning Windows component store for corruption.'
-        Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /ScanHealth } -Description 'DISM ScanHealth' -RequireSuccess | Out-Null
+        Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /ScanHealth' -Description 'DISM ScanHealth' -TimeoutSeconds 1800 -AcceptableExitCodes @(0) | Out-Null
 
         if ($shouldRunRestoreHealth) {
-            Write-TidyOutput -Message 'Repairing Windows component store corruption (RestoreHealth).'
-            Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /RestoreHealth } -Description 'DISM RestoreHealth' -RequireSuccess | Out-Null
+            Write-TidyOutput -Message 'Repairing Windows component store corruption (RestoreHealth, limit network sources).' 
+            $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth /LimitAccess' -Description 'DISM RestoreHealth' -TimeoutSeconds 2700 -AcceptableExitCodes @(0,3010)
+            if ($restoreExit -eq 3010) {
+                Write-TidyOutput -Message 'DISM RestoreHealth completed and requested a reboot (3010).'
+            }
         }
         else {
             Write-TidyOutput -Message 'Skipping RestoreHealth per operator request.'
@@ -291,12 +356,12 @@ try {
 
         if ($ComponentCleanup.IsPresent) {
             Write-TidyOutput -Message 'Cleaning up superseded components.'
-            Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /StartComponentCleanup } -Description 'DISM StartComponentCleanup' -RequireSuccess | Out-Null
+            Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /StartComponentCleanup' -Description 'DISM StartComponentCleanup' -TimeoutSeconds 1200 -AcceptableExitCodes @(0) | Out-Null
         }
 
         if ($AnalyzeComponentStore.IsPresent) {
             Write-TidyOutput -Message 'Analyzing component store (provides size and reclaim recommendations).'
-            Invoke-TidyCommand -Command { DISM /Online /Cleanup-Image /AnalyzeComponentStore } -Description 'DISM AnalyzeComponentStore' | Out-Null
+            Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /AnalyzeComponentStore' -Description 'DISM AnalyzeComponentStore' -TimeoutSeconds 900 -AcceptableExitCodes @(0) | Out-Null
         }
     }
     else {

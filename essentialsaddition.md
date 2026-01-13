@@ -29,7 +29,7 @@ _Priority uses 1-5 (5 is highest). Risk is a qualitative assessment._
     -   OneDrive reset, sync services restart, KFM mapping repair, autorun/task recreate
 -   [x] Activation and Licensing Repair Pack — `automation/essentials/activation-and-licensing-repair.ps1`
     -   slmgr activation/rearm helpers, activation DLL re-registration
--   [ ] TPM, BitLocker, Secure Boot Repair Pack — `automation/essentials/tpm-bitlocker-secureboot-repair.ps1`
+-   [x] TPM, BitLocker, Secure Boot Repair Pack — `automation/essentials/tpm-bitlocker-secureboot-repair.ps1`
     -   TPM clear, BitLocker suspend/resume, Secure Boot key reset guidance, device encryption prerequisites
 -   [ ] PowerShell Environment Repair Pack — `automation/essentials/powershell-environment-repair.ps1`
     -   Execution policy set, profile reset, WinRM/PSRemoting enable

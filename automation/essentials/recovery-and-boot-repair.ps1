@@ -333,7 +333,29 @@ function Repair-TimeSync {
 
 function Repair-WmiRepository {
     try {
-        Write-TidyOutput -Message 'Salvaging WMI repository.'
+        Write-TidyOutput -Message 'Verifying WMI repository state.'
+        $verifyOutput = @()
+        try {
+            $verifyOutput = @(winmgmt /verifyrepository 2>&1)
+        }
+        catch {
+            $verifyOutput = @()
+        }
+
+        $verifyExit = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+        $verifyText = ($verifyOutput -join ' ') -replace '\s+', ' '
+        $isInconsistent = ($verifyExit -ne 0) -or ($verifyText -match 'inconsistent')
+
+        foreach ($line in $verifyOutput) {
+            Write-TidyOutput -Message $line
+        }
+
+        if (-not $isInconsistent) {
+            Write-TidyOutput -Message 'WMI repository reports consistent; skipping salvage/reset.'
+            return
+        }
+
+        Write-TidyOutput -Message 'WMI repository reported inconsistent or verify exited non-zero; running salvage/reset.'
         Invoke-TidyCommand -Command { winmgmt /salvagerepository } -Description 'WMI salvage.' -AcceptableExitCodes @(0, 0x1)
 
         Write-TidyOutput -Message 'Resetting WMI repository.'

@@ -312,6 +312,80 @@ public sealed class EssentialsTaskCatalog
                         description: "Sets EnableLUA to 1; logoff or reboot may be required."))),
 
             new EssentialsTaskDefinition(
+                "activation-licensing-repair",
+                "Activation & licensing repair",
+                "Licensing",
+                "Re-registers activation DLLs, refreshes Software Protection, attempts online activation, and optionally runs slmgr /rearm.",
+                ImmutableArray.Create(
+                    "Re-registers activation/licensing DLLs",
+                    "Restarts Software Protection and runs slmgr /ato"),
+                "automation/essentials/activation-and-licensing-repair.ps1",
+                DurationHint: "Approx. 4-10 minutes (DLL re-register + sppsvc refresh + activation)",
+                DetailedDescription: "Re-registers slc/slwga/spp* DLLs, refreshes the Software Protection service, attempts slmgr /ato for activation, and can run slmgr /rearm (opt-in) to rebuild licensing state with transcript logging.",
+                DocumentationLink: "essentialsaddition.md",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "dll-reregister",
+                        label: "Re-register activation DLLs",
+                        parameterName: "SkipDllReregister",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "refresh-sppsvc",
+                        label: "Refresh Software Protection service",
+                        parameterName: "SkipProtectionServiceRefresh",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "activation-attempt",
+                        label: "Attempt online activation",
+                        parameterName: "SkipActivationAttempt",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Runs slmgr /ato via cscript."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "attempt-rearm",
+                        label: "Attempt license rearm (/rearm)",
+                        parameterName: "AttemptRearm",
+                        defaultValue: false,
+                        description: "Consumes limited rearm count; enable only when needed."))),
+
+            new EssentialsTaskDefinition(
+                "tpm-bitlocker-secureboot-repair",
+                "TPM, BitLocker & Secure Boot repair",
+                "Security",
+                "Cycles BitLocker protectors, requests TPM clear, surfaces Secure Boot guidance, and refreshes device encryption prerequisites.",
+                ImmutableArray.Create(
+                    "Suspends/resumes BitLocker protectors on the system volume",
+                    "Requests TPM clear and logs Secure Boot/device encryption guidance"),
+                "automation/essentials/tpm-bitlocker-secureboot-repair.ps1",
+                DurationHint: "Approx. 5-12 minutes (TPM clear requires reboot/firmware confirmation)",
+                DetailedDescription: "Runs a security stack refresh by suspending and resuming BitLocker protectors on the OS volume, requesting a TPM clear (owner confirmation required) with status logging, reporting Secure Boot state plus reset guidance, and re-enabling device encryption registry/service prerequisites (BDESVC, KeyIso, DeviceInstall, PlugPlay).",
+                DocumentationLink: "essentialsaddition.md#tpm-bitlocker-secure-boot-4-issues",
+                Options: ImmutableArray.Create(
+                    new EssentialsTaskOptionDefinition(
+                        id: "bitlocker-cycle",
+                        label: "Suspend/resume BitLocker protectors",
+                        parameterName: "SkipBitLockerCycle",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Suspends BitLocker on the system volume for one reboot then resumes to refresh sealing."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "tpm-clear",
+                        label: "Request TPM clear",
+                        parameterName: "SkipTpmClear",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Runs Clear-Tpm; requires owner confirmation/firmware approval and may trigger reboot."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "secureboot-guidance",
+                        label: "Output Secure Boot guidance",
+                        parameterName: "SkipSecureBootGuidance",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Checks Secure Boot state and logs firmware reset guidance (no reboot issued)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "device-encryption-prereqs",
+                        label: "Refresh device encryption prerequisites",
+                        parameterName: "SkipDeviceEncryptionPrereqs",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Enables Device Encryption and BitLocker registry keys and prepares required services."))),
+
+            new EssentialsTaskDefinition(
                 "profile-logon-repair",
                 "Profile & logon repair",
                 "Accounts",
@@ -403,13 +477,13 @@ public sealed class EssentialsTaskCatalog
                 "graphics-display-repair",
                 "Graphics & display repair",
                 "Display",
-                "Resets display adapters, restarts display services, refreshes HDR/night light, reapplies display configuration, and triggers EDID/PnP rescans.",
+                "Resets display adapters, restarts display services, refreshes HDR/night light, reapplies display configuration, triggers EDID/PnP rescans, and optionally restarts DWM/color profiles/vendor panels.",
                 ImmutableArray.Create(
                     "Disables/re-enables the primary display adapter",
                     "Restarts display enhancement services and re-applies display mode"),
                 "automation/essentials/graphics-and-display-repair.ps1",
                 DurationHint: "Approx. 4-12 minutes (adapter reset may blink screens)",
-                DetailedDescription: "Runs a graphics/display health pass by disabling and re-enabling the primary display adapter, restarting DisplayEnhancementService/UdkUserSvc, refreshing HDR/night light policies, reapplying the current display configuration via DisplaySwitch, and forcing a PnP rescan to refresh EDID/stack state.",
+                DetailedDescription: "Runs a graphics/display health pass by disabling and re-enabling the primary display adapter, restarting DisplayEnhancementService/UdkUserSvc, refreshing HDR/night light policies, reapplying the current display configuration via DisplaySwitch, and forcing a PnP rescan to refresh EDID/stack state, with optional DWM restart, color profile export/reload via dispdiag, and vendor control panel resets (NVIDIA app clocks reset; AMD AMDRSServ restart when available).",
                 DocumentationLink: "essentialsaddition.md#graphics-and-display-5-issues",
                 Options: ImmutableArray.Create(
                     new EssentialsTaskOptionDefinition(
@@ -417,13 +491,13 @@ public sealed class EssentialsTaskCatalog
                         label: "Reset display adapter",
                         parameterName: "SkipAdapterReset",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Disables and re-enables the primary display adapter."),
+                        description: "Disables and re-enables the primary display adapter (skipped unless risky actions are allowed)."),
                     new EssentialsTaskOptionDefinition(
                         id: "restart-display-services",
                         label: "Restart display services",
                         parameterName: "SkipDisplayServicesRestart",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Restarts DisplayEnhancementService and UdkUserSvc."),
+                        description: "Restarts DisplayEnhancementService and UdkUserSvc (skipped unless risky actions are allowed)."),
                     new EssentialsTaskOptionDefinition(
                         id: "refresh-hdr-nightlight",
                         label: "Refresh HDR/night light",
@@ -435,13 +509,37 @@ public sealed class EssentialsTaskCatalog
                         label: "Reapply current resolution",
                         parameterName: "SkipResolutionReapply",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Runs DisplaySwitch /internal to reapply the active display mode."),
+                        description: "Runs DisplaySwitch /internal to reapply the active display mode (skipped unless risky actions are allowed)."),
                     new EssentialsTaskOptionDefinition(
                         id: "refresh-edid",
                         label: "Refresh EDID/PnP",
                         parameterName: "SkipEdidRefresh",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Triggers pnputil /scan-devices for display stack refresh."))),
+                        description: "Triggers pnputil /scan-devices for display stack refresh (skipped unless risky actions are allowed)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "restart-dwm",
+                        label: "Restart DWM (compositor)",
+                        parameterName: "SkipDwmRestart",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Stops dwm.exe to clear window border/alt-tab/transparency glitches (skipped unless risky actions are allowed)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reapply-color-profiles",
+                        label: "Reinstall color profiles (dispdiag)",
+                        parameterName: "SkipColorProfileReapply",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Exports then reloads color profiles via dispdiag to fix ICC/profile drift (skipped unless risky actions are allowed)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-gpu-panel",
+                        label: "Reset GPU control panel settings",
+                        parameterName: "SkipGpuControlPanelReset",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "NVIDIA: nvidia-smi --reset-app-clocks; AMD: restart AMDRSServ/reset if available (skipped unless risky actions are allowed)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "allow-risky-display-actions",
+                        label: "Allow risky display actions (in-app)",
+                        parameterName: "AllowRiskyDisplayActions",
+                        defaultValue: false,
+                        description: "Override the safety skip for adapter/service/resolution/EDID/DWM/color/GPU actions; may crash the TidyWindow UI."))),
 
             new EssentialsTaskDefinition(
                 "onedrive-cloud-repair",

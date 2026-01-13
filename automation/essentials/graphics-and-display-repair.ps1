@@ -4,6 +4,10 @@ param(
     [switch] $SkipHdrNightLightRefresh,
     [switch] $SkipResolutionReapply,
     [switch] $SkipEdidRefresh,
+    [switch] $SkipDwmRestart,
+    [switch] $SkipColorProfileReapply,
+    [switch] $SkipGpuControlPanelReset,
+    [switch] $AllowRiskyDisplayActions,
     [string] $ResultPath
 )
 
@@ -32,9 +36,21 @@ $script:TidyOutputLines = [System.Collections.Generic.List[string]]::new()
 $script:TidyErrorLines = [System.Collections.Generic.List[string]]::new()
 $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
+$script:IsTidyWindowHost = $false
+$script:RiskyActionsAllowed = $AllowRiskyDisplayActions.IsPresent
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
+}
+
+try {
+    $procName = [System.Diagnostics.Process]::GetCurrentProcess().ProcessName
+    if ($procName -and $procName -match 'tidywindow') {
+        $script:IsTidyWindowHost = $true
+    }
+}
+catch {
+    $script:IsTidyWindowHost = $false
 }
 
 function Write-TidyOutput {
@@ -160,6 +176,11 @@ function Wait-TidyServiceState {
 
 function Reset-DisplayAdapter {
     try {
+        if (-not $script:RiskyActionsAllowed) {
+            Write-TidyOutput -Message 'Skipping display adapter disable/enable because risky actions are not allowed.'
+            return
+        }
+
         $devices = Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.InstanceId }
         if (-not $devices -or $devices.Count -eq 0) {
             Write-TidyOutput -Message 'No display adapters found to reset.'
@@ -187,6 +208,11 @@ function Restart-DisplayServices {
         @{ BaseName = 'DisplayEnhancementService'; Pattern = 'DisplayEnhancementService' },
         @{ BaseName = 'UdkUserSvc'; Pattern = 'UdkUserSvc*' }
     )
+
+    if (-not $script:RiskyActionsAllowed) {
+        Write-TidyOutput -Message 'Skipping display service restart because risky actions are not allowed.'
+        return
+    }
 
     foreach ($group in $serviceGroups) {
         try {
@@ -293,6 +319,11 @@ function Refresh-HdrNightLight {
 
 function Reapply-Resolution {
     try {
+        if (-not $script:RiskyActionsAllowed) {
+            Write-TidyOutput -Message 'Skipping resolution reapply because risky actions are not allowed.'
+            return
+        }
+
         $displaySwitch = Join-Path -Path $env:SystemRoot -ChildPath 'System32\\DisplaySwitch.exe'
         if (-not (Test-Path -LiteralPath $displaySwitch)) {
             Write-TidyOutput -Message 'DisplaySwitch.exe not found. Skipping resolution reapply.'
@@ -310,12 +341,124 @@ function Reapply-Resolution {
 
 function Refresh-EdidAndPnp {
     try {
+        if (-not $script:RiskyActionsAllowed) {
+            Write-TidyOutput -Message 'Skipping EDID/PnP rescan because risky actions are not allowed.'
+            return
+        }
+
         Write-TidyOutput -Message 'Triggering Plug and Play rescan for display stack/EDID refresh.'
         Invoke-TidyCommand -Command { pnputil /scan-devices } -Description 'PnP rescan for displays.' -AcceptableExitCodes @(0,259)
     }
     catch {
         $script:OperationSucceeded = $false
         Write-TidyError -Message ("EDID/PnP refresh failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Restart-Dwm {
+    try {
+        if (-not $script:RiskyActionsAllowed) {
+            Write-TidyOutput -Message 'Skipping DWM restart because risky actions are not allowed.'
+            return
+        }
+
+        Write-TidyOutput -Message 'Restarting Desktop Window Manager (dwm.exe) to clear compositor glitches.'
+        Stop-Process -Name dwm -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 800
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("DWM restart failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Reapply-ColorProfiles {
+    $tempPath = $null
+    try {
+        if (-not $script:RiskyActionsAllowed) {
+            Write-TidyOutput -Message 'Skipping color profile export/reload because risky actions are not allowed.'
+            return
+        }
+
+        $dispdiagPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\\dispdiag.exe'
+        if (-not (Test-Path -LiteralPath $dispdiagPath)) {
+            Write-TidyOutput -Message 'dispdiag.exe not found; skipping color profile export/reload.'
+            return
+        }
+
+        $tempPath = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("dispdiag-{0}.dat" -f ([guid]::NewGuid()))
+
+        Write-TidyOutput -Message 'Exporting current color profile via dispdiag.'
+        Invoke-TidyCommand -Command { param($exe, $path) Start-Process -FilePath $exe -ArgumentList @('-out', $path) -WindowStyle Hidden -Wait } -Arguments @($dispdiagPath, $tempPath) -Description 'dispdiag export color profile.' -AcceptableExitCodes @(0)
+
+        Write-TidyOutput -Message 'Reloading color profile from export via dispdiag.'
+        Invoke-TidyCommand -Command { param($exe, $path) Start-Process -FilePath $exe -ArgumentList @('-load', $path) -WindowStyle Hidden -Wait } -Arguments @($dispdiagPath, $tempPath) -Description 'dispdiag load color profile.' -AcceptableExitCodes @(0)
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Color profile export/reload failed: {0}" -f $_.Exception.Message)
+    }
+    finally {
+        if ($tempPath -and (Test-Path -LiteralPath $tempPath)) {
+            Remove-Item -LiteralPath $tempPath -Force -ErrorAction SilentlyContinue | Out-Null
+        }
+    }
+}
+
+function Reset-GpuControlPanel {
+    try {
+        if (-not $script:RiskyActionsAllowed) {
+            Write-TidyOutput -Message 'Skipping GPU control panel resets because risky actions are not allowed.'
+            return
+        }
+
+        $videoControllers = @(Get-CimInstance -ClassName Win32_VideoController -ErrorAction SilentlyContinue)
+        if (-not $videoControllers -or $videoControllers.Count -eq 0) {
+            Write-TidyOutput -Message 'No video controllers detected; skipping GPU control panel resets.'
+            return
+        }
+
+        $hasNvidia = $videoControllers | Where-Object { $_.Name -match 'NVIDIA' -or $_.AdapterCompatibility -match 'NVIDIA' }
+        $hasAmd    = $videoControllers | Where-Object { $_.Name -match 'AMD|Radeon' -or $_.AdapterCompatibility -match 'Advanced Micro Devices|AMD' }
+
+        if ($hasNvidia) {
+            $nvidiaCmd = Get-Command -Name 'nvidia-smi.exe' -ErrorAction SilentlyContinue
+            if (-not $nvidiaCmd) {
+                Write-TidyOutput -Message 'nvidia-smi not found; skipping NVIDIA control panel reset.'
+            }
+            else {
+                Write-TidyOutput -Message 'Resetting NVIDIA app clocks (nvidia-smi --reset-app-clocks).' 
+                Invoke-TidyCommand -Command { nvidia-smi --reset-app-clocks } -Description 'NVIDIA app clocks reset.' -AcceptableExitCodes @(0)
+            }
+        }
+
+        if ($hasAmd) {
+            $amdService = Get-Service -Name 'AMDRSServ' -ErrorAction SilentlyContinue
+            $amdCmd = $null
+            if (-not $amdService) {
+                $amdCmd = Get-Command -Name 'AMDRSServ.exe' -ErrorAction SilentlyContinue
+            }
+
+            if ($amdService) {
+                Write-TidyOutput -Message 'Restarting AMD Radeon Settings service (AMDRSServ).' 
+                Invoke-TidyCommand -Command { Restart-Service -Name AMDRSServ -Force -ErrorAction Stop } -Description 'Restarting AMDRSServ.'
+            }
+            elseif ($amdCmd) {
+                Write-TidyOutput -Message 'Invoking AMDRSServ reset entry point.'
+                Invoke-TidyCommand -Command { param($path) Start-Process -FilePath $path -ArgumentList '-reset' -WindowStyle Hidden -Wait } -Arguments @($amdCmd.Source) -Description 'AMDRSServ reset invocation.' -AcceptableExitCodes @(0)
+            }
+            else {
+                Write-TidyOutput -Message 'AMDRSServ not found; skipping AMD control panel reset.'
+            }
+        }
+
+        if (-not $hasNvidia -and -not $hasAmd) {
+            Write-TidyOutput -Message 'GPU vendor not identified as NVIDIA or AMD; skipping control panel resets.'
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("GPU control panel reset failed: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -359,6 +502,27 @@ try {
     }
     else {
         Write-TidyOutput -Message 'Skipping EDID/PnP refresh per operator request.'
+    }
+
+    if (-not $SkipDwmRestart.IsPresent) {
+        Restart-Dwm
+    }
+    else {
+        Write-TidyOutput -Message 'Skipping DWM restart per operator request.'
+    }
+
+    if (-not $SkipColorProfileReapply.IsPresent) {
+        Reapply-ColorProfiles
+    }
+    else {
+        Write-TidyOutput -Message 'Skipping color profile export/reload per operator request.'
+    }
+
+    if (-not $SkipGpuControlPanelReset.IsPresent) {
+        Reset-GpuControlPanel
+    }
+    else {
+        Write-TidyOutput -Message 'Skipping GPU control panel reset per operator request.'
     }
 
     Write-TidyOutput -Message 'Graphics and display repair pack completed.'
