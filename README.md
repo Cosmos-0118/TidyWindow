@@ -49,7 +49,7 @@ dotnet build src/TidyWindow.sln -c Debug
 dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 ```
 
-See [docs/getting-started.md](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest signed installer: **3.6.7** (stable). Inside the app, open Settings ▸ Updates to read the hosted manifest and jump to the newest release notes without a manual download.
+See [docs/getting-started.md](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest installer: **3.8.3** (stable). Inside the app, open Settings ▸ Updates to read the hosted manifest and jump to the newest release notes without a manual download.
 
 ## Test Suite
 
