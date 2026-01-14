@@ -294,7 +294,16 @@ function Request-TpmClear {
 
     try {
         $result = Clear-Tpm -ErrorAction Stop
-        $clearStatus = if ($result -and $result.ClearTpmRequested) { 'Clear request submitted.' } else { 'Clear command issued.' }
+
+        $clearRequested = $false
+        if ($null -ne $result -and $result -is [psobject]) {
+            $prop = $result.PSObject.Properties['ClearTpmRequested']
+            if ($prop) {
+                $clearRequested = [bool]$prop.Value
+            }
+        }
+
+        $clearStatus = if ($clearRequested) { 'Clear request submitted.' } else { 'Clear command issued.' }
         Write-TidyOutput -Message $clearStatus
     }
     catch {

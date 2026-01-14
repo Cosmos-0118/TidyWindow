@@ -227,6 +227,74 @@ function Wait-TidyServiceState {
     return $false
 }
 
+function Parse-TidyAppxInUsePackages {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Message
+    )
+
+    $results = [System.Collections.Generic.List[string]]::new()
+    if ([string]::IsNullOrWhiteSpace($Message)) { return $results }
+
+    $pattern = '([A-Za-z0-9\.]+_[0-9A-Za-z\.]+__\w+)'  # matches package family names from error text
+    $matches = [System.Text.RegularExpressions.Regex]::Matches($Message, $pattern)
+    foreach ($m in $matches) {
+        $val = $m.Groups[1].Value
+        if (-not [string]::IsNullOrWhiteSpace($val) -and -not $results.Contains($val)) {
+            [void]$results.Add($val)
+        }
+    }
+
+    return $results
+}
+
+function Stop-TidyAppxProcesses {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $PackageName,
+        [string[]] $ProcessNames = @(),
+        [string[]] $PackageFamilies = @()
+    )
+
+    try {
+        $families = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+
+        foreach ($fam in $PackageFamilies) {
+            if (-not [string]::IsNullOrWhiteSpace($fam)) { [void]$families.Add($fam) }
+        }
+
+        $pkgResults = @(Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue)
+        foreach ($pkg in $pkgResults) {
+            if ($pkg.PackageFamilyName) { [void]$families.Add($pkg.PackageFamilyName) }
+        }
+
+        $nameSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+        foreach ($n in $ProcessNames) { if (-not [string]::IsNullOrWhiteSpace($n)) { [void]$nameSet.Add($n) } }
+        foreach ($fam in $families) {
+            $short = $fam.Split('_')[0]
+            if ($short) { [void]$nameSet.Add($short) }
+        }
+
+        if ($nameSet.Count -eq 0) { return }
+
+        $allProcs = Get-Process -ErrorAction SilentlyContinue
+        foreach ($proc in $allProcs) {
+            if (-not $nameSet.Contains($proc.ProcessName)) { continue }
+
+            try {
+                Write-TidyOutput -Message ("Stopping process {0} (PID {1}) related to {2}" -f $proc.ProcessName, $proc.Id, $PackageName)
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-TidyOutput -Message ("Unable to stop process {0} (PID {1}): {2}" -f $proc.ProcessName, $proc.Id, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        Write-TidyOutput -Message ("Process stop helper failed for {0}: {1}" -f $PackageName, $_.Exception.Message)
+    }
+}
+
 function Test-StoreConnectivity {
     $storePresent = $false
     try {
@@ -336,30 +404,51 @@ function Invoke-AppxReRegistration {
             continue
         }
 
-        Write-TidyOutput -Message ("Re-registering {0}" -f $package.PackageFullName)
+        $attempts = 0
+        $maxAttempts = 2
 
-        try {
-            Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $manifest -ErrorAction Stop
-            Write-TidyOutput -Message ("Re-registration succeeded for {0}." -f $package.PackageFullName)
-            if (-not $script:RepairedPackages.Contains($package.PackageFullName)) {
-                $script:RepairedPackages.Add($package.PackageFullName)
+        while ($attempts -lt $maxAttempts) {
+            $attempts++
+            if ($attempts -gt 1) {
+                Write-TidyOutput -Message ("Retrying re-registration for {0} (attempt {1}/{2})." -f $package.PackageFullName, $attempts, $maxAttempts)
+                $familiesFromError | Out-Null
             }
-        }
-        catch {
-            $exception = $_.Exception
-            if (Test-TidyAppxRegistrationBenignFailure -Exception $exception) {
-                Write-TidyOutput -Message ("{0} already present at an equal or newer version." -f $package.PackageFullName)
-                if (-not $script:SkippedPackages.Contains($package.PackageFullName)) {
-                    $script:SkippedPackages.Add($package.PackageFullName)
+
+            try {
+                Write-TidyOutput -Message ("Re-registering {0}" -f $package.PackageFullName)
+                Add-AppxPackage -DisableDevelopmentMode -ForceApplicationShutdown -Register $manifest -ErrorAction Stop
+                Write-TidyOutput -Message ("Re-registration succeeded for {0}." -f $package.PackageFullName)
+                if (-not $script:RepairedPackages.Contains($package.PackageFullName)) {
+                    $script:RepairedPackages.Add($package.PackageFullName)
                 }
-                continue
+                break
             }
+            catch {
+                $exception = $_.Exception
+                if (Test-TidyAppxRegistrationBenignFailure -Exception $exception) {
+                    Write-TidyOutput -Message ("{0} already present at an equal or newer version." -f $package.PackageFullName)
+                    if (-not $script:SkippedPackages.Contains($package.PackageFullName)) {
+                        $script:SkippedPackages.Add($package.PackageFullName)
+                    }
+                    break
+                }
 
-            $script:OperationSucceeded = $false
-            $message = $exception.Message
-            Write-TidyError -Message ("Failed to re-register {0}: {1}" -f $package.PackageFullName, $message)
-            if (-not $script:FailedPackages.Contains($package.PackageFullName)) {
-                $script:FailedPackages.Add($package.PackageFullName)
+                $message = $exception.Message
+                $isInUse = $message -match '0x80073D02' -or $message -match 'resources it modifies are currently in use' -or $message -match 'need to be closed'
+
+                if ($attempts -lt $maxAttempts -and $isInUse) {
+                    $familiesFromError = Parse-TidyAppxInUsePackages -Message $message
+                    Stop-TidyAppxProcesses -PackageName $PackageName -PackageFamilies $familiesFromError
+                    Start-Sleep -Milliseconds 500
+                    continue
+                }
+
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Failed to re-register {0}: {1}" -f $package.PackageFullName, $message)
+                if (-not $script:FailedPackages.Contains($package.PackageFullName)) {
+                    $script:FailedPackages.Add($package.PackageFullName)
+                }
+                break
             }
         }
     }
@@ -403,26 +492,47 @@ function Invoke-ProvisionedAppxReRegistration {
             continue
         }
 
-        Write-TidyOutput -Message ("Re-registering provisioned package {0}." -f $family)
-        try {
-            Add-AppxPackage -DisableDevelopmentMode -Register $manifest -ErrorAction Stop
-            if (-not $script:RepairedPackages.Contains($family)) {
-                $script:RepairedPackages.Add($family)
-            }
-        }
-        catch {
-            if (Test-TidyAppxRegistrationBenignFailure -Exception $_.Exception) {
-                Write-TidyOutput -Message ("Provisioned package {0} already present at equal/newer version." -f $family)
-                if (-not $script:SkippedPackages.Contains($family)) {
-                    $script:SkippedPackages.Add($family)
-                }
-                continue
+        $attempts = 0
+        $maxAttempts = 2
+        while ($attempts -lt $maxAttempts) {
+            $attempts++
+            if ($attempts -gt 1) {
+                Write-TidyOutput -Message ("Retrying provisioned package {0} re-registration (attempt {1}/{2})." -f $family, $attempts, $maxAttempts)
             }
 
-            $script:OperationSucceeded = $false
-            Write-TidyError -Message ("Provisioned package {0} failed re-registration: {1}" -f $family, $_.Exception.Message)
-            if (-not $script:FailedPackages.Contains($family)) {
-                $script:FailedPackages.Add($family)
+            try {
+                Write-TidyOutput -Message ("Re-registering provisioned package {0}." -f $family)
+                Add-AppxPackage -DisableDevelopmentMode -Register $manifest -ErrorAction Stop
+                if (-not $script:RepairedPackages.Contains($family)) {
+                    $script:RepairedPackages.Add($family)
+                }
+                break
+            }
+            catch {
+                if (Test-TidyAppxRegistrationBenignFailure -Exception $_.Exception) {
+                    Write-TidyOutput -Message ("Provisioned package {0} already present at equal/newer version." -f $family)
+                    if (-not $script:SkippedPackages.Contains($family)) {
+                        $script:SkippedPackages.Add($family)
+                    }
+                    break
+                }
+
+                $message = $_.Exception.Message
+                $isInUse = $message -match '0x80073D02' -or $message -match 'resources it modifies are currently in use' -or $message -match 'need to be closed'
+
+                if ($attempts -lt $maxAttempts -and $isInUse) {
+                    $familiesFromError = Parse-TidyAppxInUsePackages -Message $message
+                    Stop-TidyAppxProcesses -PackageName $family -PackageFamilies $familiesFromError
+                    Start-Sleep -Milliseconds 500
+                    continue
+                }
+
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Provisioned package {0} failed re-registration: {1}" -f $family, $message)
+                if (-not $script:FailedPackages.Contains($family)) {
+                    $script:FailedPackages.Add($family)
+                }
+                break
             }
         }
     }

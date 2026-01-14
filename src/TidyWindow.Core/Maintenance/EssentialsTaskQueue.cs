@@ -15,6 +15,8 @@ namespace TidyWindow.Core.Maintenance;
 /// </summary>
 public sealed class EssentialsTaskQueue : IDisposable
 {
+    private const string RestoreTaskId = "restore-manager";
+
     private readonly PowerShellInvoker _powerShellInvoker;
     private readonly EssentialsTaskCatalog _catalog;
     private readonly IEssentialsQueueStateStore _stateStore;
@@ -22,6 +24,7 @@ public sealed class EssentialsTaskQueue : IDisposable
     private readonly List<EssentialsQueueOperation> _operations = new();
     private readonly CancellationTokenSource _cts = new();
     private readonly Task _processingTask;
+    private EssentialsTaskDefinition? _restoreTask;
 
     public EssentialsTaskQueue(PowerShellInvoker powerShellInvoker, EssentialsTaskCatalog catalog, IEssentialsQueueStateStore stateStore)
     {
@@ -108,6 +111,8 @@ public sealed class EssentialsTaskQueue : IDisposable
             throw new ArgumentNullException(nameof(task));
         }
 
+        var restoreSnapshot = EnsureRestoreGuard(task);
+
         var operation = new EssentialsQueueOperation(task, parameters);
 
         lock (_operations)
@@ -117,9 +122,60 @@ public sealed class EssentialsTaskQueue : IDisposable
 
         _channel.Writer.TryWrite(operation);
         var snapshot = operation.CreateSnapshot();
+        if (restoreSnapshot is not null)
+        {
+            RaiseOperationChanged(restoreSnapshot);
+        }
         RaiseOperationChanged(snapshot);
         RefreshPendingWaitMessages();
         return snapshot;
+    }
+
+    private EssentialsQueueOperationSnapshot? EnsureRestoreGuard(EssentialsTaskDefinition task)
+    {
+        if (task.Id.Equals(RestoreTaskId, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var restoreTask = _restoreTask ??= TryGetRestoreTask();
+        if (restoreTask is null)
+        {
+            return null;
+        }
+
+        EssentialsQueueOperation? guardOperation = null;
+
+        lock (_operations)
+        {
+            var existing = _operations.FirstOrDefault(op => op.Task.Id.Equals(RestoreTaskId, StringComparison.OrdinalIgnoreCase));
+            if (existing is not null)
+            {
+                var status = existing.CreateSnapshot().Status;
+                if (status is EssentialsQueueStatus.Pending or EssentialsQueueStatus.Running or EssentialsQueueStatus.Succeeded)
+                {
+                    return null;
+                }
+            }
+
+            guardOperation = new EssentialsQueueOperation(restoreTask, parameters: null);
+            _operations.Add(guardOperation);
+        }
+
+        _channel.Writer.TryWrite(guardOperation);
+        return guardOperation?.CreateSnapshot();
+    }
+
+    private EssentialsTaskDefinition? TryGetRestoreTask()
+    {
+        try
+        {
+            return _catalog.GetTask(RestoreTaskId);
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public EssentialsQueueOperationSnapshot? Cancel(Guid operationId)

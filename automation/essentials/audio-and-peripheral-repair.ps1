@@ -138,22 +138,89 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function Wait-TidyServiceStatus {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [Parameter(Mandatory = $true)]
+        [ValidateSet('Running', 'Stopped', 'Paused', 'StartPending', 'StopPending', 'PausePending', 'ContinuePending')]
+        [string] $DesiredStatus,
+        [int] $TimeoutSeconds = 30
+    )
+
+    $deadline = [DateTime]::UtcNow.AddSeconds([math]::Max(1, $TimeoutSeconds))
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($null -eq $svc) {
+            return $false
+        }
+
+        if ($svc.Status -eq $DesiredStatus) {
+            return $true
+        }
+
+        Start-Sleep -Milliseconds 500
+    }
+
+    return $false
+}
+
+# Adds a manual stop/start fallback with longer waits to handle slow or sticky services.
+function Restart-TidyService {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+        [string] $Label = $Name,
+        [int] $StopTimeoutSeconds = 35,
+        [int] $StartTimeoutSeconds = 25
+    )
+
+    $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($null -eq $service) {
+        Write-TidyOutput -Message ("Service {0} not found. Skipping." -f $Label)
+        return $true
+    }
+
+    try {
+        Write-TidyOutput -Message ("Restarting {0}." -f $Label)
+        Restart-Service -Name $Name -Force -ErrorAction Stop
+        if (Wait-TidyServiceStatus -Name $Name -DesiredStatus 'Running' -TimeoutSeconds $StartTimeoutSeconds) {
+            return $true
+        }
+
+        Write-TidyOutput -Message ("Primary restart for {0} did not reach running state; attempting manual stop/start." -f $Label)
+    }
+    catch {
+        Write-TidyOutput -Message ("Primary restart for {0} failed: {1}; attempting manual stop/start." -f $Label, $_.Exception.Message)
+    }
+
+    try {
+        Stop-Service -Name $Name -Force -IncludeDependentServices -ErrorAction Continue -WarningAction SilentlyContinue
+        if (-not (Wait-TidyServiceStatus -Name $Name -DesiredStatus 'Stopped' -TimeoutSeconds $StopTimeoutSeconds)) {
+            Write-TidyOutput -Message ("{0} did not fully stop within the timeout; continuing with start attempt." -f $Label)
+        }
+
+        Start-Service -Name $Name -ErrorAction Stop
+        if (Wait-TidyServiceStatus -Name $Name -DesiredStatus 'Running' -TimeoutSeconds $StartTimeoutSeconds) {
+            return $true
+        }
+
+        Write-TidyOutput -Message ("{0} did not reach a running state after manual restart." -f $Label)
+    }
+    catch {
+        Write-TidyOutput -Message ("Manual restart for {0} failed: {1}" -f $Label, $_.Exception.Message)
+    }
+
+    return $false
+}
+
 function Restart-AudioStack {
     $services = @('AudioSrv', 'AudioEndpointBuilder')
     foreach ($svc in $services) {
-        try {
-            $service = Get-Service -Name $svc -ErrorAction SilentlyContinue
-            if ($null -eq $service) {
-                Write-TidyOutput -Message ("Service {0} not found. Skipping." -f $svc)
-                continue
-            }
-
-            Write-TidyOutput -Message ("Restarting {0}." -f $svc)
-            Invoke-TidyCommand -Command { param($name) Restart-Service -Name $name -Force -ErrorAction Stop } -Arguments @($svc) -Description ("Restarting service {0}." -f $svc) -RequireSuccess
-        }
-        catch {
+        $restartSucceeded = Restart-TidyService -Name $svc -Label ("service {0}" -f $svc)
+        if (-not $restartSucceeded) {
             $script:OperationSucceeded = $false
-            Write-TidyError -Message ("Failed to restart {0}: {1}" -f $svc, $_.Exception.Message)
+            Write-TidyError -Message ("Failed to restart {0} after retries." -f $svc)
         }
     }
 }

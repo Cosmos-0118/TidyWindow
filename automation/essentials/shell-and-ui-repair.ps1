@@ -178,7 +178,8 @@ function ReRegister-AppxPackage {
     param(
         [Parameter(Mandatory = $true)]
         [string] $PackageName,
-        [string] $Label
+        [string] $Label,
+        [string[]] $ProcessNames = @()
     )
 
     $packages = Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue
@@ -194,13 +195,35 @@ function ReRegister-AppxPackage {
         }
 
         $manifest = Join-Path -Path $package.InstallLocation -ChildPath 'AppXManifest.xml'
-        try {
-            Write-TidyOutput -Message ("Re-registering {0} from {1}" -f $Label, $manifest)
-            Invoke-TidyCommand -Command { param($path) Add-AppxPackage -DisableDevelopmentMode -Register $path -ErrorAction Stop } -Arguments @($manifest) -Description ("Re-registering {0}" -f $Label) -RequireSuccess
-        }
-        catch {
-            $script:OperationSucceeded = $false
-            Write-TidyError -Message ("{0} re-registration failed: {1}" -f $Label, $_.Exception.Message)
+        $attempts = 0
+        $maxAttempts = 2
+        while ($attempts -lt $maxAttempts) {
+            $attempts++
+
+            if ($attempts -gt 1) {
+                Write-TidyOutput -Message ("Retrying {0} re-registration attempt {1}/{2}." -f $Label, $attempts, $maxAttempts)
+                Stop-TidyAppxProcesses -PackageName $PackageName -ProcessNames $ProcessNames
+                Start-Sleep -Milliseconds 400
+            }
+
+            try {
+                Write-TidyOutput -Message ("Re-registering {0} from {1}" -f $Label, $manifest)
+                Invoke-TidyCommand -Command { param($path) Add-AppxPackage -DisableDevelopmentMode -Register $path -ErrorAction Stop } -Arguments @($manifest) -Description ("Re-registering {0}" -f $Label) -RequireSuccess
+                break
+            }
+            catch {
+                $message = $_.Exception.Message
+                $isInUse = $message -match '0x80073D02' -or $message -match 'resources it modifies are currently in use'
+
+                if ($attempts -lt $maxAttempts -and $isInUse) {
+                    Write-TidyOutput -Message ("{0} re-registration reported in-use resources; stopping related processes and retrying." -f $Label)
+                    continue
+                }
+
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("{0} re-registration failed: {1}" -f $Label, $message)
+                break
+            }
         }
     }
 }
@@ -388,14 +411,14 @@ try {
     Write-TidyLog -Level Information -Message 'Starting shell and UI repair pack.'
 
     if (-not $SkipShellReregister.IsPresent) {
-        ReRegister-AppxPackage -PackageName 'Microsoft.Windows.ShellExperienceHost' -Label 'ShellExperienceHost'
+        ReRegister-AppxPackage -PackageName 'Microsoft.Windows.ShellExperienceHost' -Label 'ShellExperienceHost' -ProcessNames @('ShellExperienceHost')
     }
     else {
         Write-TidyOutput -Message 'Skipping ShellExperienceHost re-register per operator request.'
     }
 
     if (-not $SkipStartMenuReregister.IsPresent) {
-        ReRegister-AppxPackage -PackageName 'Microsoft.Windows.StartMenuExperienceHost' -Label 'StartMenuExperienceHost'
+        ReRegister-AppxPackage -PackageName 'Microsoft.Windows.StartMenuExperienceHost' -Label 'StartMenuExperienceHost' -ProcessNames @('StartMenuExperienceHost')
     }
     else {
         Write-TidyOutput -Message 'Skipping StartMenuExperienceHost re-register per operator request.'
@@ -416,7 +439,7 @@ try {
     }
 
     if (-not $SkipSettingsReregister.IsPresent) {
-        ReRegister-AppxPackage -PackageName 'windows.immersivecontrolpanel' -Label 'Settings (ImmersiveControlPanel)'
+        ReRegister-AppxPackage -PackageName 'windows.immersivecontrolpanel' -Label 'Settings (ImmersiveControlPanel)' -ProcessNames @('SystemSettings')
     }
     else {
         Write-TidyOutput -Message 'Skipping settings app re-register per operator request.'
@@ -456,4 +479,41 @@ if ($script:UsingResultFile) {
     }
 
     exit 1
+}
+
+function Stop-TidyAppxProcesses {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $PackageName,
+        [string[]] $ProcessNames = @()
+    )
+
+    try {
+        $families = @(Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFamilyName }) | Where-Object { $_ }
+        $nameSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+
+        foreach ($n in $ProcessNames) { if (-not [string]::IsNullOrWhiteSpace($n)) { [void]$nameSet.Add($n) } }
+        foreach ($fam in $families) {
+            $short = $fam.Split('_')[0]
+            if ($short) { [void]$nameSet.Add($short) }
+        }
+
+        if ($nameSet.Count -eq 0) { return }
+
+        $allProcs = Get-Process -ErrorAction SilentlyContinue
+        foreach ($proc in $allProcs) {
+            if (-not $nameSet.Contains($proc.ProcessName)) { continue }
+
+            try {
+                Write-TidyOutput -Message ("Stopping process {0} (PID {1}) for package {2}" -f $proc.ProcessName, $proc.Id, $PackageName)
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-TidyOutput -Message ("Unable to stop process {0} (PID {1}): {2}" -f $proc.ProcessName, $proc.Id, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        Write-TidyOutput -Message ("Process stop helper failed for {0}: {1}" -f $PackageName, $_.Exception.Message)
+    }
 }

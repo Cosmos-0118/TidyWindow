@@ -136,6 +136,18 @@ function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
+function ConvertTo-TidySafeFileName {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name
+    )
+
+    $invalid = [System.IO.Path]::GetInvalidFileNameChars()
+    $sanitized = ($Name.ToCharArray() | ForEach-Object { if ($invalid -contains $_) { '_' } else { $_ } }) -join ''
+    if ([string]::IsNullOrWhiteSpace($sanitized)) { return 'entry' }
+    return $sanitized
+}
+
 function Wait-TidyServiceState {
     param(
         [Parameter(Mandatory = $true)]
@@ -158,6 +170,11 @@ function Wait-TidyServiceState {
 }
 
 function Audit-StartupRunKeys {
+    $backupRoot = Join-Path -Path $env:ProgramData -ChildPath 'TidyWindow\StartupBackups'
+    if (-not (Test-Path -LiteralPath $backupRoot)) {
+        New-Item -ItemType Directory -Path $backupRoot -Force | Out-Null
+    }
+
     $runPaths = @(
         'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Run',
         'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run',
@@ -178,11 +195,6 @@ function Audit-StartupRunKeys {
                 continue
             }
 
-            $backupPath = Join-Path -Path (Split-Path -Parent $path) -ChildPath '_TidyWindow_RunBackup'
-            if (-not (Test-Path -LiteralPath $backupPath)) {
-                New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
-            }
-
             foreach ($prop in $valueNames) {
                 $name = $prop.Name
                 $value = [string]$prop.Value
@@ -196,8 +208,11 @@ function Audit-StartupRunKeys {
 
                 if ([string]::IsNullOrWhiteSpace($candidatePath) -or -not (Test-Path -LiteralPath $candidatePath)) {
                     try {
-                        $backupFile = Join-Path -Path $backupPath -ChildPath ("{0}-{1}.reg.txt" -f $name, (Get-Date -Format 'yyyyMMddHHmmss'))
-                        Set-Content -LiteralPath $backupFile -Value $value -Encoding UTF8
+                        $timestamp = Get-Date -Format 'yyyyMMddHHmmss'
+                        $safePath = ConvertTo-TidySafeFileName -Name $path
+                        $safeName = ConvertTo-TidySafeFileName -Name $name
+                        $backupFile = Join-Path -Path $backupRoot -ChildPath ("{0}-{1}-{2}.reg.txt" -f $safePath, $safeName, $timestamp)
+                        Set-Content -LiteralPath $backupFile -Value $value -Encoding UTF8 -ErrorAction Stop
                         Remove-ItemProperty -LiteralPath $path -Name $name -ErrorAction Stop
                         Write-TidyOutput -Message ("Removed broken startup entry {0}; value backed up to {1}." -f $name, $backupFile)
                     }
