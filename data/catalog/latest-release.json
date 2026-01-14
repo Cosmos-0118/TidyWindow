@@ -1,10 +1,10 @@
 {
-  "version": "3.8.4",
+  "version": "3.8.6",
   "channel": "stable",
-  "summary": "## 🚀 Startup Control + Performance Lab + Essentials Packs\n\n### 🧩 Startup Backup & Toggle Flow\n- Added proactive backups for Run/RunOnce entries + shared backup store\n- Restore now falls back by **value name**, avoiding “no data” failures\n- Toggles auto-refresh UI (counters, paging, commands)\n- Logging now spells out action, source, context, and registry/task path\n- Detect vs Apply clearly shown with correct chip states\n\n### 🛡️ Guardrails & Automation Control\n- Added one-click **DisableAutomation** (boot + auto-tune)\n- Added “**arm tweaks**” lock + kill switch UI\n- All apply/restore actions require the guard lock\n- “Run now” + tweak actions blocked unless armed\n\n###  UI Touch\n- Cleaned hero + guard card spacing on Performance Lab\n\n---\n\n##  Essentials Repair Packs (New)\nAll packs shipped and catalog-wired:\n- Performance & Storage\n- Audio & Peripheral\n- Shell & UI\n- Security & Credentials\n- Profile & Logon\n- Recovery & Boot\n- Graphics & Display\n- OneDrive & Cloud Sync\n- Activation & Licensing\n- TPM/BitLocker/Secure Boot\n- PowerShell Environment\n- Store & AppX (extended helper)\n- Task Scheduler & Automation\n- Time & Region\n- File Explorer & Context Menu\n- Device Drivers & PnP\n- Catalog wiring for all packs completed\n\n---\n\n##  Performance Lab Engine Updates\n- Correct Minimal vs Balanced detection (no more false “Minimal”)\n- Ultimate Performance automation now **verified + self-healing**\n- Added fallback `powercfg` and GUID parsing for reliable apply",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.4/TidyWindow-Setup-3.8.4.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.4",
-  "publishedAt": "2026-01-13T16:17:18Z",
-  "installerSizeBytes": 90779581,
-  "sha256": "91627e22a6ce7a66111da230fd7ae987953e5645227f4d7881b65c1a77623046"
+  "summary": "##  Driver Cleanup & Backup Enhancements\n\n- Added **DriverBackupRetentionDays** (default 30) with validation and persisted storage\n- Implemented **Cleanup-DriverBackups** to prune backup folders older than the retention window\n- On startup, auto-create backup folder (if configured) and prune stale backups immediately\n\n###  Safe Driver Removal\n- Non-present drivers older than the configured age (default 30 days) are removed automatically\n- Recent or date-unknown packages are skipped with clear reporting\n- Optional export: if `-DriverBackupPath` is set, drivers are backed up via `pnputil /export-driver` before deletion\n\n###  Metadata + Binding Checks\n- Lookup added for **date / version / provider / class** per driver\n- Added **Test-DriverBindingsPresent** using `Get-PnpDevice`\n  - Only remove when **all bindings are non-present**\n  - Unresolved bindings treated as present for safety\n  - Binding lists kept array-typed end-to-end\n\n###  Robust pnputil Handling\n- Detects unsupported/help output and avoids false logs\n- Falls back to WMI when pnputil is ambiguous or exits non-zero\n- Only logs pnputil lines when real device/package data is present",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.6/TidyWindow-Setup-3.8.6.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.6",
+  "publishedAt": "2026-01-13T17:49:28Z",
+  "installerSizeBytes": 90782155,
+  "sha256": "08b9723a93d33835c11cc652941bc3965f9cfa50efca306dc86cbde0554c900f"
 }
