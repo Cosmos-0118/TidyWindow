@@ -1,5 +1,6 @@
 param(
     [switch] $SkipSysMainDisable,
+    [switch] $ForceSysMainDisable,
     [switch] $SkipPagefileTune,
     [switch] $UseManualPagefileSizing,
     [ValidateRange(16, 1048576)]
@@ -7,6 +8,7 @@ param(
     [ValidateRange(16, 1048576)]
     [int] $PagefileMaximumMB = 4096,
     [switch] $SkipCacheCleanup,
+    [switch] $ApplyPrefetchCleanup,
     [switch] $SkipEventLogTrim,
     [switch] $SkipPowerPlanReset,
     [switch] $ActivateHighPerformancePlan,
@@ -153,6 +155,34 @@ function Disable-SysMainService {
 
     Write-TidyOutput -Message ("SysMain current state: {0} ({1})." -f $service.Status, $service.StartType)
 
+    $heuristic = Get-SysMainHeuristic -Service $service
+
+    if (-not $ForceSysMainDisable.IsPresent) {
+        if (-not $heuristic.ShouldDisable) {
+            if ($heuristic.ShouldEnable) {
+                try {
+                    if ($service.StartType -ne 'Automatic') {
+                        Invoke-TidyCommand -Command { param($name) Set-Service -Name $name -StartupType Automatic -ErrorAction Stop } -Arguments @($serviceName) -Description 'Setting SysMain startup to Automatic.' -RequireSuccess
+                    }
+
+                    if ($service.Status -ne 'Running') {
+                        Invoke-TidyCommand -Command { param($name) Start-Service -Name $name -ErrorAction Stop } -Arguments @($serviceName) -Description 'Starting SysMain (SSD/RAM detected).' -RequireSuccess
+                    }
+
+                    Write-TidyOutput -Message 'SysMain left enabled (SSD + adequate RAM).'
+                }
+                catch {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("SysMain enable step failed: {0}" -f $_.Exception.Message)
+                }
+            }
+            else {
+                Write-TidyOutput -Message 'Skipping SysMain disable due to SSD/adequate RAM. (Use -ForceSysMainDisable to override.)'
+            }
+            return
+        }
+    }
+
     try {
         if ($service.Status -ne 'Stopped') {
             Invoke-TidyCommand -Command { param($name) Stop-Service -Name $name -Force -ErrorAction SilentlyContinue } -Arguments @($serviceName) -Description 'Stopping SysMain to curb disk usage.'
@@ -168,6 +198,59 @@ function Disable-SysMainService {
         $script:OperationSucceeded = $false
         Write-TidyError -Message ("SysMain disable step failed: {0}" -f $_.Exception.Message)
     }
+}
+
+function Get-SysMainHeuristic {
+    param([Parameter(Mandatory=$true)] [System.ServiceProcess.ServiceController] $Service)
+
+    $result = [pscustomobject]@{
+        ShouldDisable = $true
+        ShouldEnable  = $false
+        MediaType     = $null
+        TotalRamGb    = $null
+    }
+
+    try {
+        $computer = Get-CimInstance -ClassName Win32_ComputerSystem -ErrorAction Stop
+        $result.TotalRamGb = [math]::Round(($computer.TotalPhysicalMemory / 1GB), 1)
+    }
+    catch {
+        $result.TotalRamGb = $null
+    }
+
+    $systemDrive = (Get-Item -LiteralPath $env:SystemRoot).PSDrive.Root.TrimEnd('\\')
+    $systemLetter = $systemDrive.TrimEnd(':').Trim()
+    try {
+        $partition = Get-Partition -DriveLetter $systemLetter -ErrorAction Stop | Select-Object -First 1
+        if ($partition) {
+            $disk = Get-Disk -Number $partition.DiskNumber -ErrorAction Stop
+            if ($disk -and $disk.MediaType) { $result.MediaType = $disk.MediaType }
+        }
+    }
+    catch {
+        $result.MediaType = $null
+    }
+
+    $isSsd = $false
+    if ($result.MediaType -and $result.MediaType.ToString().ToUpperInvariant().Contains('SSD')) {
+        $isSsd = $true
+    }
+
+    # Default stance: disable on HDD/low-RAM; keep enabled (and gently re-enable) on SSDs with adequate RAM.
+    if ($isSsd -and $result.TotalRamGb -and $result.TotalRamGb -ge 8) {
+        $result.ShouldDisable = $false
+        $result.ShouldEnable = $true
+    }
+    elseif ($isSsd -and -not $result.TotalRamGb) {
+        $result.ShouldDisable = $false
+        $result.ShouldEnable = $false
+    }
+    elseif ($result.TotalRamGb -and $result.TotalRamGb -ge 12) {
+        $result.ShouldDisable = $false
+        $result.ShouldEnable = $false
+    }
+
+    return $result
 }
 
 function Configure-Pagefile {
@@ -305,8 +388,13 @@ try {
             Clear-CacheDirectory -Path $path -Label "Temp cache ($path)"
         }
 
-        $prefetchPath = Join-Path -Path $env:SystemRoot -ChildPath 'Prefetch'
-        Clear-CacheDirectory -Path $prefetchPath -Label 'Prefetch cache'
+        if ($ApplyPrefetchCleanup.IsPresent) {
+            $prefetchPath = Join-Path -Path $env:SystemRoot -ChildPath 'Prefetch'
+            Clear-CacheDirectory -Path $prefetchPath -Label 'Prefetch cache'
+        }
+        else {
+            Write-TidyOutput -Message 'Prefetch cleanup skipped (opt-in only).'
+        }
     }
     else {
         Write-TidyOutput -Message 'Skipping temp and prefetch cleanup per operator request.'

@@ -136,21 +136,27 @@ public sealed class EssentialsTaskCatalog
                 "performance-storage-repair",
                 "Performance & storage repair",
                 "Performance",
-                "Disables SysMain, tunes pagefile policy, purges caches, trims event logs, and resets power plans.",
+                "Smart SysMain handling (SSD/RAM-aware), pagefile policy, optional prefetch cleanup, trims event logs, and resets power plans.",
                 ImmutableArray.Create(
-                    "Disables SysMain to reduce disk thrash",
-                    "Sets pagefile policy, clears temp/prefetch, trims event logs, resets power schemes"),
+                    "Keeps/enables SysMain on SSDs with RAM; disables only when appropriate",
+                    "Sets pagefile policy, clears temp caches (prefetch opt-in), trims event logs, resets power schemes"),
                 "automation/essentials/performance-and-storage-repair.ps1",
                 DurationHint: "Approx. 6-12 minutes (log trims may add a minute)",
-                DetailedDescription: "Disables SysMain, applies automatic or manual pagefile sizing, clears TEMP and Prefetch caches, trims System/Application/Setup event logs to 32 MB, and restores power schemes with optional High Performance activation.",
+                DetailedDescription: "Disables SysMain with SSD/RAM heuristics (overrideable), applies automatic or manual pagefile sizing, clears TEMP caches (prefetch cleanup is now opt-in), trims System/Application/Setup event logs to 32 MB, and restores power schemes with optional High Performance activation.",
                 DocumentationLink: "essentialsaddition.md#performance-and-storage-6-issues",
                 Options: ImmutableArray.Create(
                     new EssentialsTaskOptionDefinition(
                         id: "disable-sysmain",
-                        label: "Disable SysMain service",
+                        label: "Disable SysMain (SSD/RAM aware)",
                         parameterName: "SkipSysMainDisable",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Stops SysMain and sets startup type to Disabled."),
+                        description: "Stops SysMain and sets startup type to Disabled when not on SSD + ample RAM (override with force in script)."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "force-disable-sysmain",
+                        label: "Force disable SysMain",
+                        parameterName: "ForceSysMainDisable",
+                        defaultValue: false,
+                        description: "Override SSD/RAM safeguard and disable SysMain regardless of media or memory."),
                     new EssentialsTaskOptionDefinition(
                         id: "automatic-pagefile",
                         label: "Enable automatic pagefile management",
@@ -164,10 +170,17 @@ public sealed class EssentialsTaskCatalog
                         defaultValue: false,
                         description: "Creates/updates C:\\pagefile.sys with 1024-4096 MB sizing and disables automatic management."),
                     new EssentialsTaskOptionDefinition(
-                        id: "clear-caches",
-                        label: "Clear temp and Prefetch caches",
+                        id: "clear-temp-caches",
+                        label: "Clear temp caches",
                         parameterName: "SkipCacheCleanup",
-                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Remove TEMP content (safe); Prefetch cleanup is separate opt-in."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "prefetch-cleanup",
+                        label: "Clear Prefetch cache (opt-in)",
+                        parameterName: "ApplyPrefetchCleanup",
+                        defaultValue: false,
+                        description: "Clears %SystemRoot%\\Prefetch; Windows will rebuild it, but benefits are minimal."),
                     new EssentialsTaskOptionDefinition(
                         id: "trim-event-logs",
                         label: "Trim System/Application/Setup logs",
@@ -419,6 +432,12 @@ public sealed class EssentialsTaskCatalog
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
                         description: "Runs slmgr /ato via cscript."),
                     new EssentialsTaskOptionDefinition(
+                        id: "capture-license-status",
+                        label: "Capture license status (/xpr, /dlv)",
+                        parameterName: "CaptureLicenseStatus",
+                        defaultValue: false,
+                        description: "Logs slmgr /xpr and /dlv before and after the repair to show activation channel and expiry."),
+                    new EssentialsTaskOptionDefinition(
                         id: "attempt-rearm",
                         label: "Attempt license rearm (/rearm)",
                         parameterName: "AttemptRearm",
@@ -479,13 +498,13 @@ public sealed class EssentialsTaskCatalog
                 "powershell-environment-repair",
                 "PowerShell environment repair",
                 "Shell",
-                "Sets execution policy to RemoteSigned, resets user profiles, and enables PSRemoting/WinRM with service readiness checks.",
+                "Sets execution policy to RemoteSigned, resets user profiles, and optionally enables PSRemoting/WinRM with service readiness checks.",
                 ImmutableArray.Create(
                     "Sets execution policy to RemoteSigned at LocalMachine scope",
-                    "Resets user PowerShell profiles and enables PSRemoting"),
+                    "Resets user PowerShell profiles; PSRemoting is opt-in"),
                 "automation/essentials/powershell-environment-repair.ps1",
-                DurationHint: "Approx. 3-8 minutes (Enable-PSRemoting may restart WinRM)",
-                DetailedDescription: "Repairs a broken PowerShell environment by enforcing RemoteSigned at LocalMachine scope, backing up and recreating current user profiles (all hosts and current host), and enabling PSRemoting with WinRM service startup/validation plus firewall exception setup.",
+                DurationHint: "Approx. 3-8 minutes (Enable-PSRemoting may restart WinRM when opted in)",
+                DetailedDescription: "Repairs a broken PowerShell environment by enforcing RemoteSigned at LocalMachine scope, backing up and recreating current user profiles (all hosts and current host), and optionally enabling PSRemoting with WinRM service startup/validation plus firewall exception setup.",
                 DocumentationLink: "essentialsaddition.md#powershell-environment-3-issues",
                 Options: ImmutableArray.Create(
                     new EssentialsTaskOptionDefinition(
@@ -502,10 +521,12 @@ public sealed class EssentialsTaskCatalog
                         description: "Backs up and recreates CurrentUser profiles (all hosts and current host)."),
                     new EssentialsTaskOptionDefinition(
                         id: "enable-remoting",
-                        label: "Enable PSRemoting/WinRM",
-                        parameterName: "SkipRemotingEnable",
-                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Runs Enable-PSRemoting -Force/-SkipNetworkProfileCheck and ensures WinRM service is running."),
+                        label: "Enable PSRemoting/WinRM (opt-in)",
+                        parameterName: "EnableRemoting",
+                        mode: EssentialsTaskOptionMode.EmitWhenTrue,
+                        defaultValue: false,
+                        description: "Opt-in: runs Enable-PSRemoting -Force/-SkipNetworkProfileCheck and ensures WinRM service is running."
+                    ),
                     new EssentialsTaskOptionDefinition(
                         id: "validate-psmodulepath",
                         label: "Validate PSModulePath entries",

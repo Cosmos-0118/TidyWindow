@@ -3,6 +3,7 @@ param(
     [switch] $SkipDllReregister,
     [switch] $SkipProtectionServiceRefresh,
     [switch] $AttemptRearm,
+    [switch] $CaptureLicenseStatus,
     [string] $ResultPath
 )
 
@@ -109,6 +110,10 @@ function Invoke-TidyCommand {
 
     foreach ($entry in @($output)) {
         if ($null -eq $entry) { continue }
+
+        if (($entry -is [int] -or $entry -is [long]) -and ($entry -eq $exitCode)) {
+            continue
+        }
 
         if ($entry -is [System.Management.Automation.ErrorRecord]) {
             Write-TidyError -Message $entry
@@ -226,7 +231,12 @@ function Attempt-Activation {
     try {
         $slmgr = Get-SlmgrPath
         Write-TidyOutput -Message 'Attempting online activation (slmgr /ato).'
-        Invoke-TidyCommand -Command { param($path) cscript.exe //nologo $path /ato } -Arguments @($slmgr) -Description 'slmgr /ato' -AcceptableExitCodes @(0)
+        $exit = Invoke-TidyCommand -Command { param($path) cscript.exe //nologo $path /ato } -Arguments @($slmgr) -Description 'slmgr /ato' -RequireSuccess -AcceptableExitCodes @(0,0xC004D302)
+
+        if ($exit -ne 0) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message 'Activation returned 0xC004D302 (pending reboot or licensing service issue). Reboot and re-run status (/xpr, /dlv).'            
+        }
     }
     catch {
         $script:OperationSucceeded = $false
@@ -238,11 +248,56 @@ function Attempt-Rearm {
     try {
         $slmgr = Get-SlmgrPath
         Write-TidyOutput -Message 'Attempting license rearm (slmgr /rearm). This may consume a limited rearm count.'
-        Invoke-TidyCommand -Command { param($path) cscript.exe //nologo $path /rearm } -Arguments @($slmgr) -Description 'slmgr /rearm' -AcceptableExitCodes @(0,0xC004D307)
+        $exit = Invoke-TidyCommand -Command { param($path) cscript.exe //nologo $path /rearm } -Arguments @($slmgr) -Description 'slmgr /rearm' -RequireSuccess -AcceptableExitCodes @(0,0xC004D307,0xC004D302)
+
+        if ($exit -eq 0xC004D302) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message 'Rearm returned 0xC004D302 (pending reboot). Reboot, then re-run status (/xpr, /dlv).'            
+        }
+        elseif ($exit -ne 0) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("Rearm exited with code {0}." -f $exit)
+        }
     }
     catch {
         $script:OperationSucceeded = $false
         Write-TidyError -Message ("License rearm failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Capture-LicenseStatus {
+    param(
+        [string] $Stage,
+        [switch] $AllowPendingReboot
+    )
+
+    try {
+        $slmgr = Get-SlmgrPath
+        $label = if ([string]::IsNullOrWhiteSpace($Stage)) { 'License status' } else { "License status ({0})" -f $Stage }
+
+        Write-TidyOutput -Message ("{0}: running slmgr /xpr." -f $label)
+        $xprExit = Invoke-TidyCommand -Command { param($path) cscript.exe //nologo $path /xpr } -Arguments @($slmgr) -Description ("slmgr /xpr ({0})" -f $Stage) -AcceptableExitCodes @(0,0xC004D302)
+        if ($AllowPendingReboot -and $xprExit -eq -1073425662) {
+            Write-TidyOutput -Message 'slmgr /xpr returned 0xC004D302 (pending reboot after /rearm). Re-run status after reboot.'
+        }
+        elseif ($xprExit -ne 0) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("slmgr /xpr exited with code {0}." -f $xprExit)
+        }
+
+        Write-TidyOutput -Message ("{0}: running slmgr /dlv." -f $label)
+        $dlvExit = Invoke-TidyCommand -Command { param($path) cscript.exe //nologo $path /dlv } -Arguments @($slmgr) -Description ("slmgr /dlv ({0})" -f $Stage) -AcceptableExitCodes @(0,0xC004D302)
+        if ($AllowPendingReboot -and $dlvExit -eq -1073425662) {
+            Write-TidyOutput -Message 'slmgr /dlv returned 0xC004D302 (pending reboot after /rearm). Re-run status after reboot.'
+        }
+        elseif ($dlvExit -ne 0) {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("slmgr /dlv exited with code {0}." -f $dlvExit)
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("License status capture failed: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -252,6 +307,13 @@ try {
     }
 
     Write-TidyLog -Level Information -Message 'Starting activation and licensing repair pack.'
+
+    if ($CaptureLicenseStatus.IsPresent) {
+        Capture-LicenseStatus -Stage 'before'
+    }
+    else {
+        Write-TidyOutput -Message 'License status capture skipped; enable -CaptureLicenseStatus to log /xpr and /dlv before/after.'
+    }
 
     if (-not $SkipDllReregister.IsPresent) {
         Reregister-ActivationDlls
@@ -279,6 +341,10 @@ try {
     }
     else {
         Write-TidyOutput -Message 'License rearm not requested; skipping /rearm to preserve remaining count.'
+    }
+
+    if ($CaptureLicenseStatus.IsPresent) {
+        Capture-LicenseStatus -Stage 'after' -AllowPendingReboot:$AttemptRearm.IsPresent
     }
 
     Write-TidyOutput -Message 'Activation and licensing repair pack completed.'

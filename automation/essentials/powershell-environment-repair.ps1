@@ -2,6 +2,7 @@ param(
     [switch] $SkipExecutionPolicy,
     [switch] $SkipProfileReset,
     [switch] $SkipRemotingEnable,
+    [switch] $EnableRemoting,
     [switch] $RepairPsModulePath,
     [switch] $RepairSystemProfiles,
     [switch] $ClearRunspaceCaches,
@@ -182,6 +183,7 @@ function Reset-PowerShellProfiles {
     try {
         $timestamp = Get-Date -Format 'yyyyMMddHHmmss'
         $profilePaths = @($PROFILE.CurrentUserAllHosts, $PROFILE.CurrentUserCurrentHost) | Select-Object -Unique
+        $profileDirs = @()
 
         foreach ($path in $profilePaths) {
             if ([string]::IsNullOrWhiteSpace($path)) { continue }
@@ -190,6 +192,8 @@ function Reset-PowerShellProfiles {
             if (-not (Test-Path -LiteralPath $directory)) {
                 New-Item -ItemType Directory -Path $directory -Force | Out-Null
             }
+
+            $profileDirs += $directory
 
             if (Test-Path -LiteralPath $path) {
                 $backupPath = "$path.bak.$timestamp"
@@ -217,6 +221,38 @@ function Reset-PowerShellProfiles {
             catch {
                 $script:OperationSucceeded = $false
                 Write-TidyError -Message ("Failed to create profile {0}: {1}" -f $path, $_.Exception.Message)
+            }
+        }
+
+        $profileDirs = $profileDirs | Select-Object -Unique
+        foreach ($dir in $profileDirs) {
+            try {
+                $backups = Get-ChildItem -LiteralPath $dir -Filter '*.bak.*' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+                if (-not $backups) { continue }
+
+                $retentionCutoff = (Get-Date).AddDays(-14)
+                $toRemove = @()
+
+                $toRemove += $backups | Where-Object { $_.LastWriteTime -lt $retentionCutoff }
+
+                $maxKeep = 5
+                $extra = $backups | Where-Object { $_.LastWriteTime -ge $retentionCutoff } | Select-Object -Skip $maxKeep
+                if ($extra) { $toRemove += $extra }
+
+                foreach ($item in ($toRemove | Select-Object -Unique)) {
+                    try {
+                        Remove-Item -LiteralPath $item.FullName -Force -ErrorAction Stop
+                        Write-TidyOutput -Message ("Pruned old profile backup {0}." -f $item.Name)
+                    }
+                    catch {
+                        $script:OperationSucceeded = $false
+                        Write-TidyError -Message ("Failed to prune profile backup {0}: {1}" -f $item.FullName, $_.Exception.Message)
+                    }
+                }
+            }
+            catch {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Profile backup cleanup failed in {0}: {1}" -f $dir, $_.Exception.Message)
             }
         }
     }
@@ -473,11 +509,15 @@ try {
         Write-TidyOutput -Message 'Skipping profile reset per operator request.'
     }
 
-    if (-not $SkipRemotingEnable.IsPresent) {
+    if ($SkipRemotingEnable.IsPresent) {
+        Write-TidyOutput -Message 'Skipping remoting enablement per operator request.'
+    }
+    elseif ($EnableRemoting.IsPresent) {
+        Write-TidyOutput -Message 'Enabling PSRemoting is opt-in; proceeding because -EnableRemoting was specified.'
         Enable-PowerShellRemotingSafe
     }
     else {
-        Write-TidyOutput -Message 'Skipping remoting enablement per operator request.'
+        Write-TidyOutput -Message 'Remoting enablement skipped by default; pass -EnableRemoting to opt in (no LocalAccountTokenFilterPolicy changes applied).'
     }
 
     if ($RepairPsModulePath.IsPresent) {

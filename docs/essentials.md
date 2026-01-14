@@ -40,7 +40,7 @@ Key implementation points:
     -   System Restore manager (create/list/prune checkpoints).
     -   Recovery & boot repair (safeboot clear, bootrec, offline DISM guidance, testsigning off, time sync, WMI salvage/reset, dump + driver inventory).
 -   **Performance & storage**
-    -   Performance & storage repair (SysMain disable, pagefile policy, temp/prefetch cleanup, event-log trim, power plans reset/HP plan).
+    -   Performance & storage repair (SysMain smart toggle: keeps/enables on SSDs with RAM, disables when needed; pagefile policy; temp cleanup; opt-in prefetch cleanup; event-log trim; power plans reset/HP plan).
     -   RAM purge (standby clear, working set trim, optional SysMain pause).
 -   **Devices & peripherals**
     -   Audio & peripheral repair (Audio stack restart, endpoint rescan, Bluetooth AVCTP reset, USB hub refresh, mic/camera enable).
@@ -49,12 +49,12 @@ Key implementation points:
 -   **Shell & user experience**
     -   Shell & UI repair (ShellExperienceHost/StartMenu re-register, search reset, explorer recycle, Settings re-register, tray refresh).
     -   File Explorer & context repair (stale shell extension block, .exe/.lnk association repair, default library restore, double-click/Explorer policy reset).
-    -   PowerShell environment repair (execution policy to RemoteSigned, profile reset, PSRemoting/WinRM enable, optional PSModulePath/system profile repair).
+    -   PowerShell environment repair (execution policy to RemoteSigned, profile reset, optional PSRemoting/WinRM enable, optional PSModulePath/system profile repair).
 -   **Accounts & profile**
     -   Profile & logon repair (startup audit, ProfileImagePath repair, ProfSvc restart + Userinit fix, stale profile cleanup).
 -   **Security & platform**
     -   Security & credential repair (firewall reset, Security app re-register, credential vault rebuild, EnableLUA enforcement).
-    -   Activation & licensing repair (activation DLL re-register, Software Protection refresh, slmgr /ato, optional /rearm).
+    -   Activation & licensing repair (activation DLL re-register, Software Protection refresh, slmgr /ato, optional /rearm, optional license status capture via /xpr and /dlv).
     -   TPM, BitLocker & Secure Boot repair (BitLocker suspend/resume, TPM clear request, Secure Boot guidance, device encryption prerequisites, optional status outputs).
     -   Windows Defender repair & deep scan (service heal, signatures, quick/full/custom scans, optional real-time heal).
 -   **Apps & store**
