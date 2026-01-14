@@ -1,14 +1,17 @@
 param(
     [switch] $SkipTimeZoneSync,
     [switch] $SkipLocaleReset,
+    [switch] $ApplyLocaleReset,
     [switch] $SkipTimeServiceRepair,
     [switch] $UseFallbackNtpPeers,
     [switch] $ReportClockOffset,
     [switch] $SkipNtpReachabilityCheck,
+    [switch] $SkipOffsetVerification,
+    [double] $OffsetToleranceMs = 750,
     [string[]] $PreferredNtpPeers = @('time.windows.com,0x9'),
     [string] $TimeZoneId,
-    [string] $Locale = 'en-US',
-    [string] $Language = 'en-US',
+    [string] $Locale,
+    [string] $Language,
     [string] $ResultPath
 )
 
@@ -55,7 +58,7 @@ function Write-TidyError {
     $text = Convert-TidyLogMessage -InputObject $Message
     if ([string]::IsNullOrWhiteSpace($text)) { return }
     [void]$script:TidyErrorLines.Add($text)
-    Write-Error -Message $text
+    Write-Output ("[ERROR] {0}" -f $text)
 }
 
 function Save-TidyResult {
@@ -234,6 +237,118 @@ function Report-ClockOffset {
     }
 }
 
+function Confirm-TimeSyncStatus {
+    param(
+        [string] $ExpectedPeer,
+        [double] $ToleranceMs = 750,
+        [switch] $SkipOffsetCheck
+    )
+
+    try {
+        if (Test-Path -Path 'variable:LASTEXITCODE') { $global:LASTEXITCODE = 0 }
+        $statusOutput = & w32tm /query /status 2>&1
+        $statusExit = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+        foreach ($entry in @($statusOutput)) { if ($null -ne $entry) { Write-TidyOutput -Message $entry } }
+        if ($statusExit -ne 0) { throw "w32tm /query /status exited with code $statusExit" }
+
+        $source = $null
+        $lastSync = $null
+        foreach ($line in @($statusOutput)) {
+            if ($line -match 'Source\s*:\s*(.+)$') { $source = $Matches[1].Trim() }
+            if ($line -match 'Last Successful Sync Time\s*:\s*(.+)$') {
+                $parsed = $null
+                $rawTime = [string]$Matches[1]
+                $style = [System.Globalization.DateTimeStyles]::AssumeLocal
+                $culture = [System.Globalization.CultureInfo]::InvariantCulture
+
+                $parsedOk = $false
+                try {
+                    $parsedOk = [datetime]::TryParse($rawTime, $culture, $style, [ref]$parsed)
+                }
+                catch {
+                    $parsedOk = $false
+                }
+
+                if (-not $parsedOk) {
+                    try {
+                        $parsedOk = [datetime]::TryParse($rawTime, [ref]$parsed)
+                    }
+                    catch {
+                        $parsedOk = $false
+                    }
+                }
+
+                if (-not $parsedOk) {
+                    $dto = $null
+                    try {
+                        $parsedOk = [datetimeoffset]::TryParse($rawTime, $culture, $style, [ref]$dto)
+                        if ($parsedOk) { $parsed = $dto.LocalDateTime }
+                    }
+                    catch {
+                        $parsedOk = $false
+                    }
+                }
+
+                if ($parsedOk) { $lastSync = $parsed }
+            }
+        }
+
+        if ([string]::IsNullOrWhiteSpace($source)) {
+            throw 'Unable to determine current time source from w32tm status.'
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedPeer) -and ($source -notlike "*${ExpectedPeer}*")) {
+            Write-TidyOutput -Message ("Time source '{0}' does not match expected peer '{1}'." -f $source, $ExpectedPeer)
+        }
+        else {
+            Write-TidyOutput -Message ("Active time source: {0}" -f $source)
+        }
+
+        if ($lastSync) {
+            Write-TidyOutput -Message ("Last successful sync: {0:o}" -f $lastSync.ToUniversalTime())
+            if ($lastSync -lt (Get-Date).AddMinutes(-15)) {
+                Write-TidyOutput -Message 'Last sync is older than 15 minutes; consider re-syncing.'
+            }
+        }
+        else {
+            Write-TidyOutput -Message 'Last sync time not reported by w32tm; cannot validate freshness.'
+        }
+
+        if (-not $SkipOffsetCheck.IsPresent) {
+            $peerHost = if (-not [string]::IsNullOrWhiteSpace($ExpectedPeer)) { $ExpectedPeer } else { 'time.windows.com' }
+            if (Test-Path -Path 'variable:LASTEXITCODE') { $global:LASTEXITCODE = 0 }
+            $offsetLines = & w32tm /stripchart /computer:$peerHost /samples:3 /dataonly 2>&1
+            $offsetExit = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }
+            foreach ($entry in @($offsetLines)) { if ($null -ne $entry) { Write-TidyOutput -Message $entry } }
+            if ($offsetExit -ne 0 -and $offsetExit -ne 5) {
+                throw "w32tm /stripchart exited with code $offsetExit"
+            }
+            $offsetValueMs = $null
+            foreach ($line in @($offsetLines)) {
+                if ($line -match '([+-]?[0-9]+\.[0-9]+)s$') {
+                    $seconds = [double]$Matches[1]
+                    $offsetValueMs = [math]::Abs($seconds * 1000)
+                }
+            }
+
+            if ($offsetValueMs -ne $null) {
+                Write-TidyOutput -Message ("Measured offset: {0:N2} ms (tolerance {1} ms)." -f $offsetValueMs, $ToleranceMs)
+                if ($offsetValueMs -gt $ToleranceMs) {
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("Clock offset {0:N2} ms exceeds tolerance {1} ms." -f $offsetValueMs, $ToleranceMs)
+                }
+            }
+            else {
+                Write-TidyOutput -Message 'Offset measurement unavailable; stripchart output was not parseable.'
+            }
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Time sync verification failed: {0}" -f $_.Exception.Message)
+    }
+}
+
 function Test-TidyAdmin {
     return [bool](New-Object System.Security.Principal.WindowsPrincipal([System.Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([System.Security.Principal.WindowsBuiltInRole]::Administrator)
 }
@@ -304,6 +419,10 @@ function Set-SystemTimeZoneAndResync {
             $script:OperationSucceeded = $false
             Write-TidyError -Message 'NTP sync did not complete successfully.'
         }
+        else {
+            $expectedPeerHost = if ($PreferredNtpPeers -and $PreferredNtpPeers.Count -gt 0) { ($PreferredNtpPeers[0] -split ',')[0] } else { $null }
+            Confirm-TimeSyncStatus -ExpectedPeer $expectedPeerHost -ToleranceMs $OffsetToleranceMs -SkipOffsetCheck:$SkipOffsetVerification
+        }
     }
     catch {
         $script:OperationSucceeded = $false
@@ -313,8 +432,12 @@ function Set-SystemTimeZoneAndResync {
 
 function Reset-LocaleAndLanguage {
     try {
-        $targetLocale = if (-not [string]::IsNullOrWhiteSpace($Locale)) { $Locale } else { 'en-US' }
-        $targetLanguage = if (-not [string]::IsNullOrWhiteSpace($Language)) { $Language } else { 'en-US' }
+        $targetLocale = if (-not [string]::IsNullOrWhiteSpace($Locale)) { $Locale } else { (Get-WinSystemLocale).Name }
+        $targetLanguage = if (-not [string]::IsNullOrWhiteSpace($Language)) { $Language } else { ((Get-WinUserLanguageList | Select-Object -First 1).LanguageTag) }
+
+        if ([string]::IsNullOrWhiteSpace($targetLanguage)) {
+            $targetLanguage = (Get-Culture).Name
+        }
 
         Write-TidyOutput -Message ("Setting system locale and culture to {0}." -f $targetLocale)
         Set-WinSystemLocale -SystemLocale $targetLocale -ErrorAction Stop
@@ -346,6 +469,10 @@ function Repair-W32TimeService {
         if (-not $syncSucceeded) {
             $script:OperationSucceeded = $false
             Write-TidyError -Message 'NTP sync did not complete successfully during Windows Time service repair.'
+        }
+        else {
+            $expectedPeerHost = if ($PreferredNtpPeers -and $PreferredNtpPeers.Count -gt 0) { ($PreferredNtpPeers[0] -split ',')[0] } else { $null }
+            Confirm-TimeSyncStatus -ExpectedPeer $expectedPeerHost -ToleranceMs $OffsetToleranceMs -SkipOffsetCheck:$SkipOffsetVerification
         }
 
         Write-TidyOutput -Message 'Restarting Windows Time service.'
@@ -379,11 +506,11 @@ try {
         Write-TidyOutput -Message 'Skipping time zone and NTP sync per operator request.'
     }
 
-    if (-not $SkipLocaleReset.IsPresent) {
+    if ($ApplyLocaleReset.IsPresent -and -not $SkipLocaleReset.IsPresent) {
         Reset-LocaleAndLanguage
     }
     else {
-        Write-TidyOutput -Message 'Skipping locale and language reset per operator request.'
+        Write-TidyOutput -Message 'Locale and language reset not requested; leaving existing preferences intact.'
     }
 
     if (-not $SkipTimeServiceRepair.IsPresent) {

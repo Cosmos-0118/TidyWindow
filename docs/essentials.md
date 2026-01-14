@@ -65,7 +65,7 @@ Key implementation points:
     -   Windows Update repair toolkit (service/component reset, DLL re-register, optional DISM/SFC, policy reset, scan trigger, network reset option).
     -   Task Scheduler repair (TaskCache rebuild, USO/Windows Update tasks re-enable/rebuild, Schedule restart).
 -   **Time & region**
-    -   Time & region repair (time zone + NTP resync, locale/language reset, Windows Time repair, optional fallback peers and offset report).
+    -   Time & region repair (time zone + NTP resync with verification, optional locale/language reset, Windows Time repair, fallback peers, offset reporting).
 -   **Printing**
     -   Print spooler recovery (spooler reset, queue purge, optional stale driver cleanup, DLL re-register, isolation policy reset).
 

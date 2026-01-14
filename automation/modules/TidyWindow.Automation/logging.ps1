@@ -1,18 +1,30 @@
 function Remove-TidyAnsiSequences {
-    # Strips ANSI escape codes so UI output remains readable.
+    # Strips ANSI/VT escape codes so UI output remains readable.
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $false)]
         [string] $Text
     )
 
+    if (-not $env:NO_COLOR) { $env:NO_COLOR = '1' }
+
     if ([string]::IsNullOrWhiteSpace($Text)) {
         return $Text
     }
 
-    $clean = [System.Text.RegularExpressions.Regex]::Replace($Text, '\x1B\[[0-9;?]*[ -/]*[@-~]', '')
-    $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, '\x1B', '')
-    $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, '\[[0-9;]{1,5}[A-Za-z]', '')
+    $patterns = @(
+        '\u001B\[[0-9;?]*[ -/]*[@-~]', # CSI sequences like ESC[31m
+        '\u001B\][^\a]*\u0007',      # OSC sequences like ESC]0;...
+        '\u009B[0-9;?]*[ -/]*[@-~]',   # 8-bit CSI
+        '\u001B',                      # stray ESC
+        '\u009B'                       # stray 8-bit CSI
+    )
+
+    $clean = $Text
+    foreach ($pattern in $patterns) {
+        $clean = [System.Text.RegularExpressions.Regex]::Replace($clean, $pattern, '')
+    }
+
     return $clean
 }
 
@@ -180,6 +192,16 @@ function Convert-TidyLogMessage {
     }
 }
 
+# Force plain text rendering so host does not inject ANSI color sequences into errors.
+try {
+    if ($PSStyle -and ($PSStyle.OutputRendering -ne 'PlainText')) {
+        $PSStyle.OutputRendering = 'PlainText'
+    }
+}
+catch {
+    # Best-effort: ignore if PSStyle not available (Windows PowerShell 5.1).
+}
+
 function Write-TidyLog {
     [CmdletBinding()]
     param(
@@ -198,7 +220,22 @@ function Write-TidyLog {
             $text = '<empty>'
         }
 
-        Write-Host "[$timestamp][$Level] $text"
+        Write-Output "[$timestamp][$Level] $text"
     }
+}
+
+function Write-TidyInfo {
+    [CmdletBinding()] param([Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)][object[]] $Message)
+    Write-TidyLog -Level Information -Message $Message
+}
+
+function Write-TidyWarning {
+    [CmdletBinding()] param([Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)][object[]] $Message)
+    Write-TidyLog -Level Warning -Message $Message
+}
+
+function Write-TidyError {
+    [CmdletBinding()] param([Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)][object[]] $Message)
+    Write-TidyLog -Level Error -Message $Message
 }
 

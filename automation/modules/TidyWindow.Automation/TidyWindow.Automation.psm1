@@ -19,6 +19,9 @@ foreach ($part in $moduleParts) {
 $exportedFunctions = @(
     'Convert-TidyLogMessage',
     'Write-TidyLog',
+    'Write-TidyInfo',
+    'Write-TidyWarning',
+    'Write-TidyError',
     'Get-TidyCommandPath',
     'Get-TidyInstalledAppInventory',
     'Get-TidyWingetMsixCandidates',

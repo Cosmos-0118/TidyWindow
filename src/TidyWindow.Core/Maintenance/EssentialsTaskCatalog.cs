@@ -1039,13 +1039,13 @@ public sealed class EssentialsTaskCatalog
                 "time-region-repair",
                 "Time & region repair",
                 "System",
-                "Sets time zone, forces NTP resync, repairs Windows Time service, and resets locale/language defaults.",
+                "Sets time zone, forces NTP resync with verification, repairs Windows Time service, and offers opt-in locale/language reset.",
                 ImmutableArray.Create(
-                    "Applies target time zone and re-syncs against time.windows.com",
-                    "Repairs W32Time and resets system locale/user language list"),
+                    "Applies target time zone, re-syncs against primary peers, and verifies source/offset",
+                    "Repairs W32Time; locale/language reset is opt-in (keeps existing preferences by default)"),
                 "automation/essentials/time-and-region-repair.ps1",
-                DurationHint: "Approx. 3-8 minutes (language list reset may prompt component download)",
-                DetailedDescription: "Applies the requested or current time zone, configures time.windows.com peers with an immediate resync, repairs and restarts the Windows Time service, and resets system locale/culture plus the user language list to en-US (overrideable via parameters).",
+                DurationHint: "Approx. 3-8 minutes (offset verification is quick; locale reset is optional)",
+                DetailedDescription: "Applies the requested or current time zone, configures primary NTP peers with immediate resync, verifies the active time source and clock offset against tolerance, and repairs/restarts Windows Time. Locale, culture, and language list are preserved unless explicitly requested, and overrides use provided values instead of forcing en-US.",
                 DocumentationLink: "essentialsaddition.md#time-region-and-ntp-3-issues",
                 Options: ImmutableArray.Create(
                     new EssentialsTaskOptionDefinition(
@@ -1056,10 +1056,11 @@ public sealed class EssentialsTaskCatalog
                         description: "Validates target time zone (defaults to current/UTC), configures time.windows.com peers, and forces NTP resync."),
                     new EssentialsTaskOptionDefinition(
                         id: "reset-locale",
-                        label: "Reset locale and languages",
-                        parameterName: "SkipLocaleReset",
-                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Sets system locale/culture and user language list to en-US unless overridden."),
+                        label: "Reset locale and languages (opt-in)",
+                        parameterName: "ApplyLocaleReset",
+                        defaultValue: false,
+                        mode: EssentialsTaskOptionMode.EmitWhenTrue,
+                        description: "Only when enabled: reset system locale/culture and user language list using provided overrides; otherwise leaves preferences unchanged."),
                     new EssentialsTaskOptionDefinition(
                         id: "repair-w32time",
                         label: "Repair Windows Time service",
@@ -1072,6 +1073,12 @@ public sealed class EssentialsTaskCatalog
                         parameterName: "UseFallbackNtpPeers",
                         defaultValue: false,
                         description: "If primary NTP sync fails, retry with time.google.com, pool.ntp.org, and time.nist.gov."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "skip-offset-verification",
+                        label: "Skip offset verification",
+                        parameterName: "SkipOffsetVerification",
+                        defaultValue: false,
+                        description: "Skips post-sync time source and offset check (useful on networks that block stripchart queries)."),
                     new EssentialsTaskOptionDefinition(
                         id: "report-clock-offset",
                         label: "Report clock offset",

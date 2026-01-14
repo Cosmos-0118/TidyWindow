@@ -545,34 +545,43 @@
                                    FontSize="12"
                                    Foreground="#8CA0BF"
                                    Margin="0,0,0,10"/>
-                        <WrapPanel>
-                            <ToggleButton Content="Task shelf"
-                                          Padding="16,8"
-                                          MinWidth="130"
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <ToggleButton Grid.Column="0"
+                                          Content="Task shelf"
+                                          Padding="16,10"
+                                          MinHeight="42"
+                                          Margin="0,0,10,0"
                                           FontWeight="SemiBold"
                                           Style="{StaticResource EssentialsPivotToggleStyle}"
                                           Command="{Binding NavigatePivotCommand}"
                                           CommandParameter="{x:Static viewModels:EssentialsPivot.Tasks}"
                                           IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Tasks}}"/>
-                            <ToggleButton Content="Queue + output"
-                                          Padding="16,8"
-                                          MinWidth="130"
+                            <ToggleButton Grid.Column="1"
+                                          Content="Queue + output"
+                                          Padding="16,10"
+                                          MinHeight="42"
+                                          Margin="0,0,10,0"
                                           FontWeight="SemiBold"
-                                          Margin="10,0,0,0"
                                           Style="{StaticResource EssentialsPivotToggleStyle}"
                                           Command="{Binding NavigatePivotCommand}"
                                           CommandParameter="{x:Static viewModels:EssentialsPivot.Queue}"
                                           IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Queue}}"/>
-                            <ToggleButton Content="Automation settings"
-                                          Padding="16,8"
-                                          MinWidth="150"
+                            <ToggleButton Grid.Column="2"
+                                          Content="Automation settings"
+                                          Padding="16,10"
+                                          MinHeight="42"
                                           FontWeight="SemiBold"
-                                          Margin="10,0,0,0"
                                           Style="{StaticResource EssentialsPivotToggleStyle}"
                                           Command="{Binding NavigatePivotCommand}"
                                           CommandParameter="{x:Static viewModels:EssentialsPivot.Settings}"
                                           IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Settings}}"/>
-                        </WrapPanel>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
@@ -1805,6 +1814,154 @@
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
+
+                                <StackPanel Margin="0,4,0,0"
+                                            Visibility="{Binding ShouldShowLocalePresetPicker, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <TextBlock Text="Locale reset preset"
+                                               Foreground="#C8D6F6"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"/>
+                                    <TextBlock Text="Pick what to apply when locale/language reset is enabled. Default keeps current settings."
+                                               Foreground="#8CA0BF"
+                                               FontSize="12"
+                                               Margin="0,4,0,8"
+                                               TextWrapping="Wrap"/>
+                                    <Border Background="#0E1930"
+                                            BorderBrush="#1F2F4C"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="6">
+                                        <ListBox ItemsSource="{Binding LocalePresets}"
+                                                 SelectedItem="{Binding SelectedLocalePreset, Mode=TwoWay}"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 Padding="4"
+                                                 MaxHeight="260"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="0,0,0,10">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Width="24"
+                                                                Height="24"
+                                                                CornerRadius="12"
+                                                                VerticalAlignment="Center">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="#0F1F36"/>
+                                                                    <Setter Property="BorderBrush" Value="#1F2F4C"/>
+                                                                    <Setter Property="BorderThickness" Value="1"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                            <Setter Property="Background" Value="#7C3AED"/>
+                                                                            <Setter Property="BorderBrush" Value="#C084FC"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <TextBlock Text=""
+                                                                       FontFamily="Segoe MDL2 Assets"
+                                                                       FontSize="14"
+                                                                       HorizontalAlignment="Center"
+                                                                       VerticalAlignment="Center">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Foreground" Value="#7C3AED"/>
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                                <Setter Property="Foreground" Value="#F8FAFC"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                        </Border>
+
+                                                        <Border Grid.Column="1"
+                                                                Background="#101C32"
+                                                                BorderBrush="#1E2F4B"
+                                                                BorderThickness="1"
+                                                                CornerRadius="10"
+                                                                Padding="10,8"
+                                                                Margin="10,0,0,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Opacity" Value="0.92"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#7C3AED"/>
+                                                                            <Setter Property="Opacity" Value="1"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding IsSelected, RelativeSource={RelativeSource AncestorType=ListBoxItem}}" Value="True">
+                                                                            <Setter Property="BorderBrush" Value="#C084FC"/>
+                                                                            <Setter Property="Background" Value="#17233A"/>
+                                                                            <Setter Property="Opacity" Value="1"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Name}"
+                                                                           Foreground="#E2E8F0"
+                                                                           FontWeight="SemiBold"/>
+                                                                <TextBlock Text="{Binding Caption}"
+                                                                           Foreground="#9FB0C7"
+                                                                           FontSize="12"
+                                                                           Margin="0,4,0,0"/>
+                                                                <TextBlock Text="{Binding Description}"
+                                                                           Foreground="#7DD3FC"
+                                                                           FontSize="11"
+                                                                           Margin="0,4,0,0"
+                                                                           TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Padding" Value="0"/>
+                                                    <Setter Property="Background" Value="Transparent"/>
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                    <Setter Property="BorderThickness" Value="0"/>
+                                                    <Setter Property="SnapsToDevicePixels" Value="True"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListBoxItem">
+                                                                <Border Background="{TemplateBinding Background}">
+                                                                    <ContentPresenter/>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsSelected" Value="True">
+                                                                        <Setter Property="Foreground" Value="#F8FAFC"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="Background" Value="#111D35"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                        </ListBox>
+                                    </Border>
+
+                                    <TextBlock Text="Selected"
+                                               Foreground="#8CA0BF"
+                                               FontSize="12"
+                                               Margin="0,10,0,2"/>
+                                    <TextBlock Text="{Binding SelectedLocalePreset.Name}"
+                                               Foreground="#F8FAFC"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
                             </StackPanel>
 
                             <TextBlock Text="No configurable options for this automation."

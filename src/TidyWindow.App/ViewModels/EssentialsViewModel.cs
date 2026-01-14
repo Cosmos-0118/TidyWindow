@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -765,6 +766,7 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     private static readonly SolidColorBrush SuccessChipBrush = new(MediaColor.FromRgb(34, 197, 94));
     private static readonly SolidColorBrush ErrorChipBrush = new(MediaColor.FromRgb(248, 113, 113));
     private readonly string _searchIndex;
+    private readonly EssentialsTaskOptionViewModel? _localeResetOption;
 
     public EssentialsTaskItemViewModel(EssentialsTaskDefinition definition)
     {
@@ -777,6 +779,20 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
         else
         {
             Options = definition.Options.Select(option => new EssentialsTaskOptionViewModel(option)).ToList();
+        }
+
+        _localeResetOption = Options.FirstOrDefault(o => string.Equals(o.Definition.ParameterName, "ApplyLocaleReset", StringComparison.OrdinalIgnoreCase));
+
+        if (_localeResetOption is not null)
+        {
+            _localeResetOption.PropertyChanged += LocaleResetOptionOnPropertyChanged;
+        }
+
+        LocalePresets = BuildLocalePresets();
+
+        if (IsTimeRegionTask && LocalePresets.Count > 0)
+        {
+            SelectedLocalePreset = LocalePresets[0];
         }
 
         _searchIndex = BuildSearchIndex();
@@ -802,9 +818,18 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 
     public bool IsDefenderTask => string.Equals(Definition.Id, "defender-repair", StringComparison.OrdinalIgnoreCase);
 
+    public bool IsTimeRegionTask => string.Equals(Definition.Id, "time-region-repair", StringComparison.OrdinalIgnoreCase);
+
     public IReadOnlyList<EssentialsTaskOptionViewModel> Options { get; }
 
     public bool HasOptions => Options.Count > 0;
+
+    public IReadOnlyList<LocalePresetOption> LocalePresets { get; }
+
+    [ObservableProperty]
+    private LocalePresetOption? _selectedLocalePreset;
+
+    public bool ShouldShowLocalePresetPicker => IsTimeRegionTask && _localeResetOption?.IsEnabled == true;
 
     public string SearchIndex => _searchIndex;
 
@@ -985,6 +1010,52 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
         HasProgress = queueStatus is EssentialsQueueStatus.Pending or EssentialsQueueStatus.Running;
     }
 
+    private IReadOnlyList<LocalePresetOption> BuildLocalePresets()
+    {
+        if (!IsTimeRegionTask)
+        {
+            return Array.Empty<LocalePresetOption>();
+        }
+
+        var presets = new List<LocalePresetOption>
+        {
+            new("Keep current locale/language", null, null, "Leave existing preferences untouched (recommended).")
+        };
+
+        var cultures = CultureInfo.GetCultures(CultureTypes.AllCultures)
+            .Where(c => !string.IsNullOrWhiteSpace(c.Name))
+            .GroupBy(c => c.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(g => g.First())
+            .OrderBy(c => c.EnglishName)
+            .ThenBy(c => c.Name);
+
+        foreach (var culture in cultures)
+        {
+            presets.Add(new LocalePresetOption(
+                name: $"{culture.EnglishName} ({culture.Name})",
+                locale: culture.Name,
+                language: culture.Name,
+                description: "Default regional settings"));
+        }
+
+        return presets;
+    }
+
+    private void LocaleResetOptionOnPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!IsTimeRegionTask || e.PropertyName != nameof(EssentialsTaskOptionViewModel.IsEnabled))
+        {
+            return;
+        }
+
+        if (_localeResetOption?.IsEnabled == true && SelectedLocalePreset is null && LocalePresets.Count > 0)
+        {
+            SelectedLocalePreset = LocalePresets[0];
+        }
+
+        OnPropertyChanged(nameof(ShouldShowLocalePresetPicker));
+    }
+
     public IReadOnlyDictionary<string, object?>? BuildParameters()
     {
         Dictionary<string, object?>? parameters = null;
@@ -998,6 +1069,21 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
                     parameters ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
                     parameters[name] = value;
                 }
+            }
+        }
+
+        if (IsTimeRegionTask && _localeResetOption?.IsEnabled == true && SelectedLocalePreset is { HasOverrides: true })
+        {
+            parameters ??= new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(SelectedLocalePreset.Locale))
+            {
+                parameters["Locale"] = SelectedLocalePreset.Locale;
+            }
+
+            if (!string.IsNullOrWhiteSpace(SelectedLocalePreset.Language))
+            {
+                parameters["Language"] = SelectedLocalePreset.Language;
             }
         }
 
@@ -1096,6 +1182,29 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
             SkipThreatScan = false;
         }
     }
+}
+
+public sealed class LocalePresetOption
+{
+    public LocalePresetOption(string name, string? locale, string? language, string description)
+    {
+        Name = string.IsNullOrWhiteSpace(name) ? "Locale preset" : name.Trim();
+        Locale = string.IsNullOrWhiteSpace(locale) ? null : locale.Trim();
+        Language = string.IsNullOrWhiteSpace(language) ? null : language.Trim();
+        Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+    }
+
+    public string Name { get; }
+
+    public string? Locale { get; }
+
+    public string? Language { get; }
+
+    public string? Description { get; }
+
+    public bool HasOverrides => !string.IsNullOrWhiteSpace(Locale) || !string.IsNullOrWhiteSpace(Language);
+
+    public string Caption => HasOverrides ? $"{Locale ?? "(system)"} / {Language ?? "(system)"}" : "Use current settings";
 }
 
 public sealed partial class EssentialsTaskOptionViewModel : ObservableObject
