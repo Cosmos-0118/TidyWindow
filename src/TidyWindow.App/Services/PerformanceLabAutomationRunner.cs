@@ -225,48 +225,68 @@ public sealed class PerformanceLabAutomationRunner : IDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var initialStatus = await _service.GetPowerPlanStatusAsync(cancellationToken).ConfigureAwait(false);
-        if (initialStatus.IsUltimateActive)
+        var steps = new List<string>();
+
+        async Task<bool> DetectAsync(string label)
+        {
+            var status = await _service.GetPowerPlanStatusAsync(cancellationToken).ConfigureAwait(false);
+            var name = string.IsNullOrWhiteSpace(status.ActiveSchemeName) ? "unknown" : status.ActiveSchemeName;
+            steps.Add($"{label}: {(status.IsUltimateActive ? "Ultimate active" : name)}");
+            return status.IsUltimateActive;
+        }
+
+        if (await DetectAsync("Detect before apply").ConfigureAwait(false))
         {
             return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, "Ultimate plan already active.");
         }
 
-        var primary = await InvokeSafelyAsync(() => _service.EnableUltimatePowerPlanAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
-        var postPrimaryStatus = await _service.GetPowerPlanStatusAsync(cancellationToken).ConfigureAwait(false);
-        if (postPrimaryStatus.IsUltimateActive)
+        async Task<bool> TryPrimaryAsync()
         {
-            var message = primary?.IsSuccess == false
-                ? primary.Errors?.FirstOrDefault() ?? "Ultimate plan activated after initial warnings."
-                : "Ultimate plan activated.";
-            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, message);
+            var primary = await InvokeSafelyAsync(() => _service.EnableUltimatePowerPlanAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
+            steps.Add(primary.IsSuccess
+                ? "Primary enable: success"
+                : $"Primary enable failed: {primary.Errors?.FirstOrDefault() ?? "unknown"}");
+
+            await Task.Delay(600, cancellationToken).ConfigureAwait(false);
+            return await DetectAsync("Detect after primary").ConfigureAwait(false);
         }
 
-        var forced = await ForceUltimatePlanAsync(cancellationToken).ConfigureAwait(false);
-        if (forced.Succeeded)
+        async Task<bool> TryForceAsync()
         {
-            return forced;
+            var forced = await ForceUltimatePlanAsync(cancellationToken).ConfigureAwait(false);
+            steps.Add(forced.Message);
+            await Task.Delay(600, cancellationToken).ConfigureAwait(false);
+            return await DetectAsync("Detect after force").ConfigureAwait(false);
         }
 
-        var failureMessages = new List<string>();
-        if (primary is { IsSuccess: false })
+        async Task<bool> TryDuplicateAsync()
         {
-            var primaryError = primary.Errors?.FirstOrDefault();
-            if (!string.IsNullOrWhiteSpace(primaryError))
-            {
-                failureMessages.Add(primaryError);
-            }
+            var duplicate = await RunPowerCfgAsync($"-duplicatescheme {UltimateSchemeGuid}", cancellationToken).ConfigureAwait(false);
+            var dupGuid = GuidRegex.Match(duplicate.Output ?? string.Empty).Value;
+            var target = string.IsNullOrWhiteSpace(dupGuid) ? UltimateSchemeGuid : dupGuid;
+            var activate = await RunPowerCfgAsync($"-setactive {target}", cancellationToken).ConfigureAwait(false);
+
+            steps.Add($"Duplicate attempt exit {duplicate.ExitCode}; activate exit {activate.ExitCode}");
+            await Task.Delay(600, cancellationToken).ConfigureAwait(false);
+            return await DetectAsync("Detect after duplicate").ConfigureAwait(false);
         }
 
-        if (!string.IsNullOrWhiteSpace(forced.Message))
+        if (await TryPrimaryAsync().ConfigureAwait(false))
         {
-            failureMessages.Add(forced.Message);
+            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, string.Join(" | ", steps));
         }
 
-        var detail = failureMessages.Count == 0
-            ? "Failed to enforce Ultimate Performance plan."
-            : string.Join(" | ", failureMessages);
+        if (await TryForceAsync().ConfigureAwait(false))
+        {
+            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, string.Join(" | ", steps));
+        }
 
-        return new PerformanceLabAutomationActionResult("Ultimate Performance plan", false, detail);
+        if (await TryDuplicateAsync().ConfigureAwait(false))
+        {
+            return new PerformanceLabAutomationActionResult("Ultimate Performance plan", true, string.Join(" | ", steps));
+        }
+
+        return new PerformanceLabAutomationActionResult("Ultimate Performance plan", false, string.Join(" | ", steps));
     }
 
     private async Task<PerformanceLabAutomationActionResult> ForceUltimatePlanAsync(CancellationToken cancellationToken)
