@@ -174,13 +174,14 @@ function Save-TidyResult {
     }
 
     $payload = [pscustomobject]@{
-        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-        Output  = $script:TidyOutputLines
-        Errors  = $script:TidyErrorLines
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
     }
 
-    $json = $payload | ConvertTo-Json -Depth 5
-    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
 }
 
 function Test-TidyAdmin {
@@ -189,13 +190,14 @@ function Test-TidyAdmin {
 
 function Get-TidyPowerShellExecutable {
     if ($PSVersionTable.PSEdition -eq 'Core') {
-        $pwsh = Get-Command -Name 'pwsh' -ErrorAction SilentlyContinue
-        if ($pwsh) {
-            return $pwsh.Source
-        }
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
     }
 
-    $legacy = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
+    TidyWindow.Automation\Write-TidyError -Message $text
     if ($legacy) {
         return $legacy.Source
     }

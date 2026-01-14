@@ -806,7 +806,7 @@ public sealed class EssentialsTaskCatalog
                     "Captures latency samples and adapter stats"),
                 "automation/essentials/network-fix-suite.ps1",
                 DurationHint: "Approx. 6-12 minutes (pathping plus diagnostics)",
-                DetailedDescription: "Resets network heuristics, re-registers DNS, runs adapter restarts, traceroute, ping sweeps, and pathping loss analysis, and captures adapter statistics for troubleshooting.",
+                DetailedDescription: "Resets network heuristics, optionally bounces adapters, renews DHCP, re-registers DNS, runs traceroute, ping sweeps, and pathping loss analysis, captures adapter statistics, and can reset IPv6 neighbors for modern stacks.",
                 DocumentationLink: "docs/essentials-overview.md#6-network-fix-suite-advanced",
                 Options: ImmutableArray.Create(
                     new EssentialsTaskOptionDefinition(
@@ -828,7 +828,25 @@ public sealed class EssentialsTaskCatalog
                         id: "dns-registration",
                         label: "Re-register DNS",
                         parameterName: "SkipDnsRegistration",
-                        mode: EssentialsTaskOptionMode.EmitWhenFalse))),
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse),
+                    new EssentialsTaskOptionDefinition(
+                        id: "renew-dhcp",
+                        label: "Renew DHCP (release/renew)",
+                        parameterName: "RenewDhcp",
+                        defaultValue: false,
+                        description: "Opt-in: runs ipconfig /release and /renew to refresh DHCP leases."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-adapters",
+                        label: "Bounce adapters (disable/enable)",
+                        parameterName: "ResetAdapters",
+                        defaultValue: false,
+                        description: "Opt-in: disables/enables physical up adapters to clear sticky states; skips virtual adapters."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "reset-ipv6-neighbors",
+                        label: "Reset IPv6 neighbor cache",
+                        parameterName: "ResetIpv6NeighborCache",
+                        defaultValue: false,
+                        description: "Opt-in: runs netsh interface ipv6 delete neighbors alongside IPv4 ARP cache reset."))),
 
             new EssentialsTaskDefinition(
                 "app-repair",
@@ -1020,13 +1038,13 @@ public sealed class EssentialsTaskCatalog
                 "task-scheduler-repair",
                 "Task Scheduler & automation repair",
                 "Automation",
-                "Rebuilds Task Scheduler cache, re-enables USO/Windows Update tasks, and restarts Schedule service to refresh triggers.",
+                "Repairs Task Scheduler cache/registry, re-enables or rebuilds USO/Windows Update tasks, and restarts Schedule service to refresh triggers.",
                 ImmutableArray.Create(
-                    "Backs up TaskCache and lets Schedule rebuild metadata",
-                    "Re-enables key UpdateOrchestrator tasks and restarts Schedule"),
+                    "Backs up TaskCache (filesystem+registry) and lets Schedule rebuild metadata",
+                    "Re-enables or recreates UpdateOrchestrator tasks, restarts Schedule, optional ACL/update-service repair"),
                 "automation/essentials/task-scheduler-repair.ps1",
-                DurationHint: "Approx. 3-8 minutes (TaskCache rebuild may pause scheduled tasks briefly)",
-                DetailedDescription: "Stops Schedule when needed, backs up the TaskCache directory to force a metadata rebuild from existing Tasks, re-enables common UpdateOrchestrator/WindowsUpdate tasks, and restarts the Schedule service to refresh triggers and registrations with logging for each step.",
+                DurationHint: "Approx. 4-10 minutes (cache + registry rebuild may pause tasks briefly)",
+                DetailedDescription: "Stops Schedule when needed, backs up and rebuilds TaskCache (filesystem and registry), optionally repairs Tasks ACL/ownership, optionally repairs update services (UsoSvc/WaaSMedicSvc/BITS), re-enables or recreates UpdateOrchestrator/WindowsUpdate tasks from baseline XML, and restarts Schedule to refresh triggers with full logging.",
                 DocumentationLink: "essentialsaddition.md#task-scheduler-and-automation-3-issues",
                 Options: ImmutableArray.Create(
                     new EssentialsTaskOptionDefinition(
@@ -1053,7 +1071,25 @@ public sealed class EssentialsTaskCatalog
                         label: "Restart Schedule service",
                         parameterName: "SkipScheduleReset",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
-                        description: "Restarts Schedule to refresh triggers after repairs.")),
+                        description: "Restarts Schedule to refresh triggers after repairs."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "rebuild-taskcache-registry",
+                        label: "Rebuild TaskCache registry hive",
+                        parameterName: "SkipTaskCacheRegistryRebuild",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Backs up and removes HKLM\\...\\Schedule\\TaskCache so it rebuilds on next start."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-tasks-acl",
+                        label: "Repair Tasks ACL/ownership",
+                        parameterName: "SkipTasksAclRepair",
+                        mode: EssentialsTaskOptionMode.EmitWhenFalse,
+                        description: "Resets C:\\Windows\\System32\\Tasks ACLs and sets owner to TrustedInstaller."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "repair-update-services",
+                        label: "Repair update services (UsoSvc/WaaSMedicSvc/BITS)",
+                        parameterName: "RepairUpdateServices",
+                        defaultValue: false,
+                        description: "Sets sane start types and starts key update services to unblock task runs.")),
                 IsRecommendedForAutomation: true),
 
             new EssentialsTaskDefinition(

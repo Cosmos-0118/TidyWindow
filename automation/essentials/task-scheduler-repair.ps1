@@ -3,6 +3,9 @@ param(
     [switch] $SkipUsoTaskEnable,
     [switch] $SkipScheduleReset,
     [switch] $SkipUsoTaskRebuild,
+    [switch] $SkipTaskCacheRegistryRebuild,
+    [switch] $SkipTasksAclRepair,
+    [switch] $RepairUpdateServices,
     [string] $ResultPath
 )
 
@@ -41,16 +44,20 @@ function Write-TidyOutput {
     param([Parameter(Mandatory = $true)][object] $Message)
     $text = Convert-TidyLogMessage -InputObject $Message
     if ([string]::IsNullOrWhiteSpace($text)) { return }
-    [void]$script:TidyOutputLines.Add($text)
-    Write-Output $text
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
+    }
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
 }
 
 function Write-TidyError {
     param([Parameter(Mandatory = $true)][object] $Message)
     $text = Convert-TidyLogMessage -InputObject $Message
     if ([string]::IsNullOrWhiteSpace($text)) { return }
-    [void]$script:TidyErrorLines.Add($text)
-    Write-Error -Message $text
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
+    }
+    TidyWindow.Automation\Write-TidyError -Message $text
 }
 
 function Save-TidyResult {
@@ -69,7 +76,8 @@ function Invoke-TidyCommand {
         [Parameter(Mandatory = $true)][scriptblock] $Command,
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
-        [switch] $RequireSuccess
+        [switch] $RequireSuccess,
+        [switch] $DemoteNativeCommandErrors
     )
 
     Write-TidyLog -Level Information -Message $Description
@@ -88,7 +96,12 @@ function Invoke-TidyCommand {
     foreach ($entry in @($output)) {
         if ($null -eq $entry) { continue }
         if ($entry -is [System.Management.Automation.ErrorRecord]) {
-            Write-TidyError -Message $entry
+            if ($DemoteNativeCommandErrors -and ($entry.FullyQualifiedErrorId -like 'NativeCommandError*')) {
+                Write-TidyOutput -Message ("[WARN] {0}" -f $entry)
+            }
+            else {
+                Write-TidyError -Message $entry
+            }
         }
         else {
             Write-TidyOutput -Message $entry
@@ -165,7 +178,7 @@ function Stop-ScheduleServiceForRepair {
         $svc = Get-Service -Name 'Schedule' -ErrorAction SilentlyContinue
         if ($null -eq $svc) {
             Write-TidyOutput -Message 'Schedule service not found; skipping stop.'
-            return
+            return $true
         }
 
         if ($svc.Status -ne 'Stopped') {
@@ -173,10 +186,13 @@ function Stop-ScheduleServiceForRepair {
             Invoke-TidyCommand -Command { Stop-Service -Name 'Schedule' -Force -ErrorAction Stop } -Description 'Stopping Schedule service.' -RequireSuccess | Out-Null
             Start-Sleep -Seconds 2
         }
+
+        return $true
     }
     catch {
-        $script:OperationSucceeded = $false
-        Write-TidyError -Message ("Failed to stop Schedule service: {0}" -f $_.Exception.Message)
+        # Log as warning and skip registry rebuild to avoid throwing when ACLs block Schedule stop.
+        Write-TidyOutput -Message ("Unable to stop Schedule service (continuing without registry rebuild): {0}" -f $_.Exception.Message)
+        return $false
     }
 }
 
@@ -213,6 +229,128 @@ function Rebuild-TaskCache {
     catch {
         $script:OperationSucceeded = $false
         Write-TidyError -Message ("Task cache rebuild failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Rebuild-TaskCacheRegistry {
+    try {
+        $key = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache'
+        if (-not (Test-Path -LiteralPath $key)) {
+            Write-TidyOutput -Message 'TaskCache registry hive not found; skipping registry rebuild.'
+            return
+        }
+
+        $tempBackup = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ("taskcache-reg-backup-{0}.reg" -f (Get-Date -Format 'yyyyMMddHHmmss'))
+        Write-TidyOutput -Message ("Exporting TaskCache registry to {0}." -f $tempBackup)
+        Invoke-TidyCommand -Command { param($path) reg.exe export 'HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Schedule\TaskCache' $path /y } -Arguments @($tempBackup) -Description 'Backing up TaskCache registry hive.'
+
+        $stopped = Stop-ScheduleServiceForRepair
+        if (-not $stopped) {
+            Write-TidyOutput -Message 'Schedule service could not be stopped; skipping registry hive rebuild to avoid corruption.'
+            return
+        }
+
+        Write-TidyOutput -Message 'Removing TaskCache registry hive for rebuild.'
+        try {
+            if (Test-Path -LiteralPath $key) {
+                Remove-Item -LiteralPath $key -Recurse -Force -ErrorAction Stop
+            }
+            else {
+                Write-TidyOutput -Message 'TaskCache registry hive already absent; skipping removal.'
+            }
+        }
+        catch {
+            $message = $_.Exception.Message
+            if ($message -match 'subkey does not exist') {
+                Write-TidyOutput -Message ('TaskCache registry hive removal skipped (already removed): {0}' -f $message)
+            }
+            else {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Failed to remove TaskCache registry hive: {0}" -f $message)
+                return
+            }
+        }
+
+        Write-TidyOutput -Message 'Starting Schedule service to rebuild TaskCache registry.'
+        try {
+            Invoke-TidyCommand -Command { Start-Service -Name 'Schedule' -ErrorAction Stop } -Description 'Starting Schedule service (registry rebuild).' -RequireSuccess | Out-Null
+        }
+        catch {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("Failed to start Schedule service after registry removal: {0}" -f $_.Exception.Message)
+            return
+        }
+
+        if (-not (Wait-TidyServiceState -Name 'Schedule' -DesiredStatus 'Running' -TimeoutSeconds 20)) {
+            Write-TidyOutput -Message 'Schedule service did not reach Running state after registry rebuild start.'
+            $script:OperationSucceeded = $false
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("TaskCache registry rebuild failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Repair-TasksAcl {
+    try {
+        $tasksRoot = Join-Path -Path $env:SystemRoot -ChildPath 'System32\Tasks'
+        if (-not (Test-Path -LiteralPath $tasksRoot)) {
+            Write-TidyOutput -Message 'Tasks root not found; skipping ACL repair.'
+            return
+        }
+
+        Write-TidyOutput -Message 'Resetting Tasks folder ACLs and ownership (TrustedInstaller).'
+        Invoke-TidyCommand -Command { param($path) icacls $path /setowner "NT SERVICE\TrustedInstaller" /t /c /l } -Arguments @($tasksRoot) -Description 'Setting TrustedInstaller ownership on Tasks tree.' -DemoteNativeCommandErrors
+        Invoke-TidyCommand -Command { param($path) icacls $path /reset /t /c /l } -Arguments @($tasksRoot) -Description 'Resetting Tasks ACLs to defaults.' -DemoteNativeCommandErrors
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Tasks ACL repair failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Repair-UpdateServices {
+    try {
+        $targets = @(
+            @{ Name = 'UsoSvc'; StartType = 'Manual' },
+            @{ Name = 'WaaSMedicSvc'; StartType = 'Manual' },
+            @{ Name = 'BITS'; StartType = 'AutomaticDelayedStart' }
+        )
+
+        foreach ($svc in $targets) {
+            $service = Get-Service -Name $svc.Name -ErrorAction SilentlyContinue
+            if (-not $service) {
+                Write-TidyOutput -Message ("Service {0} not found; skipping." -f $svc.Name)
+                continue
+            }
+
+            try {
+                if ($service.StartType -ne $svc.StartType) {
+                    Write-TidyOutput -Message ("Setting {0} start type to {1}." -f $svc.Name, $svc.StartType)
+                    Set-Service -Name $svc.Name -StartupType $svc.StartType -ErrorAction Stop
+                }
+            }
+            catch {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Failed to set start type for {0}: {1}" -f $svc.Name, $_.Exception.Message)
+            }
+
+            try {
+                if ($service.Status -ne 'Running') {
+                    Write-TidyOutput -Message ("Starting service {0}." -f $svc.Name)
+                    Start-Service -Name $svc.Name -ErrorAction Stop
+                }
+            }
+            catch {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Failed to start service {0}: {1}" -f $svc.Name, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Update service repair failed: {0}" -f $_.Exception.Message)
     }
 }
 
@@ -492,7 +630,8 @@ function Restore-UsoTasksFromBaseline {
                 $tempFiles += $tempFile
 
                 if ($exit -ne 0) {
-                    Write-TidyOutput -Message ("Baseline creation for {0} exited with {1}." -f $tn, $exit)
+                    $script:OperationSucceeded = $false
+                    Write-TidyError -Message ("Baseline creation for {0} exited with {1}." -f $tn, $exit)
                     continue
                 }
 
@@ -607,6 +746,13 @@ try {
         Write-TidyOutput -Message 'Skipping TaskCache rebuild per operator request.'
     }
 
+    if (-not $SkipTaskCacheRegistryRebuild.IsPresent) {
+        Rebuild-TaskCacheRegistry
+    }
+    else {
+        Write-TidyOutput -Message 'Skipping TaskCache registry rebuild per operator request.'
+    }
+
     if (-not $SkipUsoTaskEnable.IsPresent) {
         Enable-UsoTasks
     }
@@ -621,7 +767,27 @@ try {
         Write-TidyOutput -Message 'Skipping Schedule service restart per operator request.'
     }
 
-    Write-TidyOutput -Message 'Task Scheduler repair completed.'
+    if (-not $SkipTasksAclRepair.IsPresent) {
+        Repair-TasksAcl
+    }
+    else {
+        Write-TidyOutput -Message 'Skipping Tasks folder ACL repair per operator request.'
+    }
+
+    if ($RepairUpdateServices.IsPresent) {
+        Repair-UpdateServices
+    }
+    else {
+        Write-TidyOutput -Message 'Skipping update service repair (UsoSvc/WaaSMedicSvc/BITS) unless -RepairUpdateServices is specified.'
+    }
+
+    $wasSuccessful = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+    if ($wasSuccessful) {
+        Write-TidyOutput -Message 'Task Scheduler repair completed (service + cache + tasks validated).'
+    }
+    else {
+        Write-TidyOutput -Message 'Task Scheduler repair completed with errors; review transcript for failed steps (tasks may remain missing/blocked).'
+    }
 }
 catch {
     $script:OperationSucceeded = $false

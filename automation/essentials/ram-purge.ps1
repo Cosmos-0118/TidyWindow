@@ -8,10 +8,12 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-
-$callerModulePath = $MyInvocation.MyCommand.Path
-if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
-    $callerModulePath = $PSCommandPath
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
+    }
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
 }
 
 $scriptDirectory = Split-Path -Parent $callerModulePath
@@ -19,10 +21,12 @@ if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
     $scriptDirectory = (Get-Location).Path
 }
 
-$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
-$modulePath = [System.IO.Path]::GetFullPath($modulePath)
-if (-not (Test-Path -Path $modulePath)) {
-    throw "Automation module not found at path '$modulePath'."
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
+    }
+    TidyWindow.Automation\Write-TidyError -Message $text
 }
 
 Import-Module $modulePath -Force

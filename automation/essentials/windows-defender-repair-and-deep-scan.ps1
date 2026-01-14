@@ -94,12 +94,13 @@ function Write-TidyOutput {
     )
 
     $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        return
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
     }
 
-    [void]$script:TidyOutputLines.Add($text)
-    Write-Output $text
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
 }
 
 function Write-TidyError {
@@ -109,12 +110,13 @@ function Write-TidyError {
     )
 
     $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        return
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
     }
 
-    [void]$script:TidyErrorLines.Add($text)
-    Write-Error -Message $text
+    TidyWindow.Automation\Write-TidyError -Message $text
 }
 
 function Save-TidyResult {

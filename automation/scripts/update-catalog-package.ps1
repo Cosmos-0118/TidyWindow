@@ -437,13 +437,14 @@ function Save-TidyResult {
     }
 
     $payload = [pscustomobject]@{
-        Success   = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-        Output    = $script:TidyOutputLines
-        Errors    = $script:TidyErrorLines
-        Result    = $script:ResultPayload
-        Attempted = if ($script:ResultPayload -and $script:ResultPayload.PSObject.Properties.Match('attempted')) { [bool]$script:ResultPayload.attempted } else { $false }
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
     }
 
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
     $json = $payload | ConvertTo-Json -Depth 6
     Set-Content -Path $ResultPath -Value $json -Encoding UTF8
 }
@@ -452,13 +453,14 @@ function Test-TidyAdmin {
     return [bool](New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Get-TidyPowerShellExecutable {
-    if ($PSVersionTable.PSEdition -eq 'Core') {
-        $pwshPath = Get-CachedCommandPath -CommandName 'pwsh'
-        if ($pwshPath) {
-            return $pwshPath
-        }
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
     }
+
+    TidyWindow.Automation\Write-TidyError -Message $text
 
     $legacyPath = Get-CachedCommandPath -CommandName 'powershell.exe'
     if ($legacyPath) {

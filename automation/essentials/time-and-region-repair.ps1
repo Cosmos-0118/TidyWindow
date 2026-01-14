@@ -67,13 +67,14 @@ function Save-TidyResult {
         Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
         Output  = $script:TidyOutputLines
         Errors  = $script:TidyErrorLines
-    }
-    $json = $payload | ConvertTo-Json -Depth 5
-    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
-}
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
 
-function Invoke-TidyCommand {
-    param(
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
+    }
+
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
         [Parameter(Mandatory = $true)][scriptblock] $Command,
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
@@ -82,13 +83,14 @@ function Invoke-TidyCommand {
         [switch] $SkipLog
     )
 
-    if (-not $SkipLog) {
-        Write-TidyLog -Level Information -Message $Description
+    $text = Convert-TidyLogMessage -InputObject $Message
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
     }
 
-    if (Test-Path -Path 'variable:LASTEXITCODE') {
-        $global:LASTEXITCODE = 0
-    }
+    TidyWindow.Automation\Write-TidyError -Message $text
 
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }

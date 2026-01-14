@@ -33,7 +33,7 @@ Key implementation points:
 
 -   **Network & connectivity**
     -   Network reset & cache flush: DNS/ARP/TCP flush, Winsock/IP reset, optional adapter restart, DHCP renew.
-    -   Network fix suite (advanced): diagnostics + adapter refresh, traceroute/pathping, DNS re-register, optional remediation.
+    -   Network fix suite (advanced): diagnostics + optional adapter bounce, DHCP renew, traceroute/pathping, DNS re-register, IPv4/IPv6 neighbor cache resets.
 -   **Integrity & recovery**
     -   System health scanner (SFC/DISM with optional cleanup/restore point).
     -   Disk checkup & repair (CHKDSK scheduling, SMART capture, surface scan optional).
@@ -63,7 +63,7 @@ Key implementation points:
     -   OneDrive & cloud sync repair (OneDrive reset/restart, sync service restart, KFM mapping repair, autorun/task recreate).
 -   **Updates & automation**
     -   Windows Update repair toolkit (service/component reset, DLL re-register, optional DISM/SFC, policy reset, scan trigger, network reset option).
-    -   Task Scheduler repair (TaskCache rebuild, USO/Windows Update tasks re-enable/rebuild, Schedule restart).
+    -   Task Scheduler repair (TaskCache rebuild incl. registry, optional Tasks ACL repair, optional update service repair, USO/Windows Update tasks re-enable/rebuild, Schedule restart).
 -   **Time & region**
     -   Time & region repair (time zone + NTP resync with verification, optional locale/language reset, Windows Time repair, fallback peers, offset reporting).
 -   **Printing**

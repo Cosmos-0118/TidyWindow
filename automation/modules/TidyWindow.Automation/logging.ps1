@@ -175,7 +175,7 @@ function Convert-TidyLogMessage {
 
     if ($InputObject -is [System.Collections.IEnumerable] -and -not ($InputObject -is [string])) {
         $items = foreach ($item in $InputObject) { Convert-TidyLogMessage -InputObject $item }
-        return $items -join [Environment]::NewLine
+        return $items -join ' | '
     }
 
     try {
@@ -194,9 +194,14 @@ function Convert-TidyLogMessage {
 
 # Force plain text rendering so host does not inject ANSI color sequences into errors.
 try {
-    if ($PSStyle -and ($PSStyle.OutputRendering -ne 'PlainText')) {
-        $PSStyle.OutputRendering = 'PlainText'
-    }
+        if ($PSStyle -and ($PSStyle.OutputRendering -ne 'PlainText')) {
+            $PSStyle.OutputRendering = 'PlainText'
+        }
+
+        # Also set ErrorView to concise to reduce host-added decoration and VT sequences.
+        if (-not $global:ErrorView -or $global:ErrorView -ne 'ConciseView') {
+            $global:ErrorView = 'ConciseView'
+        }
 }
 catch {
     # Best-effort: ignore if PSStyle not available (Windows PowerShell 5.1).
@@ -216,6 +221,7 @@ function Write-TidyLog {
         $timestamp = [DateTimeOffset]::Now.ToString('yyyy-MM-dd HH:mm:ss zzz', [System.Globalization.CultureInfo]::InvariantCulture)
         $parts = foreach ($segment in $Message) { Convert-TidyLogMessage -InputObject $segment }
         $text = ($parts -join ' ').Trim()
+        $text = ($text -split [Environment]::NewLine | ForEach-Object { $_.Trim() }) -join ' | '
         if ([string]::IsNullOrWhiteSpace($text)) {
             $text = '<empty>'
         }
@@ -236,6 +242,11 @@ function Write-TidyWarning {
 
 function Write-TidyError {
     [CmdletBinding()] param([Parameter(Mandatory=$true, ValueFromRemainingArguments=$true)][object[]] $Message)
-    Write-TidyLog -Level Error -Message $Message
+    # Emit on output stream to avoid host-added ANSI decoration on Error stream.
+    $rendered = foreach ($segment in $Message) { Convert-TidyLogMessage -InputObject $segment }
+    $text = ($rendered -join ' ').Trim()
+    $text = ($text -split [Environment]::NewLine | ForEach-Object { $_.Trim() }) -join ' | '
+    if ([string]::IsNullOrWhiteSpace($text)) { $text = '<empty>' }
+    Write-Output "[ERROR] $text"
 }
 

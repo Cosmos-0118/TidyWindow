@@ -6,6 +6,9 @@ param(
     [switch] $SkipPathPing,
     [switch] $DiagnosticsOnly,
     [switch] $SkipDnsRegistration,
+    [switch] $ResetAdapters,
+    [switch] $RenewDhcp,
+    [switch] $ResetIpv6NeighborCache,
     [string] $ResultPath
 )
 
@@ -64,12 +67,13 @@ function Write-TidyOutput {
     )
 
     $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        return
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
     }
 
-    [void]$script:TidyOutputLines.Add($text)
-    Write-Output $text
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
 }
 
 function Write-TidyError {
@@ -79,12 +83,13 @@ function Write-TidyError {
     )
 
     $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        return
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
     }
 
-    [void]$script:TidyErrorLines.Add($text)
-    Write-Error -Message $text
+    TidyWindow.Automation\Write-TidyError -Message $text
 }
 
 function Save-TidyResult {
@@ -304,7 +309,7 @@ function Test-TidyCommandAvailable {
 function Test-TidyTcpProbe {
     param(
         [Parameter(Mandatory = $true)]
-        [string] $Host,
+        [string] $TargetHost,
         [Parameter(Mandatory = $true)]
         [int] $Port,
         [int] $TimeoutMilliseconds = 4000
@@ -312,7 +317,7 @@ function Test-TidyTcpProbe {
 
     try {
         $client = [System.Net.Sockets.TcpClient]::new()
-        $async = $client.BeginConnect($Host, $Port, $null, $null)
+        $async = $client.BeginConnect($TargetHost, $Port, $null, $null)
         $wait = $async.AsyncWaitHandle.WaitOne($TimeoutMilliseconds)
         if (-not $wait) {
             $client.Close()
@@ -379,6 +384,55 @@ function Invoke-TidyNetworkAction {
     }
 
     return $exitCode
+}
+
+function Reset-TidyAdapters {
+    try {
+        if (-not (Get-Command -Name Get-NetAdapter -ErrorAction SilentlyContinue)) {
+            Write-TidyOutput -Message 'Get-NetAdapter not available; skipping adapter bounce.'
+            return
+        }
+
+        $candidates = Get-NetAdapter -Physical -ErrorAction SilentlyContinue | Where-Object { $_.Status -eq 'Up' -and -not $_.Virtual }
+        if (-not $candidates) {
+            Write-TidyOutput -Message 'No physical up adapters found to reset; skipping adapter bounce.'
+            return
+        }
+
+        foreach ($adapter in $candidates) {
+            try {
+                Write-TidyOutput -Message ("Disabling adapter {0}." -f $adapter.Name)
+                Invoke-TidyNetworkAction -Action ("Disable {0}" -f $adapter.Name) -Command { param($name) Disable-NetAdapter -Name $name -Confirm:$false -PassThru:$false } -Arguments @($adapter.Name) -Description ("Disable-NetAdapter {0}" -f $adapter.Name) | Out-Null
+
+                Start-Sleep -Seconds 2
+
+                Write-TidyOutput -Message ("Enabling adapter {0}." -f $adapter.Name)
+                Invoke-TidyNetworkAction -Action ("Enable {0}" -f $adapter.Name) -Command { param($name) Enable-NetAdapter -Name $name -Confirm:$false -PassThru:$false } -Arguments @($adapter.Name) -Description ("Enable-NetAdapter {0}" -f $adapter.Name) | Out-Null
+            }
+            catch {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("Adapter reset failed for {0}: {1}" -f $adapter.Name, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Adapter reset routine failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Renew-TidyDhcp {
+    try {
+        Write-TidyOutput -Message 'Releasing DHCP leases (ipconfig /release).'
+        Invoke-TidyNetworkAction -Action 'DHCP release' -Command { ipconfig /release } -Description 'ipconfig /release' | Out-Null
+
+        Write-TidyOutput -Message 'Renewing DHCP leases (ipconfig /renew).'
+        Invoke-TidyNetworkAction -Action 'DHCP renew' -Command { ipconfig /renew } -Description 'ipconfig /renew' | Out-Null
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("DHCP renew cycle failed: {0}" -f $_.Exception.Message)
+    }
 }
 
 function Write-TidyNetworkSummary {
@@ -515,6 +569,14 @@ try {
         Write-TidyOutput -Message 'Resetting IPv4 neighbor cache.'
         [void](Invoke-TidyNetworkAction -Action 'IPv4 neighbor cache reset' -Command { netsh interface ip delete arpcache } -Description 'netsh interface ip delete arpcache' -RequireSuccess)
 
+        if ($ResetIpv6NeighborCache.IsPresent) {
+            Write-TidyOutput -Message 'Resetting IPv6 neighbor cache.'
+            [void](Invoke-TidyNetworkAction -Action 'IPv6 neighbor cache reset' -Command { netsh interface ipv6 delete neighbors } -Description 'netsh interface ipv6 delete neighbors' -RequireSuccess)
+        }
+        else {
+            Register-TidyAction -Name 'IPv6 neighbor cache reset' -Status Skipped -Details 'ResetIpv6NeighborCache not requested.'
+        }
+
         Write-TidyOutput -Message 'Resetting TCP global heuristics to defaults.'
         [void](Invoke-TidyNetworkAction -Action 'TCP heuristics reset' -Command { netsh interface tcp set heuristics disabled } -Description 'Disable TCP heuristics.')
         [void](Invoke-TidyNetworkAction -Action 'TCP auto-tuning normalization' -Command { netsh interface tcp set global autotuninglevel=normal } -Description 'Restore TCP auto-tuning.')
@@ -529,6 +591,20 @@ try {
         else {
             Write-TidyOutput -Message 'Skipping DNS registration per operator request.'
             Register-TidyAction -Name 'DNS registration' -Status Skipped -Details 'SkipDnsRegistration flag set.'
+        }
+
+        if ($RenewDhcp.IsPresent) {
+            Renew-TidyDhcp
+        }
+        else {
+            Register-TidyAction -Name 'DHCP renew' -Status Skipped -Details 'RenewDhcp not requested.'
+        }
+
+        if ($ResetAdapters.IsPresent) {
+            Reset-TidyAdapters
+        }
+        else {
+            Register-TidyAction -Name 'Adapter reset' -Status Skipped -Details 'ResetAdapters not requested.'
         }
     }
 
@@ -638,7 +714,7 @@ try {
     }
 
     if (-not $connectSucceeded) {
-        $fallbackOk = Test-TidyTcpProbe -Host $TargetHost -Port $script:EffectiveTcpPort -TimeoutMilliseconds 4000
+        $fallbackOk = Test-TidyTcpProbe -TargetHost $TargetHost -Port $script:EffectiveTcpPort -TimeoutMilliseconds 4000
         if ($fallbackOk) {
             Register-TidyAction -Name 'Connectivity test' -Status Success
             $script:TestConnectionSucceeded = $true

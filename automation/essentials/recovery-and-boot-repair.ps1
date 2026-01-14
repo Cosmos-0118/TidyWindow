@@ -46,12 +46,13 @@ function Write-TidyOutput {
     )
 
     $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        return
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyOutputLines -is [System.Collections.IList]) {
+        [void]$script:TidyOutputLines.Add($text)
     }
 
-    [void]$script:TidyOutputLines.Add($text)
-    Write-Output $text
+    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
 }
 
 function Write-TidyError {
@@ -61,12 +62,13 @@ function Write-TidyError {
     )
 
     $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) {
-        return
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+
+    if ($script:TidyErrorLines -is [System.Collections.IList]) {
+        [void]$script:TidyErrorLines.Add($text)
     }
 
-    [void]$script:TidyErrorLines.Add($text)
-    Write-Error -Message $text
+    TidyWindow.Automation\Write-TidyError -Message $text
 }
 
 function Save-TidyResult {
@@ -91,7 +93,8 @@ function Invoke-TidyCommand {
         [string] $Description = 'Running command.',
         [object[]] $Arguments = @(),
         [switch] $RequireSuccess,
-        [int[]] $AcceptableExitCodes = @()
+        [int[]] $AcceptableExitCodes = @(),
+        [switch] $DemoteNativeCommandErrors
     )
 
     Write-TidyLog -Level Information -Message $Description
@@ -114,7 +117,12 @@ function Invoke-TidyCommand {
         if ($null -eq $entry) { continue }
 
         if ($entry -is [System.Management.Automation.ErrorRecord]) {
-            Write-TidyError -Message $entry
+            if ($DemoteNativeCommandErrors -and ($entry.FullyQualifiedErrorId -like 'NativeCommandError*')) {
+                Write-TidyOutput -Message ("[WARN] {0}" -f $entry)
+            }
+            else {
+                Write-TidyError -Message $entry
+            }
         }
         else {
             Write-TidyOutput -Message $entry
@@ -356,10 +364,10 @@ function Repair-WmiRepository {
         }
 
         Write-TidyOutput -Message 'WMI repository reported inconsistent or verify exited non-zero; running salvage/reset.'
-        Invoke-TidyCommand -Command { winmgmt /salvagerepository } -Description 'WMI salvage.' -AcceptableExitCodes @(0, 0x1)
+        Invoke-TidyCommand -Command { winmgmt /salvagerepository } -Description 'WMI salvage.' -AcceptableExitCodes @(0, 0x1) -DemoteNativeCommandErrors
 
         Write-TidyOutput -Message 'Resetting WMI repository.'
-        Invoke-TidyCommand -Command { winmgmt /resetrepository } -Description 'WMI reset.' -AcceptableExitCodes @(0, 0x1)
+        Invoke-TidyCommand -Command { winmgmt /resetrepository } -Description 'WMI reset.' -AcceptableExitCodes @(0, 0x1) -DemoteNativeCommandErrors
 
         Write-TidyOutput -Message 'Restarting Winmgmt service.'
         Invoke-TidyCommand -Command { Restart-Service -Name Winmgmt -Force -ErrorAction Stop } -Description 'Restarting Winmgmt.' -AcceptableExitCodes @(0)
@@ -390,7 +398,7 @@ function Collect-DumpsAndDrivers {
         }
 
         Write-TidyOutput -Message 'Running driver inventory (driverquery /v).' 
-        Invoke-TidyCommand -Command { driverquery /v } -Description 'Driver inventory.' -AcceptableExitCodes @(0)
+        Invoke-TidyCommand -Command { driverquery /v } -Description 'Driver inventory.' -AcceptableExitCodes @(0) -DemoteNativeCommandErrors
     }
     catch {
         $script:OperationSucceeded = $false
