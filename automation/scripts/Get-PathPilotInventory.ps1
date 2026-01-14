@@ -143,9 +143,10 @@ function Resolve-InventoryPath {
 
     $expanded = [System.Environment]::ExpandEnvironmentVariables($unquoted)
     if ($expanded.StartsWith('~')) {
-        $home = $env:USERPROFILE
-        if (-not [string]::IsNullOrWhiteSpace($home)) {
-            $expanded = $home + $expanded.Substring(1)
+        # Use a local variable to avoid assigning to the automatic $HOME variable
+        $userProfile = $env:USERPROFILE
+        if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+            $expanded = $userProfile + $expanded.Substring(1)
         }
     }
 

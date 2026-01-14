@@ -409,10 +409,11 @@ public sealed class EssentialsTaskCatalog
                 "Re-registers activation DLLs, refreshes Software Protection, attempts online activation, and optionally runs slmgr /rearm.",
                 ImmutableArray.Create(
                     "Re-registers activation/licensing DLLs",
-                    "Restarts Software Protection and runs slmgr /ato"),
+                    "Restarts Software Protection and runs slmgr /ato",
+                    "Advanced: optional licensing store rebuild (tokens.dat)"),
                 "automation/essentials/activation-and-licensing-repair.ps1",
                 DurationHint: "Approx. 4-10 minutes (DLL re-register + sppsvc refresh + activation)",
-                DetailedDescription: "Re-registers slc/slwga/spp* DLLs, refreshes the Software Protection service, attempts slmgr /ato for activation, and can run slmgr /rearm (opt-in) to rebuild licensing state with transcript logging.",
+                DetailedDescription: "Re-registers slc/slwga/spp* DLLs, refreshes the Software Protection service, attempts slmgr /ato for activation, can rebuild the licensing store by backing up tokens.dat and restarting sppsvc (advanced opt-in), and can run slmgr /rearm to rebuild licensing state with transcript logging.",
                 DocumentationLink: "essentialsaddition.md",
                 Options: ImmutableArray.Create(
                     new EssentialsTaskOptionDefinition(
@@ -431,6 +432,13 @@ public sealed class EssentialsTaskCatalog
                         parameterName: "SkipActivationAttempt",
                         mode: EssentialsTaskOptionMode.EmitWhenFalse,
                         description: "Runs slmgr /ato via cscript."),
+                    new EssentialsTaskOptionDefinition(
+                        id: "rebuild-licensing-store",
+                        label: "Advanced: rebuild licensing store (tokens.dat)",
+                        parameterName: "RebuildLicensingStore",
+                        mode: EssentialsTaskOptionMode.EmitWhenTrue,
+                        defaultValue: false,
+                        description: "Stops sppsvc, backs up tokens.dat, restarts the service, and retries /ato. Use only when activation is stuck."),
                     new EssentialsTaskOptionDefinition(
                         id: "capture-license-status",
                         label: "Capture license status (/xpr, /dlv)",

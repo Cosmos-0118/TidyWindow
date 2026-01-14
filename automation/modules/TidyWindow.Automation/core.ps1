@@ -8,9 +8,10 @@ function Resolve-TidyPath {
 
     $expanded = [Environment]::ExpandEnvironmentVariables($Path.Trim().Trim('"'))
     if ($expanded.StartsWith('~')) {
-        $home = $env:USERPROFILE
-        if (-not [string]::IsNullOrWhiteSpace($home)) {
-            $expanded = $home + $expanded.Substring(1)
+        # Avoid assigning to the read-only $HOME automatic variable
+        $userProfile = $env:USERPROFILE
+        if (-not [string]::IsNullOrWhiteSpace($userProfile)) {
+            $expanded = $userProfile + $expanded.Substring(1)
         }
     }
 

@@ -2,6 +2,7 @@ param(
     [switch] $SkipActivationAttempt,
     [switch] $SkipDllReregister,
     [switch] $SkipProtectionServiceRefresh,
+    [switch] $RebuildLicensingStore,
     [switch] $AttemptRearm,
     [switch] $CaptureLicenseStatus,
     [string] $ResultPath
@@ -202,6 +203,74 @@ function Refresh-ProtectionService {
     }
 }
 
+function Rebuild-LicensingStore {
+    param(
+        [switch] $AttemptActivation = $true
+    )
+
+    $serviceName = 'sppsvc'
+    $tokensPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\spp\store\2.0\tokens.dat'
+
+    $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    if ($null -eq $svc) {
+        Write-TidyOutput -Message 'Licensing store rebuild skipped: Software Protection service (sppsvc) not found.'
+        return
+    }
+
+    $svcInfo = Get-CimInstance -ClassName Win32_Service -Filter "Name='sppsvc'" -ErrorAction SilentlyContinue
+    if ($svcInfo -and $svcInfo.StartMode -eq 'Disabled') {
+        Write-TidyOutput -Message 'Licensing store rebuild skipped: sppsvc is disabled by policy.'
+        return
+    }
+
+    if (-not (Test-Path -LiteralPath $tokensPath)) {
+        Write-TidyOutput -Message "Licensing store rebuild skipped: tokens.dat not found at $tokensPath."
+        return
+    }
+
+    $backupName = "tokens.dat.bak-{0}" -f (Get-Date -Format 'yyyyMMddHHmmss')
+    $backupPath = Join-Path -Path ([System.IO.Path]::GetDirectoryName($tokensPath)) -ChildPath $backupName
+
+    Write-TidyOutput -Message 'Advanced: rebuilding licensing store (stop sppsvc, back up tokens.dat, restart, retry /ato).'
+
+    try {
+        Write-TidyOutput -Message 'Stopping Software Protection service for licensing store rebuild.'
+        Stop-Service -Name $serviceName -Force -ErrorAction Stop
+        if (-not (Wait-TidyServiceState -Name $serviceName -DesiredStatus 'Stopped' -TimeoutSeconds 20)) {
+            Write-TidyOutput -Message 'sppsvc did not fully stop; continuing with caution.'
+        }
+
+        Write-TidyOutput -Message ("Backing up tokens.dat to {0}" -f $backupPath)
+        Rename-Item -Path $tokensPath -NewName $backupPath -ErrorAction Stop
+
+        Write-TidyOutput -Message 'Starting Software Protection service after licensing store rebuild.'
+        Start-Service -Name $serviceName -ErrorAction Stop
+        if (-not (Wait-TidyServiceState -Name $serviceName -DesiredStatus 'Running' -TimeoutSeconds 25)) {
+            Write-TidyOutput -Message 'sppsvc did not reach Running state after store rebuild; activation retry may fail.'
+        }
+
+        if ($AttemptActivation.IsPresent) {
+            Write-TidyOutput -Message 'Retrying activation (/ato) after licensing store rebuild.'
+            Attempt-Activation
+        }
+        else {
+            Write-TidyOutput -Message 'Activation retry suppressed by operator switch.'
+        }
+    }
+    catch {
+        $script:OperationSucceeded = $false
+        Write-TidyError -Message ("Licensing store rebuild failed: {0}" -f $_.Exception.Message)
+
+        try {
+            $svcCurrent = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+            if ($svcCurrent -and $svcCurrent.Status -ne 'Running') {
+                Start-Service -Name $serviceName -ErrorAction SilentlyContinue | Out-Null
+            }
+        }
+        catch { }
+    }
+}
+
 function Reregister-ActivationDlls {
     $dlls = @(
         'slc.dll',
@@ -331,7 +400,10 @@ try {
         Write-TidyOutput -Message 'Skipping Software Protection service refresh per operator request.'
     }
 
-    if (-not $SkipActivationAttempt.IsPresent) {
+    if ($RebuildLicensingStore.IsPresent) {
+        Rebuild-LicensingStore -AttemptActivation:(!$SkipActivationAttempt.IsPresent)
+    }
+    elseif (-not $SkipActivationAttempt.IsPresent) {
         Attempt-Activation
     }
     else {

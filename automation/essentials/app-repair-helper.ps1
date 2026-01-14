@@ -46,8 +46,10 @@ $script:FailedPackages = [System.Collections.Generic.List[string]]::new()
 $script:RestartedServices = [System.Collections.Generic.List[string]]::new()
 $script:WsResetAttempted = $false
 $script:WsResetSucceeded = $false
+$script:WsResetFallbackUsed = $false
 $script:LicensingCacheCleared = $false
 $script:CapabilityAccessReset = $false
+$script:DependencyFailures = [System.Collections.Generic.List[string]]::new()
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -157,6 +159,67 @@ function Invoke-TidyCommand {
     }
 
     return $exitCode
+}
+
+function Stop-StoreProcesses {
+    param(
+        [string[]] $ExtraNames = @()
+    )
+
+    $defaultNames = @('WinStore.App', 'WinStore.Mobile', 'MicrosoftStore', 'msstore', 'Store', 'wsreset')
+    $targets = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($n in $defaultNames + $ExtraNames) {
+        if (-not [string]::IsNullOrWhiteSpace($n)) { [void]$targets.Add($n) }
+    }
+
+    try {
+        $procs = Get-Process -ErrorAction SilentlyContinue | Where-Object { $targets.Contains($_.ProcessName) }
+        foreach ($p in $procs) {
+            try {
+                Write-TidyOutput -Message ("Stopping Store-related process {0} (PID {1})." -f $p.ProcessName, $p.Id)
+                Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-TidyOutput -Message ("Unable to stop process {0} (PID {1}): {2}" -f $p.ProcessName, $p.Id, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        Write-TidyOutput -Message ("Process stop helper for Store failed: {0}" -f $_.Exception.Message)
+    }
+}
+
+function Clear-StoreCacheManual {
+    $storeRoot = Join-Path $env:LOCALAPPDATA 'Packages\Microsoft.WindowsStore_8wekyb3d8bbwe'
+    $paths = @(
+        (Join-Path $storeRoot 'LocalCache')
+        (Join-Path $storeRoot 'LocalState\cache')
+        (Join-Path $storeRoot 'LocalState\Cache')
+        (Join-Path $storeRoot 'LocalState\AC')
+    )
+
+    $success = $true
+    foreach ($path in $paths) {
+        try {
+            if (Test-Path -LiteralPath $path) {
+                Write-TidyOutput -Message ("Clearing Store cache path {0}" -f $path)
+                Remove-Item -LiteralPath $path -Recurse -Force -ErrorAction Stop
+            }
+
+            # Recreate folder with permissive ACLs for current user
+            $null = New-Item -ItemType Directory -Path $path -Force -ErrorAction Stop
+            $acl = Get-Acl -Path $path
+            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule ($env:USERNAME, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')
+            $acl.SetAccessRule($rule)
+            Set-Acl -Path $path -AclObject $acl
+        }
+        catch {
+            $success = $false
+            Write-TidyOutput -Message ("Manual Store cache clear failed at {0}: {1}" -f $path, $_.Exception.Message)
+        }
+    }
+
+    return $success
 }
 
 function Restart-StoreServiceSafe {
@@ -331,6 +394,7 @@ function Invoke-TidyWsReset {
 
     $script:WsResetAttempted = $true
     Write-TidyOutput -Message 'Resetting Microsoft Store cache (wsreset.exe).'
+    Stop-StoreProcesses
     try {
         $exitCode = Invoke-TidyCommand -Command {
             param($path)
@@ -345,13 +409,31 @@ function Invoke-TidyWsReset {
             Write-TidyOutput -Message 'Microsoft Store cache reset completed successfully.'
         }
         else {
-            $script:OperationSucceeded = $false
-            Write-TidyError -Message ("wsreset.exe exited with code {0}. Review Store cache permissions." -f $exitCode)
+            Write-TidyOutput -Message ("wsreset.exe exited with code {0}; attempting manual cache clear fallback." -f $exitCode)
+            $fallbackOk = Clear-StoreCacheManual
+            if ($fallbackOk) {
+                $script:WsResetFallbackUsed = $true
+                $script:WsResetSucceeded = $true
+                Write-TidyOutput -Message 'Manual Store cache clear completed (wsreset fallback).'
+            }
+            else {
+                $script:OperationSucceeded = $false
+                Write-TidyError -Message ("wsreset.exe failed (exit {0}) and manual cache clear also failed. Review Store cache permissions." -f $exitCode)
+            }
         }
     }
     catch {
-        $script:OperationSucceeded = $false
-        Write-TidyError -Message ("wsreset.exe failed: {0}" -f $_.Exception.Message)
+        Write-TidyOutput -Message ("wsreset.exe threw: {0}; attempting manual cache clear fallback." -f $_.Exception.Message)
+        $fallbackOk = Clear-StoreCacheManual
+        if ($fallbackOk) {
+            $script:WsResetFallbackUsed = $true
+            $script:WsResetSucceeded = $true
+            Write-TidyOutput -Message 'Manual Store cache clear completed after wsreset exception.'
+        }
+        else {
+            $script:OperationSucceeded = $false
+            Write-TidyError -Message ("wsreset.exe failed and manual cache clear failed: {0}" -f $_.Exception.Message)
+        }
     }
 }
 
@@ -437,12 +519,17 @@ function Invoke-AppxReRegistration {
 
                 $message = $exception.Message
                 $isInUse = $message -match '0x80073D02' -or $message -match 'resources it modifies are currently in use' -or $message -match 'need to be closed'
+                $isDependencyMissing = $message -match '0x80073CFD' -or $message -match 'dependency' -or $message -match 'prerequisite'
 
                 if ($attempts -lt $maxAttempts -and $isInUse) {
                     $familiesFromError = Parse-TidyAppxInUsePackages -Message $message
                     Stop-TidyAppxProcesses -PackageName $PackageName -PackageFamilies $familiesFromError
                     Start-Sleep -Milliseconds 500
                     continue
+                }
+
+                if ($isDependencyMissing) {
+                    Handle-AppxDependencyFailure -PackageName $PackageName -PackageFullName $package.PackageFullName -Message $message
                 }
 
                 $script:OperationSucceeded = $false
@@ -521,12 +608,17 @@ function Invoke-ProvisionedAppxReRegistration {
 
                 $message = $_.Exception.Message
                 $isInUse = $message -match '0x80073D02' -or $message -match 'resources it modifies are currently in use' -or $message -match 'need to be closed'
+                $isDependencyMissing = $message -match '0x80073CFD' -or $message -match 'dependency' -or $message -match 'prerequisite'
 
                 if ($attempts -lt $maxAttempts -and $isInUse) {
                     $familiesFromError = Parse-TidyAppxInUsePackages -Message $message
                     Stop-TidyAppxProcesses -PackageName $family -PackageFamilies $familiesFromError
                     Start-Sleep -Milliseconds 500
                     continue
+                }
+
+                if ($isDependencyMissing) {
+                    Handle-AppxDependencyFailure -PackageName $family -PackageFullName $family -Message $message
                 }
 
                 $script:OperationSucceeded = $false
@@ -567,6 +659,21 @@ function Test-TidyAppxRegistrationBenignFailure {
     }
 
     return $false
+}
+
+function Handle-AppxDependencyFailure {
+    param(
+        [Parameter(Mandatory = $true)][string] $PackageName,
+        [Parameter(Mandatory = $true)][string] $PackageFullName,
+        [Parameter(Mandatory = $true)][string] $Message
+    )
+
+    if (-not $script:DependencyFailures.Contains($PackageFullName)) {
+        $script:DependencyFailures.Add($PackageFullName) | Out-Null
+    }
+
+    Write-TidyError -Message ("{0} dependency chain appears incomplete (0x80073CFD/prerequisite missing). Message: {1}" -f $PackageFullName, $Message)
+    Write-TidyOutput -Message "Suggested next steps: ensure OEM driver/framework prerequisites are installed (graphics/chipset/vendor control panels), rerun this repair, or reinstall the affected package with its dependency bundle."
 }
 
 function Invoke-AppInstallerRepair {
@@ -760,7 +867,8 @@ function Write-TidyRepairSummary {
 
     if ($script:WsResetAttempted) {
         $status = if ($script:WsResetSucceeded) { 'Success' } else { 'Failed' }
-        Write-TidyOutput -Message ("Store cache reset: {0}" -f $status)
+        $method = if ($script:WsResetFallbackUsed) { 'Manual fallback' } else { 'wsreset.exe' }
+        Write-TidyOutput -Message ("Store cache reset: {0} (via {1})." -f $status, $method)
     }
 
     if ($script:RepairedPackages.Count -gt 0) {
@@ -781,6 +889,13 @@ function Write-TidyRepairSummary {
         Write-TidyOutput -Message ("Failed packages ({0}):" -f $script:FailedPackages.Count)
         foreach ($entry in $script:FailedPackages | Sort-Object -Unique) {
             Write-TidyOutput -Message ("  ↳ {0}" -f $entry)
+        }
+    }
+
+    if ($script:DependencyFailures.Count -gt 0) {
+        Write-TidyOutput -Message ("Packages with missing dependencies ({0}):" -f $script:DependencyFailures.Count)
+        foreach ($entry in $script:DependencyFailures | Sort-Object -Unique) {
+            Write-TidyOutput -Message ("  ↳ {0}")
         }
     }
 

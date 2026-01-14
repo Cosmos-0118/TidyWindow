@@ -6,6 +6,8 @@ param(
     [int] $UnusedDriverAgeDays = 30,
     [string] $DriverBackupPath,
     [int] $DriverBackupRetentionDays = 30,
+    [switch] $AllowProtectedDriverClasses,
+    [string[]] $ProtectedDriverClasses,
     [string] $ResultPath
 )
 
@@ -36,6 +38,8 @@ $script:OperationSucceeded = $true
 $script:UsingResultFile = -not [string]::IsNullOrWhiteSpace($ResultPath)
 $script:DriverBackupRoot = $null
 $script:DriverBackupRetentionDays = if ($DriverBackupRetentionDays -lt 1) { 30 } else { $DriverBackupRetentionDays }
+$script:AllowProtectedDriverClasses = $AllowProtectedDriverClasses.IsPresent
+$script:ProtectedDriverClasses = if ($ProtectedDriverClasses -and $ProtectedDriverClasses.Count -gt 0) { $ProtectedDriverClasses } else { @('display','net','media','audio','hdaudio','hidclass') }
 
 if ($script:UsingResultFile) {
     $ResultPath = [System.IO.Path]::GetFullPath($ResultPath)
@@ -339,8 +343,16 @@ function Test-DriverBindingsPresent {
         if ([string]::IsNullOrWhiteSpace($instanceId)) { continue }
 
         try {
-            $dev = Get-PnpDevice -InstanceId $instanceId -ErrorAction SilentlyContinue
+            $dev = Get-PnpDevice -InstanceId $instanceId -PresentOnly -ErrorAction SilentlyContinue
             if ($dev -and $dev.PSObject.Properties['Present'] -and $dev.Present) {
+                $present = $true
+                break
+            }
+
+            # Secondary presence check using Win32_PnPEntity for devices Get-PnpDevice may filter out
+            $escapedId = $instanceId.Replace("'", "''")
+            $entity = Get-CimInstance -ClassName Win32_PnPEntity -Filter ("PNPDeviceID = '{0}'" -f $escapedId) -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($entity -and $entity.PSObject.Properties['ConfigManagerErrorCode'] -and ($entity.ConfigManagerErrorCode -eq 0)) {
                 $present = $true
                 break
             }
@@ -360,26 +372,179 @@ function Get-DriverMetadata {
         [Parameter(Mandatory = $true)][string] $PublishedName
     )
 
+    $parsedPnpUtil = $null
+
+    function Get-PnputilDriverMetadata {
+        param([string] $Name)
+
+        try {
+            $raw = & pnputil /enum-drivers 2>&1
+            $current = @{}
+            foreach ($line in @($raw)) {
+                $trim = $line.Trim()
+                if ([string]::IsNullOrWhiteSpace($trim)) {
+                    if ($current.ContainsKey('PublishedName') -and $current['PublishedName'] -eq $Name) {
+                        return $current
+                    }
+                    $current = @{}
+                    continue
+                }
+
+                if ($trim -match '^Published Name\s*:\s*(.+)$') { $current['PublishedName'] = $matches[1].Trim() }
+                elseif ($trim -match '^Driver Package Provider\s*:\s*(.+)$') { $current['Provider'] = $matches[1].Trim() }
+                elseif ($trim -match '^Class\s*:\s*(.+)$') { $current['Class'] = $matches[1].Trim() }
+                elseif ($trim -match '^Driver date and version\s*:\s*(.+)$') { $current['DateVersion'] = $matches[1].Trim() }
+            }
+        }
+        catch {
+            return $null
+        }
+
+        return $null
+    }
+
+    function Get-DriverStoreDate {
+        param([string] $Name)
+
+        try {
+            $store = Join-Path $env:WINDIR 'System32\DriverStore\FileRepository'
+            $base = [System.IO.Path]::GetFileNameWithoutExtension($Name)
+            $dirs = Get-ChildItem -Path $store -Directory -Filter "*${base}*" -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending
+            $pick = $dirs | Select-Object -First 1
+            if ($pick) { return $pick.LastWriteTime }
+        }
+        catch { return $null }
+
+        return $null
+    }
+
+    function Resolve-DriverDate {
+        param([object] $Value)
+
+        if (-not $Value) { return $null }
+        if ($Value -is [datetime]) { return $Value }
+
+        $stringValue = $Value.ToString()
+
+        # DMTF datetime (Win32_PnPSignedDriver) support
+        try { return [System.Management.ManagementDateTimeConverter]::ToDateTime($stringValue) } catch { }
+        # Invariant and current culture fallbacks
+        try { return [datetime]::Parse($stringValue, [System.Globalization.CultureInfo]::InvariantCulture) } catch { }
+        try { return [datetime]::Parse($stringValue, [System.Globalization.CultureInfo]::CurrentCulture) } catch { }
+
+        return $null
+    }
+
     try {
+        $metaCandidates = [System.Collections.Generic.List[pscustomobject]]::new()
         $filterName = $PublishedName.Replace("'", "''")
         $drivers = Get-CimInstance -ClassName Win32_PnPSignedDriver -Filter ("InfName = '{0}'" -f $filterName) -ErrorAction Stop
-        if (-not $drivers) { return $null }
 
-        $selected = $drivers | Sort-Object -Property DriverDate -Descending | Select-Object -First 1
-        $driverDate = $null
-        if ($selected.PSObject.Properties['DriverDate']) {
-            try { $driverDate = [System.Management.ManagementDateTimeConverter]::ToDateTime($selected.DriverDate) } catch { $driverDate = $null }
+        foreach ($drv in @($drivers)) {
+            $candidateDate = $null
+            $candidateVersion = $null
+            $candidateProvider = $null
+            $candidateClass = $null
+
+            if ($drv.PSObject.Properties['DriverDate']) { $candidateDate = Resolve-DriverDate -Value $drv.DriverDate }
+            if ($drv.PSObject.Properties['DriverVersion']) { $candidateVersion = $drv.DriverVersion }
+            if ($drv.PSObject.Properties['DriverProviderName']) { $candidateProvider = $drv.DriverProviderName }
+            if ($drv.PSObject.Properties['DeviceClass']) { $candidateClass = $drv.DeviceClass }
+
+            $metaCandidates.Add([pscustomobject]@{
+                    DriverDate    = $candidateDate
+                    DriverVersion = $candidateVersion
+                    Provider      = $candidateProvider
+                    Class         = $candidateClass
+                    IsEstimated   = $false
+                    Source        = 'Win32_PnPSignedDriver'
+                })
         }
 
-        $driverVersion = $null
-        if ($selected.PSObject.Properties['DriverVersion']) { $driverVersion = $selected.DriverVersion }
+        $parsedPnpUtil = Get-PnputilDriverMetadata -Name $PublishedName
+        if ($parsedPnpUtil) {
+            $pv = $null
+            $date = $null
+            if ($parsedPnpUtil.ContainsKey('DateVersion')) {
+                $parts = $parsedPnpUtil['DateVersion'] -split '\s+'
+                if ($parts.Count -ge 1) {
+                    $date = Resolve-DriverDate -Value $parts[0]
+                }
+                if ($parts.Count -ge 2) {
+                    $pv = ($parts | Select-Object -Skip 1) -join ' '
+                }
+            }
 
-        return [pscustomobject]@{
-            DriverDate    = $driverDate
-            DriverVersion = $driverVersion
-            Provider      = if ($selected.PSObject.Properties['DriverProviderName']) { $selected.DriverProviderName } else { $null }
-            Class         = if ($selected.PSObject.Properties['DeviceClass']) { $selected.DeviceClass } else { $null }
+            $metaCandidates.Add([pscustomobject]@{
+                    DriverDate    = $date
+                    DriverVersion = $pv
+                    Provider      = if ($parsedPnpUtil.ContainsKey('Provider')) { $parsedPnpUtil['Provider'] } else { $null }
+                    Class         = if ($parsedPnpUtil.ContainsKey('Class')) { $parsedPnpUtil['Class'] } else { $null }
+                    IsEstimated   = $false
+                    Source        = 'pnputil'
+                })
         }
+
+        try {
+            $winDriver = Get-WindowsDriver -Online -All -ErrorAction SilentlyContinue | Where-Object { $_.PublishedName -eq $PublishedName } | Select-Object -First 1
+            if ($winDriver) {
+                $metaCandidates.Add([pscustomobject]@{
+                        DriverDate    = Resolve-DriverDate -Value (if ($winDriver.PSObject.Properties['Date']) { $winDriver.Date } else { $null })
+                        DriverVersion = if ($winDriver.PSObject.Properties['Version']) { $winDriver.Version } else { $null }
+                        Provider      = if ($winDriver.PSObject.Properties['ProviderName']) { $winDriver.ProviderName } else { $null }
+                        Class         = if ($winDriver.PSObject.Properties['ClassName']) { $winDriver.ClassName } else { $null }
+                        IsEstimated   = $false
+                        Source        = 'Get-WindowsDriver'
+                    })
+            }
+        }
+        catch { }
+
+        $storeDate = Get-DriverStoreDate -Name $PublishedName
+        if ($storeDate) {
+            $metaCandidates.Add([pscustomobject]@{
+                    DriverDate    = $storeDate
+                    DriverVersion = $null
+                    Provider      = $null
+                    Class         = $null
+                    IsEstimated   = $true
+                    Source        = 'DriverStore'
+                })
+        }
+
+        $metaCandidates = @($metaCandidates | Where-Object { $_ -is [psobject] })
+        if ($metaCandidates.Count -eq 0) {
+            Write-TidyOutput -Message ("Metadata lookup failed for {0} after all fallbacks." -f $PublishedName)
+            return $null
+        }
+
+        $dated = $metaCandidates | Where-Object { $_.PSObject.Properties['DriverDate'] -and $_.DriverDate }
+        $bestDated = $dated | Sort-Object -Property DriverDate -Descending | Select-Object -First 1
+        $bestAny = $bestDated
+        if (-not $bestAny) { $bestAny = $metaCandidates | Select-Object -First 1 }
+
+        $final = [pscustomobject]@{
+            DriverDate    = if ($bestAny) { $bestAny.DriverDate } else { $null }
+            DriverVersion = $null
+            Provider      = $null
+            Class         = $null
+            IsEstimated   = if ($bestAny -and $bestAny.PSObject.Properties['IsEstimated']) { [bool]$bestAny.IsEstimated } else { $false }
+        }
+
+        foreach ($candidate in $metaCandidates) {
+            if (-not $final.DriverVersion -and $candidate.PSObject.Properties['DriverVersion'] -and -not [string]::IsNullOrWhiteSpace($candidate.DriverVersion)) { $final.DriverVersion = $candidate.DriverVersion }
+            if (-not $final.Provider -and $candidate.PSObject.Properties['Provider'] -and -not [string]::IsNullOrWhiteSpace($candidate.Provider)) { $final.Provider = $candidate.Provider }
+            if (-not $final.Class -and $candidate.PSObject.Properties['Class'] -and -not [string]::IsNullOrWhiteSpace($candidate.Class)) { $final.Class = $candidate.Class }
+            if (-not $final.DriverDate -and $candidate.PSObject.Properties['DriverDate'] -and $candidate.DriverDate) { $final.DriverDate = $candidate.DriverDate }
+            if (-not $final.IsEstimated -and $candidate.PSObject.Properties['IsEstimated'] -and $candidate.IsEstimated) { $final.IsEstimated = $true }
+        }
+
+        if (-not $final.DriverDate -and -not $final.DriverVersion) {
+            Write-TidyOutput -Message ("Metadata lookup failed for {0} after all fallbacks." -f $PublishedName)
+            return $null
+        }
+
+        return $final
     }
     catch {
         Write-TidyOutput -Message ("Metadata lookup failed for {0}: {1}" -f $PublishedName, $_.Exception.Message)
@@ -465,6 +630,7 @@ function Cleanup-StaleDrivers {
         $removed = 0
         $inUse = 0
         $skippedDueToBindings = 0
+        $skippedProtectedClass = 0
         $skippedTooRecent = 0
         $skippedNoDate = 0
         $attempted = if ($candidates) { $candidates.Count } else { 0 }
@@ -508,14 +674,62 @@ function Cleanup-StaleDrivers {
             }
 
             $meta = Get-DriverMetadata -PublishedName $name
-            if (-not $meta -or -not $meta.DriverDate) {
+
+            $driverDate = $null
+            $driverClass = ''
+            $driverProvider = ''
+            $driverVersion = ''
+
+            $metaItems = @()
+            if ($meta -is [System.Collections.IEnumerable] -and -not ($meta -is [string])) {
+                $metaItems = @($meta)
+            }
+            elseif ($meta) {
+                $metaItems = @($meta)
+            }
+
+            if (-not $metaItems -or $metaItems.Count -eq 0) {
+                Write-TidyOutput -Message ("Driver metadata for {0} missing; skipping removal for safety." -f $name)
+                $skippedNoDate++
+                continue
+            }
+
+            $metaBest = $metaItems | Where-Object { $_ -is [psobject] -and $_.PSObject.Properties['DriverDate'] -and $_.DriverDate } | Sort-Object -Property DriverDate -Descending | Select-Object -First 1
+            if (-not $metaBest) { $metaBest = $metaItems | Select-Object -First 1 }
+
+            if ($metaBest -is [psobject]) {
+                if ($metaBest.PSObject.Properties['DriverDate']) { $driverDate = $metaBest.DriverDate }
+                if ($metaBest.PSObject.Properties['Class']) { $driverClass = $metaBest.Class }
+                if ($metaBest.PSObject.Properties['Provider']) { $driverProvider = $metaBest.Provider }
+                if ($metaBest.PSObject.Properties['DriverVersion']) { $driverVersion = $metaBest.DriverVersion }
+            }
+            elseif ($metaBest) {
+                Write-TidyOutput -Message ("Driver metadata for {0} had unexpected type {1}; treating as missing." -f $name, $metaBest.GetType().FullName)
+            }
+
+            if ($driverDate -and ($driverDate -isnot [datetime])) {
+                try { $driverDate = [datetime]::Parse($driverDate, [System.Globalization.CultureInfo]::InvariantCulture) } catch { $driverDate = $null }
+            }
+
+            if (-not $driverDate) {
                 Write-TidyOutput -Message ("Driver package {0} has no reliable driver date; skipping removal for safety." -f $name)
                 $skippedNoDate++
                 continue
             }
 
-            if ($meta.DriverDate -gt $thresholdDate) {
-                Write-TidyOutput -Message ("Driver package {0} is newer than threshold ({1:yyyy-MM-dd}); skipping removal." -f $name, $meta.DriverDate)
+            $classLabel = if (-not [string]::IsNullOrWhiteSpace($driverClass)) { $driverClass } elseif ($entry.PSObject.Properties['Class']) { $entry.Class } else { '' }
+            if (-not $script:AllowProtectedDriverClasses) {
+                $normalizedClass = $classLabel.ToLowerInvariant()
+                $shouldProtect = $script:ProtectedDriverClasses | Where-Object { $normalizedClass -like "$_*" }
+                if ($shouldProtect) {
+                    Write-TidyOutput -Message ("Driver package {0} is class '{1}', which is protected (display/network/audio/HID/etc); skipping removal unless explicitly allowed." -f $name, $classLabel)
+                    $skippedProtectedClass++
+                    continue
+                }
+            }
+
+            if ($driverDate -gt $thresholdDate) {
+                Write-TidyOutput -Message ("Driver package {0} is newer than threshold ({1:yyyy-MM-dd}); skipping removal." -f $name, $driverDate)
                 $skippedTooRecent++
                 continue
             }
@@ -537,7 +751,7 @@ function Cleanup-StaleDrivers {
             }
         }
 
-        Write-TidyOutput -Message ("Driver cleanup summary: candidates {0}, skipped (bindings) {1}, skipped (no date) {2}, skipped (too recent) {3}, in-use/protected {4}, removed {5}." -f $attempted, $skippedDueToBindings, $skippedNoDate, $skippedTooRecent, $inUse, $removed)
+        Write-TidyOutput -Message ("Driver cleanup summary: candidates {0}, skipped (bindings) {1}, skipped (protected class) {2}, skipped (no date) {3}, skipped (too recent) {4}, in-use/protected {5}, removed {6}." -f $attempted, $skippedDueToBindings, $skippedProtectedClass, $skippedNoDate, $skippedTooRecent, $inUse, $removed)
         Write-TidyOutput -Message 'Guidance: removal performed automatically for non-present drivers older than the threshold; recent or dated-unknown drivers are skipped for safety.'
     }
     catch {

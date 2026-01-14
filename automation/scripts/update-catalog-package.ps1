@@ -42,7 +42,7 @@ catch {
 }
 $script:Utf8Encoding = [System.Text.Encoding]::UTF8
 $script:WingetInstallerHashMismatchExitCode = -1978335215
-$script:WingetNoVersionFoundExitCode    = -1978335209
+$script:WingetNoVersionFoundExitCode = -1978335209
 
 function Get-CachedCommandPath {
     param(
@@ -436,31 +436,23 @@ function Save-TidyResult {
         return
     }
 
-    $payload = [pscustomobject]@{
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyOutputLines -is [System.Collections.IList]) {
-        [void]$script:TidyOutputLines.Add($text)
+    if ($null -eq $script:ResultPayload) {
+        return
     }
 
-    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
-    $json = $payload | ConvertTo-Json -Depth 6
-    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+    $json = $script:ResultPayload | ConvertTo-Json -Depth 6
+    Set-Content -LiteralPath $ResultPath -Value $json -Encoding UTF8
 }
 
 function Test-TidyAdmin {
     return [bool](New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyErrorLines -is [System.Collections.IList]) {
-        [void]$script:TidyErrorLines.Add($text)
+function Get-TidyPowerShellExecutable {
+    if ($PSVersionTable.PSEdition -eq 'Core') {
+        $pwshPath = Get-CachedCommandPath -CommandName 'pwsh'
+        if ($pwshPath) { return $pwshPath }
     }
-
-    TidyWindow.Automation\Write-TidyError -Message $text
 
     $legacyPath = Get-CachedCommandPath -CommandName 'powershell.exe'
     if ($legacyPath) {
@@ -1456,7 +1448,7 @@ try {
             Reset-ScoopWorkspaceManifestIfOutdated -PackageId $PackageId -LatestVersion $latestBefore
         }
         $attempted = $true
-    $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId -TargetVersion $targetVersionValue -InstalledVersion $installedBefore -DisplayName $DisplayName
+        $executionInfo = Invoke-ManagerUpdate -ManagerKey $managerKey -PackageId $PackageId -TargetVersion $targetVersionValue -InstalledVersion $installedBefore -DisplayName $DisplayName
         $exitCode = $executionInfo.ExitCode
 
         foreach ($line in @($executionInfo.Logs)) {

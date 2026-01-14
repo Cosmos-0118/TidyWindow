@@ -27,7 +27,7 @@ if (-not [string]::IsNullOrWhiteSpace($PayloadPath) -and (Test-Path -Path $Paylo
         if ($payload.Manager) { $Manager = [string]$payload.Manager }
         if ($payload.Command) { $Command = [string]$payload.Command }
         if ($payload.RequiresAdmin) { $RequiresAdmin = [bool]$payload.RequiresAdmin }
-    if ($payload.Buckets) { $Buckets = @($payload.Buckets | ForEach-Object { [string]$_ }) }
+        if ($payload.Buckets) { $Buckets = @($payload.Buckets | ForEach-Object { [string]$_ }) }
     }
     catch {
         Write-Host "[WARN] Failed to parse payload file. Using provided parameters. $_"
@@ -174,14 +174,13 @@ function Save-TidyResult {
     }
 
     $payload = [pscustomobject]@{
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyOutputLines -is [System.Collections.IList]) {
-        [void]$script:TidyOutputLines.Add($text)
+        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+        Output  = $script:TidyOutputLines
+        Errors  = $script:TidyErrorLines
     }
 
-    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
+    $json = $payload | ConvertTo-Json -Depth 5
+    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
 }
 
 function Test-TidyAdmin {
@@ -190,17 +189,12 @@ function Test-TidyAdmin {
 
 function Get-TidyPowerShellExecutable {
     if ($PSVersionTable.PSEdition -eq 'Core') {
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-
-    if ($script:TidyErrorLines -is [System.Collections.IList]) {
-        [void]$script:TidyErrorLines.Add($text)
+        $pwsh = Get-Command -Name 'pwsh' -ErrorAction SilentlyContinue
+        if ($pwsh) { return $pwsh.Source }
     }
 
-    TidyWindow.Automation\Write-TidyError -Message $text
-    if ($legacy) {
-        return $legacy.Source
-    }
+    $legacy = Get-Command -Name 'powershell.exe' -ErrorAction SilentlyContinue
+    if ($legacy) { return $legacy.Source }
 
     throw 'Unable to locate a PowerShell executable to request elevation.'
 }
@@ -543,7 +537,7 @@ $Buckets = $bucketCollector.ToArray()
 
 try {
     if ($RequiresAdmin.IsPresent -and -not $Elevated.IsPresent -and -not (Test-TidyAdmin)) {
-    $result = Request-TidyElevation -ScriptPath $callerModulePath -PackageId $PackageId -DisplayName $DisplayName -Manager $Manager -Command $Command -Buckets $Buckets
+        $result = Request-TidyElevation -ScriptPath $callerModulePath -PackageId $PackageId -DisplayName $DisplayName -Manager $Manager -Command $Command -Buckets $Buckets
 
         $outputLines = @()
         $resultOutput = Get-TidyResultProperty -Result $result -Name 'Output'
