@@ -145,10 +145,14 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         DelayCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DelayAsync, CanDelay);
 
         StartupGuardEnabled = _preferences.Current.StartupGuardEnabled;
+        ShowStartupHero = _preferences.Current.ShowStartupHero;
     }
 
     [ObservableProperty]
     private bool startupGuardEnabled;
+
+    [ObservableProperty]
+    private bool showStartupHero = true;
 
     public int CurrentPage => _currentPage;
 
@@ -531,6 +535,11 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     partial void OnStartupGuardEnabledChanged(bool value)
     {
         _preferences.SetStartupGuardEnabled(value);
+    }
+
+    partial void OnShowStartupHeroChanged(bool value)
+    {
+        _preferences.SetShowStartupHero(value);
     }
 
     private async Task DelayAsync(StartupEntryItemViewModel? item)

@@ -281,11 +281,12 @@
                 </Grid.RowDefinitions>
 
                 <Border Grid.Row="0"
-                        Background="{StaticResource StartupHeroBrush}"
-                        Padding="20"
-                        CornerRadius="16"
-                        BorderThickness="1"
-                        BorderBrush="#12314A">
+                    Background="{StaticResource StartupHeroBrush}"
+                    Padding="20"
+                    CornerRadius="16"
+                    BorderThickness="1"
+                    BorderBrush="#12314A"
+                    Visibility="{Binding ShowStartupHero, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition />
@@ -364,6 +365,15 @@
                         Padding="14"
                         Margin="0,16,0,12">
                     <StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,0,0,8">
+                            <ToggleButton Content="Show overview"
+                                          Style="{StaticResource FilterToggleStyle}"
+                                          IsChecked="{Binding ShowStartupHero, Mode=TwoWay}"
+                                          ToolTip="Hide the title and counters panel to reclaim space on smaller screens." />
+                        </StackPanel>
+
                         <TextBox x:Name="SearchBox"
                                  Margin="0,0,0,6"
                                  MinWidth="240"

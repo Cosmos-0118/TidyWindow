@@ -825,10 +825,14 @@
             <Setter Property="IsHitTestVisible"
                     Value="False"/>
             <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="False"/>
-            </Setter.Value>
+                <Setter.Value>
+                    <BitmapCache EnableClearType="True" RenderAtScale="1"/>
+                </Setter.Value>
             </Setter>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
             <Setter Property="RenderTransformOrigin"
                     Value="0.5,0"/>
             <Setter Property="RenderTransform">
@@ -2856,7 +2860,7 @@
                                     IsEnabled="{Binding IsLockingProcessPanelVisible}"
                                     Margin="0"/>
                         </StackPanel>
-                        <Popup Placement="Bottom"
+                        <Popup Placement="Center"
                                PlacementTarget="{Binding ElementName=ViewLockingAppsButton}"
                                AllowsTransparency="True"
                                PopupAnimation="Fade"
@@ -2866,9 +2870,14 @@
                                     BorderBrush="{StaticResource CleanupBorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="12"
-                                    Padding="16"
-                                    MaxWidth="520">
-                                <StackPanel>
+                                    Padding="0"
+                                    MaxWidth="640"
+                                    MaxHeight="560">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled"
+                                              Padding="16"
+                                              MaxHeight="540">
+                                    <StackPanel>
                                     <StackPanel Orientation="Horizontal"
                                                 VerticalAlignment="Center">
                                         <TextBlock Text="Apps currently locking these files"
@@ -2958,17 +2967,18 @@
                                                 Margin="8,0,0,0"/>
                                         <Button Content="Close all apps"
                                                 Command="{Binding CloseAllLockingProcessesCommand}"
-                                                Style="{StaticResource FlatButtonStyle}"
-                                                Margin="8,0,0,0"/>
+                                                   Style="{StaticResource FlatButtonStyle}"
+                                                   Margin="8,0,0,0"/>
+                                        </StackPanel>
+                                        <TextBlock Text="Unsaved work may be lost when closing these apps. Force close should be a last resort."
+                                                   FontSize="11"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   Margin="0,6,0,0"
+                                                   TextWrapping="Wrap"/>
                                     </StackPanel>
-                                    <TextBlock Text="Unsaved work may be lost when closing these apps. Force close should be a last resort."
-                                               FontSize="11"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"
-                                               Margin="0,6,0,0"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-                            </Border>
-                        </Popup>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
                             </StackPanel>
                         </StackPanel>
                            <StackPanel Grid.Column="1"
@@ -3032,152 +3042,160 @@
           Visibility="{Binding IsRunConfirmationPopupOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
         <Grid HorizontalAlignment="Stretch"
               VerticalAlignment="Stretch">
-            <Border HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    MaxWidth="880"
-                    Padding="36"
-                    CornerRadius="28"
-                    Background="{StaticResource CleanupSurfaceBrush}"
-                    BorderBrush="{StaticResource CleanupBorderBrush}"
-                    BorderThickness="1.5"
-                    Effect="{StaticResource SurfaceShadowEffect}">
-                <StackPanel>
-                    <TextBlock Text="Ready to run cleanup?"
-                               FontSize="17"
-                               FontWeight="Bold"
-                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                    <TextBlock Text="{Binding PendingDeletionItemSummary, StringFormat={}Deleting {0} across selected categories.}"
-                               FontSize="13"
-                               Foreground="{StaticResource CleanupMutedTextBrush}"
-                               Margin="0,6,0,0"
-                               TextWrapping="Wrap"/>
-                    <TextBlock Text="Adjust how TidyWindow handles locked items, recycle bin usage, and reporting before committing the deletion."
-                               FontSize="13"
-                               Foreground="{StaticResource CleanupMutedTextBrush}"
-                               Margin="0,6,0,18"
-                               TextWrapping="Wrap"/>
-                    <ux:AdaptiveTilePanel MinColumnWidth="300"
-                                         MaxColumnWidth="420"
-                                         ColumnSpacing="24"
-                                         RowSpacing="24">
-                        <Border Style="{StaticResource SheetCardStyle}"
-                                Padding="24"
-                                MinHeight="170">
-                            <StackPanel>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Content="Send to Recycle Bin when possible"
-                                          IsChecked="{Binding UseRecycleBin, Mode=TwoWay}"
-                                          Foreground="{StaticResource CleanupSoftTextBrush}"
-                                          FontSize="14"/>
-                                <TextBlock Text="Move supported files into the Recycle Bin so they can be restored later. We'll fall back to a permanent delete if Windows cannot stage the file."
-                                           FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           Margin="0,10,0,0"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource SheetCardStyle}"
-                                Padding="24"
-                                MinHeight="170">
-                            <StackPanel>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Content="Skip files that are still locked"
-                                          IsChecked="{Binding SkipLockedItems, Mode=TwoWay}"
-                                          IsEnabled="{Binding RepairPermissionsBeforeDelete, Converter={StaticResource InverseBooleanConverter}}"
-                                          Foreground="{StaticResource CleanupSoftTextBrush}"
-                                          FontSize="14"/>
-                                <TextBlock Text="Leave stubborn files in place when another app is still using them. This is the safest default and avoids interrupting background work."
-                                           FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           Margin="0,10,0,0"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource SheetCardStyle}"
-                                Padding="24"
-                                MinHeight="190">
-                            <StackPanel>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Content="Force delete locked items"
-                                          IsChecked="{Binding RepairPermissionsBeforeDelete, Mode=TwoWay}"
-                                          Foreground="{StaticResource CleanupSoftTextBrush}"
-                                          FontSize="14"/>
-                                <TextBlock Text="Take ownership, clear read-only flags, and remove locked files even if another process is holding them open. Overrides the Skip locked option."
-                                           FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           Margin="0,10,0,0"
-                                           TextWrapping="Wrap"/>
-                                <TextBlock Text="Only enable this when you are certain the files are safe to delete."
-                                           FontSize="12"
-                                           Foreground="#FBBF24"
-                                           Margin="0,8,0,0"
-                                           TextWrapping="Wrap">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility"
-                                                    Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding RepairPermissionsBeforeDelete}"
-                                                             Value="True">
+            <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          Margin="24"
+                          Focusable="False">
+                <Grid HorizontalAlignment="Center"
+                      VerticalAlignment="Center">
+                    <Border HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            MaxWidth="880"
+                            Padding="36"
+                            CornerRadius="28"
+                            Background="{StaticResource CleanupSurfaceBrush}"
+                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                            BorderThickness="1.5"
+                            Effect="{StaticResource SurfaceShadowEffect}">
+                        <StackPanel>
+                            <TextBlock Text="Ready to run cleanup?"
+                                       FontSize="17"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                            <TextBlock Text="{Binding PendingDeletionItemSummary, StringFormat={}Deleting {0} across selected categories.}"
+                                       FontSize="13"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"/>
+                            <TextBlock Text="Adjust how TidyWindow handles locked items, recycle bin usage, and reporting before committing the deletion."
+                                       FontSize="13"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                       Margin="0,6,0,18"
+                                       TextWrapping="Wrap"/>
+                            <ux:AdaptiveTilePanel MinColumnWidth="300"
+                                                 MaxColumnWidth="420"
+                                                 ColumnSpacing="24"
+                                                 RowSpacing="24">
+                                <Border Style="{StaticResource SheetCardStyle}"
+                                        Padding="24"
+                                        MinHeight="170">
+                                    <StackPanel>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Send to Recycle Bin when possible"
+                                                  IsChecked="{Binding UseRecycleBin, Mode=TwoWay}"
+                                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                  FontSize="14"/>
+                                        <TextBlock Text="Move supported files into the Recycle Bin so they can be restored later. We'll fall back to a permanent delete if Windows cannot stage the file."
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   Margin="0,10,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SheetCardStyle}"
+                                        Padding="24"
+                                        MinHeight="170">
+                                    <StackPanel>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Skip files that are still locked"
+                                                  IsChecked="{Binding SkipLockedItems, Mode=TwoWay}"
+                                                  IsEnabled="{Binding RepairPermissionsBeforeDelete, Converter={StaticResource InverseBooleanConverter}}"
+                                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                  FontSize="14"/>
+                                        <TextBlock Text="Leave stubborn files in place when another app is still using them. This is the safest default and avoids interrupting background work."
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   Margin="0,10,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SheetCardStyle}"
+                                        Padding="24"
+                                        MinHeight="190">
+                                    <StackPanel>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Force delete locked items"
+                                                  IsChecked="{Binding RepairPermissionsBeforeDelete, Mode=TwoWay}"
+                                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                  FontSize="14"/>
+                                        <TextBlock Text="Take ownership, clear read-only flags, and remove locked files even if another process is holding them open. Overrides the Skip locked option."
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   Margin="0,10,0,0"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock Text="Only enable this when you are certain the files are safe to delete."
+                                                   FontSize="12"
+                                                   Foreground="#FBBF24"
+                                                   Margin="0,8,0,0"
+                                                   TextWrapping="Wrap">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
                                                     <Setter Property="Visibility"
-                                                            Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Content="Allow protected system locations (dangerous)"
-                                          IsChecked="{Binding IncludeProtectedSystemLocations, Mode=TwoWay}"
-                                          IsEnabled="{Binding RepairPermissionsBeforeDelete}"
-                                          Foreground="#FCA5A5"
-                                          FontSize="13"
-                                          Margin="0,12,0,0"
-                                          ToolTip="When enabled, files inside Windows and Program Files may be removed. Use only if you are absolutely sure.">
-                                    <CheckBox.Resources>
-                                        <Style TargetType="TextBlock" BasedOn="{StaticResource TextBlockBaseStyle}">
-                                            <Setter Property="TextWrapping" Value="Wrap"/>
-                                        </Style>
-                                    </CheckBox.Resources>
-                                </CheckBox>
+                                                            Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding RepairPermissionsBeforeDelete}"
+                                                                     Value="True">
+                                                            <Setter Property="Visibility"
+                                                                    Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Allow protected system locations (dangerous)"
+                                                  IsChecked="{Binding IncludeProtectedSystemLocations, Mode=TwoWay}"
+                                                  IsEnabled="{Binding RepairPermissionsBeforeDelete}"
+                                                  Foreground="#FCA5A5"
+                                                  FontSize="13"
+                                                  Margin="0,12,0,0"
+                                                  ToolTip="When enabled, files inside Windows and Program Files may be removed. Use only if you are absolutely sure.">
+                                            <CheckBox.Resources>
+                                                <Style TargetType="TextBlock" BasedOn="{StaticResource TextBlockBaseStyle}">
+                                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                                </Style>
+                                            </CheckBox.Resources>
+                                        </CheckBox>
+                                    </StackPanel>
+                                </Border>
+                                <Border Style="{StaticResource SheetCardStyle}"
+                                        Padding="24"
+                                        MinHeight="170">
+                                    <StackPanel>
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Generate cleanup report"
+                                                  IsChecked="{Binding GenerateCleanupReport, Mode=TwoWay}"
+                                                  Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                  FontSize="14"/>
+                                        <TextBlock Text="Create a detailed HTML report under Documents\\TidyWindow\\Reports showing everything that was removed. Helpful for audits or support tickets."
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   Margin="0,10,0,0"
+                                                   TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                            </ux:AdaptiveTilePanel>
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right"
+                                        Margin="0,24,0,0">
+                                <Button Content="Cancel"
+                                        Command="{Binding HideRunConfirmationPopupCommand}"
+                                        Style="{StaticResource FlatButtonStyle}"/>
+                                <Button Content="Delete now"
+                                        Command="{Binding ConfirmCleanupCommand}"
+                                        Margin="12,0,0,0"
+                                        Style="{StaticResource FlatButtonStyle}"
+                                        Padding="16,6">
+                                    <Button.IsEnabled>
+                                        <Binding Path="IsBusy"
+                                                 Converter="{StaticResource InverseBooleanConverter}"/>
+                                    </Button.IsEnabled>
+                                </Button>
                             </StackPanel>
-                        </Border>
-                        <Border Style="{StaticResource SheetCardStyle}"
-                                Padding="24"
-                                MinHeight="170">
-                            <StackPanel>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Content="Generate cleanup report"
-                                          IsChecked="{Binding GenerateCleanupReport, Mode=TwoWay}"
-                                          Foreground="{StaticResource CleanupSoftTextBrush}"
-                                          FontSize="14"/>
-                                <TextBlock Text="Create a detailed HTML report under Documents\\TidyWindow\\Reports showing everything that was removed. Helpful for audits or support tickets."
-                                           FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           Margin="0,10,0,0"
-                                           TextWrapping="Wrap"/>
-                            </StackPanel>
-                        </Border>
-                    </ux:AdaptiveTilePanel>
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Right"
-                                Margin="0,24,0,0">
-                        <Button Content="Cancel"
-                                Command="{Binding HideRunConfirmationPopupCommand}"
-                                Style="{StaticResource FlatButtonStyle}"/>
-                        <Button Content="Delete now"
-                                Command="{Binding ConfirmCleanupCommand}"
-                                Margin="12,0,0,0"
-                                Style="{StaticResource FlatButtonStyle}"
-                                Padding="16,6">
-                            <Button.IsEnabled>
-                                <Binding Path="IsBusy"
-                                         Converter="{StaticResource InverseBooleanConverter}"/>
-                            </Button.IsEnabled>
-                        </Button>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </ScrollViewer>
         </Grid>
     </Grid>
     <Border Background="#D9081425"
