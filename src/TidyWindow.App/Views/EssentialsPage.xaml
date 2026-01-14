@@ -217,8 +217,10 @@
         </Style>
 
         <Style x:Key="EssentialsPivotToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Margin" Value="0,0,12,12"/>
+            <Setter Property="Margin" Value="8,0,8,0"/>
             <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="Background" Value="#0F1A2F"/>
             <Setter Property="Foreground" Value="#E2E8F0"/>
             <Setter Property="BorderBrush" Value="#263654"/>
@@ -545,35 +547,24 @@
                                    FontSize="12"
                                    Foreground="#8CA0BF"
                                    Margin="0,0,0,10"/>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                            <ToggleButton Grid.Column="0"
-                                          Content="Task shelf"
+                        <UniformGrid Columns="3" HorizontalAlignment="Stretch">
+                            <ToggleButton Content="Task shelf"
                                           Padding="16,10"
                                           MinHeight="42"
-                                          Margin="0,0,10,0"
                                           FontWeight="SemiBold"
                                           Style="{StaticResource EssentialsPivotToggleStyle}"
                                           Command="{Binding NavigatePivotCommand}"
                                           CommandParameter="{x:Static viewModels:EssentialsPivot.Tasks}"
                                           IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Tasks}}"/>
-                            <ToggleButton Grid.Column="1"
-                                          Content="Queue + output"
+                            <ToggleButton Content="Queue + output"
                                           Padding="16,10"
                                           MinHeight="42"
-                                          Margin="0,0,10,0"
                                           FontWeight="SemiBold"
                                           Style="{StaticResource EssentialsPivotToggleStyle}"
                                           Command="{Binding NavigatePivotCommand}"
                                           CommandParameter="{x:Static viewModels:EssentialsPivot.Queue}"
                                           IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Queue}}"/>
-                            <ToggleButton Grid.Column="2"
-                                          Content="Automation settings"
+                            <ToggleButton Content="Automation settings"
                                           Padding="16,10"
                                           MinHeight="42"
                                           FontWeight="SemiBold"
@@ -581,7 +572,7 @@
                                           Command="{Binding NavigatePivotCommand}"
                                           CommandParameter="{x:Static viewModels:EssentialsPivot.Settings}"
                                           IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:EssentialsPivot.Settings}}"/>
-                        </Grid>
+                        </UniformGrid>
                     </StackPanel>
                 </Border>
 
