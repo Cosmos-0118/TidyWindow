@@ -8,12 +8,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-    if ($script:TidyOutputLines -is [System.Collections.IList]) {
-        [void]$script:TidyOutputLines.Add($text)
-    }
-    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
+
+$callerModulePath = $MyInvocation.MyCommand.Path
+if ([string]::IsNullOrWhiteSpace($callerModulePath) -and (Get-Variable -Name PSCommandPath -Scope Script -ErrorAction SilentlyContinue)) {
+    $callerModulePath = $PSCommandPath
 }
 
 $scriptDirectory = Split-Path -Parent $callerModulePath
@@ -21,12 +19,10 @@ if ([string]::IsNullOrWhiteSpace($scriptDirectory)) {
     $scriptDirectory = (Get-Location).Path
 }
 
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-    if ($script:TidyErrorLines -is [System.Collections.IList]) {
-        [void]$script:TidyErrorLines.Add($text)
-    }
-    TidyWindow.Automation\Write-TidyError -Message $text
+$modulePath = Join-Path -Path $scriptDirectory -ChildPath '..\modules\TidyWindow.Automation\TidyWindow.Automation.psm1'
+$modulePath = [System.IO.Path]::GetFullPath($modulePath)
+if (-not (Test-Path -Path $modulePath)) {
+    throw "Automation module not found at path '$modulePath'."
 }
 
 Import-Module $modulePath -Force
@@ -173,15 +169,15 @@ function Format-TidyBytesDelta {
 
 function Get-TidyMemorySnapshot {
     $snapshot = [pscustomobject]@{
-        Timestamp              = Get-Date
-        TotalPhysicalBytes     = $null
-        AvailableBytes         = $null
-        StandbyBytes           = $null
-        ModifiedBytes          = $null
-        CacheBytes             = $null
-        CommittedBytes         = $null
-        CommitLimitBytes       = $null
-        CompressionStoreBytes  = $null
+        Timestamp             = Get-Date
+        TotalPhysicalBytes    = $null
+        AvailableBytes        = $null
+        StandbyBytes          = $null
+        ModifiedBytes         = $null
+        CacheBytes            = $null
+        CommittedBytes        = $null
+        CommitLimitBytes      = $null
+        CompressionStoreBytes = $null
     }
 
     try {
@@ -574,11 +570,11 @@ function Invoke-WorkingSetTrim {
                 }
 
                 $record = [pscustomobject]@{
-                    Name       = $process.ProcessName
-                    Id         = $process.Id
-                    Before     = $beforeBytes
-                    After      = $afterBytes
-                    Delta      = $deltaBytes
+                    Name   = $process.ProcessName
+                    Id     = $process.Id
+                    Before = $beforeBytes
+                    After  = $afterBytes
+                    Delta  = $deltaBytes
                 }
 
                 $trimmed.Add($record)

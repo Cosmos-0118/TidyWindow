@@ -47,26 +47,7 @@ if ($script:UsingResultFile) {
 
 function Write-TidyOutput {
     param([Parameter(Mandatory = $true)][object] $Message)
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-    [void]$script:TidyOutputLines.Add($text)
-    Write-Output $text
-}
 
-function Write-TidyError {
-    param([Parameter(Mandatory = $true)][object] $Message)
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
-    [void]$script:TidyErrorLines.Add($text)
-    Write-Output ("[ERROR] {0}" -f $text)
-}
-
-function Save-TidyResult {
-    if (-not $script:UsingResultFile) { return }
-    $payload = [pscustomobject]@{
-        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-        Output  = $script:TidyOutputLines
-        Errors  = $script:TidyErrorLines
     $text = Convert-TidyLogMessage -InputObject $Message
     if ([string]::IsNullOrWhiteSpace($text)) { return }
 
@@ -75,13 +56,10 @@ function Save-TidyResult {
     }
 
     TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
-        [Parameter(Mandatory = $true)][scriptblock] $Command,
-        [string] $Description = 'Running command.',
-        [object[]] $Arguments = @(),
-        [switch] $RequireSuccess,
-        [int[]] $AcceptableExitCodes = @(),
-        [switch] $SkipLog
-    )
+}
+
+function Write-TidyError {
+    param([Parameter(Mandatory = $true)][object] $Message)
 
     $text = Convert-TidyLogMessage -InputObject $Message
     if ([string]::IsNullOrWhiteSpace($text)) { return }
@@ -91,6 +69,38 @@ function Save-TidyResult {
     }
 
     TidyWindow.Automation\Write-TidyError -Message $text
+}
+
+function Save-TidyResult {
+    if (-not $script:UsingResultFile) { return }
+
+    $payload = [pscustomobject]@{
+        Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+        Output  = $script:TidyOutputLines
+        Errors  = $script:TidyErrorLines
+    }
+
+    $json = $payload | ConvertTo-Json -Depth 5
+    Set-Content -Path $ResultPath -Value $json -Encoding UTF8
+}
+
+function Invoke-TidyCommand {
+    param(
+        [Parameter(Mandatory = $true)][scriptblock] $Command,
+        [string] $Description = 'Running command.',
+        [object[]] $Arguments = @(),
+        [switch] $RequireSuccess,
+        [int[]] $AcceptableExitCodes = @(),
+        [switch] $SkipLog
+    )
+
+    if (-not $SkipLog.IsPresent) {
+        Write-TidyLog -Level Information -Message $Description
+    }
+
+    if (Test-Path -Path 'variable:LASTEXITCODE') {
+        $global:LASTEXITCODE = 0
+    }
 
     $output = & $Command @Arguments 2>&1
     $exitCode = if (Test-Path -Path 'variable:LASTEXITCODE') { $LASTEXITCODE } else { 0 }

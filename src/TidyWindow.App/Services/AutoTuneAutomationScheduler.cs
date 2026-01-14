@@ -142,9 +142,11 @@ public sealed class AutoTuneAutomationScheduler : IDisposable
         }
 
         var filter = BuildProcessFilter(_normalizedProcessNames);
+        // Win32_ProcessStartTrace event queries require SELECT *; projections can trigger
+        // a ManagementException (Invalid parameter) on some systems.
         var queryText = string.IsNullOrWhiteSpace(filter)
-            ? "SELECT ProcessName FROM Win32_ProcessStartTrace"
-            : $"SELECT ProcessName FROM Win32_ProcessStartTrace WHERE {filter}";
+            ? "SELECT * FROM Win32_ProcessStartTrace"
+            : $"SELECT * FROM Win32_ProcessStartTrace WHERE {filter}";
 
         try
         {
