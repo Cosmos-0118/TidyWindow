@@ -1,10 +1,10 @@
 {
-  "version": "3.8.6",
+  "version": "3.8.7",
   "channel": "stable",
-  "summary": "##  Driver Cleanup & Backup Enhancements\n\n- Added **DriverBackupRetentionDays** (default 30) with validation and persisted storage\n- Implemented **Cleanup-DriverBackups** to prune backup folders older than the retention window\n- On startup, auto-create backup folder (if configured) and prune stale backups immediately\n\n###  Safe Driver Removal\n- Non-present drivers older than the configured age (default 30 days) are removed automatically\n- Recent or date-unknown packages are skipped with clear reporting\n- Optional export: if `-DriverBackupPath` is set, drivers are backed up via `pnputil /export-driver` before deletion\n\n###  Metadata + Binding Checks\n- Lookup added for **date / version / provider / class** per driver\n- Added **Test-DriverBindingsPresent** using `Get-PnpDevice`\n  - Only remove when **all bindings are non-present**\n  - Unresolved bindings treated as present for safety\n  - Binding lists kept array-typed end-to-end\n\n###  Robust pnputil Handling\n- Detects unsupported/help output and avoids false logs\n- Falls back to WMI when pnputil is ambiguous or exits non-zero\n- Only logs pnputil lines when real device/package data is present",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.6/TidyWindow-Setup-3.8.6.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.6",
-  "publishedAt": "2026-01-13T17:49:28Z",
-  "installerSizeBytes": 90782155,
-  "sha256": "08b9723a93d33835c11cc652941bc3965f9cfa50efca306dc86cbde0554c900f"
+  "summary": "##  Auto-Tune & Scheduler\n\n- Added **instant game/launcher detection** via WMI watcher (no wait)\n- Normalized process names and cleaned watcher lifecycle\n- Removed 5-minute polling timer - process-start events only\n- Replaced textbox with **Manage processes** modal (add/remove/de-dupe)\n- Auto-tune + scheduler now share curated lists with synced commands\n- Added persisted store in %LocalAppData% (survives restarts)\n\n---\n\n##  AppX Repair Reliability\n\n- Added retry + process-stop on **0x80073D02 “in use”**\n- Applied to all AppX reinstall paths (Store, frameworks, provisioned)\n- Added helpers + hints for ShellExperienceHost/StartMenu/Settings\n- Shared process-stop helper now reusable across scripts\n\n---\n\n##  Logging & Output\n\n- New `Limit-TidyLength` to cap oversized log payloads\n- Strip ANSI earlier + set **NO_COLOR**\n- Added `Write-TidyInfo/Warning/Error` (sanitized output)\n- Consistent formatting across all automation modules\n\n---\n\n##  Essentials Queue & Time Sync\n\n- Queue **auto-prepends System Restore** before any non-restore task\n- Added w32tm **offset verification** with warnings + opt-out flag\n- Locale reset now **opt-in** (no forced en-US)\n\n---\n\n##  UI & UX\n\n- Added **collapse/restore hero header** for Startup page\n- Persisted ShowStartupHero preference across sessions\n- Cleanup page overlays now scrollable + centered for small screens\n- Enabled ClearType caching + high-quality scaling in preview phase",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.7/TidyWindow-Setup-3.8.7.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.7",
+  "publishedAt": "2026-01-14T08:21:48Z",
+  "installerSizeBytes": 90808904,
+  "sha256": "bb5d359792d4872f13781d619aa340ab1402a38f35923fa8b2d4a5d93bc365e2"
 }
