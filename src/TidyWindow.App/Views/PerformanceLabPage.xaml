@@ -638,6 +638,11 @@
                         <TextBlock Margin="0,4,0,8" Text="Apply CPU priority/affinity presets to selected processes and capture masks for inspection." Style="{StaticResource SubtleCaptionTextStyle}" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Manage processes"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Command="{Binding OpenSchedulerPickerCommand}"
+                                    Padding="12,6"
+                                    Margin="0,0,8,0" />
                             <ComboBox Width="220"
                                       Margin="0,0,8,0"
                                       ItemsSource="{Binding SchedulerPresets}"
@@ -650,11 +655,17 @@
                                     </DataTemplate>
                                 </ComboBox.ItemTemplate>
                             </ComboBox>
-                            <TextBox Width="220" Margin="0,0,8,0" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Text="{Binding SchedulerProcessNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Process names separated by semicolon (e.g., dwm;explorer)" />
                             <Button Content="Detect scheduler" Style="{StaticResource OutlineButtonStyle}" Command="{Binding DetectSchedulerCommand}" Margin="0,0,8,0" />
                             <Button Content="Apply preset" Style="{StaticResource PrimaryButtonStyle}" Command="{Binding ApplySchedulerPresetCommand}" IsEnabled="{Binding IsApplyArmed}" Margin="0,0,8,0" />
                             <Button Content="Restore defaults" Style="{StaticResource OutlineButtonStyle}" Command="{Binding RestoreSchedulerDefaultsCommand}" IsEnabled="{Binding IsApplyArmed}" />
                         </StackPanel>
+
+                        <TextBlock Margin="0,6,0,0"
+                                   Style="{StaticResource SubtleCaptionTextStyle}"
+                                   TextWrapping="Wrap">
+                            <Run Text="Targets: " />
+                            <Run Text="{Binding SchedulerProcessNames, FallbackValue=None, TargetNullValue=None}" />
+                        </TextBlock>
 
                         <Border Margin="0,10,0,0" Padding="12" CornerRadius="12" Background="#0F1C2F" BorderBrush="#1F2E46" BorderThickness="1">
                             <StackPanel>
@@ -688,7 +699,11 @@
                         <TextBlock Margin="0,4,0,8" Text="Watch for gaming apps, apply a preset automatically, log deltas, and revert in one click." Style="{StaticResource SubtleCaptionTextStyle}" />
 
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <TextBox Width="240" Margin="0,0,8,0" Background="#0E1C30" Foreground="#E5E7EB" BorderBrush="#1F2E46" Text="{Binding AutoTuneProcessNames, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Process names separated by semicolon (e.g., steam;game.exe)" />
+                            <Button Content="Manage processes"
+                                    Style="{StaticResource OutlineButtonStyle}"
+                                    Command="{Binding OpenAutoTunePickerCommand}"
+                                    Padding="12,6"
+                                    Margin="0,0,8,0" />
                             <ComboBox Width="200"
                                       Margin="0,0,8,0"
                                       ItemsSource="{Binding SchedulerPresets}"
@@ -722,6 +737,288 @@
                 </Border>
             </StackPanel>
         </ScrollViewer>
+
+          <Grid Panel.ZIndex="11"
+              Background="#B0020617"
+              Visibility="{Binding IsSchedulerPickerVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsSchedulerPickerVisible}">
+            <Border MaxWidth="820"
+                    Margin="32"
+                    Padding="26"
+                    Background="#0B1729"
+                    BorderBrush="#24344F"
+                    BorderThickness="1"
+                    CornerRadius="22"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Orientation="Vertical" Margin="0,0,0,14">
+                        <TextBlock Text="Scheduler process list"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F8FAFC"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="These processes get the scheduler preset when you apply or automate step 7."
+                                   Foreground="#A9B7D1"
+                                   FontSize="13"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Background="#0A162C"
+                            BorderBrush="#1E2F4B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          MaxHeight="360">
+                                <ListBox ItemsSource="{Binding SchedulerProcesses}"
+                                         SelectedItem="{Binding SelectedSchedulerProcess, Mode=TwoWay}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="#E5E7EB"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Margin" Value="0,2" />
+                                            <Setter Property="Padding" Value="10" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="BorderBrush" Value="#1F2E46" />
+                                            <Setter Property="Background" Value="#0F1C2F" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="BorderBrush" Value="#38BDF8" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#13243B" />
+                                                    <Setter Property="BorderBrush" Value="#38BDF8" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                            </ScrollViewer>
+
+                            <TextBlock Grid.Row="0"
+                                       Text="No processes yet. Add the apps you want to prioritize."
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="#7A869C"
+                                       FontSize="12">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding SchedulerProcesses.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
+                                <TextBox Width="260"
+                                         Margin="0,0,10,0"
+                                         Background="#0E1C30"
+                                         Foreground="#E5E7EB"
+                                         BorderBrush="#1F2E46"
+                                         Text="{Binding NewSchedulerProcessName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Example: dwm.exe or game.exe" />
+                                <Button Content="Add"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Command="{Binding AddSchedulerProcessCommand}"
+                                        Padding="12,6"
+                                        Margin="0,0,8,0" />
+                                <Button Content="Remove"
+                                        Command="{Binding RemoveSchedulerProcessCommand}"
+                                        Padding="12,6">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource OutlineButtonStyle}">
+                                            <Setter Property="IsEnabled" Value="True" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedSchedulerProcess}" Value="{x:Null}">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedSchedulerProcess}" Value="">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,18,0,0">
+                        <Button Content="Close"
+                                Command="{Binding CloseSchedulerPickerCommand}"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                Padding="14,6"
+                                MinWidth="120" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+          <Grid Panel.ZIndex="10"
+              Background="#B0020617"
+              Visibility="{Binding IsAutoTunePickerVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsAutoTunePickerVisible}">
+            <Border MaxWidth="820"
+                    Margin="32"
+                    Padding="26"
+                    Background="#0B1729"
+                    BorderBrush="#24344F"
+                    BorderThickness="1"
+                    CornerRadius="22"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Orientation="Vertical" Margin="0,0,0,14">
+                        <TextBlock Text="Auto-tune process list"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F8FAFC"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Margin="0,6,0,0"
+                                   Text="These processes will trigger auto-tune instantly when they launch."
+                                   Foreground="#A9B7D1"
+                                   FontSize="13"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Background="#0A162C"
+                            BorderBrush="#1E2F4B"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="12">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+
+                            <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled"
+                                          MaxHeight="360">
+                                <ListBox ItemsSource="{Binding AutoTuneProcesses}"
+                                         SelectedItem="{Binding SelectedAutoTuneProcess, Mode=TwoWay}"
+                                         Background="Transparent"
+                                         BorderThickness="0"
+                                         Foreground="#E5E7EB"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="Margin" Value="0,2" />
+                                            <Setter Property="Padding" Value="10" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="BorderBrush" Value="#1F2E46" />
+                                            <Setter Property="Background" Value="#0F1C2F" />
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="BorderBrush" Value="#38BDF8" />
+                                                </Trigger>
+                                                <Trigger Property="IsSelected" Value="True">
+                                                    <Setter Property="Background" Value="#13243B" />
+                                                    <Setter Property="BorderBrush" Value="#38BDF8" />
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                </ListBox>
+                            </ScrollViewer>
+
+                            <TextBlock Grid.Row="0"
+                                       Text="No processes yet. Add a game or launcher to watch."
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       Foreground="#7A869C"
+                                       FontSize="12">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding AutoTuneProcesses.Count}" Value="0">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
+                                <TextBox Width="260"
+                                         Margin="0,0,10,0"
+                                         Background="#0E1C30"
+                                         Foreground="#E5E7EB"
+                                         BorderBrush="#1F2E46"
+                                         Text="{Binding NewAutoTuneProcessName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Example: steam.exe or game.exe" />
+                                <Button Content="Add"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Command="{Binding AddAutoTuneProcessCommand}"
+                                        Padding="12,6"
+                                        Margin="0,0,8,0" />
+                                <Button Content="Remove"
+                                        Command="{Binding RemoveAutoTuneProcessCommand}"
+                                        Padding="12,6">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource OutlineButtonStyle}">
+                                            <Setter Property="IsEnabled" Value="True" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SelectedAutoTuneProcess}" Value="{x:Null}">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding SelectedAutoTuneProcess}" Value="">
+                                                    <Setter Property="IsEnabled" Value="False" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,18,0,0">
+                        <Button Content="Close"
+                                Command="{Binding CloseAutoTunePickerCommand}"
+                                Style="{StaticResource OutlineButtonStyle}"
+                                Padding="14,6"
+                                MinWidth="120" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
 
         <Grid Panel.ZIndex="9"
               Background="#B0020617"

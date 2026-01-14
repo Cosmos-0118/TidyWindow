@@ -10,6 +10,9 @@ public partial class PerformanceLabPage : Page
 
     public PerformanceLabPage(PerformanceLabViewModel viewModel)
     {
+        // Force software rendering before any visual tree is created to avoid render-thread device failures on heavy overlays.
+        System.Windows.Media.RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;

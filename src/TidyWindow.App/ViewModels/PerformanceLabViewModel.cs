@@ -1,8 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Collections.Specialized;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
@@ -33,7 +35,11 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private readonly ActivityLogService _activityLog;
     private readonly PerformanceLabAutomationRunner _automationRunner;
     private readonly AutoTuneAutomationScheduler _autoTuneAutomation;
+    private readonly PerformanceLabProcessListStore _processListStore;
+    private readonly Dispatcher _dispatcher;
     private bool _suspendBootAutomationUpdate;
+    private bool _suspendSchedulerProcessSync;
+    private bool _suspendAutoTuneProcessSync;
 
     public Action<string>? ShowStatusAction { get; set; }
 
@@ -199,6 +205,17 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     [ObservableProperty]
     private string schedulerProcessNames = "dwm;explorer";
 
+    public ObservableCollection<string> SchedulerProcesses { get; }
+
+    [ObservableProperty]
+    private string newSchedulerProcessName = string.Empty;
+
+    [ObservableProperty]
+    private string? selectedSchedulerProcess;
+
+    [ObservableProperty]
+    private bool isSchedulerPickerVisible;
+
     [ObservableProperty]
     private SchedulerPresetOption? selectedSchedulerPreset;
 
@@ -207,6 +224,17 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     [ObservableProperty]
     private string autoTuneProcessNames = "steam;epicgameslauncher";
+
+    public ObservableCollection<string> AutoTuneProcesses { get; }
+
+    [ObservableProperty]
+    private string newAutoTuneProcessName = string.Empty;
+
+    [ObservableProperty]
+    private string? selectedAutoTuneProcess;
+
+    [ObservableProperty]
+    private bool isAutoTunePickerVisible;
 
     [ObservableProperty]
     private string autoTunePresetId = "LatencyBoost";
@@ -239,9 +267,17 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IAsyncRelayCommand DetectSchedulerCommand { get; }
     public IAsyncRelayCommand ApplySchedulerPresetCommand { get; }
     public IAsyncRelayCommand RestoreSchedulerDefaultsCommand { get; }
+    public IRelayCommand OpenSchedulerPickerCommand { get; }
+    public IRelayCommand CloseSchedulerPickerCommand => closeSchedulerPickerCommand ??= new RelayCommand(() => IsSchedulerPickerVisible = false);
+    public IRelayCommand AddSchedulerProcessCommand => addSchedulerProcessCommand ??= new RelayCommand(AddSchedulerProcess, () => !string.IsNullOrWhiteSpace(NewSchedulerProcessName));
+    public IRelayCommand RemoveSchedulerProcessCommand => removeSchedulerProcessCommand ??= new RelayCommand(RemoveSelectedSchedulerProcess, () => !string.IsNullOrWhiteSpace(SelectedSchedulerProcess));
     public IAsyncRelayCommand DetectAutoTuneCommand { get; }
     public IAsyncRelayCommand StartAutoTuneCommand { get; }
     public IAsyncRelayCommand StopAutoTuneCommand { get; }
+    public IRelayCommand OpenAutoTunePickerCommand { get; }
+    public IRelayCommand CloseAutoTunePickerCommand => closeAutoTunePickerCommand ??= new RelayCommand(() => IsAutoTunePickerVisible = false);
+    public IRelayCommand AddAutoTuneProcessCommand => addAutoTuneProcessCommand ??= new RelayCommand(AddAutoTuneProcess, () => !string.IsNullOrWhiteSpace(NewAutoTuneProcessName));
+    public IRelayCommand RemoveAutoTuneProcessCommand => removeAutoTuneProcessCommand ??= new RelayCommand(RemoveSelectedAutoTuneProcess, () => !string.IsNullOrWhiteSpace(SelectedAutoTuneProcess));
     public IAsyncRelayCommand ApplyBootAutomationCommand { get; }
     public IAsyncRelayCommand RunBootAutomationNowCommand { get; }
     public IAsyncRelayCommand DisableAutomationCommand { get; }
@@ -251,6 +287,12 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private IRelayCommand? showStepInfoCommand;
     private IRelayCommand? closeInfoDialogCommand;
+    private IRelayCommand? closeSchedulerPickerCommand;
+    private IRelayCommand? addSchedulerProcessCommand;
+    private IRelayCommand? removeSchedulerProcessCommand;
+    private IRelayCommand? closeAutoTunePickerCommand;
+    private IRelayCommand? addAutoTuneProcessCommand;
+    private IRelayCommand? removeAutoTuneProcessCommand;
 
     public PerformanceLabViewModel(IPerformanceLabService service, ActivityLogService activityLog, PerformanceLabAutomationRunner automationRunner, AutoTuneAutomationScheduler autoTuneAutomation)
     {
@@ -258,6 +300,25 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
         _automationRunner = automationRunner ?? throw new ArgumentNullException(nameof(automationRunner));
         _autoTuneAutomation = autoTuneAutomation ?? throw new ArgumentNullException(nameof(autoTuneAutomation));
+        _dispatcher = Dispatcher.CurrentDispatcher;
+        _processListStore = new PerformanceLabProcessListStore();
+
+        SchedulerProcesses = new ObservableCollection<string>();
+        SchedulerProcesses.CollectionChanged += OnSchedulerProcessesChanged;
+
+        AutoTuneProcesses = new ObservableCollection<string>();
+        AutoTuneProcesses.CollectionChanged += OnAutoTuneProcessesChanged;
+
+        var persistedProcesses = _processListStore.Get();
+        if (!string.IsNullOrWhiteSpace(persistedProcesses.SchedulerProcessNames))
+        {
+            SchedulerProcessNames = persistedProcesses.SchedulerProcessNames;
+        }
+
+        if (!string.IsNullOrWhiteSpace(persistedProcesses.AutoTuneProcessNames))
+        {
+            AutoTuneProcessNames = persistedProcesses.AutoTuneProcessNames;
+        }
 
         Templates = new ObservableCollection<PerformanceTemplateOption>
         {
@@ -295,9 +356,19 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         DetectSchedulerCommand = new AsyncRelayCommand(DetectSchedulerAsync, () => !IsBusy);
         ApplySchedulerPresetCommand = new AsyncRelayCommand(ApplySchedulerPresetAsync, CanRunApplyAction);
         RestoreSchedulerDefaultsCommand = new AsyncRelayCommand(RestoreSchedulerDefaultsAsync, CanRunApplyAction);
+        OpenSchedulerPickerCommand = new RelayCommand(() =>
+        {
+            IsSchedulerPickerVisible = true;
+            NewSchedulerProcessName = string.Empty;
+        });
         DetectAutoTuneCommand = new AsyncRelayCommand(DetectAutoTuneAsync, () => !IsBusy);
         StartAutoTuneCommand = new AsyncRelayCommand(StartAutoTuneAsync, CanRunApplyAction);
         StopAutoTuneCommand = new AsyncRelayCommand(StopAutoTuneAsync, () => !IsBusy);
+        OpenAutoTunePickerCommand = new RelayCommand(() =>
+        {
+            IsAutoTunePickerVisible = true;
+            NewAutoTuneProcessName = string.Empty;
+        });
         ApplyBootAutomationCommand = new AsyncRelayCommand(ApplyBootAutomationAsync, () => !IsBusy);
         RunBootAutomationNowCommand = new AsyncRelayCommand(RunBootAutomationNowAsync, CanRunApplyAction);
         DisableAutomationCommand = new AsyncRelayCommand(DisableAutomationAsync, () => !IsBusy);
@@ -307,6 +378,10 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         _automationRunner.SettingsChanged += OnBootAutomationSettingsChanged;
         _autoTuneAutomation.SettingsChanged += OnAutoTuneAutomationSettingsChanged;
         UpdateAutoTuneAutomationStatus(_autoTuneAutomation.CurrentSettings);
+
+        // Seed process lists from the initial raw string values.
+        SyncSchedulerProcessesFromString(SchedulerProcessNames);
+        SyncAutoTuneProcessesFromString(AutoTuneProcessNames);
     }
 
     private bool CanRunApplyAction() => IsApplyArmed && !IsBusy;
@@ -721,7 +796,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         await RunOperationAsync(async () =>
         {
             var preset = string.IsNullOrWhiteSpace(AutoTunePresetId) ? "LatencyBoost" : AutoTunePresetId;
-            var processes = AutoTuneProcessNames ?? string.Empty;
+            var processes = SerializeAutoTuneProcesses();
+            AutoTuneProcessNames = processes;
             var settings = new AutoTuneAutomationSettings(true, processes, preset, _autoTuneAutomation.CurrentSettings.LastRunUtc);
             var run = await _autoTuneAutomation.ApplySettingsAsync(settings, queueRunImmediately: true).ConfigureAwait(true);
 
@@ -732,14 +808,14 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             else if (run?.WasSkipped == true)
             {
                 AutoTuneStatusMessage = string.IsNullOrWhiteSpace(run.SkipReason)
-                    ? "Auto-tune automation armed; waiting for next window."
+                    ? "Auto-tune automation armed; waiting for the next matching process."
                     : run.SkipReason;
                 AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
                 IsAutoTuneSuccess = false;
             }
             else
             {
-                AutoTuneStatusMessage = "Auto-tune automation armed; next run in 5 minutes.";
+                AutoTuneStatusMessage = "Auto-tune automation armed; will trigger immediately on launch.";
                 AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
                 IsAutoTuneSuccess = true;
             }
@@ -833,6 +909,200 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             EtwMode: "Minimal").Normalize();
     }
 
+    private void AddSchedulerProcess()
+    {
+        var value = (NewSchedulerProcessName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var normalized = NormalizeProcessToken(value);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        if (!SchedulerProcesses.Any(p => string.Equals(p, normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            SchedulerProcesses.Add(normalized);
+        }
+
+        NewSchedulerProcessName = string.Empty;
+    }
+
+    private void RemoveSelectedSchedulerProcess()
+    {
+        if (SelectedSchedulerProcess is null)
+        {
+            return;
+        }
+
+        var existing = SchedulerProcesses.FirstOrDefault(p => string.Equals(p, SelectedSchedulerProcess, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            SchedulerProcesses.Remove(existing);
+        }
+
+        SelectedSchedulerProcess = null;
+    }
+
+    private void OnSchedulerProcessesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_suspendSchedulerProcessSync)
+        {
+            return;
+        }
+
+        SchedulerProcessNames = SerializeSchedulerProcesses();
+        PersistProcessLists();
+        addSchedulerProcessCommand?.NotifyCanExecuteChanged();
+        removeSchedulerProcessCommand?.NotifyCanExecuteChanged();
+    }
+
+    private void SyncSchedulerProcessesFromString(string? raw)
+    {
+        try
+        {
+            _suspendSchedulerProcessSync = true;
+            SchedulerProcesses.Clear();
+
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var tokens = raw
+                    .Split(new[] { ';', ',', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(NormalizeProcessToken)
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .Distinct(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var token in tokens)
+                {
+                    SchedulerProcesses.Add(token);
+                }
+            }
+
+            SchedulerProcessNames = SerializeSchedulerProcesses();
+            SelectedSchedulerProcess = SchedulerProcesses.FirstOrDefault();
+        }
+        finally
+        {
+            _suspendSchedulerProcessSync = false;
+            addSchedulerProcessCommand?.NotifyCanExecuteChanged();
+            removeSchedulerProcessCommand?.NotifyCanExecuteChanged();
+            PersistProcessLists();
+        }
+    }
+
+    private string SerializeSchedulerProcesses()
+    {
+        return string.Join(';', SchedulerProcesses.Where(p => !string.IsNullOrWhiteSpace(p)));
+    }
+
+    private void AddAutoTuneProcess()
+    {
+        var value = (NewAutoTuneProcessName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        var normalized = NormalizeProcessToken(value);
+        if (string.IsNullOrWhiteSpace(normalized))
+        {
+            return;
+        }
+
+        if (!AutoTuneProcesses.Any(p => string.Equals(p, normalized, StringComparison.OrdinalIgnoreCase)))
+        {
+            AutoTuneProcesses.Add(normalized);
+        }
+
+        NewAutoTuneProcessName = string.Empty;
+    }
+
+    private void RemoveSelectedAutoTuneProcess()
+    {
+        if (SelectedAutoTuneProcess is null)
+        {
+            return;
+        }
+
+        var existing = AutoTuneProcesses.FirstOrDefault(p => string.Equals(p, SelectedAutoTuneProcess, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            AutoTuneProcesses.Remove(existing);
+        }
+
+        SelectedAutoTuneProcess = null;
+    }
+
+    private void OnAutoTuneProcessesChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        if (_suspendAutoTuneProcessSync)
+        {
+            return;
+        }
+
+        AutoTuneProcessNames = SerializeAutoTuneProcesses();
+        addAutoTuneProcessCommand?.NotifyCanExecuteChanged();
+        removeAutoTuneProcessCommand?.NotifyCanExecuteChanged();
+        PersistProcessLists();
+    }
+
+    private void SyncAutoTuneProcessesFromString(string? raw)
+    {
+        try
+        {
+            _suspendAutoTuneProcessSync = true;
+            AutoTuneProcesses.Clear();
+
+            if (!string.IsNullOrWhiteSpace(raw))
+            {
+                var tokens = raw
+                    .Split(new[] { ';', ',', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(NormalizeProcessToken)
+                    .Where(t => !string.IsNullOrWhiteSpace(t))
+                    .Distinct(StringComparer.OrdinalIgnoreCase);
+
+                foreach (var token in tokens)
+                {
+                    AutoTuneProcesses.Add(token);
+                }
+            }
+
+            AutoTuneProcessNames = SerializeAutoTuneProcesses();
+            SelectedAutoTuneProcess = AutoTuneProcesses.FirstOrDefault();
+        }
+        finally
+        {
+            _suspendAutoTuneProcessSync = false;
+            addAutoTuneProcessCommand?.NotifyCanExecuteChanged();
+            removeAutoTuneProcessCommand?.NotifyCanExecuteChanged();
+            PersistProcessLists();
+        }
+    }
+
+    private string SerializeAutoTuneProcesses()
+    {
+        return string.Join(';', AutoTuneProcesses.Where(p => !string.IsNullOrWhiteSpace(p)));
+    }
+
+    private void PersistProcessLists()
+    {
+        _processListStore.Save(SchedulerProcessNames ?? string.Empty, AutoTuneProcessNames ?? string.Empty);
+    }
+
+    private static string NormalizeProcessToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = token.Trim();
+        return trimmed.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? trimmed : $"{trimmed}.exe";
+    }
+
     private void LoadBootAutomationSettings(PerformanceLabAutomationSettings settings)
     {
         _suspendBootAutomationUpdate = true;
@@ -847,13 +1117,22 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         AutoApplyEtw = snapshot.ApplyEtwCleanup;
         AutoApplyScheduler = snapshot.ApplySchedulerPreset;
         AutoApplyAutoTune = snapshot.ApplyAutoTune;
+        if (!string.IsNullOrWhiteSpace(snapshot.SchedulerProcessNames))
+        {
+            SchedulerProcessNames = snapshot.SchedulerProcessNames;
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.AutoTuneProcessNames))
+        {
+            AutoTuneProcessNames = snapshot.AutoTuneProcessNames;
+        }
         _suspendBootAutomationUpdate = false;
         UpdateBootAutomationStatus(settings);
     }
 
     private void OnBootAutomationSettingsChanged(object? sender, PerformanceLabAutomationSettings settings)
     {
-        LoadBootAutomationSettings(settings);
+        RunOnUi(() => LoadBootAutomationSettings(settings));
     }
 
     private void UpdateBootAutomationStatus(PerformanceLabAutomationSettings settings)
@@ -879,8 +1158,32 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private void OnAutoTuneAutomationSettingsChanged(object? sender, AutoTuneAutomationSettings settings)
     {
-        AutoTuneProcessNames = settings.ProcessNames;
-        AutoTunePresetId = settings.PresetId;
+        RunOnUi(() =>
+        {
+            var rawNames = string.IsNullOrWhiteSpace(settings.ProcessNames)
+                ? AutoTuneProcessNames
+                : settings.ProcessNames;
+            AutoTuneProcessNames = rawNames;
+            SyncAutoTuneProcessesFromString(rawNames);
+            AutoTunePresetId = string.IsNullOrWhiteSpace(settings.PresetId) ? AutoTunePresetId : settings.PresetId;
+
+            if (settings.AutomationEnabled)
+            {
+                var lastRun = settings.LastRunUtc;
+                var lastLabel = lastRun is null
+                    ? "First run pending."
+                    : $"Last run {FormatRelative(lastRun.Value)}.";
+                AutoTuneStatusMessage = $"Auto-tune automation active (instant on launch). {lastLabel}";
+                AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+                return;
+            }
+
+            if (!IsAutoTuneSuccess)
+            {
+                AutoTuneStatusMessage = "Auto-tune automation is off.";
+                AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
+            }
+        });
 
         if (settings.AutomationEnabled)
         {
@@ -888,7 +1191,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             var lastLabel = lastRun is null
                 ? "First run pending."
                 : $"Last run {FormatRelative(lastRun.Value)}.";
-            AutoTuneStatusMessage = $"Auto-tune automation active (5-minute cadence). {lastLabel}";
+            AutoTuneStatusMessage = $"Auto-tune automation active (instant on launch). {lastLabel}";
             AutoTuneStatusTimestamp = DateTime.Now.ToString("HH:mm:ss");
             return;
         }
@@ -905,12 +1208,43 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         OnAutoTuneAutomationSettingsChanged(this, settings);
     }
 
+    private void RunOnUi(Action action)
+    {
+        if (_dispatcher.CheckAccess())
+        {
+            action();
+            return;
+        }
+
+        _dispatcher.Invoke(action);
+    }
+
     partial void OnIsApplyArmedChanged(bool value)
     {
         ApplyGuardStatus = value
             ? "Write actions armed for this session."
             : "Write actions are locked. Arm tweaks to enable apply buttons.";
         NotifyCommandStates();
+    }
+
+    partial void OnNewSchedulerProcessNameChanged(string value)
+    {
+        addSchedulerProcessCommand?.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedSchedulerProcessChanged(string? value)
+    {
+        removeSchedulerProcessCommand?.NotifyCanExecuteChanged();
+    }
+
+    partial void OnNewAutoTuneProcessNameChanged(string value)
+    {
+        addAutoTuneProcessCommand?.NotifyCanExecuteChanged();
+    }
+
+    partial void OnSelectedAutoTuneProcessChanged(string? value)
+    {
+        removeAutoTuneProcessCommand?.NotifyCanExecuteChanged();
     }
 
     partial void OnIsBootAutomationEnabledChanged(bool value)

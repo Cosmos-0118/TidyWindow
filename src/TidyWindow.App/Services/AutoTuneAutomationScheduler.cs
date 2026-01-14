@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Management;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Automation;
@@ -8,19 +11,19 @@ using TidyWindow.Core.Performance;
 namespace TidyWindow.App.Services;
 
 /// <summary>
-/// Runs auto-tune on a fixed cadence (5 minutes) instead of continuous polling.
+/// Runs auto-tune using process start events (instant) without polling.
 /// </summary>
 public sealed class AutoTuneAutomationScheduler : IDisposable
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
-
     private readonly AutoTuneAutomationSettingsStore _store;
     private readonly IPerformanceLabService _service;
     private readonly ActivityLogService _activityLog;
     private readonly IAutomationWorkTracker _workTracker;
     private readonly SemaphoreSlim _runLock = new(1, 1);
     private AutoTuneAutomationSettings _settings;
-    private System.Threading.Timer? _timer;
+    private ManagementEventWatcher? _processStartWatcher;
+    private IReadOnlyList<string> _normalizedProcessNames = Array.Empty<string>();
+    private bool _processWatcherWarningLogged;
     private bool _disposed;
 
     public AutoTuneAutomationScheduler(
@@ -35,7 +38,7 @@ public sealed class AutoTuneAutomationScheduler : IDisposable
         _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
 
         _settings = _store.Get().Normalize();
-        ConfigureTimer();
+        ConfigureProcessWatcher();
     }
 
     public AutoTuneAutomationSettings CurrentSettings => _settings;
@@ -49,7 +52,7 @@ public sealed class AutoTuneAutomationScheduler : IDisposable
         var normalized = settings.Normalize();
         _settings = normalized;
         _store.Save(normalized);
-        ConfigureTimer();
+        ConfigureProcessWatcher();
         OnSettingsChanged();
 
         if (queueRunImmediately && normalized.AutomationEnabled)
@@ -122,34 +125,121 @@ public sealed class AutoTuneAutomationScheduler : IDisposable
         }
     }
 
-    private void ConfigureTimer()
+    private void ConfigureProcessWatcher()
     {
-        _timer?.Dispose();
-        _timer = null;
+        if (_processStartWatcher is not null)
+        {
+            _processStartWatcher.EventArrived -= OnProcessStarted;
+            _processStartWatcher.Dispose();
+            _processStartWatcher = null;
+        }
 
-        if (!_settings.AutomationEnabled)
+        _normalizedProcessNames = NormalizeProcessNames(_settings.ProcessNames);
+
+        if (!_settings.AutomationEnabled || _normalizedProcessNames.Count == 0)
         {
             return;
         }
 
-        var interval = Interval;
-        var dueTime = interval;
-        if (_settings.LastRunUtc is { } lastRun)
-        {
-            var elapsed = DateTimeOffset.UtcNow - lastRun;
-            dueTime = elapsed >= interval ? TimeSpan.Zero : interval - elapsed;
-        }
-        else
-        {
-            dueTime = TimeSpan.Zero;
-        }
+        var filter = BuildProcessFilter(_normalizedProcessNames);
+        var queryText = string.IsNullOrWhiteSpace(filter)
+            ? "SELECT ProcessName FROM Win32_ProcessStartTrace"
+            : $"SELECT ProcessName FROM Win32_ProcessStartTrace WHERE {filter}";
 
-        _timer = new System.Threading.Timer(OnTimerTick, null, dueTime, interval);
+        try
+        {
+            var query = new WqlEventQuery(queryText);
+            var scope = new ManagementScope("root\\CIMV2");
+            scope.Connect();
+
+            _processStartWatcher = new ManagementEventWatcher(scope, query);
+            _processStartWatcher.EventArrived += OnProcessStarted;
+            _processStartWatcher.Start();
+        }
+        catch (Exception ex)
+        {
+            if (!_processWatcherWarningLogged)
+            {
+                _activityLog.LogWarning("Auto-tune automation", $"Process watcher unavailable: {ex.Message}");
+                _processWatcherWarningLogged = true;
+            }
+
+            _processStartWatcher = null;
+            _normalizedProcessNames = Array.Empty<string>();
+        }
     }
 
-    private void OnTimerTick(object? state)
+    private void OnProcessStarted(object? sender, EventArrivedEventArgs args)
     {
-        _ = RunOnceInternalAsync(isBackground: true, CancellationToken.None);
+        try
+        {
+            var rawName = args.NewEvent?.Properties?["ProcessName"]?.Value as string;
+            if (string.IsNullOrWhiteSpace(rawName))
+            {
+                return;
+            }
+
+            var normalized = NormalizeProcessName(rawName);
+            if (!_normalizedProcessNames.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _ = RunOnceInternalAsync(isBackground: true, CancellationToken.None);
+        }
+        catch
+        {
+            // Swallow to keep the watcher alive even if a single event fails to parse.
+        }
+    }
+
+    private static IReadOnlyList<string> NormalizeProcessNames(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return Array.Empty<string>();
+        }
+
+        var split = raw
+            .Split(new[] { ';', ',', '\n', '\r', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(NormalizeProcessName)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return split;
+    }
+
+    private static string NormalizeProcessName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = name.Trim();
+        var fileName = Path.GetFileName(trimmed);
+        if (string.IsNullOrWhiteSpace(fileName))
+        {
+            return string.Empty;
+        }
+
+        var withExtension = fileName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+            ? fileName
+            : $"{fileName}.exe";
+
+        // Preserve internal spaces (e.g., "Wuthering Waves.exe") instead of collapsing/splitting.
+        return withExtension;
+    }
+
+    private static string BuildProcessFilter(IReadOnlyList<string> processNames)
+    {
+        if (processNames.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        return string.Join(" OR ", processNames.Select(n => $"ProcessName = '{n.Replace("'", "''")}'"));
     }
 
     private void UpdateLastRun(DateTimeOffset timestamp)
@@ -217,7 +307,12 @@ public sealed class AutoTuneAutomationScheduler : IDisposable
         }
 
         _disposed = true;
-        _timer?.Dispose();
+        if (_processStartWatcher is not null)
+        {
+            _processStartWatcher.EventArrived -= OnProcessStarted;
+            _processStartWatcher.Dispose();
+            _processStartWatcher = null;
+        }
         _runLock.Dispose();
     }
 }
