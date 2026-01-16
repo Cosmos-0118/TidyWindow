@@ -1,10 +1,10 @@
 {
-  "version": "3.8.8",
+  "version": "3.8.9",
   "channel": "stable",
-  "summary": "##  Driver Cleanup + Reliability\n\n- Restored missing bootstrap + removed stray braces so `ram-purge.ps1` runs cleanly\n- Driver removal now **blocks active bindings**:\n  - Uses `Get-PnpDevice -PresentOnly` + Win32 fallback\n  - Prevents removal of drivers still attached to hardware\n\n###  Metadata Handling\n- Rebuilt metadata retrieval across Win32_PnPSignedDriver, pnputil, Get-WindowsDriver & DriverStore\n- Normalized date parsing + field merging to avoid nulls/arrays\n- Cleanup loop now handles arrays safely and picks best dated entry\n- Prevents `System.Object[]` errors and enables proper stale-removal\n\n---\n\n##  Store & AppX Repair Improvements\n\n- Store cache reset now:\n  - Stops Store processes first\n  - Falls back to manual cache purge when wsreset fails\n  - Logs which method was used\n- Added helpers for Store process-stop + manual clearing\n- AppX re-register now detects **dependency errors (0x80073CFD)**, logs affected packages, and includes them in summary\n\n---\n\n##  UI / UX Tweaks\n\n- Pivot buttons now share consistent margins + widths via UniformGrid\n- Updated Registry Optimizer nav glyph for reliable icon display",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.8/TidyWindow-Setup-3.8.8.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.8",
-  "publishedAt": "2026-01-14T19:08:07Z",
-  "installerSizeBytes": 90817191,
-  "sha256": "1630637c95600b85b3259643b1b22a10b1daee205ff259346fa8182e674bfbb6"
+  "summary": "##  Anti-Cheat & Kernel Restore Cleanup\n\n###  Anti-Cheat UI\n- added chip to functions that affect anti-cheat of games.\n\n###  Kernel & VBS/HVCI Restore\n- Treat missing BCD values as **benign**:\n  - `/deletevalue` “Element not found” no longer errors or fails\n- VBS/HVCI restore now:\n  - Ignores missing hypervisorlaunchtype\n  - Falls back only on real failures\n  - Logs success if already default",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.9/TidyWindow-Setup-3.8.9.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.9",
+  "publishedAt": "2026-01-16T09:21:37Z",
+  "installerSizeBytes": 90959132,
+  "sha256": "e7ccd349acef68d7bc85a9d40cfb870c83ddf2193c8092933cd968efaf094e52"
 }
