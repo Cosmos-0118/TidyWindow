@@ -19,6 +19,7 @@ public interface IPerformanceLabService
     Task<PowerShellInvocationResult> DetectVbsHvciAsync(CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> DisableVbsHvciAsync(CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> RestoreVbsHvciAsync(CancellationToken cancellationToken = default);
+    Task<PowerShellInvocationResult> RestoreAntiCheatDefaultsAsync(CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> DetectEtwTracingAsync(CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> CleanupEtwTracingAsync(string mode = "Minimal", CancellationToken cancellationToken = default);
     Task<PowerShellInvocationResult> RestoreEtwTracingAsync(CancellationToken cancellationToken = default);
@@ -181,6 +182,14 @@ public sealed class PerformanceLabService : IPerformanceLabService
         return InvokeScriptAsync("vbs-hvci-controls.ps1", new Dictionary<string, object?>
         {
             ["RestoreDefaults"] = true,
+            ["PassThru"] = true
+        }, cancellationToken);
+    }
+
+    public Task<PowerShellInvocationResult> RestoreAntiCheatDefaultsAsync(CancellationToken cancellationToken = default)
+    {
+        return InvokeScriptAsync("anti-cheat-friendly.ps1", new Dictionary<string, object?>
+        {
             ["PassThru"] = true
         }, cancellationToken);
     }

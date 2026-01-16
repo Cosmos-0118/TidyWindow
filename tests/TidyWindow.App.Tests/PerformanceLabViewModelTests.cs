@@ -171,6 +171,11 @@ public class PerformanceLabViewModelTests
             return Task.FromResult(SuccessResult("mode: RestoreVbsHvci"));
         }
 
+        public Task<PowerShellInvocationResult> RestoreAntiCheatDefaultsAsync(CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(SuccessResult("mode: AntiCheatReset"));
+        }
+
         public Task<PowerShellInvocationResult> DetectEtwTracingAsync(CancellationToken cancellationToken = default)
         {
             return Task.FromResult(SuccessResult("mode: DetectEtw"));

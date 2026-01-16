@@ -161,6 +161,14 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="AntiCheatChipStyle" TargetType="Border" BasedOn="{StaticResource ChipStyle}">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="8,0,0,0" />
+            <Setter Property="Background" Value="#2C1A1A" />
+            <Setter Property="BorderBrush" Value="#F87171" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Foreground" Value="#07111D" />
             <Setter Property="Padding" Value="14,8" />
@@ -517,6 +525,9 @@
                                 <TextBlock Text="Step 4" Foreground="#22D3EE" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Kernel &amp; boot controls" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Border Style="{StaticResource AntiCheatChipStyle}">
+                                <TextBlock Text="Anti-cheat sensitive" Foreground="#FECACA" FontSize="12" />
+                            </Border>
                             <Button Content="Info"
                                     Style="{StaticResource OutlineButtonStyle}"
                                     Padding="10,4"
@@ -553,6 +564,9 @@
                                 <TextBlock Text="Step 5" Foreground="#2DD4BF" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Core Isolation (VBS/HVCI)" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Border Style="{StaticResource AntiCheatChipStyle}">
+                                <TextBlock Text="Anti-cheat sensitive" Foreground="#FECACA" FontSize="12" />
+                            </Border>
                             <Button Content="Info"
                                     Style="{StaticResource OutlineButtonStyle}"
                                     Padding="10,4"
@@ -590,6 +604,9 @@
                                 <TextBlock Text="Step 6" Foreground="#60A5FA" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="ETW tracing cleanup" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Border Style="{StaticResource AntiCheatChipStyle}">
+                                <TextBlock Text="Anti-cheat sensitive" Foreground="#FECACA" FontSize="12" />
+                            </Border>
                             <Button Content="Info"
                                     Style="{StaticResource OutlineButtonStyle}"
                                     Padding="10,4"
@@ -628,6 +645,9 @@
                                 <TextBlock Text="Step 7" Foreground="#F59E0B" FontWeight="Bold" />
                             </Border>
                             <TextBlock Text="Scheduler &amp; affinity toolbox" Style="{StaticResource SectionHeaderTextStyle}" />
+                            <Border Style="{StaticResource AntiCheatChipStyle}">
+                                <TextBlock Text="Anti-cheat sensitive" Foreground="#FECACA" FontSize="12" />
+                            </Border>
                             <Button Content="Info"
                                     Style="{StaticResource OutlineButtonStyle}"
                                     Padding="10,4"

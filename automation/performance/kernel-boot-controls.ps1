@@ -76,7 +76,11 @@ foreach ($cmd in $commands) {
     $display = ($args -join ' ')
     if ($PSCmdlet.ShouldProcess($display, 'bcdedit')) {
         $result = Invoke-BcdCommand -Arguments $args
-        if ($result.ExitCode -ne 0) {
+        $outputText = ($result.Output -join "`n")
+        # Treat "Element not found" as benign when clearing values that may not exist.
+        $isMissingElement = $result.ExitCode -eq 1 -and $outputText -match 'Element not found'
+
+        if ($result.ExitCode -ne 0 -and -not $isMissingElement) {
             $entry = [pscustomobject]@{ Message = "bcdedit $display returned $($result.ExitCode): $($result.Output)"; Optional = $optional }
             if ($optional) {
                 $optionalFailures += $entry

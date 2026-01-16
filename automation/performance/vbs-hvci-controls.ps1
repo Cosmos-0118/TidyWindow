@@ -102,8 +102,18 @@ switch ($intent) {
         $cmd = @('/deletevalue','{current}','hypervisorlaunchtype')
         if ($PSCmdlet.ShouldProcess('bcdedit', ($cmd -join ' '))) {
             $output = & bcdedit @cmd 2>&1
-            if ($LASTEXITCODE -ne 0) {
-                # Fallback to auto if delete fails (value may not exist)
+            $outputText = ($output -join "`n")
+            $isMissingElement = $LASTEXITCODE -eq 1 -and $outputText -match 'Element not found'
+
+            if ($LASTEXITCODE -eq 0) {
+                $changes += 'hypervisorlaunchtype cleared (default auto)'
+            }
+            elseif ($isMissingElement) {
+                # Treat already-default state as success when no value exists to delete.
+                $changes += 'hypervisorlaunchtype already at default'
+            }
+            else {
+                # Fallback to auto only when delete genuinely fails for another reason.
                 $fallback = & bcdedit /set {current} hypervisorlaunchtype auto 2>&1
                 if ($LASTEXITCODE -ne 0) {
                     $failures += "bcdedit restore hypervisorlaunchtype failed: $fallback"
@@ -111,9 +121,6 @@ switch ($intent) {
                 else {
                     $changes += 'hypervisorlaunchtype set to auto'
                 }
-            }
-            else {
-                $changes += 'hypervisorlaunchtype cleared (default auto)'
             }
         }
     }
