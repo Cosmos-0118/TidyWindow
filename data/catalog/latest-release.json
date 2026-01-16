@@ -1,10 +1,10 @@
 {
-  "version": "3.8.7",
+  "version": "3.8.8",
   "channel": "stable",
-  "summary": "##  Auto-Tune & Scheduler\n\n- Added **instant game/launcher detection** via WMI watcher (no wait)\n- Normalized process names and cleaned watcher lifecycle\n- Removed 5-minute polling timer - process-start events only\n- Replaced textbox with **Manage processes** modal (add/remove/de-dupe)\n- Auto-tune + scheduler now share curated lists with synced commands\n- Added persisted store in %LocalAppData% (survives restarts)\n\n---\n\n##  AppX Repair Reliability\n\n- Added retry + process-stop on **0x80073D02 “in use”**\n- Applied to all AppX reinstall paths (Store, frameworks, provisioned)\n- Added helpers + hints for ShellExperienceHost/StartMenu/Settings\n- Shared process-stop helper now reusable across scripts\n\n---\n\n##  Logging & Output\n\n- New `Limit-TidyLength` to cap oversized log payloads\n- Strip ANSI earlier + set **NO_COLOR**\n- Added `Write-TidyInfo/Warning/Error` (sanitized output)\n- Consistent formatting across all automation modules\n\n---\n\n##  Essentials Queue & Time Sync\n\n- Queue **auto-prepends System Restore** before any non-restore task\n- Added w32tm **offset verification** with warnings + opt-out flag\n- Locale reset now **opt-in** (no forced en-US)\n\n---\n\n##  UI & UX\n\n- Added **collapse/restore hero header** for Startup page\n- Persisted ShowStartupHero preference across sessions\n- Cleanup page overlays now scrollable + centered for small screens\n- Enabled ClearType caching + high-quality scaling in preview phase",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.7/TidyWindow-Setup-3.8.7.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.7",
-  "publishedAt": "2026-01-14T08:21:48Z",
-  "installerSizeBytes": 90808904,
-  "sha256": "bb5d359792d4872f13781d619aa340ab1402a38f35923fa8b2d4a5d93bc365e2"
+  "summary": "##  Driver Cleanup + Reliability\n\n- Restored missing bootstrap + removed stray braces so `ram-purge.ps1` runs cleanly\n- Driver removal now **blocks active bindings**:\n  - Uses `Get-PnpDevice -PresentOnly` + Win32 fallback\n  - Prevents removal of drivers still attached to hardware\n\n###  Metadata Handling\n- Rebuilt metadata retrieval across Win32_PnPSignedDriver, pnputil, Get-WindowsDriver & DriverStore\n- Normalized date parsing + field merging to avoid nulls/arrays\n- Cleanup loop now handles arrays safely and picks best dated entry\n- Prevents `System.Object[]` errors and enables proper stale-removal\n\n---\n\n##  Store & AppX Repair Improvements\n\n- Store cache reset now:\n  - Stops Store processes first\n  - Falls back to manual cache purge when wsreset fails\n  - Logs which method was used\n- Added helpers for Store process-stop + manual clearing\n- AppX re-register now detects **dependency errors (0x80073CFD)**, logs affected packages, and includes them in summary\n\n---\n\n##  UI / UX Tweaks\n\n- Pivot buttons now share consistent margins + widths via UniformGrid\n- Updated Registry Optimizer nav glyph for reliable icon display",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.8/TidyWindow-Setup-3.8.8.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.8",
+  "publishedAt": "2026-01-14T19:08:07Z",
+  "installerSizeBytes": 90817191,
+  "sha256": "1630637c95600b85b3259643b1b22a10b1daee205ff259346fa8182e674bfbb6"
 }
