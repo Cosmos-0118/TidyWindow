@@ -199,6 +199,7 @@ function Invoke-NativeWithTimeout {
 
     $proc = New-Object System.Diagnostics.Process
     $proc.StartInfo = $psi
+    $proc.EnableRaisingEvents = $true
 
     Write-TidyOutput -Message $Description
 
@@ -206,19 +207,27 @@ function Invoke-NativeWithTimeout {
         throw "$Description failed to start."
     }
 
+    $stdoutTask = $proc.StandardOutput.ReadToEndAsync()
+    $stderrTask = $proc.StandardError.ReadToEndAsync()
+
     $exited = $proc.WaitForExit($TimeoutSeconds * 1000)
     if (-not $exited) {
         try { $proc.Kill() } catch {}
         throw "$Description timed out after $TimeoutSeconds seconds and was terminated."
     }
 
-    $stdout = $proc.StandardOutput.ReadToEnd()
-    $stderr = $proc.StandardError.ReadToEnd()
+    # Ensure remaining buffered output is drained before inspecting ExitCode.
+    $proc.WaitForExit()
+    [void][System.Threading.Tasks.Task]::WaitAll(@($stdoutTask, $stderrTask), 5000)
+
+    $stdout = $stdoutTask.Result
+    $stderr = $stderrTask.Result
+
+    $exitCode = $proc.ExitCode
 
     foreach ($line in ($stdout -split "`r?`n")) { if ($line) { Write-TidyOutput -Message $line } }
     foreach ($line in ($stderr -split "`r?`n")) { if ($line) { Write-TidyError -Message $line } }
 
-    $exitCode = $proc.ExitCode
     if ($AcceptableExitCodes -and -not ($AcceptableExitCodes -contains $exitCode)) {
         throw "$Description failed with exit code $exitCode."
     }
@@ -243,7 +252,7 @@ function Ensure-Elevation {
         $scriptPath = $PSCommandPath
         if ([string]::IsNullOrWhiteSpace($scriptPath)) { $scriptPath = $MyInvocation.MyCommand.Path }
 
-        $argList = @('-NoProfile','-ExecutionPolicy','Bypass','-File',"$scriptPath")
+        $argList = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "$scriptPath")
         foreach ($k in $PSBoundParameters.Keys) {
             $val = $PSBoundParameters[$k]
             if ($val -is [switch]) {
@@ -312,7 +321,7 @@ function Invoke-DismHealthPass {
 
         if ($shouldRunRestoreHealth) {
             Write-TidyOutput -Message 'Repairing Windows component store corruption (RestoreHealth, limit network sources).'
-            $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth /LimitAccess' -Description 'DISM RestoreHealth' -TimeoutSeconds 2700 -AcceptableExitCodes @(0,3010)
+            $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth /LimitAccess' -Description 'DISM RestoreHealth' -TimeoutSeconds 2700 -AcceptableExitCodes @(0, 3010)
             if ($restoreExit -eq 3010) {
                 Write-TidyOutput -Message 'DISM RestoreHealth completed and requested a reboot (3010).'
             }
@@ -367,7 +376,7 @@ try {
     if (-not $SkipSfc.IsPresent) {
         Write-TidyOutput -Message ("Running System File Checker (timeout {0}s; can take 5-20+ minutes)." -f $SfcTimeoutSeconds)
         $sfcPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\sfc.exe'
-        $sfcExit = Invoke-NativeWithTimeout -FilePath $sfcPath -Arguments '/scannow' -Description 'Running SFC /scannow.' -TimeoutSeconds $SfcTimeoutSeconds -AcceptableExitCodes @(0,1,2)
+        $sfcExit = Invoke-NativeWithTimeout -FilePath $sfcPath -Arguments '/scannow' -Description 'Running SFC /scannow.' -TimeoutSeconds $SfcTimeoutSeconds -AcceptableExitCodes @(0, 1, 2)
 
         switch ($sfcExit) {
             0 { Write-TidyOutput -Message 'SFC completed without finding integrity violations.' }
@@ -410,10 +419,10 @@ finally {
     # Write a short run summary to the log path
     try {
         $summary = [pscustomobject]@{
-            Time = (Get-Date).ToString('o')
-            Success = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
-            OutputLines = $script:TidyOutputLines.Count
-            ErrorLines = $script:TidyErrorLines.Count
+            Time           = (Get-Date).ToString('o')
+            Success        = $script:OperationSucceeded -and ($script:TidyErrorLines.Count -eq 0)
+            OutputLines    = $script:TidyOutputLines.Count
+            ErrorLines     = $script:TidyErrorLines.Count
             TranscriptPath = $transcriptPath
         }
         $summary | ConvertTo-Json -Depth 3 | Out-File -FilePath $LogPath -Encoding UTF8
