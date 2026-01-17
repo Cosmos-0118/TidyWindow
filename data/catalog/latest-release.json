@@ -1,10 +1,10 @@
 {
-  "version": "3.9.0",
+  "version": "3.9.1",
   "channel": "stable",
-  "summary": "##  PowerShell Concurrency & Automation Stability\n\n- Fixed parallel automation race by **serializing TypeAccelerators cache init** with a thread-safe lazy warm-up\n- Bootstrap now warms TypeAccelerators via reflection to keep initialization single-threaded\n- Added explicit threading/task usings for clarity and safety\n- Added a **12-way parallel stress test** to verify `InvokeScriptAsync` thread safety\n\n###  Automation & Test Fixes\n- Hardware Reserved Memory detection now counts as **applied success**\n- Added armed-VM helper and enabled automation actions in boot automation tests so snapshots execute correctly",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.9.0/TidyWindow-Setup-3.9.0.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.9.0",
-  "publishedAt": "2026-01-17T11:26:19Z",
-  "installerSizeBytes": 90958069,
-  "sha256": "a8271fda65c7ed575928043a7740cb830738c0e54d07d9e31bdc540f150b7c97"
+  "summary": "##  SFC Timeout & Runspace Fix\n\n- Fixed false **SFC /scannow timeouts** caused by a stdout/stderr buffering deadlock in `Invoke-NativeWithTimeout`\n- Output is now **streamed while the process runs** and remaining buffers are drained before reading `ExitCode`\n- Prevents pipe buffer saturation that previously blocked SFC from exiting\n\n###  Runspace Safety\n- Removed async stdout/stderr event logging that ran on background threads\n- Output is now captured, awaited, and logged **on the main runspace thread**\n- Eliminates runspace errors during native process execution",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.9.1/TidyWindow-Setup-3.9.1.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.9.1",
+  "publishedAt": "2026-01-17T14:33:24Z",
+  "installerSizeBytes": 90959074,
+  "sha256": "fe124ef05bfa4893f7f3ff082c2930397a9a221135c4c059fec0b9b0a619c61f"
 }
