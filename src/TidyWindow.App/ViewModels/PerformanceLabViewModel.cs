@@ -510,7 +510,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
             }
 
             var hardwareResult = await _service.DetectHardwareReservedMemoryAsync().ConfigureAwait(true);
-            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", hardwareResult, markApplied: false);
+            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", hardwareResult);
 
             var kernelStatus = await _service.GetKernelBootStatusAsync().ConfigureAwait(true);
             KernelStatusMessage = kernelStatus.Summary;
@@ -555,7 +555,7 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
         await RunOperationAsync(async () =>
         {
             var result = await _service.DetectHardwareReservedMemoryAsync().ConfigureAwait(true);
-            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", result, markApplied: false);
+            HandleHardwareResult("PerformanceLab", "Hardware reserved memory detected", result);
         }).ConfigureAwait(false);
     }
 

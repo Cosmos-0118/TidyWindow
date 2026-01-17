@@ -6,6 +6,9 @@ using System.IO;
 using System.Linq;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 
@@ -19,6 +22,25 @@ public sealed class PowerShellInvoker
     private const int MaxDetailDepth = 4;
     private const int MaxSerializedLength = 4096;
 
+    // Work around TypeAccelerators.FillCache being non-thread-safe by forcing a single-threaded init.
+    private static readonly Lazy<bool> TypeAcceleratorsInitialized = new(
+        () =>
+        {
+            try
+            {
+                var type = typeof(LanguagePrimitives).Assembly.GetType("System.Management.Automation.TypeAccelerators");
+                var getter = type?.GetProperty("Get", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+                _ = getter?.GetValue(null);
+            }
+            catch
+            {
+                // Let subsequent calls surface real failures if warm-up cannot complete.
+            }
+
+            return true;
+        },
+        LazyThreadSafetyMode.ExecutionAndPublication);
+
     private static readonly JsonSerializerOptions OutputSerializerOptions = new()
     {
         WriteIndented = false,
@@ -31,6 +53,8 @@ public sealed class PowerShellInvoker
         IReadOnlyDictionary<string, object?>? parameters = null,
         CancellationToken cancellationToken = default)
     {
+        _ = TypeAcceleratorsInitialized.Value; // Ensure PowerShell type accelerator cache is populated once.
+
         if (string.IsNullOrWhiteSpace(scriptPath))
         {
             throw new ArgumentException("Script path must be provided.", nameof(scriptPath));

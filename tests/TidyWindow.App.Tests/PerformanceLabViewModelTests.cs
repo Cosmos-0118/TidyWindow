@@ -26,11 +26,18 @@ public class PerformanceLabViewModelTests
         return new PerformanceLabViewModel(fake, activity, automationRunner, autoTuneScheduler);
     }
 
+    private static PerformanceLabViewModel CreateArmedVm(FakePerformanceLabService fake)
+    {
+        var vm = CreateVm(fake);
+        vm.IsApplyArmed = true;
+        return vm;
+    }
+
     [Fact]
     public async Task EnableUltimatePlan_SetsSuccessAndUltimate()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
         await vm.EnableUltimatePlanCommand.ExecuteAsync(null);
 
@@ -42,7 +49,7 @@ public class PerformanceLabViewModelTests
     public async Task ApplyServiceTemplate_CreatesBackupStatus()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
         await vm.ApplyServiceTemplateCommand.ExecuteAsync(fake.TemplateOption);
 
@@ -54,7 +61,7 @@ public class PerformanceLabViewModelTests
     public async Task DetectHardwareReserved_ReportsDetection()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
         await vm.DetectHardwareReservedCommand.ExecuteAsync(null);
 
@@ -66,7 +73,7 @@ public class PerformanceLabViewModelTests
     public async Task ApplyKernelPreset_ReportsApplied()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
         await vm.ApplyKernelPresetCommand.ExecuteAsync(null);
 
@@ -78,7 +85,7 @@ public class PerformanceLabViewModelTests
     public async Task DisableVbsHvci_ReportsStatus()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
         await vm.DisableVbsHvciCommand.ExecuteAsync(null);
 
@@ -90,7 +97,7 @@ public class PerformanceLabViewModelTests
     public async Task CleanupEtwMinimal_ReportsStatus()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
         await vm.CleanupEtwMinimalCommand.ExecuteAsync(null);
 
@@ -102,8 +109,9 @@ public class PerformanceLabViewModelTests
     public async Task ApplyBootAutomation_TurnsOnWhenSnapshotHasActions()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
+        vm.AutoApplyPowerPlan = true;
         vm.IsBootAutomationEnabled = true;
         vm.IsUltimateActive = true;
 
@@ -118,8 +126,9 @@ public class PerformanceLabViewModelTests
     public async Task RunBootAutomationNow_RecordsLastRun()
     {
         var fake = new FakePerformanceLabService();
-        var vm = CreateVm(fake);
+        var vm = CreateArmedVm(fake);
 
+        vm.AutoApplyPowerPlan = true;
         vm.IsBootAutomationEnabled = true;
         vm.IsUltimateActive = true;
 

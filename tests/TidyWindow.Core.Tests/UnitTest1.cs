@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using TidyWindow.Core.Automation;
 using Xunit;
 
@@ -41,6 +43,37 @@ public sealed class PowerShellInvokerTests
 
             Assert.False(result.IsSuccess);
             Assert.NotEmpty(result.Errors);
+        }
+        finally
+        {
+            File.Delete(scriptPath);
+        }
+    }
+
+    [Fact]
+    public async Task InvokeScriptAsync_AllowsConcurrentInvocations()
+    {
+        string scriptPath = CreateTempScript("param([int]$Value)\n$Value");
+        try
+        {
+            var invoker = new PowerShellInvoker();
+
+            var tasks = Enumerable.Range(0, 12)
+                .Select(i => invoker.InvokeScriptAsync(scriptPath, new Dictionary<string, object?> { ["Value"] = i }));
+
+            var results = await Task.WhenAll(tasks);
+
+            Assert.All(results, r => Assert.True(r.IsSuccess, string.Join(";", r.Errors)));
+
+            var returnedValues = results
+                .SelectMany(r => r.Output)
+                .Select(line => line.Trim().Trim('"'))
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .Select(line => int.Parse(line, CultureInfo.InvariantCulture))
+                .OrderBy(n => n)
+                .ToArray();
+
+            Assert.Equal(Enumerable.Range(0, 12), returnedValues);
         }
         finally
         {
