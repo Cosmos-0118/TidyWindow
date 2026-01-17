@@ -1,10 +1,10 @@
 {
-  "version": "3.8.9",
+  "version": "3.9.0",
   "channel": "stable",
-  "summary": "##  Anti-Cheat & Kernel Restore Cleanup\n\n###  Anti-Cheat UI\n- added chip to functions that affect anti-cheat of games.\n\n###  Kernel & VBS/HVCI Restore\n- Treat missing BCD values as **benign**:\n  - `/deletevalue` “Element not found” no longer errors or fails\n- VBS/HVCI restore now:\n  - Ignores missing hypervisorlaunchtype\n  - Falls back only on real failures\n  - Logs success if already default",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.8.9/TidyWindow-Setup-3.8.9.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.8.9",
-  "publishedAt": "2026-01-16T09:21:37Z",
-  "installerSizeBytes": 90959132,
-  "sha256": "e7ccd349acef68d7bc85a9d40cfb870c83ddf2193c8092933cd968efaf094e52"
+  "summary": "##  PowerShell Concurrency & Automation Stability\n\n- Fixed parallel automation race by **serializing TypeAccelerators cache init** with a thread-safe lazy warm-up\n- Bootstrap now warms TypeAccelerators via reflection to keep initialization single-threaded\n- Added explicit threading/task usings for clarity and safety\n- Added a **12-way parallel stress test** to verify `InvokeScriptAsync` thread safety\n\n###  Automation & Test Fixes\n- Hardware Reserved Memory detection now counts as **applied success**\n- Added armed-VM helper and enabled automation actions in boot automation tests so snapshots execute correctly",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.9.0/TidyWindow-Setup-3.9.0.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.9.0",
+  "publishedAt": "2026-01-17T11:26:19Z",
+  "installerSizeBytes": 90958069,
+  "sha256": "a8271fda65c7ed575928043a7740cb830738c0e54d07d9e31bdc540f150b7c97"
 }
