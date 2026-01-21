@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 
@@ -10,12 +11,7 @@ namespace TidyWindow.App.Views;
 public partial class PathPilotPage : Page
 {
     private readonly PathPilotViewModel _viewModel;
-    private readonly Thickness _scrollViewerCompactMargin = new(24);
-    private readonly Thickness _scrollViewerStackedMargin = new(16, 24, 16, 24);
-    private readonly Thickness _defaultScrollViewerMargin;
-
-    private const double CompactBreakpoint = 1180d;
-    private const double StackedBreakpoint = 980d;
+    private ScrollViewer? _runtimesScrollViewer;
 
     public PathPilotPage(PathPilotViewModel viewModel)
     {
@@ -23,16 +19,20 @@ public partial class PathPilotPage : Page
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;
 
-        _defaultScrollViewerMargin = ContentScrollViewer.Margin;
-
         Loaded += OnLoaded;
-        ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
+        Unloaded += OnUnloaded;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _viewModel.PageChanged -= OnPageChanged;
+        _viewModel.PageChanged += OnPageChanged;
         _viewModel.ResetCachedInteractionState();
-        UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
+
+        if (_runtimesScrollViewer is null)
+        {
+            _runtimesScrollViewer = FindScrollViewer(RuntimesList);
+        }
 
         if (_viewModel.Runtimes.Count > 0)
         {
@@ -52,34 +52,44 @@ public partial class PathPilotPage : Page
         }
     }
 
-    private void ContentScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnUnloaded(object sender, RoutedEventArgs e)
     {
-        if (e.WidthChanged)
-        {
-            UpdateResponsiveLayout(e.NewSize.Width);
-        }
+        _viewModel.PageChanged -= OnPageChanged;
     }
 
-    private void UpdateResponsiveLayout(double viewportWidth)
+    private void OnPageChanged(object? sender, EventArgs e)
     {
-        if (double.IsNaN(viewportWidth) || viewportWidth <= 0d)
+        _runtimesScrollViewer ??= FindScrollViewer(RuntimesList);
+        _runtimesScrollViewer?.ScrollToVerticalOffset(0);
+    }
+
+    private void OnRuntimesLoaded(object sender, RoutedEventArgs e)
+    {
+        _runtimesScrollViewer ??= FindScrollViewer(RuntimesList);
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject? root)
+    {
+        if (root is null)
         {
-            return;
+            return null;
         }
 
-        if (viewportWidth < StackedBreakpoint)
+        if (root is ScrollViewer viewer)
         {
-            ContentScrollViewer.Margin = _scrollViewerStackedMargin;
-            return;
+            return viewer;
         }
 
-        if (viewportWidth < CompactBreakpoint)
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
         {
-            ContentScrollViewer.Margin = _scrollViewerCompactMargin;
-            return;
+            var result = FindScrollViewer(VisualTreeHelper.GetChild(root, i));
+            if (result is not null)
+            {
+                return result;
+            }
         }
 
-        ContentScrollViewer.Margin = _defaultScrollViewerMargin;
+        return null;
     }
 
 }

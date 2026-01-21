@@ -23,25 +23,35 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private readonly ActivityLogService _activityLog;
     private readonly MainViewModel _mainViewModel;
     private readonly IAutomationWorkTracker _workTracker;
+    private readonly UserPreferencesService _preferences;
+    private readonly int _pageSize = 12;
     private bool _isDisposed;
     private bool _hasAcknowledgedMachineScopeWarning;
     private PathPilotSwitchRequest? _pendingSwitchRequest;
+    private int _currentPage = 1;
+    private bool _suppressPagingNotifications;
 
-    public PathPilotViewModel(PathPilotInventoryService inventoryService, ActivityLogService activityLogService, MainViewModel mainViewModel, IAutomationWorkTracker workTracker)
+    public PathPilotViewModel(PathPilotInventoryService inventoryService, ActivityLogService activityLogService, MainViewModel mainViewModel, IAutomationWorkTracker workTracker, UserPreferencesService preferences)
     {
         _inventoryService = inventoryService ?? throw new ArgumentNullException(nameof(inventoryService));
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
+        _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
 
         Runtimes = new ObservableCollection<PathPilotRuntimeCardViewModel>();
+        PagedRuntimes = new ObservableCollection<PathPilotRuntimeCardViewModel>();
         Warnings = new ObservableCollection<string>();
 
         Runtimes.CollectionChanged += OnRuntimeCollectionChanged;
         Warnings.CollectionChanged += OnWarningsCollectionChanged;
+
+        ShowPathPilotHero = _preferences.Current.ShowPathPilotHero;
     }
 
     public ObservableCollection<PathPilotRuntimeCardViewModel> Runtimes { get; }
+
+    public ObservableCollection<PathPilotRuntimeCardViewModel> PagedRuntimes { get; }
 
     public ObservableCollection<string> Warnings { get; }
 
@@ -66,6 +76,9 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private string _headline = "System-wide runtime control";
 
     [ObservableProperty]
+    private bool _showPathPilotHero = true;
+
+    [ObservableProperty]
     private PathPilotRuntimeCardViewModel? _installationsDialogRuntime;
 
     [ObservableProperty]
@@ -84,11 +97,27 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     public bool IsResolutionDialogOpen => ResolutionDialogRuntime is not null;
 
+    public int CurrentPage => _currentPage;
+
+    public int TotalPages => ComputeTotalPages(Runtimes.Count, _pageSize);
+
+    public string PageDisplay => Runtimes.Count == 0
+        ? "Page 0 of 0"
+        : $"Page {_currentPage} of {TotalPages}";
+
+    public bool CanGoToPreviousPage => _currentPage > 1;
+
+    public bool CanGoToNextPage => _currentPage < TotalPages;
+
+    public bool HasMultiplePages => Runtimes.Count > _pageSize;
+
     public string Summary => BuildSummary();
 
     public string LastRefreshedDisplay => LastRefreshedAt is null
         ? "Inventory has not been collected yet."
         : $"Inventory updated {FormatRelativeTime(LastRefreshedAt.Value)}";
+
+    public event EventHandler? PageChanged;
 
     public void ResetCachedInteractionState()
     {
@@ -118,13 +147,36 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var snapshot = await _inventoryService.GetInventoryAsync().ConfigureAwait(false);
+            var inventoryTask = _inventoryService.GetInventoryAsync();
+            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(45));
 
-            await RunOnUiThreadAsync(() => ApplySnapshot(snapshot)).ConfigureAwait(false);
+            var completed = await Task.WhenAny(inventoryTask, timeoutTask).ConfigureAwait(false);
+            if (completed == inventoryTask)
+            {
+                var snapshot = await inventoryTask.ConfigureAwait(false);
 
-            var message = $"Runtime inventory ready • {snapshot.Runtimes.Length} runtime(s).";
-            _activityLog.LogSuccess("PathPilot", message, BuildSnapshotDetails(snapshot));
-            _mainViewModel.SetStatusMessage(message);
+                await RunOnUiThreadAsync(() => ApplySnapshot(snapshot)).ConfigureAwait(false);
+
+                var message = $"Runtime inventory ready • {snapshot.Runtimes.Length} runtime(s).";
+                _activityLog.LogSuccess("PathPilot", message, BuildSnapshotDetails(snapshot));
+                _mainViewModel.SetStatusMessage(message);
+            }
+            else
+            {
+                _activityLog.LogWarning("PathPilot", "Runtime inventory scan is taking unusually long; continuing in background.", Array.Empty<string>());
+                await RunOnUiThreadAsync(() =>
+                {
+                    _mainViewModel.SetStatusMessage("Runtime inventory is taking longer than usual; results will appear once ready.");
+                }).ConfigureAwait(false);
+
+                _ = inventoryTask.ContinueWith(t =>
+                {
+                    if (t.IsFaulted && t.Exception is not null)
+                    {
+                        _activityLog.LogError("PathPilot", "Background runtime inventory failed after timeout.", new[] { t.Exception.ToString() });
+                    }
+                }, TaskScheduler.Default);
+            }
         }
         catch (Exception ex)
         {
@@ -160,6 +212,30 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     {
         _pendingSwitchRequest = null;
         IsMachineScopeWarningOpen = false;
+    }
+
+    [RelayCommand]
+    private void GoToPreviousPage()
+    {
+        if (!CanGoToPreviousPage)
+        {
+            return;
+        }
+
+        _currentPage--;
+        RefreshPagedRuntimes(resetPage: false, raisePageChanged: true);
+    }
+
+    [RelayCommand]
+    private void GoToNextPage()
+    {
+        if (!CanGoToNextPage)
+        {
+            return;
+        }
+
+        _currentPage++;
+        RefreshPagedRuntimes(resetPage: false, raisePageChanged: true);
     }
 
     [RelayCommand]
@@ -370,32 +446,42 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     private void ApplySnapshot(PathPilotInventorySnapshot snapshot)
     {
-        var ordered = snapshot.Runtimes
-            .OrderBy(runtime => runtime.Status.IsMissing ? 1 : 0)
-            .ThenBy(runtime => runtime.Name, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        Runtimes.Clear();
-        foreach (var runtime in ordered)
+        _suppressPagingNotifications = true;
+        try
         {
-            Runtimes.Add(new PathPilotRuntimeCardViewModel(runtime));
+            var ordered = snapshot.Runtimes
+                .OrderBy(runtime => runtime.Status.IsMissing ? 1 : 0)
+                .ThenBy(runtime => runtime.Name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            Runtimes.Clear();
+            foreach (var runtime in ordered)
+            {
+                Runtimes.Add(new PathPilotRuntimeCardViewModel(runtime));
+            }
+
+            InstallationsDialogRuntime = null;
+            DetailsDialogRuntime = null;
+            ResolutionDialogRuntime = null;
+
+            Warnings.Clear();
+            foreach (var warning in snapshot.Warnings)
+            {
+                Warnings.Add(warning);
+                _activityLog.LogWarning("PathPilot", warning);
+            }
+
+            LastRefreshedAt = snapshot.GeneratedAt.ToLocalTime();
+            OnPropertyChanged(nameof(Summary));
+            OnPropertyChanged(nameof(HasRuntimeData));
+            OnPropertyChanged(nameof(LastRefreshedDisplay));
+        }
+        finally
+        {
+            _suppressPagingNotifications = false;
         }
 
-        InstallationsDialogRuntime = null;
-        DetailsDialogRuntime = null;
-        ResolutionDialogRuntime = null;
-
-        Warnings.Clear();
-        foreach (var warning in snapshot.Warnings)
-        {
-            Warnings.Add(warning);
-            _activityLog.LogWarning("PathPilot", warning);
-        }
-
-        LastRefreshedAt = snapshot.GeneratedAt.ToLocalTime();
-        OnPropertyChanged(nameof(Summary));
-        OnPropertyChanged(nameof(HasRuntimeData));
-        OnPropertyChanged(nameof(LastRefreshedDisplay));
+        RefreshPagedRuntimes(resetPage: true, raisePageChanged: true);
     }
 
     private string BuildSummary()
@@ -574,6 +660,60 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         return snapshot with { Runtimes = updatedRuntimes };
     }
 
+    private void RefreshPagedRuntimes(bool resetPage, bool raisePageChanged)
+    {
+        if (resetPage)
+        {
+            _currentPage = 1;
+        }
+
+        var totalPages = TotalPages;
+        if (_currentPage > totalPages)
+        {
+            _currentPage = totalPages;
+        }
+
+        var skip = (_currentPage - 1) * _pageSize;
+        var pageItems = Runtimes
+            .Skip(skip)
+            .Take(_pageSize)
+            .ToList();
+
+        PagedRuntimes.Clear();
+        foreach (var runtime in pageItems)
+        {
+            PagedRuntimes.Add(runtime);
+        }
+
+        RaisePagingProperties();
+
+        if (raisePageChanged)
+        {
+            PageChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+
+    private void RaisePagingProperties()
+    {
+        OnPropertyChanged(nameof(CurrentPage));
+        OnPropertyChanged(nameof(TotalPages));
+        OnPropertyChanged(nameof(PageDisplay));
+        OnPropertyChanged(nameof(CanGoToPreviousPage));
+        OnPropertyChanged(nameof(CanGoToNextPage));
+        OnPropertyChanged(nameof(HasMultiplePages));
+    }
+
+    private static int ComputeTotalPages(int itemCount, int pageSize)
+    {
+        if (itemCount <= 0)
+        {
+            return 1;
+        }
+
+        var sanitizedPageSize = Math.Max(1, pageSize);
+        return (itemCount + sanitizedPageSize - 1) / sanitizedPageSize;
+    }
+
     private static string FormatRelativeTime(DateTimeOffset timestamp)
     {
         var delta = DateTimeOffset.UtcNow - timestamp.ToUniversalTime();
@@ -600,8 +740,14 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     private void OnRuntimeCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
+        if (_suppressPagingNotifications)
+        {
+            return;
+        }
+
         OnPropertyChanged(nameof(Summary));
         OnPropertyChanged(nameof(HasRuntimeData));
+        RefreshPagedRuntimes(resetPage: false, raisePageChanged: true);
     }
 
     private void OnWarningsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -651,6 +797,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     partial void OnResolutionDialogRuntimeChanged(PathPilotRuntimeCardViewModel? value)
     {
         OnPropertyChanged(nameof(IsResolutionDialogOpen));
+    }
+
+    partial void OnShowPathPilotHeroChanged(bool value)
+    {
+        _preferences.SetShowPathPilotHero(value);
     }
 }
 

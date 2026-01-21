@@ -52,6 +52,8 @@ public sealed class UserPreferencesService
 
     public void SetShowStartupHero(bool value) => Update(p => p with { ShowStartupHero = value });
 
+    public void SetShowPathPilotHero(bool value) => Update(p => p with { ShowPathPilotHero = value });
+
     public void SetNotificationsEnabled(bool value) => Update(p => p with { NotificationsEnabled = value });
 
     public void SetNotifyOnlyWhenInactive(bool value) => Update(p => p with { NotifyOnlyWhenInactive = value });
@@ -358,6 +360,7 @@ public sealed record UserPreferences(
     bool PulseGuardEnabled = true,
     bool StartupGuardEnabled = false,
     bool ShowStartupHero = true,
+    bool ShowPathPilotHero = true,
     bool NotificationsEnabled = true,
     bool NotifyOnlyWhenInactive = true,
     bool PulseGuardShowSuccessSummaries = true,

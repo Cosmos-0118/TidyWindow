@@ -6,6 +6,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Threading;
 using System.Windows.Media;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
@@ -25,7 +26,7 @@ public partial class StartupControllerPage : Page
     private bool _includeTasks = true;
     private bool _includeServices = true;
     private bool _filterSafe;
-    private bool _filterSystem;
+    private bool _includeSystemCritical;
     private bool _filterUnsigned;
     private bool _filterHighImpact;
     private bool _showEnabled = true;
@@ -121,7 +122,7 @@ public partial class StartupControllerPage : Page
         _includeTasks = TasksFilter?.IsChecked == true;
         _includeServices = ServicesFilter?.IsChecked == true;
         _filterSafe = SafeFilter?.IsChecked == true;
-        _filterSystem = SystemFilter?.IsChecked == true;
+        _includeSystemCritical = SystemFilter?.IsChecked == true;
         _filterUnsigned = UnsignedFilter?.IsChecked == true;
         _filterHighImpact = HighImpactFilter?.IsChecked == true;
         _showEnabled = ShowEnabledFilter?.IsChecked != false; // default true
@@ -238,14 +239,20 @@ public partial class StartupControllerPage : Page
             return;
         }
 
-        if (_filterSafe || _filterSystem || _filterUnsigned || _filterHighImpact)
+        var isSystem = IsSystem(entry);
+        if (!_includeSystemCritical && isSystem)
+        {
+            e.Accepted = false;
+            return;
+        }
+
+        if (_filterSafe || _filterUnsigned || _filterHighImpact)
         {
             var matchesSafe = _filterSafe && IsSafe(entry);
-            var matchesSystem = _filterSystem && IsSystem(entry);
             var matchesUnsigned = _filterUnsigned && entry.Item.SignatureStatus == StartupSignatureStatus.Unsigned;
             var matchesHigh = _filterHighImpact && entry.Impact == StartupImpact.High;
 
-            if (!matchesSafe && !matchesSystem && !matchesUnsigned && !matchesHigh)
+            if (!matchesSafe && !matchesUnsigned && !matchesHigh)
             {
                 e.Accepted = false;
                 return;
@@ -291,13 +298,25 @@ public partial class StartupControllerPage : Page
 
     private void OnPageChanged(object? sender, EventArgs e)
     {
-        _entriesScrollViewer ??= FindScrollViewer(EntriesItemsControl);
-        _entriesScrollViewer?.ScrollToVerticalOffset(0);
+        ScrollEntriesToTop();
     }
 
     private void OnEntriesLoaded(object sender, RoutedEventArgs e)
     {
         _entriesScrollViewer ??= FindScrollViewer(EntriesItemsControl);
+    }
+
+    private void ScrollEntriesToTop()
+    {
+        // Run immediately for already-realized viewers, and schedule a follow-up once layout settles.
+        ScrollToTopInternal();
+        Dispatcher.BeginInvoke(ScrollToTopInternal, DispatcherPriority.Loaded);
+    }
+
+    private void ScrollToTopInternal()
+    {
+        _entriesScrollViewer ??= FindScrollViewer(EntriesItemsControl);
+        _entriesScrollViewer?.ScrollToVerticalOffset(0);
     }
 
     private async void OnGuardToggled(object sender, RoutedEventArgs e)
