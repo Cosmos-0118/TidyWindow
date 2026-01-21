@@ -1,10 +1,10 @@
 {
-  "version": "3.9.1",
+  "version": "3.9.2",
   "channel": "stable",
-  "summary": "##  SFC Timeout & Runspace Fix\n\n- Fixed false **SFC /scannow timeouts** caused by a stdout/stderr buffering deadlock in `Invoke-NativeWithTimeout`\n- Output is now **streamed while the process runs** and remaining buffers are drained before reading `ExitCode`\n- Prevents pipe buffer saturation that previously blocked SFC from exiting\n\n###  Runspace Safety\n- Removed async stdout/stderr event logging that ran on background threads\n- Output is now captured, awaited, and logged **on the main runspace thread**\n- Eliminates runspace errors during native process execution",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.9.1/TidyWindow-Setup-3.9.1.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.9.1",
-  "publishedAt": "2026-01-17T14:33:24Z",
-  "installerSizeBytes": 90959074,
-  "sha256": "fe124ef05bfa4893f7f3ff082c2930397a9a221135c4c059fec0b9b0a619c61f"
+  "summary": "##  Reliability, Updates & Startup Safety\n\n###  Script & Repair Hardening\n- Fixed Scoop root detection crash (undefined `$trimmed`, path normalization, stray logs removed)\n- Added guarded DISM retry: falls back from `/LimitAccess` to Windows Update on known source failures\n- Missing automation scripts no longer crash Performance Lab -> returns guided error instead\n- Fixed ram-purge bootstrap parse errors by restoring module-path resolution\n\n###  Installer & Updater Reliability\n- Installer now **cleans old app files** before copy to avoid stale binaries\n- In-app updater:\n  - Prompts before install\n  - Runs installer UI with safe replace flags\n  - Closes/restarts app to avoid file locks\n  - Extends cleanup delay to avoid mid-run deletion\n\n###  Splash & Startup UX\n- Splash window redesigned:\n  - Fixed medium size (960×540), centered, owned by main window\n  - No separate Alt+Tab entry\n  - Subtle gradient + vignette (no blur)\n  - Adaptive animation based on render tier\n  - Reduced shadow blur + bitmap caching for lower GPU cost\n\n---\n\n##  Startup Safety (Major Upgrade)\n\n- Introduced **StartupSafetyClassifier** (centralized, cached, production-grade):\n  - Detects **system-critical** items (Windows paths, Microsoft security, drivers, core services/tasks)\n  - Determines **safe-to-disable** items conservatively\n- Removed inline heuristics; all logic routed through the classifier\n- Added **“Are you absolutely sure?”** confirmation when disabling system-critical entries\n- Each startup entry now computes `IsSystemCritical` and shows a **shield “System” badge**\n- Added **System filter toggle** to isolate OS / driver / security items\n- Improved robustness with rule sets, caching (TTL), path normalization, vendor checks\n\n_Not system-critical examples (no badge, no hard warning):_\n- Third-party services under Program Files\n\n---\n\n##  PathPilot & UI Polish\n- Made PathPilot runtime list lighter and scrollable\n- Removed heavy outer ScrollViewer/margin logic\n- Improved virtualization and responsiveness",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.9.2/TidyWindow-Setup-3.9.2.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.9.2",
+  "publishedAt": "2026-01-21T11:30:02Z",
+  "installerSizeBytes": 90969474,
+  "sha256": "244e798b559989188748fc1947d937e2c5d431ec9e814a6678f82b46b2eb61ac"
 }
