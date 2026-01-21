@@ -48,6 +48,10 @@ Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: 
 [Run]
 Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: postinstall skipifsilent runasoriginaluser unchecked
 
+[InstallDelete]
+; Remove any stale binaries from earlier builds so removed files do not linger after upgrades
+Type: filesandordirs; Name: "{app}\\*"
+
 [Registry]
 Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\\{#MyAppExeName}"""; Check: IsTaskSelected('runatstartup')
 

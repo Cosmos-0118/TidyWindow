@@ -143,31 +143,43 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
 
     private bool LaunchInstaller(string installerPath)
     {
-        var prompt = $"The update installer was downloaded to:\n{installerPath}\n\nRun it now?";
+        var prompt = $"The update installer was downloaded to:\n{installerPath}\n\nInstall it now?";
         var choice = ShowInstallerPrompt(prompt);
         if (choice != MessageBoxResult.Yes)
         {
             _activityLog.LogInformation("Updates", "Installer download completed but launch was cancelled by the user.");
-            TryDeleteInstaller(installerPath);
-            CleanupOldInstallers(Path.GetDirectoryName(installerPath) ?? string.Empty, keepPath: null, removeEmptyDirectory: true);
             return false;
         }
 
+        var logPath = Path.Combine(Path.GetDirectoryName(installerPath) ?? Path.GetTempPath(), "TidyWindow-Update.log");
+
+        // Show full UI; keep close/restart flags so binaries can be replaced and the app restarts afterward.
         var startInfo = new ProcessStartInfo(installerPath)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(installerPath) ?? Environment.CurrentDirectory,
-            Arguments = string.Empty
+            Arguments = $"/SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /LOG=\"{logPath}\""
         };
 
-        Process.Start(startInfo);
-        _activityLog.LogInformation("Updates", "Installer launched with user confirmation. TidyWindow will close so the update can finish.");
+        try
+        {
+            Process.Start(startInfo);
+            _activityLog.LogInformation("Updates", "Installer launched with user confirmation. TidyWindow will close so the update can finish and restart afterward.");
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogError("Updates", $"Failed to launch installer: {ex.Message}");
+            return false;
+        }
+
+        // Exit the running app to avoid locked files and allow Inno Setup to replace binaries; /RESTARTAPPLICATIONS will bring it back.
+        Application.Current?.Dispatcher?.BeginInvoke(() => Application.Current?.Shutdown());
 
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(15)).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMinutes(5)).ConfigureAwait(false);
                 TryDeleteInstaller(installerPath);
                 CleanupOldInstallers(Path.GetDirectoryName(installerPath) ?? string.Empty, keepPath: null, removeEmptyDirectory: true);
             }

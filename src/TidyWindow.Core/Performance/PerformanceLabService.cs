@@ -1,5 +1,6 @@
 using System;
 using System.Diagnostics;
+using System.IO;
 using System.Management;
 using System.Text.RegularExpressions;
 using TidyWindow.Core.Automation;
@@ -579,6 +580,12 @@ public sealed class PerformanceLabService : IPerformanceLabService
     private Task<PowerShellInvocationResult> InvokeScriptAsync(string fileName, IReadOnlyDictionary<string, object?> parameters, CancellationToken cancellationToken)
     {
         var scriptPath = Path.Combine(_automationRoot, fileName);
+        if (!File.Exists(scriptPath))
+        {
+            var error = $"Automation script not found: {scriptPath}. Please reinstall or repair TidyWindow.";
+            return Task.FromResult(new PowerShellInvocationResult(Array.Empty<string>(), new[] { error }, 1));
+        }
+
         return _invoker.InvokeScriptAsync(scriptPath, parameters, cancellationToken);
     }
 

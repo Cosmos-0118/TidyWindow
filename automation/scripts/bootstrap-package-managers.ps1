@@ -185,14 +185,10 @@ function Get-TidyScoopRootCandidates {
 
         if ([string]::IsNullOrWhiteSpace($Value)) {
             return
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
+        }
 
-    if ($script:TidyOutputLines -is [System.Collections.IList]) {
-        [void]$script:TidyOutputLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyLog -Level Information -Message $text
+        $trimmed = $Value.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) {
             return
         }
 
@@ -201,14 +197,10 @@ function Get-TidyScoopRootCandidates {
         }
         catch {
             $normalized = $trimmed
-    $text = Convert-TidyLogMessage -InputObject $Message
-    if ([string]::IsNullOrWhiteSpace($text)) { return }
+        }
 
-    if ($script:TidyErrorLines -is [System.Collections.IList]) {
-        [void]$script:TidyErrorLines.Add($text)
-    }
-
-    TidyWindow.Automation\Write-TidyError -Message $text
+        if ($seen.Add($normalized)) {
+            [void]$roots.Add($normalized)
         }
     }
 

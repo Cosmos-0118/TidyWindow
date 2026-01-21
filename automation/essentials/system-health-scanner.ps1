@@ -321,7 +321,28 @@ function Invoke-DismHealthPass {
 
         if ($shouldRunRestoreHealth) {
             Write-TidyOutput -Message 'Repairing Windows component store corruption (RestoreHealth, limit network sources).'
-            $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth /LimitAccess' -Description 'DISM RestoreHealth' -TimeoutSeconds 2700 -AcceptableExitCodes @(0, 3010)
+            $restoreExit = $null
+
+            try {
+                $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth /LimitAccess' -Description 'DISM RestoreHealth' -TimeoutSeconds 2700 -AcceptableExitCodes @(0, 3010)
+            }
+            catch {
+                $exitCode = $null
+                if ($_.Exception.Message -match 'exit code (-?\d+)') {
+                    $exitCode = [int]$Matches[1]
+                }
+
+                # Known DISM source errors (for example, WU disabled or payload missing) benefit from a retry without /LimitAccess.
+                $shouldRetryOnline = $exitCode -in @(-2146498283, -2146498298, -2146498529)
+                if ($shouldRetryOnline) {
+                    Write-TidyError -Message ("DISM RestoreHealth failed with exit code {0} when using /LimitAccess. Retrying with Windows Update as a source." -f $exitCode)
+                    $restoreExit = Invoke-NativeWithTimeout -FilePath $dismPath -Arguments '/Online /Cleanup-Image /RestoreHealth' -Description 'DISM RestoreHealth (retry without LimitAccess)' -TimeoutSeconds 2700 -AcceptableExitCodes @(0, 3010)
+                }
+                else {
+                    throw
+                }
+            }
+
             if ($restoreExit -eq 3010) {
                 Write-TidyOutput -Message 'DISM RestoreHealth completed and requested a reboot (3010).'
             }
