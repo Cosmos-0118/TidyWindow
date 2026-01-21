@@ -225,6 +225,10 @@ public partial class App : WpfApplication
         mainWindow.Opacity = startHidden ? 1 : 0;
         mainWindow.WindowState = startHidden ? WindowState.Minimized : WindowState.Maximized;
         mainWindow.Show();
+        if (splash is not null)
+        {
+            splash.Owner = mainWindow;
+        }
         if (!startHidden)
         {
             mainWindow.Activate();

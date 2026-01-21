@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Animation;
 
 namespace TidyWindow.App.Views;
@@ -25,7 +26,35 @@ public partial class SplashScreenWindow : Window
     public SplashScreenWindow()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
         Closed += (_, _) => _closeCompletionSource.TrySetResult(true);
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs e)
+    {
+        // Choose an animation profile based on WPF render tier.
+        // Tier 0/1 tends to indicate software rendering / weaker GPU where multiple simultaneous animations can stutter.
+        var tier = RenderCapability.Tier >> 16;
+
+        if (tier >= 2)
+        {
+            StartStoryboard("PulseStoryboard");
+            StartStoryboard("ProgressStoryboard");
+            return;
+        }
+
+        StartStoryboard("LowPowerPulseStoryboard");
+    }
+
+    private void StartStoryboard(string resourceKey)
+    {
+        if (TryFindResource(resourceKey) is not Storyboard template)
+        {
+            return;
+        }
+
+        var storyboard = template.Clone();
+        storyboard.Begin(this, true);
     }
 
     public void UpdateStatus(string message)

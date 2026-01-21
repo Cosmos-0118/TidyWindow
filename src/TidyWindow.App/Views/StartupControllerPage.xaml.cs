@@ -25,6 +25,7 @@ public partial class StartupControllerPage : Page
     private bool _includeTasks = true;
     private bool _includeServices = true;
     private bool _filterSafe;
+    private bool _filterSystem;
     private bool _filterUnsigned;
     private bool _filterHighImpact;
     private bool _showEnabled = true;
@@ -58,6 +59,7 @@ public partial class StartupControllerPage : Page
             new StartupDelayService(),
             new ActivityLogService(),
             preferences,
+            new UserConfirmationService(),
             new StartupGuardService());
 
         _entriesView = new CollectionViewSource();
@@ -119,6 +121,7 @@ public partial class StartupControllerPage : Page
         _includeTasks = TasksFilter?.IsChecked == true;
         _includeServices = ServicesFilter?.IsChecked == true;
         _filterSafe = SafeFilter?.IsChecked == true;
+        _filterSystem = SystemFilter?.IsChecked == true;
         _filterUnsigned = UnsignedFilter?.IsChecked == true;
         _filterHighImpact = HighImpactFilter?.IsChecked == true;
         _showEnabled = ShowEnabledFilter?.IsChecked != false; // default true
@@ -235,13 +238,14 @@ public partial class StartupControllerPage : Page
             return;
         }
 
-        if (_filterSafe || _filterUnsigned || _filterHighImpact)
+        if (_filterSafe || _filterSystem || _filterUnsigned || _filterHighImpact)
         {
             var matchesSafe = _filterSafe && IsSafe(entry);
+            var matchesSystem = _filterSystem && IsSystem(entry);
             var matchesUnsigned = _filterUnsigned && entry.Item.SignatureStatus == StartupSignatureStatus.Unsigned;
             var matchesHigh = _filterHighImpact && entry.Impact == StartupImpact.High;
 
-            if (!matchesSafe && !matchesUnsigned && !matchesHigh)
+            if (!matchesSafe && !matchesSystem && !matchesUnsigned && !matchesHigh)
             {
                 e.Accepted = false;
                 return;
@@ -277,36 +281,12 @@ public partial class StartupControllerPage : Page
 
     private static bool IsSafe(StartupEntryItemViewModel entry)
     {
-        var isUserScope = string.Equals(entry.Item.UserContext, "CurrentUser", StringComparison.OrdinalIgnoreCase);
-        var isSupportedSource = entry.Item.SourceKind is StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce or StartupItemSourceKind.StartupFolder;
-        var isTrusted = entry.Item.SignatureStatus == StartupSignatureStatus.SignedTrusted;
-        var isLowImpact = entry.Impact == StartupImpact.Low;
-
-        if (!isUserScope || !isSupportedSource || !isTrusted || !isLowImpact)
-        {
-            return false;
-        }
-
-        if (IsCriticalSystem(entry))
-        {
-            return false;
-        }
-
-        return true;
+        return StartupSafetyClassifier.IsSafeToDisable(entry.Item);
     }
 
-    private static bool IsCriticalSystem(StartupEntryItemViewModel entry)
+    private static bool IsSystem(StartupEntryItemViewModel entry)
     {
-        var publisher = (entry.Publisher ?? string.Empty).ToLowerInvariant();
-        var path = (entry.Item.ExecutablePath ?? string.Empty).ToLowerInvariant();
-        var isSystemPath = path.Contains("\\windows\\system32") || path.Contains("\\windows\\syswow64") || path.Contains("\\program files\\windows defender") || path.Contains("\\program files\\windows security") || path.Contains("\\program files\\common files\\microsoft shared") || path.Contains("\\windows\\servicing") || path.Contains("\\windows\\systemapps");
-
-        var isMicrosoftSecurity = publisher.Contains("microsoft") && (path.Contains("defender") || path.Contains("security") || path.Contains("antimal") || path.Contains("wd"));
-        var isDriverStack = publisher.Contains("intel") || publisher.Contains("advanced micro devices") || publisher.Contains("amd") || publisher.Contains("nvidia") || publisher.Contains("realtek") || publisher.Contains("qualcomm") || publisher.Contains("mediatek");
-        var isCoreService = entry.Item.SourceKind == StartupItemSourceKind.Service && !string.Equals(entry.Item.UserContext, "CurrentUser", StringComparison.OrdinalIgnoreCase);
-        var isSystemTask = entry.Item.SourceKind == StartupItemSourceKind.ScheduledTask && isSystemPath && publisher.Contains("microsoft");
-
-        return isSystemPath || isMicrosoftSecurity || isDriverStack || isCoreService || isSystemTask;
+        return StartupSafetyClassifier.IsSystemCritical(entry.Item);
     }
 
     private void OnPageChanged(object? sender, EventArgs e)

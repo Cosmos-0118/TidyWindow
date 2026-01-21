@@ -49,6 +49,9 @@ public sealed partial class StartupEntryItemViewModel : ObservableObject
     [ObservableProperty]
     private bool isAutoGuardEnabled;
 
+    [ObservableProperty]
+    private bool isSystemCritical;
+
     public void UpdateFrom(StartupItem item)
     {
         Item = item ?? throw new ArgumentNullException(nameof(item));
@@ -64,6 +67,7 @@ public sealed partial class StartupEntryItemViewModel : ObservableObject
             : item.UserContext;
         LastModifiedDisplay = FormatLastModified(item.LastModifiedUtc);
         CanDelay = ComputeCanDelay(item);
+        IsSystemCritical = StartupSafetyClassifier.IsSystemCritical(item);
     }
 
     private static bool ComputeCanDelay(StartupItem item)
@@ -96,6 +100,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private readonly ActivityLogService _activityLog;
     private readonly UserPreferencesService _preferences;
     private readonly StartupGuardService _guardService;
+    private readonly IUserConfirmationService _confirmationService;
     private readonly List<StartupEntryItemViewModel> _filteredEntries = new();
 
     [ObservableProperty]
@@ -130,13 +135,21 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private const int DefaultDelaySeconds = 45;
     private static readonly TimeSpan MinimumBusyDuration = TimeSpan.FromMilliseconds(1000);
 
-    public StartupControllerViewModel(StartupInventoryService inventory, StartupControlService control, StartupDelayService delay, ActivityLogService activityLog, UserPreferencesService preferences, StartupGuardService? guardService = null)
+    public StartupControllerViewModel(
+        StartupInventoryService inventory,
+        StartupControlService control,
+        StartupDelayService delay,
+        ActivityLogService activityLog,
+        UserPreferencesService preferences,
+        IUserConfirmationService confirmationService,
+        StartupGuardService? guardService = null)
     {
         _inventory = inventory ?? throw new ArgumentNullException(nameof(inventory));
         _control = control ?? throw new ArgumentNullException(nameof(control));
         _delay = delay ?? throw new ArgumentNullException(nameof(delay));
         _activityLog = activityLog ?? throw new ArgumentNullException(nameof(activityLog));
         _preferences = preferences ?? throw new ArgumentNullException(nameof(preferences));
+        _confirmationService = confirmationService ?? throw new ArgumentNullException(nameof(confirmationService));
         _guardService = guardService ?? new StartupGuardService();
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         ToggleCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(ToggleAsync, CanToggle);
@@ -370,6 +383,10 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             StartupToggleResult result;
             if (item.IsEnabled)
             {
+                if (!ConfirmDisableIfSystemCritical(item.Item))
+                {
+                    return;
+                }
                 result = await _control.DisableAsync(item.Item);
             }
             else
@@ -455,6 +472,11 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             return;
         }
 
+        if (!ConfirmDisableIfSystemCritical(item.Item))
+        {
+            return;
+        }
+
         item.IsBusy = true;
         try
         {
@@ -487,6 +509,25 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         {
             item.IsBusy = false;
         }
+    }
+
+    private bool ConfirmDisableIfSystemCritical(StartupItem item)
+    {
+        if (!StartupSafetyClassifier.IsSystemCritical(item))
+        {
+            return true;
+        }
+
+        var title = "System startup item";
+        var message =
+            $"You are about to disable a startup item that looks system-critical.\n\n" +
+            $"Name: {item.Name}\n" +
+            $"Publisher: {item.Publisher ?? "Unknown"}\n" +
+            $"Source: {item.SourceKind} ({item.SourceTag})\n" +
+            $"Path: {item.ExecutablePath}\n\n" +
+            "Are you absolutely sure you want to continue?";
+
+        return _confirmationService.Confirm(title, message);
     }
 
     private void RefreshAfterStateChange()

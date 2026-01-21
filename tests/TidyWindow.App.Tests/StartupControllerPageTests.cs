@@ -122,6 +122,7 @@ public sealed class StartupControllerPageTests
                 new StartupDelayService(),
                 new ActivityLogService(),
                 new UserPreferencesService(),
+                new UserConfirmationService(),
                 guardService);
 
             var entry = new StartupEntryItemViewModel(CreateItem("guarded-1", "Guarded", DateTimeOffset.UtcNow))

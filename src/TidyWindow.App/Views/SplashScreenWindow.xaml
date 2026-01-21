@@ -12,7 +12,9 @@
         ShowInTaskbar="False"
         Background="Transparent"
         Topmost="True"
-        WindowState="Maximized"
+        Width="960"
+        Height="540"
+        SizeToContent="Manual"
         Opacity="0"
         d:DesignWidth="960"
         d:DesignHeight="540"
@@ -23,6 +25,21 @@
             <GradientStop Color="#040A15" Offset="0" />
             <GradientStop Color="#0C172A" Offset="1" />
         </LinearGradientBrush>
+        <RadialGradientBrush x:Key="SplashAmbientGlowBrush1" Center="0.18,0.28" GradientOrigin="0.18,0.28" RadiusX="0.65" RadiusY="0.65">
+            <GradientStop Color="#2A6CFF" Offset="0" />
+            <GradientStop Color="#00204A" Offset="0.35" />
+            <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+        <RadialGradientBrush x:Key="SplashAmbientGlowBrush2" Center="0.82,0.72" GradientOrigin="0.82,0.72" RadiusX="0.7" RadiusY="0.7">
+            <GradientStop Color="#21E6B8" Offset="0" />
+            <GradientStop Color="#00332C" Offset="0.33" />
+            <GradientStop Color="#00000000" Offset="1" />
+        </RadialGradientBrush>
+        <RadialGradientBrush x:Key="SplashVignetteBrush" Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.9" RadiusY="0.9">
+            <GradientStop Color="#00000000" Offset="0.2" />
+            <GradientStop Color="#00000066" Offset="0.8" />
+            <GradientStop Color="#000000A6" Offset="1" />
+        </RadialGradientBrush>
         <LinearGradientBrush x:Key="SplashPanelBrush" StartPoint="0,0" EndPoint="1,1">
             <GradientStop Color="#0D1728" Offset="0" />
             <GradientStop Color="#09101C" Offset="1" />
@@ -45,7 +62,7 @@
 
         <DropShadowEffect x:Key="SplashPanelShadow"
                   Color="#040914"
-                  BlurRadius="48"
+                  BlurRadius="34"
                   ShadowDepth="0"
                   Opacity="0.95" />
 
@@ -131,6 +148,14 @@
                              Duration="0:0:2.6" />
         </Storyboard>
 
+        <Storyboard x:Key="LowPowerPulseStoryboard" RepeatBehavior="Forever">
+            <DoubleAnimation Storyboard.TargetName="SpinnerOuterRotate"
+                             Storyboard.TargetProperty="Angle"
+                             From="0"
+                             To="360"
+                             Duration="0:0:9" />
+        </Storyboard>
+
         <Storyboard x:Key="ProgressStoryboard" RepeatBehavior="Forever">
             <DoubleAnimation Storyboard.TargetName="ProgressPulse"
                              Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
@@ -162,13 +187,14 @@
     <Window.Triggers>
         <EventTrigger RoutedEvent="Window.Loaded">
             <BeginStoryboard Storyboard="{StaticResource SplashFadeInStoryboard}" />
-            <BeginStoryboard Storyboard="{StaticResource PulseStoryboard}" />
-            <BeginStoryboard Storyboard="{StaticResource ProgressStoryboard}" />
             <BeginStoryboard Storyboard="{StaticResource CardEnterStoryboard}" />
         </EventTrigger>
     </Window.Triggers>
 
     <Grid Background="{StaticResource SplashBackgroundBrush}">
+        <Rectangle Fill="{StaticResource SplashAmbientGlowBrush1}" Opacity="0.18" IsHitTestVisible="False" />
+        <Rectangle Fill="{StaticResource SplashAmbientGlowBrush2}" Opacity="0.14" IsHitTestVisible="False" />
+        <Rectangle Fill="{StaticResource SplashVignetteBrush}" Opacity="0.9" IsHitTestVisible="False" />
         <Border x:Name="RootCard"
                 CornerRadius="40"
                 Padding="42"
@@ -176,8 +202,9 @@
                 Width="760"
                 Height="380"
                 HorizontalAlignment="Center"
-            VerticalAlignment="Center"
-            SnapsToDevicePixels="True">
+                VerticalAlignment="Center"
+                SnapsToDevicePixels="True"
+                CacheMode="BitmapCache">
             <Border.RenderTransform>
                 <TransformGroup>
                     <ScaleTransform ScaleX="0.985" ScaleY="0.985" />
@@ -195,8 +222,8 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Grid Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Grid Width="220" Height="220">
+                <Grid Grid.Column="0" HorizontalAlignment="Center" VerticalAlignment="Center" CacheMode="BitmapCache">
+                    <Grid Width="220" Height="220" CacheMode="BitmapCache">
                         <Ellipse Width="220" Height="220" Fill="#0E182B" Stroke="#1B2C46" StrokeThickness="1.2" />
                         <Ellipse Width="180" Height="180" Stroke="#14253F" StrokeThickness="8" />
                         <Ellipse Width="190" Height="190" Stroke="#162B47" StrokeThickness="1" StrokeDashArray="4 6" />
