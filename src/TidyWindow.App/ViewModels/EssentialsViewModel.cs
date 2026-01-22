@@ -765,8 +765,18 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
     private static readonly SolidColorBrush WaitingChipBrush = new(MediaColor.FromRgb(250, 204, 21));
     private static readonly SolidColorBrush SuccessChipBrush = new(MediaColor.FromRgb(34, 197, 94));
     private static readonly SolidColorBrush ErrorChipBrush = new(MediaColor.FromRgb(248, 113, 113));
+    private static readonly HashSet<string> HighRiskTasks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "tpm-bitlocker-secureboot-repair",
+        "activation-licensing-repair",
+        "device-drivers-pnp-repair",
+        "profile-logon-repair",
+        "system-health",
+        "disk-check"
+    };
     private readonly string _searchIndex;
     private readonly EssentialsTaskOptionViewModel? _localeResetOption;
+    private readonly ImmutableArray<string> _highlightsShort;
 
     public EssentialsTaskItemViewModel(EssentialsTaskDefinition definition)
     {
@@ -795,6 +805,7 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
             SelectedLocalePreset = LocalePresets[0];
         }
 
+        _highlightsShort = definition.Highlights.Select(h => TruncateForCard(h, 72)).ToImmutableArray();
         _searchIndex = BuildSearchIndex();
     }
 
@@ -810,11 +821,19 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 
     public ImmutableArray<string> Highlights => Definition.Highlights;
 
+    public ImmutableArray<string> HighlightsShort => _highlightsShort;
+
     public string? DurationHint => Definition.DurationHint;
+
+    public string? DurationChipText => TruncateForCard(DurationSummary, 68);
 
     public string? DetailedDescription => Definition.DetailedDescription;
 
     public string? DocumentationLink => Definition.DocumentationLink;
+
+    public bool IsRecommendedForAutomation => Definition.IsRecommendedForAutomation;
+
+    public bool IsHighRisk => HighRiskTasks.Contains(Definition.Id);
 
     public bool IsDefenderTask => string.Equals(Definition.Id, "defender-repair", StringComparison.OrdinalIgnoreCase);
 
@@ -932,6 +951,23 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
         }
 
         return builder.ToString();
+    }
+
+    private static string TruncateForCard(string? value, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return string.Empty;
+        }
+
+        var text = value.Trim();
+        if (text.Length <= maxLength)
+        {
+            return text;
+        }
+
+        var trimmed = text[..maxLength].TrimEnd();
+        return string.Concat(trimmed, "…");
     }
 
     public void UpdateQueueState(int activeCount, string? status, EssentialsQueueStatus? queueStatus)

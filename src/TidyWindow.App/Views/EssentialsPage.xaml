@@ -22,23 +22,47 @@
         <converters:AlternationIndexToBrushConverter x:Key="HighlightBrushConverter"/>
 
         <LinearGradientBrush x:Key="EssentialsBackdropBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#050914" Offset="0"/>
-            <GradientStop Color="#081126" Offset="0.5"/>
-            <GradientStop Color="#0A162C" Offset="1"/>
+            <GradientStop Color="#050915" Offset="0"/>
+            <GradientStop Color="#081634" Offset="0.5"/>
+            <GradientStop Color="#0B2146" Offset="1"/>
         </LinearGradientBrush>
 
         <LinearGradientBrush x:Key="EssentialsPrimaryBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#B572FF" Offset="0"/>
+            <GradientStop Color="#2563EB" Offset="0"/>
             <GradientStop Color="#7C3AED" Offset="1"/>
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="EssentialsPrimaryHoverBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#C084FC" Offset="0"/>
+            <GradientStop Color="#3B82F6" Offset="0"/>
             <GradientStop Color="#8B5CF6" Offset="1"/>
         </LinearGradientBrush>
-        <SolidColorBrush x:Key="EssentialsPrimaryDisabledBrush" Color="#1E1E2E"/>
-        <SolidColorBrush x:Key="EssentialsHeroTitleBrush" Color="#FDFEFE"/>
-        <SolidColorBrush x:Key="EssentialsHeroSubtitleBrush" Color="#C8D6F6"/>
-        <SolidColorBrush x:Key="EssentialsMutedTextBrush" Color="#9DA9C6"/>
+        <SolidColorBrush x:Key="EssentialsPrimaryDisabledBrush" Color="#1B2338"/>
+        <SolidColorBrush x:Key="EssentialsHeroTitleBrush" Color="#F8FAFC"/>
+        <SolidColorBrush x:Key="EssentialsHeroSubtitleBrush" Color="#D6E3FF"/>
+        <SolidColorBrush x:Key="EssentialsMutedTextBrush" Color="#A3B4D3"/>
+        <SolidColorBrush x:Key="EssentialsCardBackgroundBrush" Color="#0B1220"/>
+        <SolidColorBrush x:Key="EssentialsCardBorderBrush" Color="#172541"/>
+        <SolidColorBrush x:Key="EssentialsChipBrush" Color="#102441"/>
+        <SolidColorBrush x:Key="EssentialsChipBorderBrush" Color="#1F3560"/>
+        <SolidColorBrush x:Key="EssentialsChipForegroundBrush" Color="#BBD5FF"/>
+        <SolidColorBrush x:Key="EssentialsDangerBrush" Color="#EF4444"/>
+        <SolidColorBrush x:Key="EssentialsDangerSurfaceBrush" Color="#2A0E15"/>
+
+        <Style x:Key="EssentialsChipStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource EssentialsChipBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EssentialsChipBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="0,0,10,10"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+        </Style>
+
+        <Style x:Key="EssentialsDangerChipStyle" TargetType="Border" BasedOn="{StaticResource EssentialsChipStyle}">
+            <Setter Property="Background" Value="{StaticResource EssentialsDangerSurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EssentialsDangerBrush}"/>
+            <Setter Property="Padding" Value="10,4"/>
+            <Setter Property="Margin" Value="0,0,8,8"/>
+        </Style>
 
         <Style x:Key="EssentialsHeroTitleTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="20"/>
@@ -104,9 +128,9 @@
         </Style>
 
         <Style x:Key="EssentialsSecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#111B33"/>
+            <Setter Property="Background" Value="#0F1C32"/>
             <Setter Property="Foreground" Value="#E2E8F0"/>
-            <Setter Property="BorderBrush" Value="#243552"/>
+            <Setter Property="BorderBrush" Value="#1E2C46"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="Padding" Value="16,8"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
@@ -201,8 +225,8 @@
         </Style>
 
         <Style x:Key="EssentialsCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="#0F1B30"/>
-            <Setter Property="BorderBrush" Value="#1E2E46"/>
+            <Setter Property="Background" Value="{StaticResource EssentialsCardBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource EssentialsCardBorderBrush}"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="16"/>
             <Setter Property="Padding" Value="24"/>
@@ -420,7 +444,7 @@
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="EssentialsTaskListItemStyle" TargetType="ListBoxItem">
+        <Style x:Key="EssentialsTaskListItemStyle" TargetType="ListViewItem">
             <Setter Property="Margin" Value="0"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
@@ -509,7 +533,8 @@
             <StaticResource ResourceKey="EssentialsBackdropBrush"/>
         </Grid.Background>
 
-        <ScrollViewer Margin="32"
+        <ScrollViewer x:Name="EssentialsScrollViewer"
+                  Margin="32"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       HorizontalContentAlignment="Stretch"
@@ -679,29 +704,35 @@
                                         </Border>
                                     </StackPanel>
 
-                                    <ListBox x:Name="TasksListBox"
-                                             Margin="0,24,0,0"
-                                             ItemsSource="{Binding TasksView}"
-                                             Background="Transparent"
-                                             BorderThickness="0"
-                                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                             SelectionMode="Single"
-                                             ItemContainerStyle="{StaticResource EssentialsTaskListItemStyle}">
-                                        <ListBox.ItemsPanel>
+                                    <ux:BubbleScrollListView x:Name="TasksList"
+                                                             Margin="0,24,0,0"
+                                                             ItemsSource="{Binding TasksView}"
+                                                             ParentScrollViewerName="EssentialsScrollViewer"
+                                                             Background="Transparent"
+                                                             BorderThickness="0"
+                                                             ScrollViewer.CanContentScroll="True"
+                                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                             VirtualizingPanel.IsVirtualizing="True"
+                                                             VirtualizingPanel.VirtualizationMode="Recycling"
+                                                             VirtualizingPanel.ScrollUnit="Pixel"
+                                                             SelectionMode="Single"
+                                                             ItemContainerStyle="{StaticResource EssentialsTaskListItemStyle}">
+                                        <ListView.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <ux:AdaptiveTilePanel MinColumnWidth="320"
-                                                                      MaxColumnWidth="420"
-                                                                      ColumnSpacing="24"
-                                                                      RowSpacing="24"/>
+                                                <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="320"
+                                                                                  MaxColumnWidth="420"
+                                                                                  ColumnSpacing="22"
+                                                                                  RowSpacing="22"
+                                                                                  Padding="4,0,4,12"/>
                                             </ItemsPanelTemplate>
-                                        </ListBox.ItemsPanel>
-                                        <ListBox.ItemTemplate>
+                                        </ListView.ItemsPanel>
+                                        <ListView.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="#101E33"
-                                                        BorderBrush="#1E3454"
+                                                <Border Background="{StaticResource EssentialsCardBackgroundBrush}"
+                                                        BorderBrush="{StaticResource EssentialsCardBorderBrush}"
                                                         BorderThickness="1"
-                                                        CornerRadius="14"
+                                                        CornerRadius="16"
                                                         Padding="20">
                                                     <Grid>
                                                         <Grid.RowDefinitions>
@@ -710,65 +741,72 @@
                                                         </Grid.RowDefinitions>
 
                                                         <StackPanel>
-                                                            <TextBlock Text="{Binding Title}"
-                                                                       FontSize="15"
-                                                                       FontWeight="SemiBold"
-                                                                       Foreground="#E2E8F0"/>
-                                                            <WrapPanel Margin="0,6,0,0">
-                                                                <Border Background="#182842"
-                                                                        CornerRadius="6"
-                                                                        Padding="6,2"
-                                                                        Margin="0,0,10,0">
-                                                                    <TextBlock Text="{Binding Category}"
-                                                                               FontSize="11"
-                                                                               Foreground="#9DB4D3"/>
-                                                                </Border>
+                                                            <StackPanel Orientation="Horizontal"
+                                                                        VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Title}"
+                                                                           FontSize="15"
+                                                                           FontWeight="SemiBold"
+                                                                           Foreground="#E2E8F0"/>
                                                                 <Border Background="{Binding StatusChipBrush}"
                                                                         CornerRadius="10"
-                                                                        Padding="10,2"
+                                                                        Padding="10,3"
+                                                                        Margin="10,0,0,0"
                                                                         Visibility="{Binding HasStatusChip, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                                     <TextBlock Text="{Binding StatusChipLabel}"
                                                                                FontSize="11"
                                                                                FontWeight="SemiBold"
                                                                                Foreground="#020617"/>
                                                                 </Border>
+                                                            </StackPanel>
+
+                                                            <WrapPanel Margin="0,10,0,0">
+                                                                <Border Style="{StaticResource EssentialsChipStyle}">
+                                                                    <TextBlock Text="{Binding Category}"
+                                                                               FontSize="11"
+                                                                               Foreground="{StaticResource EssentialsChipForegroundBrush}"/>
+                                                                </Border>
+                                                                <Border>
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border" BasedOn="{StaticResource EssentialsChipStyle}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding DurationChipText}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding DurationChipText}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <TextBlock Text="{Binding DurationChipText}"
+                                                                               FontSize="11"
+                                                                               FontWeight="SemiBold"
+                                                                               Foreground="{StaticResource EssentialsChipForegroundBrush}"
+                                                                               TextWrapping="Wrap"
+                                                                               TextTrimming="None"
+                                                                               MaxWidth="260"/>
+                                                                </Border>
+                                                                <Border Style="{StaticResource EssentialsChipStyle}"
+                                                                        Visibility="{Binding IsRecommendedForAutomation, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="⚡" FontSize="12" Margin="0,0,6,0"/>
+                                                                        <TextBlock Text="Auto-ready" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource EssentialsChipForegroundBrush}"/>
+                                                                    </StackPanel>
+                                                                </Border>
+                                                                <Border Style="{StaticResource EssentialsDangerChipStyle}"
+                                                                        Visibility="{Binding IsHighRisk, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                                        <Ellipse Width="8" Height="8" Fill="{StaticResource EssentialsDangerBrush}" Margin="0,0,6,0"/>
+                                                                        <TextBlock Text="High impact"
+                                                                                   FontSize="11"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="{StaticResource EssentialsDangerBrush}"/>
+                                                                    </StackPanel>
+                                                                </Border>
                                                             </WrapPanel>
 
-                                                            <TextBlock Text="{Binding Summary}"
-                                                                       Margin="0,8,0,0"
-                                                                       Foreground="#9FB0C7"
-                                                                       FontSize="12"
-                                                                       TextWrapping="Wrap"/>
-
-                                                            <TextBlock Text="{Binding DurationSummary}"
-                                                                       Margin="0,8,0,0"
-                                                                       Foreground="#E2E8F0"
-                                                                       FontSize="12">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding DurationSummary}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                            <DataTrigger Binding="{Binding DurationSummary}" Value="">
-                                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-
-                                                            <ux:SimpleProgressBar Margin="0,12,0,0"
-                                                                                  Value="{Binding ProgressValue}"
-                                                                                  Maximum="1"
-                                                                                  StatusText="{Binding ProgressStatusText}"
-                                                                                  FillBrush="{StaticResource EssentialsPrimaryBrush}"
-                                                                                  TrackBrush="#081224"
-                                                                                  TextForeground="#F8FAFC"
-                                                                                  Visibility="{Binding HasProgress, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                                                            <ItemsControl ItemsSource="{Binding Highlights}"
+                                                            <ItemsControl ItemsSource="{Binding HighlightsShort}"
                                                                           Margin="0,12,0,0"
                                                                           AlternationCount="5">
                                                                 <ItemsControl.ItemsPanel>
@@ -778,18 +816,29 @@
                                                                 </ItemsControl.ItemsPanel>
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate>
-                                                                        <Border CornerRadius="10"
-                                                                                Padding="8,4"
-                                                                                Margin="0,0,8,8"
-                                                                                Background="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource HighlightBrushConverter}}">
+                                                                        <Border Style="{StaticResource EssentialsChipStyle}"
+                                                                                Background="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource HighlightBrushConverter}}"
+                                                                                BorderBrush="{StaticResource EssentialsCardBorderBrush}">
                                                                             <TextBlock Text="{Binding}"
                                                                                        Foreground="#F8FAFC"
                                                                                        FontSize="12"
-                                                                                       FontWeight="SemiBold"/>
+                                                                                       FontWeight="SemiBold"
+                                                                                       TextWrapping="Wrap"
+                                                                                       TextTrimming="None"
+                                                                                       MaxWidth="260"/>
                                                                         </Border>
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
+
+                                                            <ux:SimpleProgressBar Margin="0,12,0,0"
+                                                                                  Value="{Binding ProgressValue}"
+                                                                                  Maximum="1"
+                                                                                  StatusText="{Binding ProgressStatusText}"
+                                                                                  FillBrush="{StaticResource EssentialsPrimaryBrush}"
+                                                                                  TrackBrush="#081224"
+                                                                                  TextForeground="#F8FAFC"
+                                                                                  Visibility="{Binding HasProgress, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
                                                         </StackPanel>
 
@@ -803,7 +852,7 @@
 
                                                                 <Button Grid.Column="0"
                                                                         Padding="10,4"
-                                                                        Command="{Binding DataContext.ShowTaskDetailsCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                        Command="{Binding DataContext.ShowTaskDetailsCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                         CommandParameter="{Binding}">
                                                                     <Button.Style>
                                                                         <Style TargetType="Button" BasedOn="{StaticResource EssentialsSecondaryButtonStyle}">
@@ -825,7 +874,7 @@
                                                                         Margin="12,0,0,0"
                                                                         Padding="14,6"
                                                                         Content="Run"
-                                                                    Command="{Binding DataContext.PrepareTaskRunCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                    Command="{Binding DataContext.PrepareTaskRunCommand, RelativeSource={RelativeSource AncestorType=ListView}}"
                                                                         CommandParameter="{Binding}"
                                                                     Style="{StaticResource EssentialsAccentButtonStyle}"/>
                                                             </Grid>
@@ -833,8 +882,8 @@
                                                     </Grid>
                                                 </Border>
                                             </DataTemplate>
-                                        </ListBox.ItemTemplate>
-                                    </ListBox>
+                                        </ListView.ItemTemplate>
+                                    </ux:BubbleScrollListView>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
