@@ -30,6 +30,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private PathPilotSwitchRequest? _pendingSwitchRequest;
     private int _currentPage = 1;
     private bool _suppressPagingNotifications;
+    private bool _isPageInfoOpen;
 
     public PathPilotViewModel(PathPilotInventoryService inventoryService, ActivityLogService activityLogService, MainViewModel mainViewModel, IAutomationWorkTracker workTracker, UserPreferencesService preferences)
     {
@@ -97,6 +98,12 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     public bool IsResolutionDialogOpen => ResolutionDialogRuntime is not null;
 
+    public bool IsPageInfoOpen
+    {
+        get => _isPageInfoOpen;
+        private set => SetProperty(ref _isPageInfoOpen, value);
+    }
+
     public int CurrentPage => _currentPage;
 
     public int TotalPages => ComputeTotalPages(Runtimes.Count, _pageSize);
@@ -131,6 +138,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         InstallationsDialogRuntime = null;
         DetailsDialogRuntime = null;
         ResolutionDialogRuntime = null;
+        IsPageInfoOpen = false;
     }
 
     [RelayCommand]
@@ -192,6 +200,18 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
                 IsInventoryLoading = false;
             }).ConfigureAwait(false);
         }
+    }
+
+    [RelayCommand]
+    private void ShowPageInfo()
+    {
+        IsPageInfoOpen = true;
+    }
+
+    [RelayCommand]
+    private void ClosePageInfo()
+    {
+        IsPageInfoOpen = false;
     }
 
     [RelayCommand]
@@ -450,8 +470,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         try
         {
             var ordered = snapshot.Runtimes
-                .OrderBy(runtime => runtime.Status.IsMissing ? 1 : 0)
-                .ThenBy(runtime => runtime.Name, StringComparer.OrdinalIgnoreCase)
+                .Where(runtime => !runtime.Status.IsMissing)
+                .OrderBy(runtime => runtime.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
             Runtimes.Clear();
