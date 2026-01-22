@@ -686,7 +686,7 @@
         <Setter Property="behaviors:SmoothScrollBehavior.IsEnabled"
                 Value="True"/>
         <Setter Property="behaviors:SmoothScrollBehavior.Multiplier"
-                Value="0.36"/>
+                Value="0.45"/>
     </Style>
 
     <Style TargetType="ScrollViewer"

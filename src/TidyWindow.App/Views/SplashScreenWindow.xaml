@@ -61,10 +61,10 @@
         <SolidColorBrush x:Key="SplashSpinnerLineBrush" Color="#1A2B48" />
 
         <DropShadowEffect x:Key="SplashPanelShadow"
-                  Color="#040914"
-                  BlurRadius="34"
-                  ShadowDepth="0"
-                  Opacity="0.95" />
+              Color="#040914"
+              BlurRadius="24"
+              ShadowDepth="0"
+              Opacity="0.6" />
 
         <Style x:Key="SplashTileStyle" TargetType="Border">
             <Setter Property="CornerRadius" Value="14" />
@@ -148,14 +148,6 @@
                              Duration="0:0:2.6" />
         </Storyboard>
 
-        <Storyboard x:Key="LowPowerPulseStoryboard" RepeatBehavior="Forever">
-            <DoubleAnimation Storyboard.TargetName="SpinnerOuterRotate"
-                             Storyboard.TargetProperty="Angle"
-                             From="0"
-                             To="360"
-                             Duration="0:0:9" />
-        </Storyboard>
-
         <Storyboard x:Key="ProgressStoryboard" RepeatBehavior="Forever">
             <DoubleAnimation Storyboard.TargetName="ProgressPulse"
                              Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
@@ -192,8 +184,8 @@
     </Window.Triggers>
 
     <Grid Background="{StaticResource SplashBackgroundBrush}">
-        <Rectangle Fill="{StaticResource SplashAmbientGlowBrush1}" Opacity="0.18" IsHitTestVisible="False" />
-        <Rectangle Fill="{StaticResource SplashAmbientGlowBrush2}" Opacity="0.14" IsHitTestVisible="False" />
+        <Rectangle Fill="{StaticResource SplashAmbientGlowBrush1}" Opacity="0.12" IsHitTestVisible="False" CacheMode="BitmapCache" />
+        <Rectangle Fill="{StaticResource SplashAmbientGlowBrush2}" Opacity="0.1" IsHitTestVisible="False" CacheMode="BitmapCache" />
         <Rectangle Fill="{StaticResource SplashVignetteBrush}" Opacity="0.9" IsHitTestVisible="False" />
         <Border x:Name="RootCard"
                 CornerRadius="40"
@@ -317,9 +309,9 @@
 
                 <StackPanel Grid.Column="2" VerticalAlignment="Center">
                     <StackPanel Margin="0,0,0,14">
-                        <TextBlock Text="TidyWindow" FontSize="34" FontFamily="Segoe UI Semibold" Foreground="{StaticResource SplashTitleBrush}" TextOptions.TextFormattingMode="Ideal">
+                        <TextBlock Text="TidyWindow" FontSize="34" FontFamily="Segoe UI Semibold" Foreground="{StaticResource SplashTitleBrush}" TextOptions.TextFormattingMode="Ideal" CacheMode="BitmapCache">
                             <TextBlock.Effect>
-                                <DropShadowEffect Color="#001826" BlurRadius="16" ShadowDepth="0" Opacity="0.65" />
+                                <DropShadowEffect Color="#001826" BlurRadius="10" ShadowDepth="0" Opacity="0.45" />
                             </TextBlock.Effect>
                         </TextBlock>
                         <TextBlock Text="Personal maintenance flight deck" FontSize="15" Foreground="{StaticResource TextSecondaryBrush}" />
