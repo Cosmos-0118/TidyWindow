@@ -38,6 +38,16 @@ public sealed class NavigationService
         _pageCache.ClearAll();
     }
 
+    public void SweepCache()
+    {
+        _pageCache.SweepExpired();
+    }
+
+    public DateTimeOffset? GetNextCacheExpiryUtc()
+    {
+        return _pageCache.GetNextExpirationUtc();
+    }
+
     public void Initialize(Frame frame)
     {
         if (_frame is not null)

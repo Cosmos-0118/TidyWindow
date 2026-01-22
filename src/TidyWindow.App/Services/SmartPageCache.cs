@@ -117,6 +117,41 @@ public sealed class SmartPageCache : IDisposable
         }
     }
 
+    public DateTimeOffset? GetNextExpirationUtc()
+    {
+        lock (_syncRoot)
+        {
+            if (_entries.Count == 0)
+            {
+                return null;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            DateTimeOffset? next = null;
+
+            foreach (var entry in _entries.Values)
+            {
+                if (entry.Policy.IdleExpiration is null)
+                {
+                    continue; // never expires
+                }
+
+                var candidate = entry.LastTouched + entry.Policy.IdleExpiration.Value;
+                if (candidate <= now)
+                {
+                    continue; // already eligible for sweep
+                }
+
+                if (next is null || candidate < next)
+                {
+                    next = candidate;
+                }
+            }
+
+            return next;
+        }
+    }
+
     public void ClearAll()
     {
         lock (_syncRoot)

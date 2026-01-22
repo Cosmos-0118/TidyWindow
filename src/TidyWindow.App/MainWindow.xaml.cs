@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views;
@@ -30,6 +31,9 @@ public partial class MainWindow : Window
     private CancellationTokenSource? _idleTrimCts;
     private bool _initialNavigationCompleted;
     private bool _autoCloseArmed;
+    private DispatcherTimer? _traySweepTimer;
+    private static readonly TimeSpan TraySweepIntervalMinimum = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan TraySweepIntervalMaximum = TimeSpan.FromMinutes(10);
 
     public MainWindow(MainViewModel viewModel, NavigationService navigationService, ITrayService trayService, UserPreferencesService preferences, PulseGuardService pulseGuard, IAutomationWorkTracker workTracker)
     {
@@ -97,6 +101,15 @@ public partial class MainWindow : Window
             CancelIdleTrim();
             RestoreContentAfterBackground();
         }
+
+        if (WindowState == WindowState.Minimized && _preferences.Current.RunInBackground)
+        {
+            StartTraySweepTimerIfNeeded();
+        }
+        else
+        {
+            StopTraySweepTimer();
+        }
     }
 
     private void ToggleLoadingOverlay(bool show)
@@ -159,12 +172,8 @@ public partial class MainWindow : Window
             e.Cancel = true;
             _trayService.HideToTray(showHint: true);
 
-            if (!_workTracker.HasActiveWork)
-            {
-                DetachContentForBackground();
-            }
-
             ScheduleIdleTrimIfSafe();
+            StartTraySweepTimerIfNeeded();
             return;
         }
 
@@ -364,12 +373,94 @@ public partial class MainWindow : Window
                 return; // Skip if any automation is running.
             }
 
-            DetachContentForBackground();
-            _viewModel.LogActivityInformation("PulseGuard", "Idle tray memory trim executed.");
+            _navigationService.SweepCache();
+            _viewModel.LogActivityInformation("PulseGuard", "Idle tray cache sweep executed.");
+            TrimWorkingSet();
         }
         catch (OperationCanceledException)
         {
             // Ignore cancellation.
+        }
+    }
+
+    private void StartTraySweepTimerIfNeeded()
+    {
+        if (!_preferences.Current.RunInBackground || WindowState != WindowState.Minimized)
+        {
+            StopTraySweepTimer();
+            return;
+        }
+
+        if (_traySweepTimer is null)
+        {
+            _traySweepTimer = new DispatcherTimer();
+            _traySweepTimer.Tick += OnTraySweepTick;
+        }
+
+        ScheduleNextTraySweep();
+    }
+
+    private void StopTraySweepTimer()
+    {
+        if (_traySweepTimer is null)
+        {
+            return;
+        }
+
+        _traySweepTimer.Stop();
+        _traySweepTimer.Tick -= OnTraySweepTick;
+        _traySweepTimer = null;
+    }
+
+    private void OnTraySweepTick(object? sender, EventArgs e)
+    {
+        if (!_preferences.Current.RunInBackground || WindowState != WindowState.Minimized)
+        {
+            StopTraySweepTimer();
+            return;
+        }
+
+        if (_workTracker.HasActiveWork)
+        {
+            ScheduleNextTraySweep();
+            return;
+        }
+
+        _navigationService.SweepCache();
+        ScheduleNextTraySweep();
+    }
+
+    private void ScheduleNextTraySweep()
+    {
+        if (_traySweepTimer is null)
+        {
+            return;
+        }
+
+        _navigationService.SweepCache();
+
+        var nextExpiry = _navigationService.GetNextCacheExpiryUtc();
+        if (nextExpiry is null)
+        {
+            StopTraySweepTimer();
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var delay = nextExpiry.Value - now;
+        if (delay < TraySweepIntervalMinimum)
+        {
+            delay = TraySweepIntervalMinimum;
+        }
+        else if (delay > TraySweepIntervalMaximum)
+        {
+            delay = TraySweepIntervalMaximum;
+        }
+
+        _traySweepTimer.Interval = delay;
+        if (!_traySweepTimer.IsEnabled)
+        {
+            _traySweepTimer.Start();
         }
     }
 

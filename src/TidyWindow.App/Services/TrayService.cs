@@ -115,7 +115,8 @@ public sealed class TrayService : ITrayService
             // Trim cached pages even if the window was already hidden, as long as no automation is active.
             if (!_workTracker.HasActiveWork)
             {
-                _pageCache.ClearAll();
+                // Only remove entries that are already expired to avoid cold-start lag on resume.
+                _pageCache.SweepExpired();
             }
 
             if (showHint && wasVisible)
