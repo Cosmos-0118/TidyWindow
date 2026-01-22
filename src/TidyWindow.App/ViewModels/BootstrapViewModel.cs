@@ -44,6 +44,9 @@ public sealed partial class BootstrapViewModel : ViewModelBase
     [ObservableProperty]
     private string _headline = "Check your package manager tools";
 
+    [ObservableProperty]
+    private bool _showPowerShellCallout = true;
+
     public ObservableCollection<PackageManagerEntryViewModel> Managers { get; } = new();
 
     public BootstrapViewModel(PackageManagerDetector detector, PackageManagerInstaller installer, MainViewModel mainViewModel, ActivityLogService activityLogService, IAutomationWorkTracker workTracker)
@@ -372,6 +375,8 @@ public sealed partial class BootstrapViewModel : ViewModelBase
                 _managerLookup.Remove(entry.Identifier);
             }
         }
+
+        ShowPowerShellCallout = Managers.Count == 0;
     }
 
     private static string? TryGetAdminMessage(IReadOnlyList<string> errors)
