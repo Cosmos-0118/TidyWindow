@@ -2,12 +2,14 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Navigation;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
 using WpfApplication = System.Windows.Application;
 using WpfListView = System.Windows.Controls.ListView;
+using WpfNavigationService = System.Windows.Navigation.NavigationService;
 
 namespace TidyWindow.App.Views;
 
@@ -16,11 +18,15 @@ public partial class PackageMaintenancePage : Page
     private readonly PackageMaintenanceViewModel _viewModel;
     private WpfListView? _packagesListView;
     private bool _disposed;
+    private readonly Controls.PackageMaintenancePivotTitleBar _titleBar;
+    private MainViewModel? _shellViewModel;
+    private WpfNavigationService? _navigationService;
 
     public PackageMaintenancePage(PackageMaintenanceViewModel viewModel)
     {
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
+        _titleBar = new Controls.PackageMaintenancePivotTitleBar { DataContext = _viewModel };
         DataContext = _viewModel;
 
         _viewModel.ConfirmElevation = ConfirmElevation;
@@ -34,6 +40,7 @@ public partial class PackageMaintenancePage : Page
     private async void OnPageLoaded(object sender, RoutedEventArgs e)
     {
         Loaded -= OnPageLoaded;
+        AttachTitleBar();
         EnsureScrollHandlers();
         if (_viewModel.HasLoadedInitialData)
             return;
@@ -93,6 +100,11 @@ public partial class PackageMaintenancePage : Page
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
         _viewModel.ConfirmElevation = null;
         _viewModel.PageChanged -= OnPageChanged;
+        if (_navigationService is not null)
+        {
+            _navigationService.Navigated -= OnNavigated;
+        }
+        _shellViewModel?.SetTitleBarContent(null);
         DetachScrollHandlers();
         if (_packagesListView is not null)
         {
@@ -109,6 +121,11 @@ public partial class PackageMaintenancePage : Page
         {
             RestoreViewModelBindings();
         }
+
+        if (IsVisible)
+        {
+            AttachTitleBar();
+        }
     }
 
     private void RestoreViewModelBindings()
@@ -124,6 +141,32 @@ public partial class PackageMaintenancePage : Page
         Unloaded += OnPageUnloaded;
         _disposed = false;
         EnsureScrollHandlers();
+        AttachTitleBar();
+    }
+
+    private void AttachTitleBar()
+    {
+        _shellViewModel ??= WpfApplication.Current?.MainWindow?.DataContext as MainViewModel;
+        _shellViewModel?.SetTitleBarContent(_titleBar);
+
+        _navigationService ??= WpfNavigationService.GetNavigationService(this);
+        if (_navigationService is not null)
+        {
+            _navigationService.Navigated -= OnNavigated;
+            _navigationService.Navigated += OnNavigated;
+        }
+    }
+
+    private void OnNavigated(object? sender, NavigationEventArgs e)
+    {
+        if (ReferenceEquals(e.Content, this))
+        {
+            _shellViewModel?.SetTitleBarContent(_titleBar);
+        }
+        else
+        {
+            _shellViewModel?.SetTitleBarContent(null);
+        }
     }
 
     private void PackagesListView_Loaded(object sender, RoutedEventArgs e)

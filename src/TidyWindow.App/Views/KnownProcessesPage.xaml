@@ -405,7 +405,6 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -501,7 +500,7 @@
                                     BorderThickness="1"
                                     CornerRadius="12"
                                     Padding="12,4">
-                                <TextBlock Text="{Binding Categories.Count, StringFormat={}{0} process groups}"
+                                    <TextBlock Text="{Binding Categories.Count, StringFormat={}{0} process groups}"
                                            Foreground="{StaticResource ProcessBodyBrush}" />
                             </Border>
                         </WrapPanel>
@@ -511,32 +510,6 @@
         </controls:PageTitleBar>
 
         <Border Grid.Row="1"
-                Background="#0E1A2C"
-                BorderBrush="#1B2538"
-                BorderThickness="1"
-                CornerRadius="12"
-                Padding="10"
-                Margin="0,0,0,16">
-            <StackPanel Orientation="Horizontal">
-                <ToggleButton Content="Known processes"
-                              Style="{StaticResource ProcessNavToggleStyle}"
-                              Command="{Binding SwitchSectionCommand}"
-                              CommandParameter="{x:Static viewModels:KnownProcessViewSection.Catalog}"
-                              IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Catalog, Mode=OneWay}" />
-                <ToggleButton Content="Process controls"
-                              Style="{StaticResource ProcessNavToggleStyle}"
-                              Command="{Binding SwitchSectionCommand}"
-                              CommandParameter="{x:Static viewModels:KnownProcessViewSection.Settings}"
-                              IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Settings, Mode=OneWay}" />
-                <ToggleButton Content="Threat Watch"
-                              Style="{StaticResource ProcessNavToggleStyle}"
-                              Command="{Binding SwitchSectionCommand}"
-                              CommandParameter="{x:Static viewModels:KnownProcessViewSection.ThreatWatch}"
-                              IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=ThreatWatch, Mode=OneWay}" />
-            </StackPanel>
-        </Border>
-
-        <Border Grid.Row="2"
                 CornerRadius="8"
                 BorderBrush="{DynamicResource SystemControlForegroundChromeDisabledLowBrush}"
                 BorderThickness="1"
@@ -566,7 +539,7 @@
             </StackPanel>
         </Border>
 
-        <Grid Grid.Row="3">
+        <Grid Grid.Row="2">
             <Grid>
                 <Grid.Style>
                     <Style TargetType="Grid">

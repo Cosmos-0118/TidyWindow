@@ -1,0 +1,103 @@
+<UserControl x:Class="TidyWindow.App.Controls.PackageMaintenancePivotTitleBar"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+             xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+             Height="44"
+             MinWidth="480"
+             VerticalAlignment="Center">
+    <UserControl.Resources>
+        <converters:EnumEqualsConverter x:Key="EnumEqualsConverter"/>
+
+        <Style x:Key="PivotButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="18,7"/>
+            <Setter Property="Margin" Value="6,0"/>
+            <Setter Property="MinWidth" Value="150"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="Background" Value="#0F1C30"/>
+            <Setter Property="BorderBrush" Value="#1F2E46"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="12">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#8B5CF6" Offset="0"/>
+                                            <GradientStop Color="#7C3AED" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#A78BFA"/>
+                                <Setter Property="Foreground" Value="#F8FAFC"/>
+                                <Setter TargetName="Root" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect BlurRadius="14" ShadowDepth="0" Opacity="0.28" Color="#7C3AED"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
+                                <Setter TargetName="Root" Property="Background" Value="#13294A"/>
+                                <Setter Property="Foreground" Value="#F8FAFC"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.6"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Rectangle x:Name="SweepRect"
+                   Height="3"
+                   VerticalAlignment="Center"
+                   HorizontalAlignment="Stretch"
+                   Margin="0,0,0,2"
+                   Panel.ZIndex="0"
+                   IsHitTestVisible="False"/>
+
+        <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    HorizontalAlignment="Center"
+                    Margin="6,0,6,0"
+                    Panel.ZIndex="1">
+            <TextBlock Text="View:"
+                       VerticalAlignment="Center"
+                       Margin="0,0,8,0"
+                       Foreground="#CBD5F5"
+                       FontWeight="SemiBold"/>
+            <ToggleButton Content="Installed packages"
+                          Style="{StaticResource PivotButtonStyle}"
+                          Command="{Binding SwitchMaintenanceSectionCommand}"
+                          CommandParameter="{x:Static viewModels:MaintenanceViewSection.Packages}"
+                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:MaintenanceViewSection.Packages}}"/>
+            <ToggleButton Content="Queues"
+                          Style="{StaticResource PivotButtonStyle}"
+                          Command="{Binding SwitchMaintenanceSectionCommand}"
+                          CommandParameter="{x:Static viewModels:MaintenanceViewSection.Queue}"
+                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:MaintenanceViewSection.Queue}}"/>
+            <ToggleButton Content="Automation settings"
+                          Style="{StaticResource PivotButtonStyle}"
+                          Command="{Binding SwitchMaintenanceSectionCommand}"
+                          CommandParameter="{x:Static viewModels:MaintenanceViewSection.Automation}"
+                          IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:MaintenanceViewSection.Automation}}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

@@ -235,34 +235,11 @@
                                        FontSize="14"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"/>
-                            <TextBlock Text="Choose a pivot to focus on bundles, the catalog, or your install queue."
+                            <TextBlock Text="Use the top bar to switch between bundles, the catalog, or your install queue."
                                        Foreground="#94A3B8"
                                        FontSize="12"
                                        Margin="0,6,0,0"
                                        TextWrapping="Wrap"/>
-                            <WrapPanel Margin="0,16,0,0"
-                                       ItemHeight="Auto"
-                                       ItemWidth="Auto"
-                                       MinWidth="0">
-                                <ToggleButton Content="Bundles"
-                                              Margin="0,0,12,12"
-                                              Style="{StaticResource InstallHubPivotButtonStyle}"
-                                              Command="{Binding NavigatePivotCommand}"
-                                              CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Bundles}"
-                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Bundles}}"/>
-                                <ToggleButton Content="Catalog"
-                                              Margin="0,0,12,12"
-                                              Style="{StaticResource InstallHubPivotButtonStyle}"
-                                              Command="{Binding NavigatePivotCommand}"
-                                              CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Catalog}"
-                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Catalog}}"/>
-                                <ToggleButton Content="Queue"
-                                              Margin="0,0,12,12"
-                                              Style="{StaticResource InstallHubPivotButtonStyle}"
-                                              Command="{Binding NavigatePivotCommand}"
-                                              CommandParameter="{x:Static viewModels:CurrentInstallHubPivot.Queue}"
-                                              IsChecked="{Binding CurrentPivot, Converter={StaticResource EnumEqualsConverter}, ConverterParameter={x:Static viewModels:CurrentInstallHubPivot.Queue}}"/>
-                            </WrapPanel>
                         </StackPanel>
                     </controls:PageTitleBar.BodyContent>
                 </controls:PageTitleBar>

@@ -1321,32 +1321,10 @@
                   Grid.Row="1"
                   Margin="0,28,0,0">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Left"
-                            Margin="0,0,0,24">
-                    <ToggleButton Content="Installed packages"
-                                  Style="{StaticResource MaintenanceNavToggleStyle}"
-                                  Command="{Binding SwitchMaintenanceSectionCommand}"
-                                  CommandParameter="{x:Static viewModels:MaintenanceViewSection.Packages}"
-                                  IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Packages, Mode=OneWay}"/>
-                    <ToggleButton Content="Queues"
-                                  Style="{StaticResource MaintenanceNavToggleStyle}"
-                                  Command="{Binding SwitchMaintenanceSectionCommand}"
-                                  CommandParameter="{x:Static viewModels:MaintenanceViewSection.Queue}"
-                                  IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Queue, Mode=OneWay}"/>
-                    <ToggleButton Content="Automation settings"
-                                  Style="{StaticResource MaintenanceNavToggleStyle}"
-                                  Command="{Binding SwitchMaintenanceSectionCommand}"
-                                  CommandParameter="{x:Static viewModels:MaintenanceViewSection.Automation}"
-                                  IsChecked="{Binding ActiveSection, Converter={StaticResource EnumEqualsConverter}, ConverterParameter=Automation, Mode=OneWay}"/>
-                </StackPanel>
-
-                <Grid Grid.Row="1">
+                <Grid Grid.Row="0">
                     <Grid x:Name="PackagesViewHost">
                         <Grid.Style>
                             <Style TargetType="Grid">
