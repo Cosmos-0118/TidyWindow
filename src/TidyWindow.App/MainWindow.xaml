@@ -159,13 +159,19 @@
                 BorderBrush="{DynamicResource TitleBarBorderBrush}"
                 BorderThickness="0,0,0,1"
                 MouseLeftButtonDown="TitleBar_OnMouseLeftButtonDown">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                <Grid/>
-                <StackPanel Grid.Column="1"
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <ContentPresenter Grid.Column="0"
+                                      Grid.ColumnSpan="2"
+                                      Margin="12,0,8,0"
+                                      VerticalAlignment="Center"
+                                      HorizontalAlignment="Center"
+                                      Content="{Binding TitleBarContent}"
+                                      IsHitTestVisible="True"/>
+                    <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             HorizontalAlignment="Right"
                             VerticalAlignment="Center"

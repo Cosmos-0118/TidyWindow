@@ -16,6 +16,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private NavigationItemViewModel? _selectedItem;
     private string _statusMessage = "Ready";
     private int _loadingOperations;
+    private object? _titleBarContent;
 
     public MainViewModel(NavigationService navigationService, ActivityLogService activityLogService)
     {
@@ -61,6 +62,17 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         get => _statusMessage;
         private set => SetProperty(ref _statusMessage, value);
+    }
+
+    public object? TitleBarContent
+    {
+        get => _titleBarContent;
+        set => SetProperty(ref _titleBarContent, value);
+    }
+
+    public void SetTitleBarContent(object? content)
+    {
+        TitleBarContent = content;
     }
 
     public void SetStatusMessage(string message)
