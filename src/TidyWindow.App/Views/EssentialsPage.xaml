@@ -710,21 +710,19 @@
                                                              ParentScrollViewerName="EssentialsScrollViewer"
                                                              Background="Transparent"
                                                              BorderThickness="0"
-                                                             ScrollViewer.CanContentScroll="True"
-                                                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                             ScrollViewer.CanContentScroll="False"
+                                                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                             VirtualizingPanel.IsVirtualizing="True"
-                                                             VirtualizingPanel.VirtualizationMode="Recycling"
-                                                             VirtualizingPanel.ScrollUnit="Pixel"
+                                                             VirtualizingPanel.IsVirtualizing="False"
                                                              SelectionMode="Single"
                                                              ItemContainerStyle="{StaticResource EssentialsTaskListItemStyle}">
                                         <ListView.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="320"
-                                                                                  MaxColumnWidth="420"
-                                                                                  ColumnSpacing="22"
-                                                                                  RowSpacing="22"
-                                                                                  Padding="4,0,4,12"/>
+                                                <ux:AdaptiveTilePanel MinColumnWidth="320"
+                                                                     MaxColumnWidth="420"
+                                                                     ColumnSpacing="22"
+                                                                     RowSpacing="22"
+                                                                     Padding="4,0,4,12"/>
                                             </ItemsPanelTemplate>
                                         </ListView.ItemsPanel>
                                         <ListView.ItemTemplate>
@@ -805,31 +803,6 @@
                                                                     </StackPanel>
                                                                 </Border>
                                                             </WrapPanel>
-
-                                                            <ItemsControl ItemsSource="{Binding HighlightsShort}"
-                                                                          Margin="0,12,0,0"
-                                                                          AlternationCount="5">
-                                                                <ItemsControl.ItemsPanel>
-                                                                    <ItemsPanelTemplate>
-                                                                        <WrapPanel/>
-                                                                    </ItemsPanelTemplate>
-                                                                </ItemsControl.ItemsPanel>
-                                                                <ItemsControl.ItemTemplate>
-                                                                    <DataTemplate>
-                                                                        <Border Style="{StaticResource EssentialsChipStyle}"
-                                                                                Background="{Binding RelativeSource={RelativeSource AncestorType=ContentPresenter}, Path=(ItemsControl.AlternationIndex), Converter={StaticResource HighlightBrushConverter}}"
-                                                                                BorderBrush="{StaticResource EssentialsCardBorderBrush}">
-                                                                            <TextBlock Text="{Binding}"
-                                                                                       Foreground="#F8FAFC"
-                                                                                       FontSize="12"
-                                                                                       FontWeight="SemiBold"
-                                                                                       TextWrapping="Wrap"
-                                                                                       TextTrimming="None"
-                                                                                       MaxWidth="260"/>
-                                                                        </Border>
-                                                                    </DataTemplate>
-                                                                </ItemsControl.ItemTemplate>
-                                                            </ItemsControl>
 
                                                             <ux:SimpleProgressBar Margin="0,12,0,0"
                                                                                   Value="{Binding ProgressValue}"

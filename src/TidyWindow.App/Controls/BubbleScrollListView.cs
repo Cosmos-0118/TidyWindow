@@ -40,32 +40,31 @@ public class BubbleScrollListView : System.Windows.Controls.ListView
 
     protected override void OnPreviewMouseWheel(System.Windows.Input.MouseWheelEventArgs e)
     {
-        base.OnPreviewMouseWheel(e);
-        if (e.Handled)
-        {
-            return;
-        }
-
         var inner = EnsureInnerScrollViewer();
+        var canScrollInner = false;
+
         if (inner is not null)
         {
-            var canScrollUp = e.Delta > 0 && inner.VerticalOffset > 0;
-            var canScrollDown = e.Delta < 0 && inner.VerticalOffset < inner.ScrollableHeight;
-            if (canScrollUp || canScrollDown)
-            {
-                return;
-            }
+            canScrollInner = (e.Delta > 0 && inner.VerticalOffset > 0) ||
+                             (e.Delta < 0 && inner.VerticalOffset < inner.ScrollableHeight);
+        }
+
+        if (canScrollInner)
+        {
+            base.OnPreviewMouseWheel(e);
+            return;
         }
 
         var parentScrollViewer = ResolveParentScrollViewer();
-        if (parentScrollViewer is null || parentScrollViewer.ScrollableHeight <= 0)
+        if (parentScrollViewer is not null && parentScrollViewer.ScrollableHeight > 0)
         {
+            e.Handled = true;
+            var targetOffset = Clamp(parentScrollViewer.VerticalOffset - e.Delta, 0, parentScrollViewer.ScrollableHeight);
+            parentScrollViewer.ScrollToVerticalOffset(targetOffset);
             return;
         }
 
-        e.Handled = true;
-        var targetOffset = Clamp(parentScrollViewer.VerticalOffset - e.Delta, 0, parentScrollViewer.ScrollableHeight);
-        parentScrollViewer.ScrollToVerticalOffset(targetOffset);
+        base.OnPreviewMouseWheel(e);
     }
 
     protected override void OnVisualParentChanged(DependencyObject oldParent)

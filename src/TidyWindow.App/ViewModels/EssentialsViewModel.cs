@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
+using System.Text.RegularExpressions;
 using System.Linq;
 using System.Text;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -825,7 +826,7 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
 
     public string? DurationHint => Definition.DurationHint;
 
-    public string? DurationChipText => TruncateForCard(DurationSummary, 68);
+    public string? DurationChipText => TruncateForCard(DurationSummary, 48);
 
     public string? DetailedDescription => Definition.DetailedDescription;
 
@@ -909,14 +910,39 @@ public sealed partial class EssentialsTaskItemViewModel : ObservableObject
                 text = text[7..].Trim();
             }
 
+            var parenIndex = text.IndexOf('(');
+            if (parenIndex >= 0)
+            {
+                text = text[..parenIndex].Trim();
+            }
+
+            // Keep only the primary duration phrase (usually ends with "minutes").
+            var minutesMatch = Regex.Match(text, @"^(?<dur>[^.;,\n]*?minutes?)\b", RegexOptions.IgnoreCase);
+            if (minutesMatch.Success)
+            {
+                text = minutesMatch.Groups["dur"].Value.Trim();
+            }
+            else
+            {
+                var separators = new[] { ';', ',' };
+                var splitIndex = text.IndexOfAny(separators);
+                if (splitIndex >= 0)
+                {
+                    text = text[..splitIndex].Trim();
+                }
+            }
+
             if (text.EndsWith('.') && text.Length > 1)
             {
                 text = text.TrimEnd('.').Trim();
             }
 
-            return string.IsNullOrWhiteSpace(text)
-                ? null
-                : $"Approx. time: {text}";
+            if (text.Length == 0)
+            {
+                return null;
+            }
+
+            return text;
         }
     }
 

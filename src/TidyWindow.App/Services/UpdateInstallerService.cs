@@ -153,18 +153,18 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
 
         var logPath = Path.Combine(Path.GetDirectoryName(installerPath) ?? Path.GetTempPath(), "TidyWindow-Update.log");
 
-        // Show full UI; keep close/restart flags so binaries can be replaced and the app restarts afterward.
+        // Show full UI and close the running instance so binaries can be replaced; relaunch occurs from the wizard Finish page.
         var startInfo = new ProcessStartInfo(installerPath)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(installerPath) ?? Environment.CurrentDirectory,
-            Arguments = $"/SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS /LOG=\"{logPath}\""
+            Arguments = $"/SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /LOG=\"{logPath}\""
         };
 
         try
         {
             Process.Start(startInfo);
-            _activityLog.LogInformation("Updates", "Installer launched with user confirmation. TidyWindow will close so the update can finish and restart afterward.");
+            _activityLog.LogInformation("Updates", "Installer launched with user confirmation. TidyWindow will close so the update can finish; use the setup Finish page to relaunch it.");
         }
         catch (Exception ex)
         {
@@ -172,7 +172,7 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
             return false;
         }
 
-        // Exit the running app to avoid locked files and allow Inno Setup to replace binaries; /RESTARTAPPLICATIONS will bring it back.
+        // Exit the running app to avoid locked files; the setup wizard remains responsible for relaunching.
         Application.Current?.Dispatcher?.BeginInvoke(() => Application.Current?.Shutdown());
 
         _ = Task.Run(async () =>
