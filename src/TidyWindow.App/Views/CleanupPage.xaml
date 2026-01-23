@@ -170,7 +170,7 @@
             <Setter Property="BorderThickness"
                     Value="0"/>
             <Setter Property="Margin"
-                    Value="0,0,8,0"/>
+                Value="0,0,14,12"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
@@ -1208,7 +1208,13 @@
                                Foreground="{StaticResource CleanupMutedTextBrush}"
                                Margin="0,2,0,20"/>
 
-                    <WrapPanel>
+                    <ux:AdaptiveTilePanel MinColumnWidth="320"
+                                          MaxColumnWidth="520"
+                                          MinColumns="1"
+                                          MaxColumns="3"
+                                          ColumnSpacing="18"
+                                          RowSpacing="18"
+                                          Padding="0,0,12,12">
                         <Border Style="{StaticResource SetupCardStyle}">
                             <StackPanel>
                                 <TextBlock Text="Scope"
@@ -1292,67 +1298,83 @@
                         </Border>
 
                         <Border Style="{StaticResource SetupCardStyle}"
-                                MinWidth="300">
+                                MinWidth="320">
                             <StackPanel>
-                                <TextBlock Text="Top items"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                <TextBlock Text="Use the slider or presets to keep previews manageable (T)."
-                                           FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           TextWrapping="Wrap"
-                                           Margin="0,4,0,8"/>
-                                <Grid Margin="0,4,0,12">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="220"/>
-                                    </Grid.ColumnDefinitions>
-                                    <StackPanel Grid.Column="0"
-                                                Margin="0,0,20,0">
-                                        <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
-                                                Maximum="{Binding PreviewCountMaximum, Mode=OneWay}"
-                                                Value="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                IsSnapToTickEnabled="True"
-                                                Style="{StaticResource CleanupSliderStyle}"/>
-                                        <TextBlock FontSize="12"
+                                <StackPanel Margin="0,0,0,8">
+                                    <TextBlock Text="Top items"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                    <TextBlock Text="Use the slider or presets to keep previews manageable (T)."
+                                               FontSize="12"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+
+                                <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="12"
+                                    Padding="14,12"
+                                    HorizontalAlignment="Center"
+                                    MinWidth="210"
+                                    Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="Preview cap"
+                                                   FontSize="12"
                                                    Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                   Margin="0,6,0,0">
-                                            <Run Text="Range: "/>
-                                            <Run Text="{Binding PreviewCountMinimum}"/>
-                                            <Run Text=" - "/>
-                                            <Run Text="{Binding PreviewCountMaximum}"/>
-                                        </TextBlock>
+                                                   Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                                                 Style="{StaticResource App.TextBoxStyle}"
+                                                 FontSize="22"
+                                                 FontWeight="SemiBold"
+                                                 Background="Transparent"
+                                                 BorderThickness="0"
+                                                 HorizontalContentAlignment="Center"
+                                                 Padding="4"
+                                                 MinHeight="44"/>
+                                        <TextBlock Text="items"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   HorizontalAlignment="Center"/>
                                     </StackPanel>
-                                    <Border Grid.Column="1"
-                                            Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                            BorderBrush="{StaticResource CleanupBorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="12"
-                                            Padding="16,14">
-                                        <StackPanel>
-                                            <TextBlock Text="Preview cap"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                       Margin="0,0,0,4"/>
-                                            <TextBox Text="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, Delay=120}"
-                                                     Style="{StaticResource App.TextBoxStyle}"
-                                                     FontSize="26"
-                                                     FontWeight="SemiBold"
-                                                     Background="Transparent"
-                                                     BorderThickness="0"
-                                                     HorizontalContentAlignment="Center"
-                                                     Padding="4"
-                                                     MinHeight="48"/>
-                                            <TextBlock Text="items"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                       HorizontalAlignment="Center"
-                                                       Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-                                </Grid>
-                                <WrapPanel>
+                                </Border>
+
+                                <StackPanel Margin="0,4,0,12">
+                                    <Slider Minimum="{Binding PreviewCountMinimum, Mode=OneWay}"
+                                            Maximum="{Binding PreviewCountMaximum, Mode=OneWay}"
+                                            Value="{Binding PreviewCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            IsSnapToTickEnabled="True"
+                                            Style="{StaticResource CleanupSliderStyle}"/>
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Text="{Binding PreviewCountMinimum}"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="Range"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   HorizontalAlignment="Center"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding PreviewCountMaximum}"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <UniformGrid Columns="3"
+                                         Rows="2"
+                                         Margin="0,8,0,0"
+                                         HorizontalAlignment="Center"
+                                         VerticalAlignment="Center"
+                                         FlowDirection="LeftToRight">
                                     <Button Style="{StaticResource ChipButtonStyle}"
                                             Content="25"
                                             Command="{Binding ApplyPreviewPresetCommand}">
@@ -1395,10 +1417,10 @@
                                             <sys:Int32>100000</sys:Int32>
                                         </Button.CommandParameter>
                                     </Button>
-                                </WrapPanel>
+                                </UniformGrid>
                             </StackPanel>
                         </Border>
-                    </WrapPanel>
+                    </ux:AdaptiveTilePanel>
 
                     <Expander Header="Advanced options"
                               Background="Transparent"

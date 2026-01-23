@@ -428,22 +428,92 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                        <StackPanel Orientation="Vertical"
-                            Margin="0,0,0,16">
+                    <Border Grid.Row="0"
+                            Background="#0E1D33"
+                            BorderBrush="#1E3A5E"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="14"
+                            Margin="0,0,0,18">
+                        <DockPanel LastChildFill="True">
+                            <StackPanel Orientation="Horizontal"
+                                        DockPanel.Dock="Right"
+                                        VerticalAlignment="Center">
+                                <ComboBox Width="180"
+                                          Margin="12,0,0,0"
+                                          ItemsSource="{Binding NameMatchModes}"
+                                          SelectedItem="{Binding SelectedMatchMode}"
+                                          Style="{StaticResource App.ComboBoxStyle}"/>
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Margin="12,0,0,0"
+                                          Content="Case sensitive"
+                                          IsChecked="{Binding IsCaseSensitiveMatch}"
+                                          Foreground="#E2E8F0"/>
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Margin="12,0,0,0"
+                                          Content="Hidden"
+                                          IsChecked="{Binding IncludeHidden}"
+                                          Foreground="#E2E8F0"/>
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Margin="12,0,0,0"
+                                          Content="System"
+                                          IsChecked="{Binding IncludeSystem}"
+                                          Foreground="#E2E8F0"/>
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Margin="12,0,0,0"
+                                          Content="Folders"
+                                          IsChecked="{Binding IncludeDirectories}"
+                                          Foreground="#E2E8F0"/>
+                            </StackPanel>
+
+                            <Grid Margin="0,0,12,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0"
+                                        Width="36"
+                                        Height="36"
+                                        CornerRadius="10"
+                                        Background="#12243E"
+                                        BorderBrush="#1E3A5E"
+                                        BorderThickness="1"
+                                        HorizontalAlignment="Center"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="🔎"
+                                               FontSize="16"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"/>
+                                </Border>
+                                <TextBox Grid.Column="1"
+                                         Margin="10,0,0,0"
+                                         Height="40"
+                                         Style="{StaticResource App.TextBoxStyle}"
+                                         Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged, Delay=120}"
+                                         Tag="Search by name or path"
+                                         VerticalContentAlignment="Center"/>
+                            </Grid>
+                        </DockPanel>
+                    </Border>
+
+                    <StackPanel Grid.Row="1"
+                                Orientation="Vertical"
+                                Margin="0,0,0,16">
                         <ux:AdaptiveTilePanel Margin="0"
-                                      MinColumnWidth="360"
-                                      MaxColumnWidth="640"
-                                      MinColumns="1"
-                                      MaxColumns="3"
-                                      ColumnSpacing="36"
-                                      RowSpacing="28"
-                                      Padding="0,0,12,12">
+                                              MinColumnWidth="360"
+                                              MaxColumnWidth="640"
+                                              MinColumns="1"
+                                              MaxColumns="3"
+                                              ColumnSpacing="36"
+                                              RowSpacing="28"
+                                              Padding="0,0,12,12">
                             <Border Style="{StaticResource FilterCardBorderStyle}"
-                                 MinWidth="320"
-                                 MaxWidth="460">
+                                    MinWidth="320"
+                                    MaxWidth="460">
                                 <StackPanel>
                                     <TextBlock Text="Target location"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -486,9 +556,9 @@
                                 </StackPanel>
                             </Border>
 
-                                  <Border Style="{StaticResource FilterCardBorderStyle}"
-                                      MinWidth="340"
-                                      MaxWidth="520">
+                            <Border Style="{StaticResource FilterCardBorderStyle}"
+                                    MinWidth="340"
+                                    MaxWidth="520">
                                 <StackPanel>
                                     <TextBlock Text="Result limits"
                                                Style="{StaticResource FilterLabelStyle}"/>
@@ -518,33 +588,15 @@
                                 </StackPanel>
                             </Border>
 
-                                <Border Style="{StaticResource FilterCardBorderStyle}"
+                            <Border Style="{StaticResource FilterCardBorderStyle}"
                                     MinWidth="320"
                                     MaxWidth="440">
                                 <StackPanel>
                                     <TextBlock Text="Scan options"
                                                Style="{StaticResource FilterLabelStyle}"/>
-                                    <TextBlock Text="Fine-tune exactly what the analyzer inspects."
+                                    <TextBlock Text="Force delete is destructive. Enable only if you understand the risk."
                                                Style="{StaticResource FilterHintStyle}"/>
                                     <StackPanel Margin="0,16,0,0">
-                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                  Content="Include hidden items"
-                                                  IsChecked="{Binding IncludeHidden}"
-                                                  Foreground="#E2E8F0"
-                                                  Margin="0,0,0,8"/>
-                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                  Content="Include system files (risky)"
-                                                  IsChecked="{Binding IncludeSystem}"
-                                                  Foreground="#E2E8F0"
-                                                  Margin="0,0,0,8"/>
-                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                  Content="Include folders"
-                                                  IsChecked="{Binding IncludeDirectories}"
-                                                  Foreground="#E2E8F0"/>
-                                        <TextBlock Text="Force delete is destructive. Enable only if you understand the risk."
-                                                   Foreground="#FCA5A5"
-                                                   FontSize="11"
-                                                   Margin="0,12,0,4"/>
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                                   Content="Enable force delete (dangerous)"
                                                   IsChecked="{Binding IsForceDeleteArmed}"
@@ -553,33 +605,10 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-
-                                <Border Style="{StaticResource FilterCardBorderStyle}"
-                                    MinWidth="360"
-                                    MaxWidth="520">
-                                <StackPanel>
-                                    <TextBlock Text="Name matching"
-                                               Style="{StaticResource FilterLabelStyle}"/>
-                                    <TextBlock Text="Narrow results by name without losing flexibility."
-                                               Style="{StaticResource FilterHintStyle}"/>
-                                    <TextBox Margin="0,16,0,0"
-                                             Style="{StaticResource App.TextBoxStyle}"
-                                             Text="{Binding NameFilter, UpdateSourceTrigger=PropertyChanged, Delay=120}"/>
-                                    <ComboBox Margin="0,16,0,0"
-                                              ItemsSource="{Binding NameMatchModes}"
-                                              SelectedItem="{Binding SelectedMatchMode}"
-                                              Style="{StaticResource App.ComboBoxStyle}"/>
-                                    <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                              Margin="0,12,0,0"
-                                              Content="Case sensitive"
-                                              IsChecked="{Binding IsCaseSensitiveMatch}"
-                                              Foreground="#E2E8F0"/>
-                                </StackPanel>
-                            </Border>
                         </ux:AdaptiveTilePanel>
                     </StackPanel>
 
-                    <Grid Grid.Row="1">
+                    <Grid Grid.Row="2">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="*"/>

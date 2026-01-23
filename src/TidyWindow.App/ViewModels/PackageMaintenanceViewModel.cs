@@ -238,7 +238,9 @@ public sealed partial class PackageMaintenanceViewModel : ViewModelBase, IDispos
 
         try
         {
-            var snapshot = await _inventoryService.GetInventoryAsync().ConfigureAwait(false);
+            var snapshot = await Task.Run(
+                () => _inventoryService.GetInventoryAsync(),
+                CancellationToken.None).ConfigureAwait(false);
 
             await RunOnUiThreadAsync(() =>
             {
