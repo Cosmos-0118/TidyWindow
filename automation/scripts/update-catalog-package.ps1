@@ -1211,6 +1211,8 @@ function Invoke-ManagerUpdate {
     $hashMismatchLine = $null
     $versionNotFoundDetected = $false
     $versionNotFoundLine = $null
+    $wingetUninstallExitCode = $null
+    $wingetUninstallLine = $null
 
     foreach ($entry in @($rawOutput)) {
         if ($null -eq $entry) {
@@ -1235,6 +1237,14 @@ function Invoke-ManagerUpdate {
             if (-not $versionNotFoundDetected -and $ManagerKey -eq 'winget' -and $message.IndexOf('No version found matching', [System.StringComparison]::OrdinalIgnoreCase) -ge 0) {
                 $versionNotFoundDetected = $true
                 $versionNotFoundLine = $message
+            }
+
+            if ($ManagerKey -eq 'winget' -and $wingetUninstallExitCode -eq $null) {
+                $uninstallMatch = [Regex]::Match($message, 'Uninstall failed with exit code:\s*(?<code>-?\d+)')
+                if ($uninstallMatch.Success) {
+                    $wingetUninstallExitCode = [int]$uninstallMatch.Groups['code'].Value
+                    $wingetUninstallLine = $message
+                }
             }
 
             continue
@@ -1274,10 +1284,23 @@ function Invoke-ManagerUpdate {
             continue
         }
 
+        if ($ManagerKey -eq 'winget' -and $wingetUninstallExitCode -eq $null) {
+            $uninstallMatch = [Regex]::Match($message, 'Uninstall failed with exit code:\s*(?<code>-?\d+)')
+            if ($uninstallMatch.Success) {
+                $wingetUninstallExitCode = [int]$uninstallMatch.Groups['code'].Value
+                $wingetUninstallLine = $message
+            }
+        }
+
         [void]$logs.Add($message)
     }
 
     $finalExitCode = $exitCode
+    $wingetUninstallFailure = $ManagerKey -eq 'winget' -and $wingetUninstallExitCode -ne $null
+
+    if ($wingetUninstallFailure) {
+        $finalExitCode = $wingetUninstallExitCode
+    }
 
     if ($finalExitCode -eq 0) {
         if ($hasTarget) {
@@ -1291,7 +1314,7 @@ function Invoke-ManagerUpdate {
         $summary = "Update command exited with code $finalExitCode."
     }
 
-    if ($ManagerKey -eq 'winget' -and $versionNotFoundDetected) {
+    if (-not $wingetUninstallFailure -and $ManagerKey -eq 'winget' -and $versionNotFoundDetected) {
         if ([string]::IsNullOrWhiteSpace($versionNotFoundLine)) {
             $versionNotFoundLine = "Winget could not find a matching version for package '$PackageId'."
         }
@@ -1312,7 +1335,7 @@ function Invoke-ManagerUpdate {
         }
     }
 
-    if ($ManagerKey -eq 'winget' -and $hashMismatchDetected) {
+    if (-not $wingetUninstallFailure -and $ManagerKey -eq 'winget' -and $hashMismatchDetected) {
         $desiredVersionText = if (-not [string]::IsNullOrWhiteSpace($normalizedTarget)) { " to reach version $normalizedTarget" } else { '' }
         if ([string]::IsNullOrWhiteSpace($hashMismatchLine)) {
             $hashMismatchLine = "Installer hash mismatch detected for package '$PackageId'."
@@ -1327,6 +1350,21 @@ function Invoke-ManagerUpdate {
         }
 
         $summary = "Winget reported an installer hash mismatch for '$nameForSummary'. Install the update manually$desiredVersionText or retry after the winget catalog refreshes."
+    }
+
+    if ($wingetUninstallFailure) {
+        if (-not [string]::IsNullOrWhiteSpace($wingetUninstallLine) -and -not $errors.Contains($wingetUninstallLine)) {
+            [void]$errors.Add($wingetUninstallLine)
+        }
+
+        $uninstallHint = if ($wingetUninstallExitCode -eq 1612) {
+            ' (Windows Installer reports that the original installation source is missing). Reinstall the current version to restore the cache, then retry the update.'
+        }
+        else {
+            ' (unable to remove the existing installation). Reinstall or remove the current version, then retry the update.'
+        }
+
+        $summary = "Winget could not uninstall the existing version of '$nameForSummary' (exit code $wingetUninstallExitCode)$uninstallHint"
     }
 
     return [pscustomobject]@{

@@ -327,55 +327,56 @@
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
-            <controls:PageTitleBar Grid.Row="0"
+            <ScrollViewer Grid.RowSpan="2" VerticalScrollBarVisibility="Auto" Padding="4,0,4,24">
+                <StackPanel Orientation="Vertical">
+                    <controls:PageTitleBar
                                    Title="PathPilot"
                                    Subtitle="Runtime PATH switchboard"
                                    IconGlyph="🛰️"
                                    BadgeText="{Binding LastRefreshedDisplay}"
                                    Margin="0,0,0,18">
-                <controls:PageTitleBar.TrailingContent>
-                    <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
-                        <Button Content="Refresh" Style="{StaticResource PrimaryButton}" Command="{Binding RefreshCommand}" Margin="0,0,20,0" />
-                        <Button Content="Export JSON" Style="{StaticResource SecondaryButton}" Command="{Binding ExportJsonCommand}" Margin="0,0,20,0" />
-                        <Button Content="Export Markdown" Style="{StaticResource SecondaryButton}" Command="{Binding ExportMarkdownCommand}" />
-                    </StackPanel>
-                </controls:PageTitleBar.TrailingContent>
-                <controls:PageTitleBar.BodyContent>
-                    <Border Style="{StaticResource CardStyle}" Padding="20" Background="#0F1F35">
-                        <StackPanel>
-                            <StackPanel.Resources>
-                                <Style TargetType="FrameworkElement">
-                                    <Setter Property="Margin" Value="0,0,0,8" />
-                                </Style>
-                            </StackPanel.Resources>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <StackPanel.Resources>
-                                    <Style TargetType="FrameworkElement">
-                                        <Setter Property="Margin" Value="0,0,10,0" />
-                                    </Style>
-                                </StackPanel.Resources>
-                                <TextBlock Text="PathPilot" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                                <Button Content="Details" Style="{StaticResource SecondaryButton}" Padding="12,6" Margin="8,0,0,0" VerticalAlignment="Center"
-                                        Command="{Binding ShowPageInfoCommand}" />
+                        <controls:PageTitleBar.TrailingContent>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
+                                <Button Content="Refresh" Style="{StaticResource PrimaryButton}" Command="{Binding RefreshCommand}" Margin="0,0,20,0" />
+                                <Button Content="Export JSON" Style="{StaticResource SecondaryButton}" Command="{Binding ExportJsonCommand}" Margin="0,0,20,0" />
+                                <Button Content="Export Markdown" Style="{StaticResource SecondaryButton}" Command="{Binding ExportMarkdownCommand}" />
                             </StackPanel>
-                            <TextBlock Text="Switch runtimes that own PATH without the clutter."
-                                       Foreground="#CBD5E1" Margin="0,6,0,0" />
-                            <StackPanel Visibility="{Binding ShowPathPilotHero, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <StackPanel.Resources>
-                                    <Style TargetType="FrameworkElement">
-                                        <Setter Property="Margin" Value="0,0,0,4" />
-                                    </Style>
-                                </StackPanel.Resources>
-                                <TextBlock Text="PathPilot updates HKLM + machine PATH, affecting all accounts." Foreground="#E2E8F0" FontSize="12" />
-                                <TextBlock Text="Snapshot is taken before edits; confirm destinations before switching." Foreground="#A5B4FC" FontSize="11" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </controls:PageTitleBar.BodyContent>
-            </controls:PageTitleBar>
+                        </controls:PageTitleBar.TrailingContent>
+                        <controls:PageTitleBar.BodyContent>
+                            <Border Style="{StaticResource CardStyle}" Padding="20" Background="#0F1F35">
+                                <StackPanel>
+                                    <StackPanel.Resources>
+                                        <Style TargetType="FrameworkElement">
+                                            <Setter Property="Margin" Value="0,0,0,8" />
+                                        </Style>
+                                    </StackPanel.Resources>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                        <StackPanel.Resources>
+                                            <Style TargetType="FrameworkElement">
+                                                <Setter Property="Margin" Value="0,0,10,0" />
+                                            </Style>
+                                        </StackPanel.Resources>
+                                        <TextBlock Text="PathPilot" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                                        <Button Content="Details" Style="{StaticResource SecondaryButton}" Padding="12,6" Margin="8,0,0,0" VerticalAlignment="Center"
+                                                Command="{Binding ShowPageInfoCommand}" />
+                                    </StackPanel>
+                                    <TextBlock Text="Switch runtimes that own PATH without the clutter."
+                                               Foreground="#CBD5E1" Margin="0,6,0,0" />
+                                    <StackPanel Visibility="{Binding ShowPathPilotHero, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel.Resources>
+                                            <Style TargetType="FrameworkElement">
+                                                <Setter Property="Margin" Value="0,0,0,4" />
+                                            </Style>
+                                        </StackPanel.Resources>
+                                        <TextBlock Text="PathPilot updates HKLM + machine PATH, affecting all accounts." Foreground="#E2E8F0" FontSize="12" />
+                                        <TextBlock Text="Snapshot is taken before edits; confirm destinations before switching." Foreground="#A5B4FC" FontSize="11" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </controls:PageTitleBar.BodyContent>
+                    </controls:PageTitleBar>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="4,0,4,24">
-                <StackPanel x:Name="MainLayoutHost" Margin="0,0,0,8" Orientation="Vertical">
+                    <StackPanel x:Name="MainLayoutHost" Margin="0,0,0,8" Orientation="Vertical">
                     <StackPanel.Resources>
                         <Style TargetType="FrameworkElement">
                             <Setter Property="Margin" Value="0,0,0,20" />
@@ -477,6 +478,7 @@
                         <Button Content="Prev" Style="{StaticResource SecondaryButton}" Command="{Binding GoToPreviousPageCommand}" IsEnabled="{Binding CanGoToPreviousPage}" />
                         <Button Content="Next" Style="{StaticResource SecondaryButton}" Command="{Binding GoToNextPageCommand}" IsEnabled="{Binding CanGoToNextPage}" />
                     </StackPanel>
+                </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </Grid>

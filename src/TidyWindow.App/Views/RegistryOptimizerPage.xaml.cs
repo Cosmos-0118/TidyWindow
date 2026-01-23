@@ -123,6 +123,7 @@ public partial class RegistryOptimizerPage : Page
         }
 
         _viewModel.RestorePointCreated -= OnRestorePointCreated;
+        _viewModel.IsPresetDialogVisible = false;
         ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
         if (_rootScrollWheelAttached)
         {
@@ -133,6 +134,17 @@ public partial class RegistryOptimizerPage : Page
         _scrollAnimationTarget = double.NaN;
         DetachScrollHandlers();
         _disposed = true;
+    }
+
+    private void OnPresetsOverlayMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!ReferenceEquals(e.OriginalSource, PresetsOverlay))
+        {
+            return;
+        }
+
+        _viewModel.IsPresetDialogVisible = false;
+        e.Handled = true;
     }
 
     private void ContentScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
@@ -328,7 +340,6 @@ public partial class RegistryOptimizerPage : Page
         }
 
         AttachScrollHandler(TweaksListView);
-        AttachScrollHandler(PresetListBox);
         _scrollHandlersAttached = true;
 
         ContentScrollViewer.PreviewMouseWheel -= OnContentScrollViewerPreviewMouseWheel;
@@ -344,7 +355,6 @@ public partial class RegistryOptimizerPage : Page
         }
 
         TweaksListView.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
-        PresetListBox.PreviewMouseWheel -= OnNestedPreviewMouseWheel;
         _scrollHandlersAttached = false;
 
         if (_rootScrollWheelAttached)
@@ -428,6 +438,12 @@ public partial class RegistryOptimizerPage : Page
 
     private void OnContentScrollViewerPreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
+        if (_viewModel.IsPresetDialogVisible)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (ContentScrollViewer.ScrollableHeight <= 0)
         {
             return;

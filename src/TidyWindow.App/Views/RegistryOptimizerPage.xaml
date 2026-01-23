@@ -89,19 +89,20 @@
         </ResourceDictionary>
     </Page.Resources>
 
-    <ScrollViewer x:Name="ContentScrollViewer"
-                  Margin="32"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  HorizontalContentAlignment="Stretch"
-                  CanContentScroll="True"
-                  IsDeferredScrollingEnabled="False"
-                  PanningMode="VerticalOnly"
-                  SizeChanged="ContentScrollViewer_SizeChanged">
-        <Grid x:Name="PageContentGrid"
-              MinWidth="0"
-              MaxWidth="1320"
-              HorizontalAlignment="Center">
+    <Grid>
+        <ScrollViewer x:Name="ContentScrollViewer"
+                      Margin="32"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      HorizontalContentAlignment="Stretch"
+                      CanContentScroll="True"
+                      IsDeferredScrollingEnabled="False"
+                      PanningMode="VerticalOnly"
+                      SizeChanged="ContentScrollViewer_SizeChanged">
+            <Grid x:Name="PageContentGrid"
+                  MinWidth="0"
+                  MaxWidth="1320"
+                  HorizontalAlignment="Center">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -735,6 +736,12 @@
                                     HorizontalAlignment="Stretch"
                                     ToolTipService.ToolTip="{x:Static strings:RegistryOptimizerStrings.RestoreButtonDescription}"
                                     Visibility="{Binding HasRestorePoint, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            <Button x:Name="PresetsButton"
+                                    Content="Presets"
+                                    Command="{Binding ShowPresetsDialogCommand}"
+                                    Style="{StaticResource RegistrySecondaryButtonStyle}"
+                                    Margin="0,12,0,0"
+                                    HorizontalAlignment="Stretch"/>
                             <ProgressBar IsIndeterminate="True"
                                          Height="4"
                                          Margin="0,18,0,0"
@@ -763,75 +770,77 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource RegistryCardStyle}"
-                            Margin="0,20,0,0">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
-                            <StackPanel Grid.Row="0"
-                                        Margin="0,0,0,12">
-                                <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.PresetsHeader}"
-                                           FontSize="16"
-                                           FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"/>
-                                <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.PresetsDescription}"
-                                           FontSize="12"
-                                           Foreground="#64748B"/>
-                            </StackPanel>
-                            <ListBox x:Name="PresetListBox"
-                                     Grid.Row="1"
-                                     ItemsSource="{Binding Presets}"
-                                     SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
-                                     Background="Transparent"
-                                     BorderThickness="0"
-                                     Foreground="#F8FAFC"
-                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
-                                     ScrollViewer.CanContentScroll="True"
-                                     VirtualizingStackPanel.IsVirtualizing="True"
-                                     VirtualizingStackPanel.VirtualizationMode="Recycling"
-                                     VirtualizingPanel.CacheLength="1"
-                                     VirtualizingPanel.CacheLengthUnit="Item">
-                                <ListBox.ItemContainerStyle>
-                                    <Style TargetType="ListBoxItem">
-                                        <Setter Property="Margin" Value="0,4"/>
-                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                        <Setter Property="SnapsToDevicePixels" Value="True"/>
-                                        <Setter Property="UseLayoutRounding" Value="True"/>
-                                        <Setter Property="CacheMode">
-                                            <Setter.Value>
-                                                <BitmapCache EnableClearType="True"/>
-                                            </Setter.Value>
-                                        </Setter>
-                                        <Setter Property="Template">
-                                            <Setter.Value>
-                                                <ControlTemplate TargetType="ListBoxItem">
-                                                        <Border x:Name="Container"
-                                                            Style="{StaticResource RegistryCardSurfaceStyle}"
-                                                            Background="#101D30"
-                                                            BorderBrush="#1F2D44"
-                                                            CornerRadius="10"
-                                                            Padding="14">
-                                                        <ContentPresenter/>
-                                                    </Border>
-                                                    <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsSelected" Value="True">
-                                                            <Setter TargetName="Container" Property="BorderBrush" Value="#38BDF8"/>
-                                                            <Setter TargetName="Container" Property="Background" Value="#132540"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                            <Setter TargetName="Container" Property="Background" Value="#152B44"/>
-                                                        </Trigger>
-                                                    </ControlTemplate.Triggers>
-                                                </ControlTemplate>
-                                            </Setter.Value>
-                                        </Setter>
-                                    </Style>
-                                </ListBox.ItemContainerStyle>
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
+                </StackPanel>
+            </Grid>
+        </Grid>
+        </ScrollViewer>
+
+        <Grid x:Name="PresetsOverlay"
+              Panel.ZIndex="9"
+              Background="#55000000"
+              Visibility="{Binding IsPresetDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsPresetDialogVisible}"
+              MouseDown="OnPresetsOverlayMouseDown">
+            <Border MaxWidth="540"
+                    Margin="32"
+                    Padding="22"
+                    Background="#0B1626"
+                    BorderBrush="#1F2D44"
+                    BorderThickness="1"
+                    CornerRadius="18"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0">
+                        <DockPanel Margin="0,0,0,6">
+                            <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.PresetsHeader}"
+                                       FontSize="18"
+                                       FontWeight="SemiBold"
+                                       Foreground="#E2E8F0"/>
+                        </DockPanel>
+                        <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.PresetsDescription}"
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Background="#0A162C"
+                            BorderBrush="#1F2D44"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="10"
+                            Margin="0,10,0,0">
+                        <ListBox x:Name="PresetListBox"
+                                 ItemsSource="{Binding Presets}"
+                                 SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="#F8FAFC"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingStackPanel.IsVirtualizing="True"
+                                 VirtualizingStackPanel.VirtualizationMode="Recycling">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Margin" Value="0,6"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#101D30"
+                                            BorderBrush="#1F2D44"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="12">
                                         <DockPanel>
                                             <TextBlock Text="{Binding Icon}"
                                                        FontSize="18"
@@ -848,13 +857,24 @@
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
                                         </DockPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
                     </Border>
-                </StackPanel>
-            </Grid>
+
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                Margin="0,12,0,0">
+                        <Button Content="Close"
+                                Command="{Binding ClosePresetsDialogCommand}"
+                                Style="{StaticResource RegistryAccentButtonStyle}"
+                                MinWidth="110"
+                                Padding="14,6"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
         </Grid>
-    </ScrollViewer>
+    </Grid>
 </Page>

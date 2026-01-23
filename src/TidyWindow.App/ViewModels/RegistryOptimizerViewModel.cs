@@ -101,6 +101,9 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     [ObservableProperty]
     private DateTimeOffset? _latestRestorePointLocalTime;
 
+    [ObservableProperty]
+    private bool _isPresetDialogVisible;
+
     partial void OnSelectedPresetChanged(RegistryPresetViewModel? oldValue, RegistryPresetViewModel? newValue)
     {
         if (newValue is null)
@@ -241,6 +244,18 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+    }
+
+    [RelayCommand]
+    private void ShowPresetsDialog()
+    {
+        IsPresetDialogVisible = true;
+    }
+
+    [RelayCommand]
+    private void ClosePresetsDialog()
+    {
+        IsPresetDialogVisible = false;
     }
 
     [RelayCommand(CanExecute = nameof(CanRevertChanges))]
