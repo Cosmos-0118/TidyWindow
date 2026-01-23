@@ -10,6 +10,7 @@ namespace TidyWindow.App.Services;
 /// </summary>
 public sealed class SmartPageCache : IDisposable
 {
+    private const int MaxEntries = 4;
     private readonly Dictionary<Type, CachedPageEntry> _entries = new();
     private readonly object _syncRoot = new();
     private bool _isDisposed;
@@ -64,6 +65,7 @@ public sealed class SmartPageCache : IDisposable
         {
             ThrowIfDisposed();
             RemoveEntry(pageType);
+            TrimIfNeeded();
             _entries[pageType] = new CachedPageEntry(page, policy);
         }
     }
@@ -194,6 +196,31 @@ public sealed class SmartPageCache : IDisposable
         if (_entries.Remove(pageType, out var entry))
         {
             entry.Dispose();
+        }
+    }
+
+    private void TrimIfNeeded()
+    {
+        if (_entries.Count < MaxEntries)
+        {
+            return;
+        }
+
+        var lru = default(KeyValuePair<Type, CachedPageEntry>);
+        var lruFound = false;
+
+        foreach (var kvp in _entries)
+        {
+            if (!lruFound || kvp.Value.LastTouched < lru.Value.LastTouched)
+            {
+                lru = kvp;
+                lruFound = true;
+            }
+        }
+
+        if (lruFound)
+        {
+            RemoveEntry(lru.Key);
         }
     }
 
