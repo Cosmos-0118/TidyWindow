@@ -55,6 +55,7 @@ public partial class PathPilotPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _viewModel.PageChanged -= OnPageChanged;
+        _viewModel.CancelInFlightWork();
     }
 
     private void OnPageChanged(object? sender, EventArgs e)

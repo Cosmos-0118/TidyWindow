@@ -6,6 +6,7 @@ using System.Collections.Specialized;
 using System.Globalization;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -31,6 +32,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private int _currentPage = 1;
     private bool _suppressPagingNotifications;
     private bool _isPageInfoOpen;
+    private CancellationTokenSource? _inventoryCancellation;
+    private CancellationTokenSource? _switchCancellation;
 
     public PathPilotViewModel(PathPilotInventoryService inventoryService, ActivityLogService activityLogService, MainViewModel mainViewModel, IAutomationWorkTracker workTracker, UserPreferencesService preferences)
     {
@@ -139,6 +142,14 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         DetailsDialogRuntime = null;
         ResolutionDialogRuntime = null;
         IsPageInfoOpen = false;
+
+        CancelInFlightWork();
+    }
+
+    public void CancelInFlightWork()
+    {
+        CancelAndDispose(ref _inventoryCancellation);
+        CancelAndDispose(ref _switchCancellation);
     }
 
     [RelayCommand]
@@ -153,38 +164,28 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         IsInventoryLoading = true;
         _mainViewModel.SetStatusMessage("Scanning runtimes...");
 
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+        ReplaceInventoryCancellation(linkedCts);
+
         try
         {
-            var inventoryTask = _inventoryService.GetInventoryAsync();
-            var timeoutTask = Task.Delay(TimeSpan.FromSeconds(45));
+            var snapshot = await Task.Run(async () =>
+                await _inventoryService.GetInventoryAsync(cancellationToken: linkedCts.Token).ConfigureAwait(false), linkedCts.Token).ConfigureAwait(false);
 
-            var completed = await Task.WhenAny(inventoryTask, timeoutTask).ConfigureAwait(false);
-            if (completed == inventoryTask)
+            await RunOnUiThreadAsync(() => ApplySnapshot(snapshot)).ConfigureAwait(false);
+
+            var message = $"Runtime inventory ready • {snapshot.Runtimes.Length} runtime(s).";
+            _activityLog.LogSuccess("PathPilot", message, BuildSnapshotDetails(snapshot));
+            _mainViewModel.SetStatusMessage(message);
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested || linkedCts.IsCancellationRequested)
+        {
+            await RunOnUiThreadAsync(() =>
             {
-                var snapshot = await inventoryTask.ConfigureAwait(false);
-
-                await RunOnUiThreadAsync(() => ApplySnapshot(snapshot)).ConfigureAwait(false);
-
-                var message = $"Runtime inventory ready • {snapshot.Runtimes.Length} runtime(s).";
-                _activityLog.LogSuccess("PathPilot", message, BuildSnapshotDetails(snapshot));
-                _mainViewModel.SetStatusMessage(message);
-            }
-            else
-            {
-                _activityLog.LogWarning("PathPilot", "Runtime inventory scan is taking unusually long; continuing in background.", Array.Empty<string>());
-                await RunOnUiThreadAsync(() =>
-                {
-                    _mainViewModel.SetStatusMessage("Runtime inventory is taking longer than usual; results will appear once ready.");
-                }).ConfigureAwait(false);
-
-                _ = inventoryTask.ContinueWith(t =>
-                {
-                    if (t.IsFaulted && t.Exception is not null)
-                    {
-                        _activityLog.LogError("PathPilot", "Background runtime inventory failed after timeout.", new[] { t.Exception.ToString() });
-                    }
-                }, TaskScheduler.Default);
-            }
+                _mainViewModel.SetStatusMessage("Runtime inventory cancelled or timed out.");
+            }).ConfigureAwait(false);
+            _activityLog.LogWarning("PathPilot", "Runtime inventory was cancelled (navigation or timeout).", Array.Empty<string>());
         }
         catch (Exception ex)
         {
@@ -291,6 +292,10 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
         Guid workToken = Guid.Empty;
 
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
+        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+        ReplaceSwitchCancellation(linkedCts);
+
         try
         {
             var workDescription = string.IsNullOrWhiteSpace(runtimeName)
@@ -298,7 +303,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
                 : $"PathPilot switch to {runtimeName}";
             workToken = _workTracker.BeginWork(AutomationWorkType.Maintenance, workDescription);
 
-            var result = await _inventoryService.SwitchRuntimeAsync(request).ConfigureAwait(false);
+            var result = await Task.Run(async () =>
+                await _inventoryService.SwitchRuntimeAsync(request, cancellationToken: linkedCts.Token).ConfigureAwait(false), linkedCts.Token).ConfigureAwait(false);
             var snapshotToApply = result.Snapshot;
 
             const int refreshAttempts = 3;
@@ -306,7 +312,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
             {
                 try
                 {
-                    var refreshedSnapshot = await _inventoryService.GetInventoryAsync().ConfigureAwait(false);
+                    var refreshedSnapshot = await _inventoryService.GetInventoryAsync(cancellationToken: linkedCts.Token).ConfigureAwait(false);
                     snapshotToApply = refreshedSnapshot;
 
                     if (SwitchResultReflected(refreshedSnapshot, result.SwitchResult))
@@ -322,7 +328,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
                 if (attempt < refreshAttempts - 1)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(750)).ConfigureAwait(false);
+                    await Task.Delay(TimeSpan.FromMilliseconds(750), linkedCts.Token).ConfigureAwait(false);
                 }
             }
 
@@ -335,6 +341,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
                 : result.SwitchResult.Message!;
             _activityLog.LogSuccess("PathPilot", message, BuildSwitchDetails(result.SwitchResult));
             _mainViewModel.SetStatusMessage(message);
+        }
+        catch (OperationCanceledException) when (timeoutCts.IsCancellationRequested || linkedCts.IsCancellationRequested)
+        {
+            await RunOnUiThreadAsync(() => _mainViewModel.SetStatusMessage("PathPilot switch cancelled or timed out.")).ConfigureAwait(false);
+            _activityLog.LogWarning("PathPilot", "PathPilot switch was cancelled (navigation or timeout).", Array.Empty<string>());
         }
         catch (Exception ex)
         {
@@ -802,6 +813,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         _isDisposed = true;
         Runtimes.CollectionChanged -= OnRuntimeCollectionChanged;
         Warnings.CollectionChanged -= OnWarningsCollectionChanged;
+        CancelAndDispose(ref _inventoryCancellation);
+        CancelAndDispose(ref _switchCancellation);
     }
 
     partial void OnInstallationsDialogRuntimeChanged(PathPilotRuntimeCardViewModel? value)
@@ -822,6 +835,40 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     partial void OnShowPathPilotHeroChanged(bool value)
     {
         _preferences.SetShowPathPilotHero(value);
+    }
+
+    private static void CancelAndDispose(ref CancellationTokenSource? cts)
+    {
+        if (cts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch
+        {
+            // Swallow cancellation errors; caller only wants best-effort stop.
+        }
+        finally
+        {
+            cts.Dispose();
+            cts = null;
+        }
+    }
+
+    private void ReplaceInventoryCancellation(CancellationTokenSource cts)
+    {
+        CancelAndDispose(ref _inventoryCancellation);
+        _inventoryCancellation = cts;
+    }
+
+    private void ReplaceSwitchCancellation(CancellationTokenSource cts)
+    {
+        CancelAndDispose(ref _switchCancellation);
+        _switchCancellation = cts;
     }
 }
 

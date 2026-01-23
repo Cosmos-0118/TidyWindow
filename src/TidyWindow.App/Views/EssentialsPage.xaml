@@ -679,8 +679,8 @@
                                                              ItemContainerStyle="{StaticResource EssentialsTaskListItemStyle}">
                                         <ListView.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <ux:AdaptiveTilePanel MinColumnWidth="320"
-                                                                     MaxColumnWidth="420"
+                                                <ux:AdaptiveTilePanel MinColumnWidth="380"
+                                                                     MaxColumnWidth="520"
                                                                      ColumnSpacing="22"
                                                                      RowSpacing="22"
                                                                      Padding="4,0,4,12"/>
