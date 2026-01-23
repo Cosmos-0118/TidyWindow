@@ -5,10 +5,12 @@ using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
-using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Documents;
+using System.Windows.Media;
+using System.Windows.Navigation;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using WindowsClipboard = System.Windows.Clipboard;
@@ -50,6 +52,8 @@ public sealed class SettingsViewModel : ViewModelBase
     private bool _hasFetchedFullReleaseNotes;
     private bool _isReleaseNotesDialogVisible;
     private IReadOnlyList<ReleaseNoteLine> _releaseNotesDisplayLines = Array.Empty<ReleaseNoteLine>();
+    private string _releaseNotesMarkdown = string.Empty;
+    private FlowDocument? _releaseNotesDocument;
 
     public SettingsViewModel(
         MainViewModel mainViewModel,
@@ -289,7 +293,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
     public IReadOnlyList<ReleaseNoteLine> ReleaseNotesDisplayLines => _releaseNotesDisplayLines;
 
-    public bool HasReleaseNotesContent => _releaseNotesDisplayLines.Count > 0;
+    public FlowDocument? ReleaseNotesDocument => _releaseNotesDocument;
+
+    public bool HasReleaseNotesContent => _releaseNotesDocument is not null;
 
     public bool HasReleaseNotes => HasReleaseNotesContent || HasReleaseNotesLink;
 
@@ -624,7 +630,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private void RefreshReleaseNotesContent()
     {
-        _releaseNotesDisplayLines = BuildReleaseNotesLines(_updateResult?.Summary);
+        SetReleaseNotesMarkdown(_updateResult?.Summary);
         _hasFetchedFullReleaseNotes = false;
         _ = TryFetchFullReleaseNotesAsync();
 
@@ -632,12 +638,6 @@ public sealed class SettingsViewModel : ViewModelBase
         {
             IsReleaseNotesDialogVisible = false;
         }
-
-        OnPropertyChanged(nameof(ReleaseNotesDisplayLines));
-        OnPropertyChanged(nameof(HasReleaseNotesContent));
-        OnPropertyChanged(nameof(HasReleaseNotes));
-        OnPropertyChanged(nameof(ReleaseNotesDialogTitle));
-        OnPropertyChanged(nameof(ReleaseNotesDialogSubtitle));
 
         UpdateReleaseNotesCommands();
     }
@@ -676,10 +676,7 @@ public sealed class SettingsViewModel : ViewModelBase
 
             await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
             {
-                _releaseNotesDisplayLines = parsed;
-                OnPropertyChanged(nameof(ReleaseNotesDisplayLines));
-                OnPropertyChanged(nameof(HasReleaseNotesContent));
-                OnPropertyChanged(nameof(HasReleaseNotes));
+                SetReleaseNotesMarkdown(payload.Body);
                 UpdateReleaseNotesCommands();
             });
             _hasFetchedFullReleaseNotes = true;
@@ -697,6 +694,20 @@ public sealed class SettingsViewModel : ViewModelBase
         ShowReleaseNotesCommand.NotifyCanExecuteChanged();
         CopyReleaseNotesCommand.NotifyCanExecuteChanged();
         OpenReleaseNotesLinkCommand.NotifyCanExecuteChanged();
+    }
+
+    private void SetReleaseNotesMarkdown(string? markdown)
+    {
+        _releaseNotesMarkdown = NormalizeMarkdown(markdown);
+        _releaseNotesDisplayLines = BuildReleaseNotesLines(_releaseNotesMarkdown);
+        _releaseNotesDocument = BuildReleaseNotesDocument(_releaseNotesMarkdown);
+
+        OnPropertyChanged(nameof(ReleaseNotesDisplayLines));
+        OnPropertyChanged(nameof(ReleaseNotesDocument));
+        OnPropertyChanged(nameof(HasReleaseNotesContent));
+        OnPropertyChanged(nameof(HasReleaseNotes));
+        OnPropertyChanged(nameof(ReleaseNotesDialogTitle));
+        OnPropertyChanged(nameof(ReleaseNotesDialogSubtitle));
     }
 
     private async Task EnsureFullReleaseNotesAsync()
@@ -717,12 +728,12 @@ public sealed class SettingsViewModel : ViewModelBase
 
     private bool NeedsFullReleaseNotesFetch()
     {
-        if (_releaseNotesDisplayLines.Count == 0)
+        if (string.IsNullOrWhiteSpace(_releaseNotesMarkdown))
         {
             return true;
         }
 
-        return _releaseNotesDisplayLines.Any(line => line.Text.Contains("...", StringComparison.Ordinal));
+        return _releaseNotesMarkdown.Contains("...", StringComparison.Ordinal);
     }
 
     private bool CanShowReleaseNotes() => HasReleaseNotes;
@@ -754,7 +765,9 @@ public sealed class SettingsViewModel : ViewModelBase
 
         try
         {
-            var text = string.Join(Environment.NewLine, _releaseNotesDisplayLines.Select(line => $"{line.Icon} {line.Text}"));
+            var text = string.IsNullOrWhiteSpace(_releaseNotesMarkdown)
+                ? string.Join(Environment.NewLine, _releaseNotesDisplayLines.Select(line => $"{line.Icon} {line.Text}"))
+                : _releaseNotesMarkdown;
             WindowsClipboard.SetText(text);
             PublishStatus("Release notes copied to the clipboard.");
         }
@@ -791,7 +804,7 @@ public sealed class SettingsViewModel : ViewModelBase
             return Array.Empty<ReleaseNoteLine>();
         }
 
-        var normalized = summary.Replace("\r\n", "\n");
+        var normalized = NormalizeLineEndings(NormalizeMarkdown(summary));
         var segments = Regex.Split(normalized, @"(?:\r?\n|\s+-\s*|^\s*-\s*)")
             .Select(part => part.Trim())
             .Where(part => part.Length > 0)
@@ -852,6 +865,269 @@ public sealed class SettingsViewModel : ViewModelBase
 
         return "•";
     }
+
+    private static FlowDocument? BuildReleaseNotesDocument(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown))
+        {
+            return null;
+        }
+
+        var document = new FlowDocument
+        {
+            PagePadding = new Thickness(0),
+            FontFamily = new System.Windows.Media.FontFamily("Segoe UI"),
+            FontSize = 13,
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(226, 232, 240))
+        };
+
+        System.Windows.Documents.List? activeList = null;
+        var isActiveListOrdered = false;
+        var normalized = NormalizeLineEndings(NormalizeMarkdown(markdown));
+        var lines = normalized.Split('\n');
+
+        void FlushList()
+        {
+            if (activeList is not null)
+            {
+                document.Blocks.Add(activeList);
+                activeList = null;
+            }
+        }
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd();
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                FlushList();
+                continue;
+            }
+
+            if (TryParseHeading(line, out var level, out var headingText))
+            {
+                FlushList();
+                document.Blocks.Add(CreateHeadingBlock(headingText, level));
+                continue;
+            }
+
+            if (TryParseListItem(line, out var isOrdered, out var listText))
+            {
+                if (activeList is null || isOrdered != isActiveListOrdered)
+                {
+                    FlushList();
+                    activeList = CreateList(isOrdered);
+                    isActiveListOrdered = isOrdered;
+                }
+
+                activeList.ListItems.Add(new ListItem(CreateParagraphWithIcon(listText, includeIcon: true)));
+                continue;
+            }
+
+            FlushList();
+            document.Blocks.Add(CreateParagraphWithIcon(line, includeIcon: false));
+        }
+
+        FlushList();
+        return document;
+    }
+
+    private static System.Windows.Documents.List CreateList(bool isOrdered) => new()
+    {
+        MarkerStyle = TextMarkerStyle.None,
+        Margin = new Thickness(0, 0, 0, 8)
+    };
+
+    private static Paragraph CreateHeadingBlock(string text, int level)
+    {
+        var paragraph = new Paragraph
+        {
+            Margin = new Thickness(0, level == 1 ? 0 : 6, 0, 4)
+        };
+
+        paragraph.Inlines.Add(new Run(text)
+        {
+            FontSize = level switch
+            {
+                1 => 18,
+                2 => 16,
+                3 => 15,
+                _ => 14
+            },
+            FontWeight = System.Windows.FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(248, 250, 252))
+        });
+
+        return paragraph;
+    }
+
+    private static Paragraph CreateParagraphWithIcon(string text, bool includeIcon)
+    {
+        var paragraph = new Paragraph
+        {
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+
+        if (includeIcon)
+        {
+            paragraph.Inlines.Add(new Run($"{ResolveReleaseNoteIcon(text)} ")
+            {
+                Foreground = ReleaseNoteIconBrush,
+                FontWeight = System.Windows.FontWeights.SemiBold
+            });
+        }
+
+        AppendMarkdownInlines(paragraph.Inlines, text);
+        return paragraph;
+    }
+
+    private static void AppendMarkdownInlines(InlineCollection inlines, string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        const string inlinePattern = @"(`[^`]+`|\*\*[^*]+\*\*|\*[^*]+\*|\[([^\]]+)\]\(([^)]+)\))";
+        var matches = Regex.Matches(text, inlinePattern);
+        var index = 0;
+
+        foreach (Match match in matches)
+        {
+            if (match.Index > index)
+            {
+                inlines.Add(new Run(text.Substring(index, match.Index - index)));
+            }
+
+            var value = match.Value;
+            if (value.StartsWith("`", StringComparison.Ordinal))
+            {
+                var code = value.Trim('`');
+                var codeSpan = new Span(new Run(code))
+                {
+                    FontFamily = new System.Windows.Media.FontFamily("Cascadia Mono"),
+                    Background = InlineCodeBackgroundBrush,
+                    Foreground = InlineCodeForegroundBrush
+                };
+                inlines.Add(codeSpan);
+            }
+            else if (value.StartsWith("**", StringComparison.Ordinal))
+            {
+                inlines.Add(new Run(value[2..^2]) { FontWeight = System.Windows.FontWeights.SemiBold });
+            }
+            else if (value.StartsWith("*", StringComparison.Ordinal))
+            {
+                inlines.Add(new Run(value[1..^1]) { FontStyle = System.Windows.FontStyles.Italic });
+            }
+            else if (value.StartsWith("[", StringComparison.Ordinal) && match.Groups.Count >= 3)
+            {
+                var linkText = match.Groups[2].Value;
+                var linkTarget = match.Groups[3].Value;
+                Uri? uri = null;
+
+                if (!Uri.TryCreate(linkTarget, UriKind.Absolute, out uri))
+                {
+                    Uri.TryCreate($"https://{linkTarget}", UriKind.Absolute, out uri);
+                }
+
+                if (uri is null)
+                {
+                    inlines.Add(new Run(linkText));
+                }
+                else
+                {
+                    var hyperlink = new Hyperlink(new Run(linkText))
+                    {
+                        NavigateUri = uri,
+                        Foreground = ReleaseNoteLinkBrush
+                    };
+
+                    hyperlink.RequestNavigate += OnHyperlinkNavigate;
+                    inlines.Add(hyperlink);
+                }
+            }
+
+            index = match.Index + match.Length;
+        }
+
+        if (index < text.Length)
+        {
+            inlines.Add(new Run(text[index..]));
+        }
+    }
+
+    private static bool TryParseHeading(string line, out int level, out string text)
+    {
+        level = 0;
+        text = string.Empty;
+
+        if (!line.StartsWith("#", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(line, @"^(#{1,6})\s+(.*)$");
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        level = Math.Clamp(match.Groups[1].Value.Length, 1, 6);
+        text = match.Groups[2].Value.Trim();
+        return true;
+    }
+
+    private static bool TryParseListItem(string line, out bool isOrdered, out string text)
+    {
+        var unorderedMatch = Regex.Match(line, @"^[-*+]\s+(.*)$");
+        if (unorderedMatch.Success)
+        {
+            isOrdered = false;
+            text = unorderedMatch.Groups[1].Value.Trim();
+            return true;
+        }
+
+        var orderedMatch = Regex.Match(line, @"^\d+\.\s+(.*)$");
+        if (orderedMatch.Success)
+        {
+            isOrdered = true;
+            text = orderedMatch.Groups[1].Value.Trim();
+            return true;
+        }
+
+        isOrdered = false;
+        text = string.Empty;
+        return false;
+    }
+
+    private static void OnHyperlinkNavigate(object? sender, RequestNavigateEventArgs e)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        }
+        catch
+        {
+            // If navigation fails, keep the dialog open so the user can copy the link manually.
+        }
+
+        e.Handled = true;
+    }
+
+    private static string NormalizeMarkdown(string? markdown)
+    {
+        return string.IsNullOrWhiteSpace(markdown)
+            ? string.Empty
+            : markdown.Trim();
+    }
+
+    private static string NormalizeLineEndings(string text) => text.Replace("\r\n", "\n");
+
+    private static readonly System.Windows.Media.Brush ReleaseNoteIconBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(250, 204, 21));
+    private static readonly System.Windows.Media.Brush ReleaseNoteLinkBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(96, 165, 250));
+    private static readonly System.Windows.Media.Brush InlineCodeBackgroundBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(30, 41, 59));
+    private static readonly System.Windows.Media.Brush InlineCodeForegroundBrush = new SolidColorBrush(System.Windows.Media.Color.FromRgb(226, 232, 240));
 
     public sealed record ReleaseNoteLine(string Icon, string Text);
 

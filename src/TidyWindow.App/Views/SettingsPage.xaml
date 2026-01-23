@@ -699,35 +699,15 @@
                                                         CornerRadius="12"
                                                         Padding="12">
                                                 <Grid>
-                                                        <ScrollViewer VerticalScrollBarVisibility="Auto"
-                                                                              HorizontalScrollBarVisibility="Disabled"
-                                                                              MaxHeight="540">
-                                                                <ItemsControl ItemsSource="{Binding ReleaseNotesDisplayLines}"
-                                                                                      HorizontalAlignment="Stretch"
-                                                                                      Width="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ScrollViewer}}">
-                                                                        <ItemsControl.ItemTemplate>
-                                                                                <DataTemplate>
-                                                                                        <Grid Margin="0,6,0,6">
-                                                                                                <Grid.ColumnDefinitions>
-                                                                                                        <ColumnDefinition Width="Auto"/>
-                                                                                                        <ColumnDefinition Width="*"/>
-                                                                                                </Grid.ColumnDefinitions>
-                                                                                                <TextBlock Text="{Binding Icon}"
-                                                                                                           FontSize="14"
-                                                                                                           Margin="0,0,10,0"
-                                                                                                           VerticalAlignment="Top"/>
-                                                                                                <TextBlock Grid.Column="1"
-                                                                                                           Text="{Binding Text}"
-                                                                                                           FontSize="13"
-                                                                                                           Foreground="#E2E8F0"
-                                                                                                           TextWrapping="Wrap"
-                                                                                                           TextTrimming="None"
-                                                                                                           Margin="0,0,6,0"/>
-                                                                                        </Grid>
-                                                                                </DataTemplate>
-                                                                        </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                        </ScrollViewer>
+                                                        <FlowDocumentScrollViewer Document="{Binding ReleaseNotesDocument}"
+                                                                                         VerticalScrollBarVisibility="Auto"
+                                                                                         HorizontalScrollBarVisibility="Disabled"
+                                                                                         IsSelectionEnabled="True"
+                                                                                         Padding="2"
+                                                                                         FontSize="13"
+                                                                                         Foreground="#E2E8F0"
+                                                                                         Background="Transparent"
+                                                                                         MaxHeight="540"/>
                                                         <TextBlock Text="Release notes will appear after the first check."
                                                                        HorizontalAlignment="Center"
                                                                        VerticalAlignment="Center"
@@ -738,8 +718,8 @@
                                                                                 <Setter Property="Visibility"
                                                                                                 Value="Collapsed"/>
                                                                                 <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding ReleaseNotesDisplayLines.Count, TargetNullValue=0}"
-                                                                                                         Value="0">
+                                                                                        <DataTrigger Binding="{Binding HasReleaseNotesContent}"
+                                                                                                         Value="False">
                                                                                                 <Setter Property="Visibility"
                                                                                                                 Value="Visible"/>
                                                                                         </DataTrigger>
