@@ -460,17 +460,6 @@
                                           Foreground="#E2E8F0"/>
                                 <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                           Margin="12,0,0,0"
-                                          Content="System"
-                                          IsChecked="{Binding IncludeSystem}"
-                                          Foreground="#E2E8F0"/>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Margin="12,0,0,0"
-                                          Content="Allow protected system paths"
-                                          IsChecked="{Binding AllowProtectedSystemPaths}"
-                                          Foreground="#FCA5A5"
-                                          ToolTip="Includes Windows, boot, and driver folders. Use only if you fully understand the risk."/>
-                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                          Margin="12,0,0,0"
                                           Content="Folders"
                                           IsChecked="{Binding IncludeDirectories}"
                                           Foreground="#E2E8F0"/>
@@ -598,16 +587,28 @@
                                     MinWidth="320"
                                     MaxWidth="440">
                                 <StackPanel>
-                                    <TextBlock Text="Scan options"
+                                    <TextBlock Text="Dangerous options"
                                                Style="{StaticResource FilterLabelStyle}"/>
-                                    <TextBlock Text="Force delete is destructive. Enable only if you understand the risk."
+                                    <TextBlock Text="These overrides let you include system paths and force delete. Enable only if you understand the risk."
                                                Style="{StaticResource FilterHintStyle}"/>
-                                    <StackPanel Margin="0,16,0,0">
+                                        <StackPanel Margin="0,16,0,0">
+                                        <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                  Content="Allow system paths (dangerous)"
+                                                  IsChecked="{Binding AllowProtectedSystemPaths}"
+                                                  Foreground="#FCA5A5"
+                                              ToolTip="Allows scanning and deleting under Windows, boot, and driver folders."
+                                              Margin="0,0,0,6"/>
+                                            <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                                      Content="Allow system deletions (dangerous)"
+                                                      IsChecked="{Binding AllowSystemDeletion}"
+                                                      Foreground="#FCA5A5"
+                                                      ToolTip="Allows deleting items under Windows, boot, and driver folders."
+                                                      Margin="0,0,0,6"/>
                                         <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                                   Content="Enable force delete (dangerous)"
                                                   IsChecked="{Binding IsForceDeleteArmed}"
                                                   Foreground="#FCA5A5"
-                                                  Margin="0,0,0,4"/>
+                                                  ToolTip="Force delete may take ownership, unlock handles, or schedule removal on reboot."/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>

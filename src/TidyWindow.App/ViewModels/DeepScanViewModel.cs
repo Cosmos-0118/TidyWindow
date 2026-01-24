@@ -32,8 +32,8 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private int _minimumSizeMb = 0;
     private int _maxItems = 1000;
     private bool _includeHidden;
-    private bool _includeSystem;
     private bool _allowProtectedSystemPaths;
+    private bool _allowSystemDeletion;
     private bool _isForceDeleteArmed;
     private DateTimeOffset? _lastScanned;
     private string _summary = "Scan to surface files and folders quickly.";
@@ -113,12 +113,6 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         set => SetProperty(ref _includeHidden, value);
     }
 
-    public bool IncludeSystem
-    {
-        get => _includeSystem;
-        set => SetProperty(ref _includeSystem, value);
-    }
-
     public bool AllowProtectedSystemPaths
     {
         get => _allowProtectedSystemPaths;
@@ -134,11 +128,32 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
     }
 
+    public bool AllowSystemDeletion
+    {
+        get => _allowSystemDeletion;
+        set
+        {
+            if (value && !_allowSystemDeletion && !ConfirmAllowSystemDeletion())
+            {
+                OnPropertyChanged(nameof(AllowSystemDeletion));
+                return;
+            }
+
+            SetProperty(ref _allowSystemDeletion, value);
+        }
+    }
+
     public bool IsForceDeleteArmed
     {
         get => _isForceDeleteArmed;
         set
         {
+            if (value && !_isForceDeleteArmed && !ConfirmForceDeleteArming())
+            {
+                OnPropertyChanged(nameof(IsForceDeleteArmed));
+                return;
+            }
+
             if (SetProperty(ref _isForceDeleteArmed, value))
             {
                 OnPropertyChanged(nameof(CanForceDelete));
@@ -262,7 +277,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 MaxItems,
                 MinimumSizeMb,
                 IncludeHidden,
-                IncludeSystem,
+                includeSystemFiles: false,
                 AllowProtectedSystemPaths,
                 filters,
                 SelectedMatchMode,
@@ -424,9 +439,9 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 return;
             }
 
-            if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(path))
+            if (!AllowSystemDeletion && CleanupSystemPathSafety.IsSystemCriticalPath(path))
             {
-                _mainViewModel.SetStatusMessage("Delete blocked: protected system path.");
+                _mainViewModel.SetStatusMessage("Delete blocked: system path protection is on.");
                 return;
             }
 
@@ -757,8 +772,22 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
     private static bool ConfirmAllowProtectedSystemPaths()
     {
-        var message = "This will include Windows, boot, and driver folders. Deleting items here can break the OS. Do you want to allow protected system paths?";
-        var result = MessageBox.Show(message, "Enable protected system paths", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        var message = "This lets you scan and delete inside Windows, boot, and driver folders. Changes here can break the OS. Do you want to enable system path access?";
+        var result = MessageBox.Show(message, "Enable system paths (dangerous)", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
+        return result == MessageBoxResult.Yes;
+    }
+
+    private static bool ConfirmAllowSystemDeletion()
+    {
+        const string message = "Allowing system deletions lets you remove files from Windows, boot, and driver areas. This can render the OS unbootable. Are you sure you want to allow system deletions?";
+        var result = MessageBox.Show(message, "Allow system deletions (dangerous)", MessageBoxButton.YesNo, MessageBoxImage.Stop, MessageBoxResult.No);
+        return result == MessageBoxResult.Yes;
+    }
+
+    private static bool ConfirmForceDeleteArming()
+    {
+        const string message = "Force delete will take ownership, unlock handles, and may schedule removal on reboot. Enabling it can remove critical files. Are you sure you want to arm force delete?";
+        var result = MessageBox.Show(message, "Enable force delete", MessageBoxButton.YesNo, MessageBoxImage.Stop, MessageBoxResult.No);
         return result == MessageBoxResult.Yes;
     }
 
@@ -880,9 +909,9 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         {
             var targetPath = item.Path;
 
-            if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(targetPath))
+            if (!AllowSystemDeletion && CleanupSystemPathSafety.IsSystemCriticalPath(targetPath))
             {
-                return (false, "Protected system path skipped.");
+                return (false, "System path protection is enabled. Toggle 'Allow system deletion' to proceed.");
             }
 
             if (item.IsDirectory)
