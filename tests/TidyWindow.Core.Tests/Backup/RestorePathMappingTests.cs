@@ -10,10 +10,10 @@ namespace TidyWindow.Core.Tests.Backup;
 public sealed class RestorePathMappingTests
 {
     [Fact]
-    public async Task Restore_UsesProvidedPathRemapping()
+    public async Task Restore_UsesDestinationRoot()
     {
         var sourceRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var mappedRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var destinationRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
         var archivePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".rrarchive");
 
         Directory.CreateDirectory(sourceRoot);
@@ -35,14 +35,11 @@ public sealed class RestorePathMappingTests
             {
                 ArchivePath = archivePath,
                 ConflictStrategy = BackupConflictStrategy.Overwrite,
-                PathRemapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [sourceRoot] = mappedRoot
-                },
+                DestinationRoot = destinationRoot,
                 VerifyHashes = true
             });
 
-            var mappedFile = Path.Combine(mappedRoot, "docs", "readme.txt");
+            var mappedFile = Path.Combine(destinationRoot, StripDrive(sourceRoot), "docs", "readme.txt");
             Assert.True(File.Exists(mappedFile));
             Assert.Equal("hello remap", File.ReadAllText(mappedFile));
             Assert.Empty(result.Issues);
@@ -50,22 +47,20 @@ public sealed class RestorePathMappingTests
         finally
         {
             SafeDelete(sourceRoot);
-            SafeDelete(mappedRoot);
+            SafeDelete(destinationRoot);
             SafeDelete(archivePath);
         }
     }
 
     [Fact]
-    public async Task Restore_PrefersLongestMappingPrefix()
+    public async Task Restore_UsesVolumeOverride()
     {
         var sourceRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var nestedSource = Path.Combine(sourceRoot, "Projects");
         var archivePath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N") + ".rrarchive");
-        var baseTarget = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
-        var nestedTarget = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
+        var overrideRoot = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));
 
-        Directory.CreateDirectory(Path.Combine(nestedSource, "App"));
-        File.WriteAllText(Path.Combine(nestedSource, "App", "config.json"), "{}");
+        Directory.CreateDirectory(Path.Combine(sourceRoot, "Projects", "App"));
+        File.WriteAllText(Path.Combine(sourceRoot, "Projects", "App", "config.json"), "{}");
 
         try
         {
@@ -82,27 +77,20 @@ public sealed class RestorePathMappingTests
             {
                 ArchivePath = archivePath,
                 ConflictStrategy = BackupConflictStrategy.Overwrite,
-                PathRemapping = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [sourceRoot] = baseTarget,
-                    [nestedSource] = nestedTarget
-                },
+                VolumeRootOverride = overrideRoot,
                 VerifyHashes = true
             });
 
-            var expectedNested = Path.Combine(nestedTarget, "App", "config.json");
-            var fallbackLocation = Path.Combine(baseTarget, "Projects", "App", "config.json");
+            var expectedNested = Path.Combine(overrideRoot, StripDrive(sourceRoot), "Projects", "App", "config.json");
 
             Assert.True(File.Exists(expectedNested));
-            Assert.False(File.Exists(fallbackLocation));
             Assert.Equal("{}", File.ReadAllText(expectedNested));
             Assert.Empty(result.Issues);
         }
         finally
         {
             SafeDelete(sourceRoot);
-            SafeDelete(baseTarget);
-            SafeDelete(nestedTarget);
+            SafeDelete(overrideRoot);
             SafeDelete(archivePath);
         }
     }
@@ -131,5 +119,16 @@ public sealed class RestorePathMappingTests
         {
             // ignore cleanup failures
         }
+    }
+
+    private static string StripDrive(string path)
+    {
+        var root = Path.GetPathRoot(path);
+        if (string.IsNullOrWhiteSpace(root))
+        {
+            return path.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        }
+
+        return path[root.Length..].TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
     }
 }

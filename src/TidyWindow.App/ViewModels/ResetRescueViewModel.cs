@@ -48,6 +48,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private string _appSearch = string.Empty;
     private BackupConflictStrategy _restoreConflictStrategy = BackupConflictStrategy.Rename;
     private string _pathMappingHint = string.Empty;
+    private string _restoreVolumeOverride = string.Empty;
 
     public ResetRescueViewModel(
         BackupService backupService,
@@ -194,6 +195,12 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     {
         get => _pathMappingHint;
         set => SetProperty(ref _pathMappingHint, value ?? string.Empty);
+    }
+
+    public string RestoreVolumeOverride
+    {
+        get => _restoreVolumeOverride;
+        set => SetProperty(ref _restoreVolumeOverride, value ?? string.Empty);
     }
 
     public bool IsAppPickerOpen
@@ -425,16 +432,21 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                     ? Path.GetDirectoryName(DestinationPath)
                     : DestinationPath;
 
+            // For restore we default to original paths. DestinationRoot is only used when explicitly set to a directory.
             destinationRoot = EnsureSafeRestoreRoot(RestoreArchivePath, destinationRoot);
             DestinationPath = string.IsNullOrWhiteSpace(destinationRoot) ? string.Empty : destinationRoot;
+
+            var volumeOverride = string.IsNullOrWhiteSpace(RestoreVolumeOverride)
+                ? null
+                : RestoreVolumeOverride.Trim();
 
             var request = new RestoreRequest
             {
                 ArchivePath = RestoreArchivePath,
                 DestinationRoot = destinationRoot,
+                VolumeRootOverride = volumeOverride,
                 ConflictStrategy = RestoreConflictStrategy,
-                VerifyHashes = true,
-                PathRemapping = BuildPathRemapping()
+                VerifyHashes = true
             };
 
             var progress = new Progress<RestoreProgress>(update =>
@@ -465,7 +477,20 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             {
                 details.Add(ValidationSummary);
             }
+            if (!string.IsNullOrWhiteSpace(volumeOverride))
+            {
+                details.Add($"VolumeOverride={volumeOverride}");
+            }
+            if (!string.IsNullOrWhiteSpace(destinationRoot))
+            {
+                details.Add($"DestinationRoot={destinationRoot}");
+            }
             _mainViewModel.LogActivity(level, "ResetRescue", "Restore finished", details.ToArray());
+
+            foreach (var trace in result.Logs)
+            {
+                _mainViewModel.LogActivityInformation("ResetRescue/Restore", trace);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -701,31 +726,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
     private Dictionary<string, string>? BuildPathRemapping()
     {
-        if (PathMappings.Count == 0)
-        {
-            return null;
-        }
-
-        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var mapping in PathMappings)
-        {
-            if (string.IsNullOrWhiteSpace(mapping.From) || string.IsNullOrWhiteSpace(mapping.To))
-            {
-                continue;
-            }
-
-            var from = NormalizePath(mapping.From);
-            var to = NormalizePath(mapping.To);
-
-            if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to))
-            {
-                continue;
-            }
-
-            map[from] = to;
-        }
-
-        return map.Count == 0 ? null : map;
+        return null;
     }
 
     private static string NormalizePath(string path)

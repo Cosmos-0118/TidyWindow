@@ -15,14 +15,14 @@ public sealed class RestoreRequest
 {
     public string ArchivePath { get; init; } = string.Empty;
     public string? DestinationRoot { get; init; }
-    public IReadOnlyDictionary<string, string>? PathRemapping { get; init; }
+    public string? VolumeRootOverride { get; init; }
     public BackupConflictStrategy ConflictStrategy { get; init; } = BackupConflictStrategy.Rename;
     public bool VerifyHashes { get; init; } = true;
 }
 
 public sealed class RestoreResult
 {
-    public RestoreResult(long restoredEntries, IReadOnlyList<RestoreIssue> issues, long renamedCount, long backupCount, long overwrittenCount, long skippedCount)
+    public RestoreResult(long restoredEntries, IReadOnlyList<RestoreIssue> issues, long renamedCount, long backupCount, long overwrittenCount, long skippedCount, IReadOnlyList<string> logs)
     {
         RestoredEntries = restoredEntries;
         Issues = issues;
@@ -30,6 +30,7 @@ public sealed class RestoreResult
         BackupCount = backupCount;
         OverwrittenCount = overwrittenCount;
         SkippedCount = skippedCount;
+        Logs = logs;
     }
 
     public long RestoredEntries { get; }
@@ -38,6 +39,7 @@ public sealed class RestoreResult
     public long BackupCount { get; }
     public long OverwrittenCount { get; }
     public long SkippedCount { get; }
+    public IReadOnlyList<string> Logs { get; }
 }
 
 public sealed class RestoreIssue
@@ -105,6 +107,7 @@ public sealed class RestoreService
 
         using (var archive = ZipFile.OpenRead(normalizedArchive))
         {
+            var traces = new List<string>();
             manifest = ReadManifest(archive);
             if (manifest is null)
             {
@@ -134,6 +137,7 @@ public sealed class RestoreService
                 {
                     processed++;
                     issues.Add(new RestoreIssue(entry.SourcePath, "Unable to map target path"));
+                    traces.Add($"MAP-FAIL source={entry.SourcePath}");
                     progress?.Report(new RestoreProgress(processed, total, entry.SourcePath));
                     continue;
                 }
@@ -144,6 +148,7 @@ public sealed class RestoreService
                 {
                     processed++;
                     issues.Add(new RestoreIssue(targetPath, "Payload missing in archive"));
+                    traces.Add($"PAYLOAD-MISSING target={targetPath} source={entry.SourcePath}");
                     progress?.Report(new RestoreProgress(processed, total, targetPath));
                     continue;
                 }
@@ -151,6 +156,7 @@ public sealed class RestoreService
                 try
                 {
                     var existed = File.Exists(targetPath);
+                    var conflictAction = "none";
                     if (existed)
                     {
                         switch (request.ConflictStrategy)
@@ -158,10 +164,12 @@ public sealed class RestoreService
                             case BackupConflictStrategy.Overwrite:
                                 File.Delete(targetPath);
                                 overwrittenCount++;
+                                conflictAction = "overwrite";
                                 break;
                             case BackupConflictStrategy.Skip:
                                 skippedCount++;
                                 issues.Add(new RestoreIssue(targetPath, "Skipped: target exists"));
+                                traces.Add($"SKIP target={targetPath} reason=exists");
                                 processed++;
                                 progress?.Report(new RestoreProgress(processed, total, targetPath));
                                 continue;
@@ -169,12 +177,14 @@ public sealed class RestoreService
                                 var backupPath = BuildUniqueName(targetPath, ".bak");
                                 File.Move(targetPath, backupPath);
                                 backupCount++;
+                                conflictAction = $"backup->{backupPath}";
                                 break;
                             case BackupConflictStrategy.Rename:
                             default:
                                 var renamed = BuildUniqueName(targetPath, "-backup");
                                 File.Move(targetPath, renamed);
                                 renamedCount++;
+                                conflictAction = $"rename->{renamed}";
                                 break;
                         }
                     }
@@ -186,7 +196,10 @@ public sealed class RestoreService
                     if (!verified)
                     {
                         issues.Add(new RestoreIssue(targetPath, "Hash mismatch after restore"));
+                        traces.Add($"VERIFY-FAIL target={targetPath}");
                     }
+
+                    traces.Add($"RESTORED source={entry.SourcePath} target={targetPath} existed={existed} conflictAction={conflictAction} size={payload.Length}");
 
                     if (entry.LastWriteTimeUtc != default)
                     {
@@ -196,13 +209,14 @@ public sealed class RestoreService
                 catch (Exception ex)
                 {
                     issues.Add(new RestoreIssue(targetPath, ex.Message));
+                    traces.Add($"ERROR target={targetPath} error={ex.Message}");
                 }
 
                 processed++;
                 progress?.Report(new RestoreProgress(processed, total, targetPath));
             }
 
-            return new RestoreResult(manifest.Entries.Count, issues, renamedCount, backupCount, overwrittenCount, skippedCount);
+            return new RestoreResult(manifest.Entries.Count, issues, renamedCount, backupCount, overwrittenCount, skippedCount, traces);
         }
     }
 
@@ -221,10 +235,12 @@ public sealed class RestoreService
     private static string? ResolveTargetPath(BackupEntry entry, RestoreRequest request)
     {
         var source = entry.SourcePath;
-        var mapped = ApplyMapping(source, request.PathRemapping);
-        if (!string.IsNullOrWhiteSpace(mapped))
+
+        if (!string.IsNullOrWhiteSpace(request.VolumeRootOverride))
         {
-            return NormalizePath(mapped!);
+            var relative = StripDrive(source);
+            var root = NormalizeDriveRoot(request.VolumeRootOverride!);
+            return NormalizePath(Path.Combine(root, relative));
         }
 
         if (!string.IsNullOrWhiteSpace(request.DestinationRoot))
@@ -234,26 +250,6 @@ public sealed class RestoreService
         }
 
         return NormalizePath(source);
-    }
-
-    private static string? ApplyMapping(string source, IReadOnlyDictionary<string, string>? mapping)
-    {
-        if (mapping is null || mapping.Count == 0)
-        {
-            return null;
-        }
-
-        var matches = mapping
-            .OrderByDescending(pair => pair.Key.Length)
-            .FirstOrDefault(pair => source.StartsWith(pair.Key, StringComparison.OrdinalIgnoreCase));
-
-        if (string.IsNullOrWhiteSpace(matches.Key))
-        {
-            return null;
-        }
-
-        var remainder = source[matches.Key.Length..];
-        return Path.Combine(matches.Value, remainder.TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
     }
 
     private static void ApplyConflictPolicy(string targetPath, BackupConflictStrategy strategy)
@@ -380,6 +376,12 @@ public sealed class RestoreService
     private static string NormalizePath(string path)
     {
         return Path.GetFullPath(path);
+    }
+
+    private static string NormalizeDriveRoot(string root)
+    {
+        var full = Path.GetFullPath(root);
+        return full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
     }
 
     private static string StripDrive(string path)

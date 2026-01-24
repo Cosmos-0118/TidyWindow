@@ -218,38 +218,9 @@
                                 </StackPanel>
 
                                 <StackPanel Margin="0,12,0,0">
-                                    <DockPanel LastChildFill="False" Margin="0,0,0,6">
-                                        <TextBlock DockPanel.Dock="Left" Text="Path remapping" Foreground="{StaticResource ResetStrongBrush}" FontSize="14" FontWeight="SemiBold"/>
-                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                            <Button Content="Auto" Style="{StaticResource SecondaryButtonStyle}" Command="{Binding AutoMapPathsCommand}" Padding="10,6" MinWidth="80" Margin="0,0,6,0"/>
-                                            <Button Content="Add" Style="{StaticResource GhostButtonStyle}" Command="{Binding AddPathMappingCommand}" Padding="10,6" MinWidth="80"/>
-                                        </StackPanel>
-                                    </DockPanel>
-                                    <ItemsControl ItemsSource="{Binding PathMappings}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <StackPanel />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="#0D1A30" BorderBrush="#1E2F49" BorderThickness="1" CornerRadius="10" Padding="10" Margin="0,0,0,8">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="2*"/>
-                                                            <ColumnDefinition Width="2*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBox Grid.Column="0" Margin="0,0,8,0" Text="{Binding From, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Original root (e.g. D:\\Users\\Old)"/>
-                                                        <TextBox Grid.Column="1" Margin="0,0,8,0" Text="{Binding To, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="New root (e.g. C:\\Users\\Current)"/>
-                                                        <Button Grid.Column="2" Content="Remove" Style="{StaticResource GhostButtonStyle}" Command="{Binding DataContext.RemovePathMappingCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Padding="10,6"/>
-                                                    </Grid>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                    <TextBlock Text="{Binding PathMappingHint}" Foreground="#8CA3C8" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"/>
-                                    <TextBlock Text="Use remaps when the archive was created on a different drive letter or profile name. Longest match wins." Foreground="#8CA3C8" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                                    <TextBlock Text="Volume override (optional)" Foreground="{StaticResource ResetStrongBrush}" FontSize="14" FontWeight="SemiBold"/>
+                                    <TextBox Margin="0,6,0,4" Text="{Binding RestoreVolumeOverride, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" ToolTip="Set a drive or root folder to restore into (e.g. D:\\). Leave blank to use original locations."/>
+                                    <TextBlock Text="Restores go to their original paths by default. Set a drive letter (e.g. D:\\) to redirect everything to another volume." Foreground="#8CA3C8" FontSize="12" TextWrapping="Wrap"/>
                                 </StackPanel>
                             </StackPanel>
                         </Grid>
