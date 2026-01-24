@@ -64,6 +64,11 @@ public sealed record CleanupAutomationIntervalOption(int Minutes, string Label, 
     public override string ToString() => Label;
 }
 
+internal sealed record PreviewMaterialization(
+    IReadOnlyList<CleanupTargetReport> Targets,
+    int TotalItems,
+    int NewItems);
+
 public sealed record CleanupAutomationDeletionModeOption(CleanupAutomationDeletionMode Mode, string Label, string Description)
 {
     public override string ToString() => Label;
@@ -212,6 +217,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private const int DefaultPreviewCount = 50;
     private const int MaxLockInspectionItemsPerCategory = 32;
     private const int MaxLockInspectionSampleTotal = 600;
+    private const int PreviewUiYieldInterval = 6;
 
     private readonly CleanupPreviewFilter _previewFilter;
     private readonly PreviewPagingController _previewPagingController;
@@ -226,7 +232,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private CancellationTokenSource? _lockInspectionCancellation;
     private readonly TimeSpan _phaseTransitionLeadDuration = TimeSpan.FromMilliseconds(160);
     private readonly TimeSpan _phaseTransitionSettleDuration = TimeSpan.FromMilliseconds(220);
-    private const int DeletionUiYieldInterval = 750;
+    private const int DeletionUiYieldInterval = 200;
     private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
     private DateTime? _minimumAgeThresholdUtc;
     private bool _suspendAutomationStateUpdates;
@@ -918,18 +924,27 @@ public sealed partial class CleanupViewModel : ViewModelBase
             CurrentPage = 1;
 
             var report = await _cleanupService.PreviewAsync(IncludeDownloads, IncludeBrowserHistory, PreviewCount, SelectedItemKind);
-            var filteredTargets = FilterPreviewTargets(report.Targets)
-                .OrderByDescending(static t => t.TotalSizeBytes)
-                .ToList();
 
-            var totalItems = filteredTargets.Sum(static target => target.ItemCount);
-            var newItems = _hasCompletedPreview ? Math.Max(0, totalItems - _lastPreviewTotalItemCount) : 0;
-            _lastPreviewTotalItemCount = totalItems;
-
-            foreach (var target in filteredTargets)
+            var previewPrep = await Task.Run(() =>
             {
-                AddTargetGroup(new CleanupTargetGroupViewModel(target));
+                var filtered = FilterPreviewTargets(report.Targets)
+                    .OrderByDescending(static t => t.TotalSizeBytes)
+                    .ToList();
+
+                var total = filtered.Sum(static target => target.ItemCount);
+                var delta = _hasCompletedPreview ? Math.Max(0, total - _lastPreviewTotalItemCount) : 0;
+
+                return new PreviewMaterialization(filtered, total, delta);
+            }).ConfigureAwait(true);
+
+            _lastPreviewTotalItemCount = previewPrep.TotalItems;
+
+            if (Targets.Count > 0)
+            {
+                ClearTargets();
             }
+
+            await AddTargetGroupsAsync(previewPrep.Targets);
 
             if (Targets.Count > 0)
             {
@@ -943,13 +958,13 @@ public sealed partial class CleanupViewModel : ViewModelBase
             await TransitionToPhaseAsync(
                 CleanupPhase.Preview,
                 transitionMessage: phaseMessage);
-            HandleRefreshToast(newItems, totalItems);
+            HandleRefreshToast(previewPrep.NewItems, previewPrep.TotalItems);
 
             var status = Targets.Count == 0
                 ? "No cleanup targets detected."
                 : $"Preview ready: {SummaryText}";
 
-            var warningCount = filteredTargets.Sum(static target => target.Warnings.Count);
+            var warningCount = previewPrep.Targets.Sum(static target => target.Warnings.Count);
             if (warningCount > 0)
             {
                 status += warningCount == 1
@@ -3509,6 +3524,26 @@ public sealed partial class CleanupViewModel : ViewModelBase
         {
             IsRefreshToastVisible = false;
             RefreshToastText = string.Empty;
+        }
+    }
+
+    private async Task AddTargetGroupsAsync(IReadOnlyList<CleanupTargetReport> targets)
+    {
+        if (targets is null || targets.Count == 0)
+        {
+            return;
+        }
+
+        var added = 0;
+        foreach (var target in targets)
+        {
+            AddTargetGroup(new CleanupTargetGroupViewModel(target));
+            added++;
+
+            if (added % PreviewUiYieldInterval == 0)
+            {
+                await Task.Yield();
+            }
         }
     }
 

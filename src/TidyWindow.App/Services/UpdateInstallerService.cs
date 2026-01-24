@@ -153,12 +153,12 @@ public sealed class UpdateInstallerService : IUpdateInstallerService
 
         var logPath = Path.Combine(Path.GetDirectoryName(installerPath) ?? Path.GetTempPath(), "TidyWindow-Update.log");
 
-        // Show full UI and close the running instance so binaries can be replaced; relaunch occurs from the wizard Finish page.
+        // Show full UI, close the running instance so binaries can be replaced, and avoid automatic relaunches; the Finish page handles relaunch.
         var startInfo = new ProcessStartInfo(installerPath)
         {
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(installerPath) ?? Environment.CurrentDirectory,
-            Arguments = $"/SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /LOG=\"{logPath}\""
+            Arguments = $"/SUPPRESSMSGBOXES /NORESTART /CLOSEAPPLICATIONS /NORESTARTAPPLICATIONS /LOG=\"{logPath}\""
         };
 
         try
