@@ -15,7 +15,6 @@ namespace TidyWindow.Core.Cleanup;
 public sealed class CleanupService
 {
     private readonly CleanupScanner _scanner;
-    private static readonly ProtectedLocation[] ProtectedLocations = BuildProtectedLocations();
 
     public CleanupService()
         : this(new CleanupScanner(new CleanupDefinitionProvider()))
@@ -105,7 +104,7 @@ public sealed class CleanupService
             index++;
             progress?.Report(new CleanupDeletionProgress(index, total, normalizedPath));
 
-            if (IsProtectedPath(normalizedPath) && !options.AllowProtectedSystemPaths)
+            if (!options.AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(normalizedPath))
             {
                 entries.Add(new CleanupDeletionEntry(
                     normalizedPath,
@@ -626,103 +625,6 @@ public sealed class CleanupService
         }
     }
 
-    private static ProtectedLocation[] BuildProtectedLocations()
-    {
-        var locations = new List<ProtectedLocation>();
-
-        void AddIfValid(string? candidate, bool protectSubtree)
-        {
-            var normalized = NormalizeFullPath(candidate);
-            if (normalized.Length == 0)
-            {
-                return;
-            }
-
-            var existingIndex = locations.FindIndex(x => string.Equals(x.Path, normalized, StringComparison.OrdinalIgnoreCase));
-            if (existingIndex >= 0)
-            {
-                if (locations[existingIndex].ProtectSubtree || !protectSubtree)
-                {
-                    return;
-                }
-
-                locations[existingIndex] = new ProtectedLocation(normalized, protectSubtree: true);
-                return;
-            }
-
-            locations.Add(new ProtectedLocation(normalized, protectSubtree));
-        }
-
-        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        if (!string.IsNullOrWhiteSpace(windows))
-        {
-            AddIfValid(windows, protectSubtree: true);
-        }
-
-        void AddWindowsChild(string child)
-        {
-            if (!string.IsNullOrWhiteSpace(windows))
-            {
-                AddIfValid(Path.Combine(windows, child), protectSubtree: true);
-            }
-        }
-
-        var criticalWindowsChildren = new[]
-        {
-            "System32",
-            "SysWOW64",
-            "WinSxS",
-            "SystemApps",
-            "SystemResources",
-            "servicing",
-            "assembly",
-            "Installer",
-            "Fonts"
-        };
-
-        foreach (var child in criticalWindowsChildren)
-        {
-            AddWindowsChild(child);
-        }
-
-        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        if (!string.IsNullOrWhiteSpace(programFiles))
-        {
-            AddIfValid(programFiles, protectSubtree: false);
-            AddIfValid(Path.Combine(programFiles, "WindowsApps"), protectSubtree: true);
-        }
-
-        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        if (!string.IsNullOrWhiteSpace(programFilesX86))
-        {
-            AddIfValid(programFilesX86, protectSubtree: false);
-            AddIfValid(Path.Combine(programFilesX86, "WindowsApps"), protectSubtree: true);
-        }
-
-        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
-        if (!string.IsNullOrWhiteSpace(programData))
-        {
-            AddIfValid(programData, protectSubtree: false);
-        }
-
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        if (!string.IsNullOrWhiteSpace(userProfile))
-        {
-            AddIfValid(userProfile, protectSubtree: false);
-
-            var userProfilesRoot = Path.GetDirectoryName(userProfile);
-            AddIfValid(userProfilesRoot, protectSubtree: false);
-        }
-
-        if (!string.IsNullOrWhiteSpace(windows))
-        {
-            var systemRoot = Path.GetPathRoot(windows);
-            AddIfValid(systemRoot, protectSubtree: false);
-        }
-
-        return locations.ToArray();
-    }
-
     private static string NormalizeFullPath(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
@@ -739,61 +641,6 @@ public sealed class CleanupService
         {
             return path.Trim();
         }
-    }
-
-    private static bool IsProtectedPath(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        foreach (var location in ProtectedLocations)
-        {
-            if (location.ProtectSubtree)
-            {
-                if (IsSameOrSubPath(path, location.Path))
-                {
-                    return true;
-                }
-            }
-            else if (IsSamePath(path, location.Path))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsSamePath(string candidate, string root)
-    {
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            return false;
-        }
-
-        return string.Equals(candidate, root, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsSameOrSubPath(string candidate, string root)
-    {
-        if (string.IsNullOrWhiteSpace(root))
-        {
-            return false;
-        }
-
-        if (candidate.Equals(root, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-
-        if (!root.EndsWith(Path.DirectorySeparatorChar))
-        {
-            root += Path.DirectorySeparatorChar;
-        }
-
-        return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 
     private static FileAttributes? TryGetAttributes(string path)
@@ -830,19 +677,6 @@ public sealed class CleanupService
         {
             cancellationToken.ThrowIfCancellationRequested();
         }
-    }
-
-    private readonly struct ProtectedLocation
-    {
-        public ProtectedLocation(string path, bool protectSubtree)
-        {
-            Path = path;
-            ProtectSubtree = protectSubtree;
-        }
-
-        public string Path { get; }
-
-        public bool ProtectSubtree { get; }
     }
 
     private static class NativeMethods

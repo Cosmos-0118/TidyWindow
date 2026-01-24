@@ -223,7 +223,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private readonly PreviewPagingController _previewPagingController;
     private readonly CleanupExtensionFilterModel _extensionFilterModel;
     private int _previewCount = DefaultPreviewCount;
-    private static readonly string[] _sensitiveRoots = BuildSensitiveRoots();
     private List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)>? _pendingDeletionItems;
     private int _lastPreviewTotalItemCount;
     private bool _hasCompletedPreview;
@@ -1561,7 +1560,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
             }
 
             var path = tuple.item.Model.FullName;
-            return IsElevationLikelyRequired(path);
+            return CleanupSystemPathSafety.IsSystemCriticalPath(path);
         });
 
         if (systemItems > 0)
@@ -1596,7 +1595,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     {
         var totalSizeMb = itemsToDelete.Sum(static tuple => tuple.item.SizeMegabytes);
 
-        var requiresElevation = itemsToDelete.Any(static tuple => IsElevationLikelyRequired(tuple.item.Model.FullName));
+        var requiresElevation = itemsToDelete.Any(static tuple => CleanupSystemPathSafety.IsSystemCriticalPath(tuple.item.Model.FullName));
         if (requiresElevation && _privilegeService.CurrentMode != PrivilegeMode.Administrator)
         {
             if (ConfirmElevation is not null && !ConfirmElevation.Invoke("Deleting some of these items may need administrator permission. Restart with admin rights?"))
@@ -3713,68 +3712,6 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
 
         return Guid.NewGuid().ToString("N");
-    }
-
-    private static string[] BuildSensitiveRoots()
-    {
-        var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-
-        static void AddIfExists(HashSet<string> set, string? path)
-        {
-            if (string.IsNullOrWhiteSpace(path))
-            {
-                return;
-            }
-
-            try
-            {
-                set.Add(Path.GetFullPath(path));
-            }
-            catch (Exception)
-            {
-                set.Add(path);
-            }
-        }
-
-        var windowsDir = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        AddIfExists(roots, windowsDir);
-
-        if (!string.IsNullOrWhiteSpace(windowsDir))
-        {
-            AddIfExists(roots, Path.Combine(windowsDir, "System32"));
-            AddIfExists(roots, Path.Combine(windowsDir, "SysWOW64"));
-            AddIfExists(roots, Path.Combine(windowsDir, "WinSxS"));
-            AddIfExists(roots, Path.Combine(windowsDir, "Servicing"));
-            AddIfExists(roots, Path.Combine(windowsDir, "Installer"));
-        }
-
-        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.System));
-        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.SystemX86));
-        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles));
-        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86));
-        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFiles));
-        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.CommonProgramFilesX86));
-        AddIfExists(roots, Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData));
-
-        return roots.Where(static directory => !string.IsNullOrWhiteSpace(directory)).ToArray();
-    }
-
-    private static bool IsElevationLikelyRequired(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return false;
-        }
-
-        foreach (var root in _sensitiveRoots)
-        {
-            if (!string.IsNullOrWhiteSpace(root) && path.StartsWith(root, StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static string NormalizeExtension(string? extension)
