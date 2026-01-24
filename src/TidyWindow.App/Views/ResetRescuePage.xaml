@@ -171,13 +171,11 @@
                                 <ColumnDefinition Width="2*"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Progress" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
-                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <ProgressBar Width="220" Height="10" Minimum="0" Maximum="1" Value="{Binding ProgressValue}" Background="#0A1222" Foreground="{StaticResource ResetPrimaryActionBrush}"/>
-                                    <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource ResetStrongBrush}" FontWeight="SemiBold" Margin="10,0,0,0"/>
-                                </StackPanel>
-                                <TextBlock Text="{Binding Status}" Foreground="{StaticResource ResetStrongBrush}" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,6"/>
-                                <TextBlock Text="{Binding ValidationSummary}" Foreground="#FCA5A5" TextWrapping="Wrap"/>
+                                <TextBlock Text="Status" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
+                                <TextBlock Text="{Binding Status}" Foreground="{StaticResource ResetStrongBrush}" FontSize="16" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,4,0,6"/>
+                                <TextBlock Text="{Binding ProgressText}" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding ValidationSummary}" Foreground="#FCA5A5" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                                <TextBlock Text="{Binding CapacitySummary}" Foreground="#FBBF24" TextWrapping="Wrap" Margin="0,4,0,0"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1">
                                 <TextBlock Text="Last archive" Foreground="{StaticResource ResetMutedBrush}" FontSize="12" Margin="0,0,0,6"/>
@@ -345,7 +343,18 @@
                         </StackPanel>
                         <DockPanel DockPanel.Dock="Right" LastChildFill="False" VerticalAlignment="Center">
                             <Button DockPanel.Dock="Right" Content="Close" Command="{Binding CloseAppPickerCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="96" Margin="8,0,0,0"/>
-                            <TextBox DockPanel.Dock="Right" Width="240" Height="32" Text="{Binding AppSearch, UpdateSourceTrigger=PropertyChanged}" ToolTip="Search apps"/>
+                            <Border DockPanel.Dock="Right" Background="#0D1A30" BorderBrush="#1E2F49" BorderThickness="1" CornerRadius="8">
+                                <TextBox Width="240"
+                                         Height="32"
+                                         Padding="10,4"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         Foreground="#E9F2FF"
+                                         CaretBrush="#5DF2BC"
+                                         Text="{Binding AppSearch, UpdateSourceTrigger=PropertyChanged}"
+                                         ToolTip="Search apps"
+                                         VerticalContentAlignment="Center"/>
+                            </Border>
                         </DockPanel>
                     </DockPanel>
 
@@ -394,6 +403,44 @@
                         <Button Grid.Column="2" Content="Close" Command="{Binding CloseAppPickerCommand}" Style="{StaticResource PrimaryButtonStyle}" Padding="14,8" MinWidth="120"/>
                     </Grid>
                 </Grid>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="ProgressOverlay"
+              Panel.ZIndex="10"
+              Background="#B0020617"
+              Visibility="{Binding IsProgressPopupOpen, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsProgressPopupOpen}">
+                <Border MinWidth="480"
+                    MaxWidth="720"
+                    MaxHeight="420"
+                    Margin="32"
+                    Padding="24"
+                    Background="#0B1729"
+                    BorderBrush="#24344F"
+                    BorderThickness="1"
+                    CornerRadius="18"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock Text="{Binding ProgressTitle}" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC"/>
+                    <TextBlock Text="Live progress and ETA" Foreground="#9FB0C7" FontSize="12" Margin="0,4,0,10"/>
+
+                    <ProgressBar Height="12" Minimum="0" Maximum="1" Value="{Binding ProgressValue}" Background="#0A1222" Foreground="{StaticResource ResetPrimaryActionBrush}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <TextBlock Text="{Binding ProgressPercentText}" Foreground="{StaticResource ResetStrongBrush}" FontWeight="SemiBold"/>
+                        <TextBlock Text="  ·  " Foreground="#8CA3C8"/>
+                        <TextBlock Text="{Binding ProgressEta}" Foreground="#8CA3C8"/>
+                        <TextBlock Text="  ·  " Foreground="#8CA3C8"/>
+                        <TextBlock Text="{Binding ProgressSize}" Foreground="#8CA3C8"/>
+                    </StackPanel>
+
+                    <TextBlock Text="{Binding ProgressCurrentPath}" Foreground="#E9F2FF" FontSize="12" TextWrapping="Wrap" Margin="0,10,0,0"/>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+                        <Button Content="Cancel" Command="{Binding CancelCommand}" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" MinWidth="120"/>
+                    </StackPanel>
+                </StackPanel>
             </Border>
         </Grid>
     </Grid>

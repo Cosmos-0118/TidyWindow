@@ -28,8 +28,19 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private string _restoreArchivePath = string.Empty;
     private string _status = "Select destination and items to protect.";
     private string _validationSummary = string.Empty;
+    private string _capacitySummary = string.Empty;
     private double _progressValue;
     private string _progressText = string.Empty;
+    private string _progressEta = "Calculating…";
+    private string _progressSize = string.Empty;
+    private string _progressPercentText = "0%";
+    private string _progressCurrentPath = string.Empty;
+    private string _progressTitle = string.Empty;
+    private bool _isProgressPopupOpen;
+    private DateTime _progressStartUtc = DateTime.MinValue;
+    private string? _activeBackupPath;
+    private bool _isBackupInFlight;
+    private long _expectedBackupBytes;
     private string? _lastArchive;
     private bool _isAppPickerOpen;
     private int _selectedAppCount;
@@ -113,6 +124,12 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         set => SetProperty(ref _validationSummary, value ?? string.Empty);
     }
 
+    public string CapacitySummary
+    {
+        get => _capacitySummary;
+        set => SetProperty(ref _capacitySummary, value ?? string.Empty);
+    }
+
     public double ProgressValue
     {
         get => _progressValue;
@@ -123,6 +140,42 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     {
         get => _progressText;
         set => SetProperty(ref _progressText, value ?? string.Empty);
+    }
+
+    public string ProgressEta
+    {
+        get => _progressEta;
+        set => SetProperty(ref _progressEta, value ?? string.Empty);
+    }
+
+    public string ProgressSize
+    {
+        get => _progressSize;
+        set => SetProperty(ref _progressSize, value ?? string.Empty);
+    }
+
+    public string ProgressPercentText
+    {
+        get => _progressPercentText;
+        set => SetProperty(ref _progressPercentText, value ?? string.Empty);
+    }
+
+    public string ProgressCurrentPath
+    {
+        get => _progressCurrentPath;
+        set => SetProperty(ref _progressCurrentPath, value ?? string.Empty);
+    }
+
+    public string ProgressTitle
+    {
+        get => _progressTitle;
+        set => SetProperty(ref _progressTitle, value ?? string.Empty);
+    }
+
+    public bool IsProgressPopupOpen
+    {
+        get => _isProgressPopupOpen;
+        set => SetProperty(ref _isProgressPopupOpen, value);
     }
 
     public string? LastArchive
@@ -210,6 +263,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             }
 
             Folders.Clear();
+            var seenFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var profile in Profiles)
             {
                 foreach (var path in profile.Paths)
@@ -219,7 +273,13 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                         continue;
                     }
 
-                    Folders.Add(new SelectableBackupFolder(profile.Display, path));
+                    var normalized = NormalizePath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    if (string.IsNullOrWhiteSpace(normalized) || !seenFolders.Add(normalized))
+                    {
+                        continue;
+                    }
+
+                    Folders.Add(new SelectableBackupFolder(profile.Display, normalized));
                 }
             }
 
@@ -266,6 +326,10 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             return;
         }
 
+        _expectedBackupBytes = EstimateSelectionSize(sources);
+
+        CapacitySummary = EvaluateCapacity(resolvedDestination, sources);
+
         var request = new BackupRequest
         {
             DestinationArchivePath = resolvedDestination,
@@ -275,6 +339,15 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
         _cts = new CancellationTokenSource();
         IsBusy = true;
+        _isBackupInFlight = true;
+        _activeBackupPath = resolvedDestination;
+        _progressStartUtc = DateTime.UtcNow;
+        ProgressTitle = "Backup in progress";
+        ProgressEta = "Calculating…";
+        ProgressPercentText = "0%";
+        ProgressSize = string.Empty;
+        ProgressCurrentPath = string.Empty;
+        IsProgressPopupOpen = true;
         ProgressValue = 0;
         ProgressText = "Preparing backup…";
         Status = "Running backup…";
@@ -283,9 +356,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         {
             var progress = new Progress<BackupProgress>(update =>
             {
-                var fraction = update.TotalEntries == 0 ? 0 : update.ProcessedEntries / (double)update.TotalEntries;
-                ProgressValue = fraction;
-                ProgressText = update.CurrentPath ?? string.Empty;
+                UpdateProgressOverlay(update.CurrentPath, update.ProcessedEntries, update.TotalEntries, resolvedDestination, isBackup: true);
             });
 
             _mainViewModel.LogActivityInformation("ResetRescue", "Backup started", new[] { $"Dest={DestinationPath}", $"Sources={sources.Count}" });
@@ -299,6 +370,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         catch (OperationCanceledException)
         {
             Status = "Backup canceled.";
+            DeletePartialBackup();
         }
         catch (Exception ex)
         {
@@ -310,6 +382,9 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         {
             IsBusy = false;
             _cts = null;
+            IsProgressPopupOpen = false;
+            _isBackupInFlight = false;
+            _activeBackupPath = null;
         }
     }
 
@@ -329,6 +404,15 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
         _cts = new CancellationTokenSource();
         IsBusy = true;
+        _isBackupInFlight = false;
+        _activeBackupPath = null;
+        _progressStartUtc = DateTime.UtcNow;
+        ProgressTitle = "Restore in progress";
+        ProgressEta = "Calculating…";
+        ProgressPercentText = "0%";
+        ProgressSize = string.Empty;
+        ProgressCurrentPath = string.Empty;
+        IsProgressPopupOpen = true;
         ProgressValue = 0;
         ProgressText = "Preparing restore…";
         Status = "Running restore…";
@@ -341,6 +425,9 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                     ? Path.GetDirectoryName(DestinationPath)
                     : DestinationPath;
 
+            destinationRoot = EnsureSafeRestoreRoot(RestoreArchivePath, destinationRoot);
+            DestinationPath = string.IsNullOrWhiteSpace(destinationRoot) ? string.Empty : destinationRoot;
+
             var request = new RestoreRequest
             {
                 ArchivePath = RestoreArchivePath,
@@ -352,9 +439,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
             var progress = new Progress<RestoreProgress>(update =>
             {
-                var fraction = update.TotalEntries == 0 ? 0 : update.ProcessedEntries / (double)update.TotalEntries;
-                ProgressValue = fraction;
-                ProgressText = update.CurrentPath ?? string.Empty;
+                UpdateProgressOverlay(update.CurrentPath, update.ProcessedEntries, update.TotalEntries, RestoreArchivePath, isBackup: false);
             });
 
             _mainViewModel.LogActivityInformation("ResetRescue", "Restore started", new[] { $"Archive={RestoreArchivePath}" });
@@ -363,7 +448,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             Status = result.Issues.Count == 0 ? "Restore complete." : $"Restore finished with {result.Issues.Count} issue(s).";
             if (result.Issues.Count > 0)
             {
-                ValidationSummary = string.Join(Environment.NewLine, result.Issues.Select(i => $"{i.Path}: {i.Message}"));
+                ValidationSummary = $"Issues: {result.Issues.Count}. Renamed {result.RenamedCount}, Backed up {result.BackupCount}, Overwritten {result.OverwrittenCount}, Skipped {result.SkippedCount}. See log for details.";
             }
             _mainViewModel.SetStatusMessage("Restore completed.");
             var level = result.Issues.Count == 0 ? ActivityLogLevel.Success : ActivityLogLevel.Warning;
@@ -396,6 +481,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         {
             IsBusy = false;
             _cts = null;
+            IsProgressPopupOpen = false;
         }
     }
 
@@ -529,22 +615,32 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private List<string> BuildSources()
     {
         var sources = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var folder in Folders.Where(f => f.IsSelected))
         {
             if (!string.IsNullOrWhiteSpace(folder.Path) && Directory.Exists(folder.Path))
             {
-                sources.Add(folder.Path);
+                var normalized = NormalizePath(folder.Path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                if (seen.Add(normalized))
+                {
+                    sources.Add(normalized);
+                }
             }
         }
 
         foreach (var app in Apps.Where(a => a.IsSelected))
         {
-            foreach (var path in app.DataPaths)
+            var filtered = Services.AppDataFilter.FilterUsefulPaths(app.DataPaths);
+            foreach (var path in filtered)
             {
                 if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
                 {
-                    sources.Add(path);
+                    var normalized = NormalizePath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                    if (seen.Add(normalized))
+                    {
+                        sources.Add(normalized);
+                    }
                 }
             }
         }
@@ -746,6 +842,227 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         }
 
         PathMappings.Add(new PathMapping(from, to));
+    }
+
+    private void UpdateProgressOverlay(string? currentPath, long processedEntries, long totalEntries, string? archivePathForSize, bool isBackup)
+    {
+        _isBackupInFlight = isBackup;
+        ProgressText = currentPath ?? string.Empty;
+        ProgressCurrentPath = currentPath ?? string.Empty;
+
+        var fraction = ComputeFraction(archivePathForSize, processedEntries, totalEntries, isBackup, out var currentBytes);
+
+        ProgressPercentText = $"{Math.Round(fraction * 100)}%";
+        ProgressEta = ComputeEta(fraction);
+        ProgressSize = ComputeSizeLabel(archivePathForSize, isBackup, currentBytes);
+
+        // Keep status text fresh for on-page display
+        Status = _isBackupInFlight ? "Running backup…" : "Running restore…";
+    }
+
+    private double ComputeFraction(string? archivePath, long processedEntries, long totalEntries, bool isBackup, out long currentBytes)
+    {
+        currentBytes = 0;
+
+        if (isBackup && _expectedBackupBytes > 0 && !string.IsNullOrWhiteSpace(archivePath) && File.Exists(archivePath))
+        {
+            try
+            {
+                currentBytes = new FileInfo(archivePath).Length;
+                return Math.Clamp(currentBytes / (double)_expectedBackupBytes, 0, 1);
+            }
+            catch
+            {
+                // fall through
+            }
+        }
+
+        var denominator = Math.Max(1, Math.Max(totalEntries, processedEntries));
+        return Math.Clamp(processedEntries / (double)denominator, 0, 1);
+    }
+
+    private string ComputeEta(double fraction)
+    {
+        if (_progressStartUtc == DateTime.MinValue || fraction <= 0.01)
+        {
+            return "Calculating…";
+        }
+
+        var elapsed = DateTime.UtcNow - _progressStartUtc;
+        if (elapsed.TotalSeconds <= 0)
+        {
+            return "Calculating…";
+        }
+
+        var remainingSeconds = (elapsed.TotalSeconds / Math.Max(fraction, 0.0001)) - elapsed.TotalSeconds;
+        if (remainingSeconds < 0)
+        {
+            remainingSeconds = 0;
+        }
+
+        var remaining = TimeSpan.FromSeconds(remainingSeconds);
+        return remaining > TimeSpan.FromHours(2)
+            ? $"ETA {remaining:hh\\:mm}"
+            : $"ETA {remaining:mm\\:ss}";
+    }
+
+    private string ComputeSizeLabel(string? archivePath, bool isBackup, long currentBytes)
+    {
+        if (string.IsNullOrWhiteSpace(archivePath))
+        {
+            return string.Empty;
+        }
+
+        try
+        {
+            if (File.Exists(archivePath))
+            {
+                var length = currentBytes > 0 ? currentBytes : new FileInfo(archivePath).Length;
+                if (isBackup && _expectedBackupBytes > 0)
+                {
+                    return $"Size {FormatBytes(length)} / {FormatBytes(_expectedBackupBytes)}";
+                }
+
+                return isBackup ? $"Size {FormatBytes(length)} so far" : $"Size {FormatBytes(length)}";
+            }
+        }
+        catch
+        {
+            // Ignore size lookup issues
+        }
+
+        return string.Empty;
+    }
+
+    private string EvaluateCapacity(string destinationArchivePath, IReadOnlyCollection<string> sources)
+    {
+        try
+        {
+            var destRoot = Path.GetPathRoot(destinationArchivePath);
+            if (string.IsNullOrWhiteSpace(destRoot))
+            {
+                return string.Empty;
+            }
+
+            var drive = new DriveInfo(destRoot);
+            if (!drive.IsReady)
+            {
+                return string.Empty;
+            }
+
+            var freeBytes = drive.AvailableFreeSpace;
+            var estimatedBytes = EstimateSelectionSize(sources);
+            if (estimatedBytes <= 0)
+            {
+                return string.Empty;
+            }
+
+            if (freeBytes < estimatedBytes)
+            {
+                return $"Destination drive may be too small. Free {FormatBytes(freeBytes)} vs selection ~{FormatBytes(estimatedBytes)}.";
+            }
+
+            return string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private long EstimateSelectionSize(IReadOnlyCollection<string> sources)
+    {
+        long total = 0;
+
+        foreach (var path in sources)
+        {
+            if (File.Exists(path))
+            {
+                try { total += new FileInfo(path).Length; } catch { }
+                continue;
+            }
+
+            if (Directory.Exists(path))
+            {
+                try
+                {
+                    foreach (var file in Directory.EnumerateFiles(path, "*", new EnumerationOptions { RecurseSubdirectories = true, IgnoreInaccessible = true }))
+                    {
+                        try { total += new FileInfo(file).Length; } catch { }
+                    }
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+        }
+
+        return total;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = { "B", "KB", "MB", "GB", "TB" };
+        double size = bytes;
+        var unit = 0;
+        while (size >= 1024 && unit < units.Length - 1)
+        {
+            size /= 1024;
+            unit++;
+        }
+
+        return unit == 0 ? $"{bytes} B" : $"{size:F1} {units[unit]}";
+    }
+
+    private void DeletePartialBackup()
+    {
+        if (!_isBackupInFlight)
+        {
+            return;
+        }
+
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(_activeBackupPath) && File.Exists(_activeBackupPath))
+            {
+                File.Delete(_activeBackupPath);
+            }
+        }
+        catch
+        {
+            // Swallow cleanup errors
+        }
+    }
+
+    private string? EnsureSafeRestoreRoot(string archivePath, string? destinationRoot)
+    {
+        // If the user did not choose a destination, keep paths as-is so files return to their original locations.
+        if (string.IsNullOrWhiteSpace(destinationRoot))
+        {
+            return null;
+        }
+
+        var defaultRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "TidyWindow", "Restore");
+
+        try
+        {
+            var destRootResolved = Path.GetFullPath(Environment.ExpandEnvironmentVariables(destinationRoot));
+            Directory.CreateDirectory(destRootResolved);
+            return destRootResolved;
+        }
+        catch
+        {
+            try
+            {
+                Directory.CreateDirectory(defaultRoot);
+                return defaultRoot;
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 }
 
