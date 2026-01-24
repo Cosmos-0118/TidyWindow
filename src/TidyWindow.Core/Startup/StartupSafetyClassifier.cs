@@ -101,45 +101,41 @@ public static class StartupSafetyClassifier
             return false;
         }
 
-        // "Safe to disable" is meant to be conservative but useful in practice.
-        // We prioritize user-scope entries that live in typical user/app install locations and are not system-critical.
-        var isUserScope = string.Equals(item.UserContext, "CurrentUser", StringComparison.OrdinalIgnoreCase);
-        var isSupportedSource = item.SourceKind is StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce or StartupItemSourceKind.StartupFolder;
-        if (!isUserScope || !isSupportedSource)
+        // Conservative rules: user-scope + trusted signature + not high impact + supported source.
+        if (!string.Equals(item.UserContext, "CurrentUser", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        var publisher = (item.Publisher ?? string.Empty).Trim();
+        if (item.SourceKind is not (StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce or StartupItemSourceKind.StartupFolder))
+        {
+            return false;
+        }
+
+        if (item.SignatureStatus != StartupSignatureStatus.SignedTrusted)
+        {
+            return false;
+        }
+
+        if (item.Impact == StartupImpact.High)
+        {
+            return false;
+        }
+
         var exePath = NormalizePath(item.ExecutablePath);
 
-        // Avoid treating network or unknown paths as "safe" by default.
+        // Avoid treating network or system paths as safe even if trusted.
         if (exePath.StartsWith(@"\\", StringComparison.OrdinalIgnoreCase))
         {
             return false;
         }
 
-        // If it lives under the user's profile / appdata, it's generally an app entry (still could be malware,
-        // but that's a different concern than "don't break Windows").
-        if (IsUnderUserProfile(exePath))
+        if (IsUnderSystemPath(exePath))
         {
-            return true;
+            return false;
         }
 
-        // Trusted signature is a strong signal even if the path is Program Files.
-        if (item.SignatureStatus == StartupSignatureStatus.SignedTrusted)
-        {
-            return true;
-        }
-
-        // If it's clearly third-party (not Microsoft) and not in Windows paths, treat as reasonably safe.
-        if (!IsMicrosoftPublisher(publisher) && !IsUnderSystemPath(exePath))
-        {
-            return true;
-        }
-
-        // Default: not safe.
-        return false;
+        return true;
     }
 
     private static bool ComputeIsSystemCriticalCore(StartupItem item)

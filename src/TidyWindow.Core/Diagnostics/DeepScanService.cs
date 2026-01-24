@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security;
 using System.Threading;
 using System.Threading.Tasks;
+using TidyWindow.Core.Cleanup;
 
 namespace TidyWindow.Core.Diagnostics;
 
@@ -199,6 +200,7 @@ public sealed class DeepScanService
             Math.Max(0L, (long)request.MinimumSizeInMegabytes) * 1024L * 1024L,
             request.IncludeHiddenFiles,
             request.IncludeSystemFiles,
+            request.AllowProtectedSystemPaths,
             request.NameFilters,
             request.NameMatchMode,
             request.IsCaseSensitiveNameMatch,
@@ -225,7 +227,7 @@ public sealed class DeepScanService
 
             context.Emit(queue, rootFile?.FullPath, isFinal: true, latestFinding: null, force: true);
             var single = DrainQueue(queue);
-            return BuildResult(resolvedRoot, single);
+            return BuildResult(resolvedRoot, single, context.SystemPathsSkipped);
         }
 
         var results = new PriorityQueue<DeepScanFinding, long>(context.Limit);
@@ -234,7 +236,7 @@ public sealed class DeepScanService
         if (context.IncludeDirectories && totalSize >= context.MinSizeBytes)
         {
             if (CreateDirectoryEntry(resolvedRoot) is { } rootDirectory
-                && !ShouldSkipDirectory(rootDirectory, context.IncludeHidden, context.IncludeSystem)
+                && !ShouldSkipDirectory(rootDirectory, context)
                 && MatchesName(rootDirectory.Name, context))
             {
                 var rootFinding = new DeepScanFinding(
@@ -251,7 +253,7 @@ public sealed class DeepScanService
 
         context.Emit(results, resolvedRoot, isFinal: true, latestFinding: null, force: true);
         var findings = DrainQueue(results);
-        return BuildResult(resolvedRoot, findings);
+        return BuildResult(resolvedRoot, findings, context.SystemPathsSkipped);
     }
 
     private static long ProcessDirectory(string directoryPath, PriorityQueue<DeepScanFinding, long> queue, ScanContext context, CancellationToken cancellationToken)
@@ -283,7 +285,7 @@ public sealed class DeepScanService
                 continue;
             }
 
-            if (ShouldSkipDirectory(entry, context.IncludeHidden, context.IncludeSystem))
+            if (ShouldSkipDirectory(entry, context))
             {
                 continue;
             }
@@ -506,7 +508,7 @@ public sealed class DeepScanService
         finding = null;
         fileSize = 0;
 
-        if (ShouldSkipFile(entry.Attributes, entry.Name, context.IncludeHidden, context.IncludeSystem))
+        if (ShouldSkipFile(entry, context))
         {
             return false;
         }
@@ -535,19 +537,24 @@ public sealed class DeepScanService
         return true;
     }
 
-    private static bool ShouldSkipDirectory(FileEntry entry, bool includeHidden, bool includeSystem)
+    private static bool ShouldSkipDirectory(FileEntry entry, ScanContext context)
     {
         if (IsReparsePoint(entry.Attributes))
         {
             return true;
         }
 
-        if (!includeHidden && IsHidden(entry.Name, entry.Attributes))
+        if (context.ShouldBlockSystemPath(entry.FullPath))
         {
             return true;
         }
 
-        if (!includeSystem && (entry.Attributes & FileAttributes.System) == FileAttributes.System)
+        if (!context.IncludeHidden && IsHidden(entry.Name, entry.Attributes))
+        {
+            return true;
+        }
+
+        if (!context.IncludeSystem && (entry.Attributes & FileAttributes.System) == FileAttributes.System)
         {
             return true;
         }
@@ -555,14 +562,19 @@ public sealed class DeepScanService
         return false;
     }
 
-    private static bool ShouldSkipFile(FileAttributes attributes, string name, bool includeHidden, bool includeSystem)
+    private static bool ShouldSkipFile(FileEntry entry, ScanContext context)
     {
-        if (!includeHidden && IsHidden(name, attributes))
+        if (context.ShouldBlockSystemPath(entry.FullPath))
         {
             return true;
         }
 
-        if (!includeSystem && (attributes & FileAttributes.System) == FileAttributes.System)
+        if (!context.IncludeHidden && IsHidden(entry.Name, entry.Attributes))
+        {
+            return true;
+        }
+
+        if (!context.IncludeSystem && (entry.Attributes & FileAttributes.System) == FileAttributes.System)
         {
             return true;
         }
@@ -596,11 +608,11 @@ public sealed class DeepScanService
             or IOException
             or SecurityException;
 
-    private static DeepScanResult BuildResult(string rootPath, List<DeepScanFinding> findings)
+    private static DeepScanResult BuildResult(string rootPath, List<DeepScanFinding> findings, int systemPathsSkipped)
     {
         var readOnly = new ReadOnlyCollection<DeepScanFinding>(findings);
         var totalSize = DeepScanAggregation.CalculateUniqueSize(findings);
-        return new DeepScanResult(readOnly, rootPath, DateTimeOffset.UtcNow, findings.Count, totalSize);
+        return new DeepScanResult(readOnly, rootPath, DateTimeOffset.UtcNow, findings.Count, totalSize, systemPathsSkipped);
     }
 
     private static FileEntry? CreateFileEntry(string filePath)
@@ -705,12 +717,14 @@ public sealed class DeepScanService
         private int _itemsSinceLastReport;
         private DateTime _lastReportTimestamp = DateTime.UtcNow - ReportInterval;
         private bool _hasPendingCandidate;
+        private int _systemPathsSkipped;
 
         public ScanContext(
             int limit,
             long minSizeBytes,
             bool includeHidden,
             bool includeSystem,
+            bool allowProtectedSystemPaths,
             IReadOnlyList<string> nameFilters,
             DeepScanNameMatchMode nameMatchMode,
             bool isCaseSensitive,
@@ -721,6 +735,7 @@ public sealed class DeepScanService
             MinSizeBytes = minSizeBytes;
             IncludeHidden = includeHidden;
             IncludeSystem = includeSystem;
+            AllowProtectedSystemPaths = allowProtectedSystemPaths;
             NameFilters = nameFilters ?? Array.Empty<string>();
             NameMatchMode = nameMatchMode;
             NameComparison = isCaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
@@ -763,6 +778,8 @@ public sealed class DeepScanService
 
         public bool IncludeSystem { get; }
 
+        public bool AllowProtectedSystemPaths { get; }
+
         public IReadOnlyList<string> NameFilters { get; }
 
         public DeepScanNameMatchMode NameMatchMode { get; }
@@ -779,7 +796,25 @@ public sealed class DeepScanService
 
         public long ProcessedSizeBytes { get; private set; }
 
+        public int SystemPathsSkipped => Volatile.Read(ref _systemPathsSkipped);
+
         public IProgress<DeepScanProgressUpdate>? Progress { get; }
+
+        public bool ShouldBlockSystemPath(string path)
+        {
+            if (AllowProtectedSystemPaths)
+            {
+                return false;
+            }
+
+            if (!CleanupSystemPathSafety.IsSystemCriticalPath(path))
+            {
+                return false;
+            }
+
+            Interlocked.Increment(ref _systemPathsSkipped);
+            return true;
+        }
 
         public void RecordProcessed(long sizeBytes, string currentPath, PriorityQueue<DeepScanFinding, long> queue)
         {
@@ -986,6 +1021,7 @@ public sealed class DeepScanRequest
         int minimumSizeInMegabytes,
         bool includeHiddenFiles,
         bool includeSystemFiles = false,
+        bool allowProtectedSystemPaths = false,
         IEnumerable<string>? nameFilters = null,
         DeepScanNameMatchMode nameMatchMode = DeepScanNameMatchMode.Contains,
         bool isCaseSensitiveNameMatch = false,
@@ -1011,6 +1047,7 @@ public sealed class DeepScanRequest
         MinimumSizeInMegabytes = minimumSizeInMegabytes;
         IncludeHiddenFiles = includeHiddenFiles;
         IncludeSystemFiles = includeSystemFiles;
+        AllowProtectedSystemPaths = allowProtectedSystemPaths;
         NameMatchMode = nameMatchMode;
         IsCaseSensitiveNameMatch = isCaseSensitiveNameMatch;
         IncludeDirectories = includeDirectories;
@@ -1026,6 +1063,8 @@ public sealed class DeepScanRequest
     public bool IncludeHiddenFiles { get; }
 
     public bool IncludeSystemFiles { get; }
+
+    public bool AllowProtectedSystemPaths { get; }
 
     public IReadOnlyList<string> NameFilters { get; }
 
@@ -1113,13 +1152,14 @@ public sealed class DeepScanProgressUpdate
 
 public sealed class DeepScanResult
 {
-    public DeepScanResult(IReadOnlyList<DeepScanFinding> findings, string rootPath, DateTimeOffset generatedAt, int totalCandidates, long totalSizeBytes)
+    public DeepScanResult(IReadOnlyList<DeepScanFinding> findings, string rootPath, DateTimeOffset generatedAt, int totalCandidates, long totalSizeBytes, int systemPathsSkipped = 0)
     {
         Findings = findings ?? throw new ArgumentNullException(nameof(findings));
         RootPath = rootPath ?? string.Empty;
         GeneratedAt = generatedAt;
         TotalCandidates = totalCandidates;
         TotalSizeBytes = totalSizeBytes;
+        SystemPathsSkipped = systemPathsSkipped < 0 ? 0 : systemPathsSkipped;
         CategoryTotals = DeepScanAggregation.CalculateCategoryTotals(findings);
     }
 
@@ -1133,6 +1173,8 @@ public sealed class DeepScanResult
 
     public long TotalSizeBytes { get; }
 
+    public int SystemPathsSkipped { get; }
+
     public string TotalSizeDisplay => DeepScanFormatting.FormatBytes(TotalSizeBytes);
 
     public IReadOnlyDictionary<string, long> CategoryTotals { get; }
@@ -1141,7 +1183,7 @@ public sealed class DeepScanResult
     {
         var list = findings ?? Array.Empty<DeepScanFinding>();
         var totalSize = DeepScanAggregation.CalculateUniqueSize(list);
-        return new DeepScanResult(list, rootPath, DateTimeOffset.UtcNow, list.Count, totalSize);
+        return new DeepScanResult(list, rootPath, DateTimeOffset.UtcNow, list.Count, totalSize, 0);
     }
 }
 

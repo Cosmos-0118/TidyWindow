@@ -6,6 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using MessageBox = System.Windows.MessageBox;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.Core.Cleanup;
 using TidyWindow.Core.Diagnostics;
@@ -31,6 +33,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private int _maxItems = 1000;
     private bool _includeHidden;
     private bool _includeSystem;
+    private bool _allowProtectedSystemPaths;
     private bool _isForceDeleteArmed;
     private DateTimeOffset? _lastScanned;
     private string _summary = "Scan to surface files and folders quickly.";
@@ -114,6 +117,21 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     {
         get => _includeSystem;
         set => SetProperty(ref _includeSystem, value);
+    }
+
+    public bool AllowProtectedSystemPaths
+    {
+        get => _allowProtectedSystemPaths;
+        set
+        {
+            if (value && !_allowProtectedSystemPaths && !ConfirmAllowProtectedSystemPaths())
+            {
+                OnPropertyChanged(nameof(AllowProtectedSystemPaths));
+                return;
+            }
+
+            SetProperty(ref _allowProtectedSystemPaths, value);
+        }
     }
 
     public bool IsForceDeleteArmed
@@ -216,6 +234,13 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             return;
         }
 
+        if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(TargetPath))
+        {
+            Summary = "Protected system location is blocked. Enable 'Allow protected system paths' to scan anyway.";
+            _mainViewModel.SetStatusMessage("Scan blocked: protected system path.");
+            return;
+        }
+
         var cancellation = new CancellationTokenSource();
         _scanCancellation = cancellation;
         OnPropertyChanged(nameof(CanCancel));
@@ -238,6 +263,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 MinimumSizeMb,
                 IncludeHidden,
                 IncludeSystem,
+                AllowProtectedSystemPaths,
                 filters,
                 SelectedMatchMode,
                 IsCaseSensitiveMatch,
@@ -254,10 +280,20 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 ? FormatFinalSummary(result.TotalCandidates, result.TotalSizeDisplay, result.CategoryTotals)
                 : "No items above the configured threshold.";
 
-            _mainViewModel.SetStatusMessage(
-                result.TotalCandidates > 0
-                    ? $"Deep scan complete: {result.TotalCandidates} candidates totaling {result.TotalSizeDisplay}."
-                    : "Deep scan completed with no candidates.");
+            if (result.SystemPathsSkipped > 0 && !AllowProtectedSystemPaths)
+            {
+                Summary += " • Protected system paths were skipped.";
+            }
+            var statusMessage = result.TotalCandidates > 0
+                ? $"Deep scan complete: {result.TotalCandidates} candidates totaling {result.TotalSizeDisplay}."
+                : "Deep scan completed with no candidates.";
+
+            if (result.SystemPathsSkipped > 0 && !AllowProtectedSystemPaths)
+            {
+                statusMessage += $" Skipped {result.SystemPathsSkipped:N0} protected system path(s).";
+            }
+
+            _mainViewModel.SetStatusMessage(statusMessage);
         }
         catch (OperationCanceledException)
         {
@@ -333,7 +369,8 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 TakeOwnershipOnAccessDenied = true,
                 AllowDeleteOnReboot = true,
                 MaxRetryCount = 3,
-                RetryDelay = TimeSpan.FromMilliseconds(200)
+                RetryDelay = TimeSpan.FromMilliseconds(200),
+                AllowProtectedSystemPaths = AllowProtectedSystemPaths
             };
 
             var result = await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options);
@@ -384,6 +421,12 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             if (string.IsNullOrWhiteSpace(path))
             {
                 _mainViewModel.SetStatusMessage("Delete failed: missing file path.");
+                return;
+            }
+
+            if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(path))
+            {
+                _mainViewModel.SetStatusMessage("Delete blocked: protected system path.");
                 return;
             }
 
@@ -712,6 +755,13 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         return $"{size:0.0} {units[unitIndex]}";
     }
 
+    private static bool ConfirmAllowProtectedSystemPaths()
+    {
+        var message = "This will include Windows, boot, and driver folders. Deleting items here can break the OS. Do you want to allow protected system paths?";
+        var result = MessageBox.Show(message, "Enable protected system paths", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        return result == MessageBoxResult.Yes;
+    }
+
     private void ApplyPreset(DeepScanLocationOption? preset)
     {
         if (preset is null || _suppressPresetSync)
@@ -824,11 +874,17 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
     }
 
-    private static (bool Success, string? Error) TryDeleteItem(DeepScanItemViewModel item)
+    private (bool Success, string? Error) TryDeleteItem(DeepScanItemViewModel item)
     {
         try
         {
             var targetPath = item.Path;
+
+            if (!AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(targetPath))
+            {
+                return (false, "Protected system path skipped.");
+            }
+
             if (item.IsDirectory)
             {
                 if (!Directory.Exists(targetPath))

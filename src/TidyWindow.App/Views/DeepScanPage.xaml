@@ -465,6 +465,12 @@
                                           Foreground="#E2E8F0"/>
                                 <CheckBox Style="{StaticResource App.CheckBoxStyle}"
                                           Margin="12,0,0,0"
+                                          Content="Allow protected system paths"
+                                          IsChecked="{Binding AllowProtectedSystemPaths}"
+                                          Foreground="#FCA5A5"
+                                          ToolTip="Includes Windows, boot, and driver folders. Use only if you fully understand the risk."/>
+                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
+                                          Margin="12,0,0,0"
                                           Content="Folders"
                                           IsChecked="{Binding IncludeDirectories}"
                                           Foreground="#E2E8F0"/>

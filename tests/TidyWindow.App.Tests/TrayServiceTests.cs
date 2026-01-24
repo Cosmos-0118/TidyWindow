@@ -14,7 +14,7 @@ namespace TidyWindow.App.Tests;
 public sealed class TrayServiceTests
 {
     [Fact]
-    public async Task HideToTray_ClearsPageCache_WhenNoActiveWork()
+    public async Task HideToTray_SweepsExpiredPages_WhenNoActiveWork()
     {
         await WpfTestHelper.RunAsync(async () =>
         {
@@ -23,13 +23,14 @@ public sealed class TrayServiceTests
             using var scope = await TrayTestScope.CreateAsync();
 
             var page = new DisposablePage();
-            scope.Cache.StorePage(typeof(DisposablePage), page, PageCachePolicy.KeepAlive);
+            scope.Cache.StorePage(typeof(DisposablePage), page, PageCachePolicy.Sliding(TimeSpan.FromMilliseconds(10)));
 
             scope.TrayService.Attach(scope.Window);
             scope.Window.Show();
             scope.TrayService.HideToTray(showHint: true);
 
-            await Task.Yield();
+            await Task.Delay(30);
+            scope.TrayService.HideToTray(showHint: false);
 
             Assert.True(page.IsDisposed);
         });
