@@ -366,6 +366,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     {
         try
         {
+            var (isHidden, isSystem) = GetAttributeFlags(item.Path);
             var previewItem = new CleanupPreviewItem(
                 item.Name,
                 item.Path,
@@ -373,8 +374,8 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 item.Finding.ModifiedUtc.UtcDateTime,
                 item.IsDirectory,
                 item.Extension,
-                isHidden: false,
-                isSystem: false);
+                isHidden,
+                isSystem);
 
             var options = new CleanupDeletionOptions
             {
@@ -385,7 +386,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 AllowDeleteOnReboot = true,
                 MaxRetryCount = 3,
                 RetryDelay = TimeSpan.FromMilliseconds(200),
-                AllowProtectedSystemPaths = AllowProtectedSystemPaths
+                AllowProtectedSystemPaths = AllowSystemDeletion
             };
 
             var result = await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options);
@@ -428,6 +429,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             return;
         }
 
+        item.IsDeleting = true;
         _isDeleting = true;
 
         try
@@ -476,6 +478,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         }
         finally
         {
+            item.IsDeleting = false;
             _isDeleting = false;
         }
     }
@@ -784,6 +787,21 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         return result == MessageBoxResult.Yes;
     }
 
+    private static (bool IsHidden, bool IsSystem) GetAttributeFlags(string path)
+    {
+        try
+        {
+            var attributes = File.GetAttributes(path);
+            var isHidden = attributes.HasFlag(FileAttributes.Hidden);
+            var isSystem = attributes.HasFlag(FileAttributes.System);
+            return (isHidden, isSystem);
+        }
+        catch
+        {
+            return (false, false);
+        }
+    }
+
     private static bool ConfirmForceDeleteArming()
     {
         const string message = "Force delete will take ownership, unlock handles, and may schedule removal on reboot. Enabling it can remove critical files. Are you sure you want to arm force delete?";
@@ -1030,8 +1048,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     }
 }
 
-public sealed class DeepScanItemViewModel
+public sealed class DeepScanItemViewModel : System.ComponentModel.INotifyPropertyChanged
 {
+    private bool _isDeleting;
+
     public DeepScanItemViewModel(DeepScanFinding finding)
     {
         Finding = finding ?? throw new ArgumentNullException(nameof(finding));
@@ -1056,4 +1076,26 @@ public sealed class DeepScanItemViewModel
     public string Category => Finding.Category;
 
     public string KindDisplay => Finding.KindDisplay;
+
+    public bool IsDeleting
+    {
+        get => _isDeleting;
+        set
+        {
+            if (_isDeleting == value)
+            {
+                return;
+            }
+
+            _isDeleting = value;
+            OnPropertyChanged(nameof(IsDeleting));
+        }
+    }
+
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+    private void OnPropertyChanged(string propertyName)
+    {
+        PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
+    }
 }

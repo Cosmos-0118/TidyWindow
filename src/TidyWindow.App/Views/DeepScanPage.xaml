@@ -950,6 +950,17 @@
                                                         BorderThickness="0"
                                                         Cursor="Hand"
                                                         ToolTip="Deleting an item is permanent. Review it carefully before proceeding.">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                            <Setter Property="IsEnabled"
+                                                                    Value="{Binding DataContext.IsBusy, RelativeSource={RelativeSource AncestorType=ListView}, Converter={StaticResource InverseBooleanConverter}}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsDeleting}" Value="True">
+                                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
                                                     <Button.Template>
                                                         <ControlTemplate TargetType="Button">
                                                             <Border x:Name="DangerActionBorder"
@@ -988,6 +999,17 @@
                                                         BorderThickness="0"
                                                         Cursor="Hand"
                                                         ToolTip="Force delete takes ownership, unlocks handles, and may schedule removal on reboot. Enable the toggle above first.">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                            <Setter Property="IsEnabled"
+                                                                    Value="{Binding DataContext.CanForceDelete, RelativeSource={RelativeSource AncestorType=ListView}}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsDeleting}" Value="True">
+                                                                    <Setter Property="IsEnabled" Value="False"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
                                                     <Button.Template>
                                                         <ControlTemplate TargetType="Button">
                                                             <Border x:Name="ForceDangerActionBorder"
@@ -1020,12 +1042,31 @@
                                                                     <Setter TargetName="ForceDangerActionBorder"
                                                                             Property="Opacity"
                                                                             Value="0.55"/>
+                                                                    <Setter TargetName="ForceDangerActionBorder"
+                                                                            Property="Effect"
+                                                                            Value="{x:Null}"/>
                                                                 </Trigger>
                                                             </ControlTemplate.Triggers>
                                                         </ControlTemplate>
                                                     </Button.Template>
                                                 </Button>
                                             </WrapPanel>
+                                            <StackPanel Grid.Row="3"
+                                                        Orientation="Horizontal"
+                                                        Margin="0,8,0,0"
+                                                        Visibility="{Binding IsDeleting, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <ProgressBar Width="180"
+                                                             Height="8"
+                                                             IsIndeterminate="True"
+                                                             Foreground="#3B82F6"
+                                                             Background="#10243E"
+                                                             BorderThickness="0"/>
+                                                <TextBlock Text="Deleting..."
+                                                           Margin="10,0,0,0"
+                                                           Foreground="#C7D5EF"
+                                                           VerticalAlignment="Center"
+                                                           FontSize="12"/>
+                                            </StackPanel>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
