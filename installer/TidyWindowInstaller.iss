@@ -68,9 +68,6 @@ type
     Millisecond: Word;
   end;
 
-const
-  PrevUninstallKey = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{6F4045F0-2C7A-4D37-9A4B-9EFEAD0D8F8D}';
-
 procedure GetLocalTime(var lpSystemTime: TSystemTime);
   external 'GetLocalTime@kernel32.dll stdcall';
 
@@ -93,36 +90,6 @@ begin
     + PadTwoDigits(ST.Hour)
     + PadTwoDigits(ST.Minute)
     + PadTwoDigits(ST.Second);
-end;
-
-function TryGetPreviousUninstallString(var UninstallString: string): Boolean;
-begin
-  UninstallString := '';
-
-  if RegQueryStringValue(HKLM64, PrevUninstallKey, 'UninstallString', UninstallString) then
-    Result := True
-  else if RegQueryStringValue(HKCU, PrevUninstallKey, 'UninstallString', UninstallString) then
-    Result := True
-  else
-    Result := False;
-end;
-
-function RunUninstallerSilently(const UninstallString: string): Boolean;
-var
-  CmdLine: string;
-  ExitCode: Integer;
-begin
-  Result := False;
-  if UninstallString = '' then
-    Exit;
-
-  CmdLine := UninstallString + ' /VERYSILENT /SUPPRESSMSGBOXES /NORESTART';
-  Log('Running previous uninstaller: ' + CmdLine);
-
-  if Exec(ExpandConstant('{cmd}'), '/C ' + CmdLine, '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
-    Result := (ExitCode = 0)
-  else
-    Log('Failed to start previous uninstaller.');
 end;
 
 procedure BackupUserData;
@@ -176,35 +143,11 @@ begin
 end;
 
 function InitializeSetup: Boolean;
-var
-  UninstallString: string;
-  Response: Integer;
 begin
   Result := True;
 
-  if TryGetPreviousUninstallString(UninstallString) then
-  begin
-    Response := MsgBox('A previous installation of {#MyAppName} was detected. Do you want to remove it before continuing?',
-      mbConfirmation, MB_YESNO);
-
-    if Response = IDYES then
-    begin
-      TerminateRunningInstance;
-
-      if not RunUninstallerSilently(UninstallString) then
-      begin
-        MsgBox('Automatic removal of the previous version failed. You may cancel setup to uninstall it manually or continue with a side-by-side installation.',
-          mbError, MB_OK);
-
-        if MsgBox('Do you want to cancel the installation now?', mbConfirmation, MB_YESNO) = IDYES then
-        begin
-          Result := False;
-          Exit;
-        end;
-      end;
-    end;
-  end;
-
+  { Rely on Inno Setup's built-in upgrade handling so we don't deadlock by invoking a previous
+    uninstaller while this installer already holds the setup mutex. }
   BackupUserData;
   TerminateRunningInstance;
 end;
