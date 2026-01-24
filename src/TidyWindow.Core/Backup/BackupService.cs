@@ -28,6 +28,7 @@ public sealed class BackupRequest
     public int ChunkSizeBytes { get; init; } = 4 * 1024 * 1024;
     public string? Generator { get; init; }
     public BackupPolicies Policies { get; init; } = BackupPolicies.Default;
+    public IReadOnlyList<string> RegistryKeys { get; init; } = Array.Empty<string>();
 }
 
 public sealed class BackupPolicies
@@ -57,6 +58,22 @@ public sealed class BackupManifest
     public IReadOnlyList<BackupProfile> Profiles { get; init; } = Array.Empty<BackupProfile>();
     public IReadOnlyList<BackupApp> Apps { get; init; } = Array.Empty<BackupApp>();
     public IReadOnlyList<BackupEntry> Entries { get; init; } = Array.Empty<BackupEntry>();
+    public IReadOnlyList<RegistrySnapshot> Registry { get; init; } = Array.Empty<RegistrySnapshot>();
+}
+
+public sealed class RegistrySnapshot
+{
+    public string Root { get; init; } = "HKCU";
+    public string Path { get; init; } = string.Empty; // relative to root
+    public IReadOnlyList<RegistryValueSnapshot> Values { get; init; } = Array.Empty<RegistryValueSnapshot>();
+    public IReadOnlyList<RegistrySnapshot> SubKeys { get; init; } = Array.Empty<RegistrySnapshot>();
+}
+
+public sealed class RegistryValueSnapshot
+{
+    public string Name { get; init; } = string.Empty; // empty = default value
+    public string Kind { get; init; } = string.Empty;
+    public object? Data { get; init; }
 }
 
 public sealed class BackupHashInfo
@@ -242,13 +259,16 @@ public sealed class BackupService
             }
         }
 
+        var registry = ExportRegistry(request.RegistryKeys);
+
         var manifest = new BackupManifest
         {
             CreatedUtc = DateTime.UtcNow,
             Generator = request.Generator ?? "TidyWindow",
             Policies = request.Policies,
             Hash = new BackupHashInfo { Algorithm = "SHA256", ChunkSizeBytes = normalizedChunkSize },
-            Entries = entries.ToArray()
+            Entries = entries.ToArray(),
+            Registry = registry
         };
 
         var manifestEntry = archive.CreateEntry("manifest.json", CompressionLevel.Optimal);
@@ -294,6 +314,112 @@ public sealed class BackupService
             Hash = hashValue,
             Attributes = fileInfo.Attributes.ToString()
         };
+    }
+
+    private static IReadOnlyList<RegistrySnapshot> ExportRegistry(IReadOnlyList<string> registryKeys)
+    {
+        if (registryKeys is null || registryKeys.Count == 0)
+        {
+            return Array.Empty<RegistrySnapshot>();
+        }
+
+        var results = new List<RegistrySnapshot>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var full in registryKeys)
+        {
+            if (string.IsNullOrWhiteSpace(full))
+            {
+                continue;
+            }
+
+            if (!full.StartsWith("HKEY_CURRENT_USER", StringComparison.OrdinalIgnoreCase))
+            {
+                continue; // only HKCU is allowed for safety
+            }
+
+            var relative = full["HKEY_CURRENT_USER".Length..].TrimStart('\\');
+            if (!seen.Add(relative))
+            {
+                continue;
+            }
+
+            using var root = Microsoft.Win32.Registry.CurrentUser;
+            using var key = root.OpenSubKey(relative);
+            if (key is null)
+            {
+                continue;
+            }
+
+            var snapshot = SnapshotKey("HKCU", relative, key);
+            if (snapshot != null)
+            {
+                results.Add(snapshot);
+            }
+        }
+
+        return results;
+    }
+
+    private static RegistrySnapshot? SnapshotKey(string root, string relativePath, Microsoft.Win32.RegistryKey key)
+    {
+        try
+        {
+            var values = new List<RegistryValueSnapshot>();
+            foreach (var name in key.GetValueNames())
+            {
+                var kind = key.GetValueKind(name);
+                var data = key.GetValue(name);
+
+                object? serialized = data;
+                switch (kind)
+                {
+                    case Microsoft.Win32.RegistryValueKind.Binary:
+                        serialized = data is byte[] bytes ? Convert.ToBase64String(bytes) : null;
+                        break;
+                    case Microsoft.Win32.RegistryValueKind.MultiString:
+                        serialized = data as string[] ?? Array.Empty<string>();
+                        break;
+                    default:
+                        serialized = data;
+                        break;
+                }
+
+                values.Add(new RegistryValueSnapshot
+                {
+                    Name = name ?? string.Empty,
+                    Kind = kind.ToString(),
+                    Data = serialized
+                });
+            }
+
+            var subKeys = new List<RegistrySnapshot>();
+            foreach (var sub in key.GetSubKeyNames())
+            {
+                using var child = key.OpenSubKey(sub);
+                if (child is null)
+                {
+                    continue;
+                }
+                var childSnapshot = SnapshotKey(root, Path.Combine(relativePath, sub), child);
+                if (childSnapshot != null)
+                {
+                    subKeys.Add(childSnapshot);
+                }
+            }
+
+            return new RegistrySnapshot
+            {
+                Root = root,
+                Path = relativePath,
+                Values = values.ToArray(),
+                SubKeys = subKeys.ToArray()
+            };
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static string CopyWithHash(Stream source, Stream destination, int chunkSize, IList<string> chunkHashes, CancellationToken cancellationToken)

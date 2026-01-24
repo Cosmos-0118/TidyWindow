@@ -38,6 +38,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private string _progressTitle = string.Empty;
     private bool _isProgressPopupOpen;
     private DateTime _progressStartUtc = DateTime.MinValue;
+    private readonly Queue<(DateTime Timestamp, double Fraction)> _progressSamples = new();
     private string? _activeBackupPath;
     private bool _isBackupInFlight;
     private long _expectedBackupBytes;
@@ -49,6 +50,13 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private BackupConflictStrategy _restoreConflictStrategy = BackupConflictStrategy.Rename;
     private string _pathMappingHint = string.Empty;
     private string _restoreVolumeOverride = string.Empty;
+    private bool _isBackupMode = true;
+    private bool _isRestoreMode;
+    private bool _isInfoPopupOpen;
+    private bool _restoreRegistryEnabled;
+    private bool _isFolderPickerOpen;
+    private int _selectedFolderCount;
+    private string _selectedFoldersPreview = "No folders selected";
 
     public ResetRescueViewModel(
         BackupService backupService,
@@ -83,6 +91,38 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     public IReadOnlyList<BackupConflictStrategy> ConflictStrategies { get; }
 
     public ObservableCollection<PathMapping> PathMappings { get; }
+
+    public bool IsBackupMode
+    {
+        get => _isBackupMode;
+        set
+        {
+            if (SetProperty(ref _isBackupMode, value))
+            {
+                if (value)
+                {
+                    IsRestoreMode = false;
+                }
+            }
+        }
+    }
+
+    public bool IsRestoreMode
+    {
+        get => _isRestoreMode;
+        set
+        {
+            if (SetProperty(ref _isRestoreMode, value))
+            {
+                if (value)
+                {
+                    IsBackupMode = false;
+                    // Avoid reusing backup destination for restore paths.
+                    DestinationPath = string.Empty;
+                }
+            }
+        }
+    }
 
     public bool IsBusy
     {
@@ -203,10 +243,40 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         set => SetProperty(ref _restoreVolumeOverride, value ?? string.Empty);
     }
 
+    public bool RestoreRegistryEnabled
+    {
+        get => _restoreRegistryEnabled;
+        set => SetProperty(ref _restoreRegistryEnabled, value);
+    }
+
     public bool IsAppPickerOpen
     {
         get => _isAppPickerOpen;
         set => SetProperty(ref _isAppPickerOpen, value);
+    }
+
+    public bool IsInfoPopupOpen
+    {
+        get => _isInfoPopupOpen;
+        set => SetProperty(ref _isInfoPopupOpen, value);
+    }
+
+    public bool IsFolderPickerOpen
+    {
+        get => _isFolderPickerOpen;
+        set => SetProperty(ref _isFolderPickerOpen, value);
+    }
+
+    public int SelectedFolderCount
+    {
+        get => _selectedFolderCount;
+        set => SetProperty(ref _selectedFolderCount, value);
+    }
+
+    public string SelectedFoldersPreview
+    {
+        get => _selectedFoldersPreview;
+        set => SetProperty(ref _selectedFoldersPreview, value ?? string.Empty);
     }
 
     public int SelectedAppCount
@@ -231,6 +301,34 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                 ApplyAppFilter();
             }
         }
+    }
+
+    [RelayCommand]
+    private void SwitchToBackup()
+    {
+        IsBackupMode = true;
+        IsRestoreMode = false;
+        ValidationSummary = string.Empty;
+    }
+
+    [RelayCommand]
+    private void SwitchToRestore()
+    {
+        IsRestoreMode = true;
+        IsBackupMode = false;
+        ValidationSummary = string.Empty;
+    }
+
+    [RelayCommand]
+    private void OpenInfo()
+    {
+        IsInfoPopupOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseInfo()
+    {
+        IsInfoPopupOpen = false;
     }
 
     [RelayCommand]
@@ -269,6 +367,10 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                 Apps.Add(selectable);
             }
 
+            foreach (var existing in Folders)
+            {
+                existing.PropertyChanged -= OnFolderPropertyChanged;
+            }
             Folders.Clear();
             var seenFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var profile in Profiles)
@@ -286,11 +388,14 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                         continue;
                     }
 
-                    Folders.Add(new SelectableBackupFolder(profile.Display, normalized));
+                    var folder = new SelectableBackupFolder(profile.Display, normalized);
+                    folder.PropertyChanged += OnFolderPropertyChanged;
+                    Folders.Add(folder);
                 }
             }
 
             UpdateAppSelectionSummary();
+            UpdateFolderSelectionSummary();
 
             Status = "Inventory loaded. Select what to protect.";
             _mainViewModel.SetStatusMessage("Reset Rescue inventory refreshed.");
@@ -341,13 +446,15 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         {
             DestinationArchivePath = resolvedDestination,
             SourcePaths = sources,
-            Generator = "TidyWindow ResetRescue"
+            Generator = "TidyWindow ResetRescue",
+            RegistryKeys = BuildRegistryKeys()
         };
 
         _cts = new CancellationTokenSource();
         IsBusy = true;
         _isBackupInFlight = true;
         _activeBackupPath = resolvedDestination;
+        _progressSamples.Clear();
         _progressStartUtc = DateTime.UtcNow;
         ProgressTitle = "Backup in progress";
         ProgressEta = "Calculating…";
@@ -413,6 +520,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         IsBusy = true;
         _isBackupInFlight = false;
         _activeBackupPath = null;
+        _progressSamples.Clear();
         _progressStartUtc = DateTime.UtcNow;
         ProgressTitle = "Restore in progress";
         ProgressEta = "Calculating…";
@@ -426,15 +534,9 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
         try
         {
-            var destinationRoot = string.IsNullOrWhiteSpace(DestinationPath)
-                ? null
-                : Path.HasExtension(DestinationPath)
-                    ? Path.GetDirectoryName(DestinationPath)
-                    : DestinationPath;
-
-            // For restore we default to original paths. DestinationRoot is only used when explicitly set to a directory.
-            destinationRoot = EnsureSafeRestoreRoot(RestoreArchivePath, destinationRoot);
-            DestinationPath = string.IsNullOrWhiteSpace(destinationRoot) ? string.Empty : destinationRoot;
+            // For restore we default to original paths. Ignore any prior backup destination to avoid redirecting to another drive.
+            var destinationRoot = default(string?);
+            DestinationPath = string.Empty;
 
             var volumeOverride = string.IsNullOrWhiteSpace(RestoreVolumeOverride)
                 ? null
@@ -446,7 +548,8 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
                 DestinationRoot = destinationRoot,
                 VolumeRootOverride = volumeOverride,
                 ConflictStrategy = RestoreConflictStrategy,
-                VerifyHashes = true
+                VerifyHashes = true,
+                RestoreRegistry = RestoreRegistryEnabled
             };
 
             var progress = new Progress<RestoreProgress>(update =>
@@ -487,9 +590,10 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             }
             _mainViewModel.LogActivity(level, "ResetRescue", "Restore finished", details.ToArray());
 
-            foreach (var trace in result.Logs)
+            if (result.Logs.Count > 0)
             {
-                _mainViewModel.LogActivityInformation("ResetRescue/Restore", trace);
+                var combined = string.Join(Environment.NewLine, result.Logs);
+                _mainViewModel.LogActivityInformation("ResetRescue/Restore", combined);
             }
         }
         catch (OperationCanceledException)
@@ -526,6 +630,40 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
     private void CloseAppPicker()
     {
         IsAppPickerOpen = false;
+    }
+
+    [RelayCommand]
+    private void ClearAppSelection()
+    {
+        foreach (var app in Apps)
+        {
+            app.IsSelected = false;
+        }
+
+        UpdateAppSelectionSummary();
+    }
+
+    [RelayCommand]
+    private void OpenFolderPicker()
+    {
+        IsFolderPickerOpen = true;
+    }
+
+    [RelayCommand]
+    private void CloseFolderPicker()
+    {
+        IsFolderPickerOpen = false;
+    }
+
+    [RelayCommand]
+    private void ClearFolderSelection()
+    {
+        foreach (var folder in Folders)
+        {
+            folder.IsSelected = false;
+        }
+
+        UpdateFolderSelectionSummary();
     }
 
     [RelayCommand]
@@ -673,6 +811,40 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
         return sources;
     }
 
+    private List<string> BuildRegistryKeys()
+    {
+        var keys = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var app in Apps.Where(a => a.IsSelected))
+        {
+            if (app.App.RegistryKeys is null)
+            {
+                continue;
+            }
+
+            foreach (var key in app.App.RegistryKeys)
+            {
+                if (string.IsNullOrWhiteSpace(key))
+                {
+                    continue;
+                }
+
+                if (!key.StartsWith("HKEY_CURRENT_USER", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue; // only HKCU allowed
+                }
+
+                if (seen.Add(key))
+                {
+                    keys.Add(key);
+                }
+            }
+        }
+
+        return keys;
+    }
+
     private void OnAppPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(SelectableBackupApp.IsSelected))
@@ -701,6 +873,36 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
             : string.Empty;
 
         SelectedAppsPreview = string.Join(", ", names) + tail;
+    }
+
+    private void OnFolderPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(SelectableBackupFolder.IsSelected))
+        {
+            UpdateFolderSelectionSummary();
+        }
+    }
+
+    private void UpdateFolderSelectionSummary()
+    {
+        SelectedFolderCount = Folders.Count(f => f.IsSelected);
+        var names = Folders.Where(f => f.IsSelected)
+            .Select(f => f.Display)
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Take(3)
+            .ToArray();
+
+        if (SelectedFolderCount == 0)
+        {
+            SelectedFoldersPreview = "No folders selected";
+            return;
+        }
+
+        var tail = SelectedFolderCount > names.Length
+            ? $" (+{SelectedFolderCount - names.Length} more)"
+            : string.Empty;
+
+        SelectedFoldersPreview = string.Join(", ", names) + tail;
     }
 
     private void ApplyAppFilter()
@@ -853,6 +1055,7 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
         var fraction = ComputeFraction(archivePathForSize, processedEntries, totalEntries, isBackup, out var currentBytes);
 
+        ProgressValue = fraction;
         ProgressPercentText = $"{Math.Round(fraction * 100)}%";
         ProgressEta = ComputeEta(fraction);
         ProgressSize = ComputeSizeLabel(archivePathForSize, isBackup, currentBytes);
@@ -884,18 +1087,68 @@ public sealed partial class ResetRescueViewModel : ViewModelBase
 
     private string ComputeEta(double fraction)
     {
+        var now = DateTime.UtcNow;
+        var smoothedRate = UpdateAndComputeSmoothedRate(now, fraction);
+
+        if (smoothedRate > 0.00005 && fraction >= 0.01)
+        {
+            var remainingSeconds = (1 - fraction) / smoothedRate;
+            return FormatEta(remainingSeconds);
+        }
+
         if (_progressStartUtc == DateTime.MinValue || fraction <= 0.01)
         {
             return "Calculating…";
         }
 
-        var elapsed = DateTime.UtcNow - _progressStartUtc;
-        if (elapsed.TotalSeconds <= 0)
+        var elapsed = now - _progressStartUtc;
+        if (elapsed.TotalSeconds <= 1)
         {
             return "Calculating…";
         }
 
-        var remainingSeconds = (elapsed.TotalSeconds / Math.Max(fraction, 0.0001)) - elapsed.TotalSeconds;
+        var averageRate = fraction / elapsed.TotalSeconds;
+        if (averageRate <= 0)
+        {
+            return "Calculating…";
+        }
+
+        var fallbackSeconds = (1 - fraction) / averageRate;
+        return FormatEta(fallbackSeconds);
+    }
+
+    private double UpdateAndComputeSmoothedRate(DateTime now, double fraction)
+    {
+        fraction = Math.Clamp(fraction, 0, 1);
+        _progressSamples.Enqueue((now, fraction));
+
+        // Keep the last 30 seconds of samples to smooth spikes.
+        while (_progressSamples.Count > 0 && (now - _progressSamples.Peek().Timestamp).TotalSeconds > 30)
+        {
+            _progressSamples.Dequeue();
+        }
+
+        if (_progressSamples.Count < 2)
+        {
+            return 0;
+        }
+
+        var first = _progressSamples.Peek();
+        var last = _progressSamples.Last();
+
+        var deltaFraction = Math.Max(0, last.Fraction - first.Fraction);
+        var deltaSeconds = Math.Max(1, (last.Timestamp - first.Timestamp).TotalSeconds);
+
+        return deltaFraction / deltaSeconds;
+    }
+
+    private string FormatEta(double remainingSeconds)
+    {
+        if (double.IsInfinity(remainingSeconds) || double.IsNaN(remainingSeconds))
+        {
+            return "Calculating…";
+        }
+
         if (remainingSeconds < 0)
         {
             remainingSeconds = 0;
@@ -1156,7 +1409,7 @@ public sealed class SelectableBackupFolder : ObservableObject
     {
         Owner = owner ?? string.Empty;
         Path = path ?? string.Empty;
-        _isSelected = true;
+        _isSelected = false;
     }
 
     public string Owner { get; }

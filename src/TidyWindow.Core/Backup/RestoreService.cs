@@ -18,6 +18,7 @@ public sealed class RestoreRequest
     public string? VolumeRootOverride { get; init; }
     public BackupConflictStrategy ConflictStrategy { get; init; } = BackupConflictStrategy.Rename;
     public bool VerifyHashes { get; init; } = true;
+    public bool RestoreRegistry { get; init; }
 }
 
 public sealed class RestoreResult
@@ -112,6 +113,11 @@ public sealed class RestoreService
             if (manifest is null)
             {
                 throw new InvalidDataException("manifest.json missing or invalid in archive");
+            }
+
+            if (request.RestoreRegistry && manifest.Registry.Count > 0)
+            {
+                ApplyRegistry(manifest.Registry, traces, issues);
             }
 
             var total = manifest.Entries.Count;
@@ -230,6 +236,110 @@ public sealed class RestoreService
 
         using var stream = manifestEntry.Open();
         return JsonSerializer.Deserialize<BackupManifest>(stream, JsonOptions);
+    }
+
+    private static void ApplyRegistry(IReadOnlyList<RegistrySnapshot> registry, List<string> traces, List<RestoreIssue> issues)
+    {
+        foreach (var root in registry)
+        {
+            if (!string.Equals(root.Root, "HKCU", StringComparison.OrdinalIgnoreCase))
+            {
+                continue; // safety: only HKCU
+            }
+
+            try
+            {
+                ApplyRegistrySubTree(Microsoft.Win32.Registry.CurrentUser, root.Path, root, traces);
+            }
+            catch (Exception ex)
+            {
+                issues.Add(new RestoreIssue(root.Path, $"Registry restore failed: {ex.Message}"));
+                traces.Add($"REG-ERROR path={root.Path} error={ex.Message}");
+            }
+        }
+    }
+
+    private static void ApplyRegistrySubTree(Microsoft.Win32.RegistryKey root, string relativePath, RegistrySnapshot snapshot, List<string> traces)
+    {
+        using var key = root.CreateSubKey(relativePath, writable: true);
+        if (key is null)
+        {
+            traces.Add($"REG-SKIP path={relativePath} reason=create-failed");
+            return;
+        }
+
+        foreach (var value in snapshot.Values)
+        {
+            try
+            {
+                var kind = ParseKind(value.Kind);
+                var data = DeserializeValue(value) ?? string.Empty;
+                key.SetValue(string.IsNullOrEmpty(value.Name) ? string.Empty : value.Name, data, kind);
+                traces.Add($"REG-WRITE path={relativePath} name={value.Name} kind={kind}");
+            }
+            catch (Exception ex)
+            {
+                traces.Add($"REG-WRITE-FAIL path={relativePath} name={value.Name} error={ex.Message}");
+            }
+        }
+
+        foreach (var child in snapshot.SubKeys)
+        {
+            var childPath = string.IsNullOrEmpty(relativePath) ? child.Path : child.Path;
+            ApplyRegistrySubTree(root, childPath, child, traces);
+        }
+    }
+
+    private static Microsoft.Win32.RegistryValueKind ParseKind(string kind)
+    {
+        if (Enum.TryParse<Microsoft.Win32.RegistryValueKind>(kind, ignoreCase: true, out var parsed))
+        {
+            return parsed;
+        }
+
+        return Microsoft.Win32.RegistryValueKind.String;
+    }
+
+    private static object? DeserializeValue(RegistryValueSnapshot value)
+    {
+        switch (value.Kind?.ToUpperInvariant())
+        {
+            case "BINARY":
+                return value.Data is string s ? Convert.FromBase64String(s) : Array.Empty<byte>();
+            case "MULTISTRING":
+                if (value.Data is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    var list = new List<string>();
+                    foreach (var item in je.EnumerateArray())
+                    {
+                        list.Add(item.GetString() ?? string.Empty);
+                    }
+                    return list.ToArray();
+                }
+                return value.Data as string[] ?? Array.Empty<string>();
+            case "DWORD":
+                if (value.Data is JsonElement dwordElement && dwordElement.ValueKind == JsonValueKind.Number)
+                {
+                    return dwordElement.GetInt32();
+                }
+                if (value.Data is string dStr && int.TryParse(dStr, out var dParsed))
+                {
+                    return dParsed;
+                }
+                return 0;
+            case "QWORD":
+                if (value.Data is JsonElement qwordElement && qwordElement.ValueKind == JsonValueKind.Number)
+                {
+                    return qwordElement.GetInt64();
+                }
+                if (value.Data is string qStr && long.TryParse(qStr, out var qParsed))
+                {
+                    return qParsed;
+                }
+                return 0L;
+            default:
+                return value.Data?.ToString() ?? string.Empty;
+        }
     }
 
     private static string? ResolveTargetPath(BackupEntry entry, RestoreRequest request)

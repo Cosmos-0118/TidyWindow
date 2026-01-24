@@ -105,6 +105,7 @@ public sealed class InventoryService
         Add("Downloads");
         Add("Music");
         Add("Videos");
+        Add(Path.Combine("AppData", "Roaming", "Microsoft", "Windows", "Start Menu", "Programs"));
         return known;
     }
 
