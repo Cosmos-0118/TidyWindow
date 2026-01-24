@@ -101,9 +101,9 @@ function Copy-DirectorySafe {
     }
 
     $args = @(
-        '"{0}"' -f $Source,
-        '"{0}"' -f $Destination,
-        '/E','/COPY:DAT','/R:2','/W:2','/NFL','/NDL','/NP','/MT:8'
+        $Source,
+        $Destination,
+        '/E','/COPY:DAT','/R:2','/W:2','/NFL','/NDL','/NP','/MT:8','/NJH','/NJS','/NC','/NS'
     )
 
     $proc = Start-Process -FilePath robocopy.exe -ArgumentList $args -NoNewWindow -Wait -PassThru -ErrorAction Stop
@@ -127,12 +127,12 @@ function Copy-FileSafe {
         Copy-Item -LiteralPath $Source -Destination $Destination -Force -ErrorAction Stop
     }
     catch {
-        Write-Log "Copy-Item failed for $Source: $_" 'WARN'
+        Write-Log "Copy-Item failed for ${Source}: $_" 'WARN'
         $args = @(
-            '"{0}"' -f (Split-Path -Path $Source -Parent),
-            '"{0}"' -f $destDir,
+            (Split-Path -Path $Source -Parent),
+            $destDir,
             (Split-Path -Path $Source -Leaf),
-            '/R:2','/W:2','/NFL','/NDL','/NP','/MT:4','/XO'
+            '/R:2','/W:2','/NFL','/NDL','/NP','/MT:4','/XO','/NJH','/NJS','/NC','/NS'
         )
         $proc = Start-Process -FilePath robocopy.exe -ArgumentList $args -NoNewWindow -Wait -PassThru -ErrorAction Stop
         if ($proc.ExitCode -ge 8) {
@@ -195,8 +195,8 @@ try {
                 $result.registryExports += $dest
             }
             catch {
-                $result.errors += "Registry export failed for $key: $_"
-                Write-Log "Registry export failed for $key: $_" 'WARN'
+                $result.errors += "Registry export failed for ${key}: $_"
+                Write-Log "Registry export failed for ${key}: $_" 'WARN'
             }
         }
 

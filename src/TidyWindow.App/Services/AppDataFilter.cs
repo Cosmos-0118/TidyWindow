@@ -84,7 +84,8 @@ public static class AppDataFilter
     {
         try
         {
-            return Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
+            var full = Path.GetFullPath(Environment.ExpandEnvironmentVariables(path));
+            return full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         }
         catch
         {
