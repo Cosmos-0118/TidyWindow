@@ -10,8 +10,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## Build & Infrastructure
 
@@ -23,8 +23,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## Automation Layer
 
@@ -36,8 +36,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## App Shell & Navigation
 
@@ -49,8 +49,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## Environment Bootstrapper
 
@@ -62,8 +62,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## System Clean-Up Suite
 
@@ -76,8 +76,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## Package Maintenance Console
 
@@ -92,8 +92,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## Deep Scan Analyzer
 
@@ -105,8 +105,8 @@
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## Smart Install Hub
 
@@ -120,8 +120,8 @@ Target a curated list of roughly 30 essential developer packages (Python, Java, 
 
 **Build & Run Checkpoint**
 
--   `dotnet build src/TidyWindow.sln`
--   `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
 
 ## Install Hub Rework
 
@@ -185,3 +185,21 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 [x] Step 13.8: Add Scheduler & Affinity toolbox: process affinity templates, ideal-node selection, I/O and CPU priority presets, and a compact stress/benchmark harness for validation; support per-app presets saved to disk.
 [x] Step 13.9: Wire DirectStorage & I/O readiness checks (NVMe, GPU, driver) with optional I/O priority boost and thread priority boost toggles plus rollbacks.
 [x] Step 13.10: Build Monitoring & Auto-Tune loop: lightweight WMI/ETW sampler that triggers defined presets when gaming apps are detected, logs deltas to Activity Log, and exposes quick revert.
+
+## Reset Rescue: Smart Backup & Restore
+
+> Deep Scan-style UI for guided, manifest-driven backup and restore of user files and app data ahead of resets/reinstalls.
+
+[x] Step 14.1: Define archive/manifest spec (`.rrarchive` + JSON: paths, hashes, ACL hints, app metadata) and storage layout under `data/backup/`; add design note in `docs/backup.md` covering VSS, hashing, and conflict policies.
+[x] Step 14.2: Implement core services in `src/TidyWindow.Core/Backup/BackupService.cs` and `RestoreService.cs` with chunked SHA-256 hashing, compression, manifest emit/load, path reconciliation, and conflict strategies (overwrite/rename/skip) plus VSS-aware file capture.
+[x] Step 14.3: Add detection bridges: user profile discovery (Known Folders), app inventory (Win32/MSI, Store via Appx APIs, portable via signatures) in `src/TidyWindow.Core/Backup/InventoryService.cs`; cover best-effort app data resolution with clear flags.
+[x] Step 14.4: Create view models `ViewModels/ResetRescueViewModel.cs` (states: destination selection, selection trees, validation, progress) and wire commands for Start Backup/Restore with resumability checkpoints.
+[x] Step 14.5: Build `Views/ResetRescuePage.xaml` reusing Deep Scan visual language (hero strip, segmented progress, acrylic cards) with sections for destination picker, “What to protect” (users/apps, includes/excludes), validation summary, and dual CTAs (Backup/Restore).
+[x] Step 14.6: Add automation helpers in `automation/scripts/reset-rescue.ps1` for VSS snapshot, locked-file copy, and registry export/import; document parameters and logging contract for the invoker.
+[x] Step 14.7: Ship tests: core unit tests for manifest round-trip and conflict handling (`tests/TidyWindow.Core.Tests/Backup/`), integration tests for service + PowerShell invoker harness, and UI automation smoke for ResetRescue page navigation/progress states.
+[x] Step 14.8: Update docs: `docs/getting-started.md` (new page entry), `docs/backup.md` (flows, limits, privacy), and add an HTML/Markdown sample report to `docs/reports/backup-report-sample.html`.
+
+**Build & Run Checkpoint**
+
+- `dotnet build src/TidyWindow.sln`
+- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`

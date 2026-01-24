@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Reset Rescue Report (Sample)</title>
+        <style>
+            body {
+                font-family:
+                    Segoe UI,
+                    Arial,
+                    sans-serif;
+                background: #0b1628;
+                color: #e9f2ff;
+                margin: 24px;
+            }
+            h1 {
+                margin-bottom: 0;
+            }
+            .meta {
+                color: #8ca3c8;
+                margin-top: 4px;
+            }
+            .card {
+                background: #111f3a;
+                border: 1px solid #1d3b67;
+                border-radius: 10px;
+                padding: 16px;
+                margin-top: 16px;
+            }
+            .ok {
+                color: #5df2bc;
+            }
+            .warn {
+                color: #fbbf24;
+            }
+            .error {
+                color: #fb7185;
+            }
+            table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-top: 8px;
+            }
+            th,
+            td {
+                border-bottom: 1px solid #1d3b67;
+                padding: 8px;
+                text-align: left;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Reset Rescue Report</h1>
+        <div class="meta">
+            Generated: 2026-01-24T12:00:00Z · Generator: TidyWindow 2.9.0
+        </div>
+
+        <div class="card">
+            <h2>Summary</h2>
+            <p class="ok">Status: Completed</p>
+            <p>Archive: C:\Backups\reset-rescue-2026-01-24.rrarchive</p>
+            <p>Entries: 124 files · 3.2 GB</p>
+        </div>
+
+        <div class="card">
+            <h2>Profiles</h2>
+            <table>
+                <tr>
+                    <th>User</th>
+                    <th>Paths</th>
+                    <th>Result</th>
+                </tr>
+                <tr>
+                    <td>DESKTOP\\Alice</td>
+                    <td>Desktop, Documents, Pictures</td>
+                    <td class="ok">Backed up</td>
+                </tr>
+                <tr>
+                    <td>DESKTOP\\Guest</td>
+                    <td>Documents</td>
+                    <td class="warn">Skipped (no changes)</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Apps</h2>
+            <table>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Result</th>
+                </tr>
+                <tr>
+                    <td>VS Code</td>
+                    <td>Win32</td>
+                    <td class="ok">Data copied</td>
+                </tr>
+                <tr>
+                    <td>Xbox Game Bar</td>
+                    <td>Store</td>
+                    <td class="warn">Config skipped (locked)</td>
+                </tr>
+            </table>
+        </div>
+
+        <div class="card">
+            <h2>Issues</h2>
+            <ul>
+                <li class="warn">
+                    OneDrive stubs captured as metadata only (policy).
+                </li>
+                <li class="error">
+                    2 files failed hash verification; see activity log for
+                    details.
+                </li>
+            </ul>
+        </div>
+    </body>
+</html>

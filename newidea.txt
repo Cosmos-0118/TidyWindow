@@ -1,0 +1,97 @@
+# Reset Rescue: Smart Backup & Restore
+
+## Page Name (Professional)
+**Reset Rescue: Smart Backup & Restore**
+
+## Purpose
+Streamline Windows resets, upgrades, or migrations by creating a guided, verifiable backup of user files and app data. Packages everything into a portable, manifest-driven archive for intelligent restoration to original locations—saving hours of manual reconfiguration.
+
+## Target Audience
+Windows 10/11 Home/Pro users prepping for resets, clean installs, or hardware swaps. Ideal for gamers (saves game configs/saves), creators (preserves app projects), and everyday users avoiding data loss.
+
+## Core Features
+- **Selective Backup**: User files (known folders + custom), installed apps (Win32/MSI/UWP/Portable), app data (AppData, %LOCALAPPDATA%).
+- **Manifest-Driven Archive**: JSON manifest tracks paths, hashes, versions, ACLs, dependencies; LZNT1-compressed .rrarchive file.
+- **Intelligent Restore**: Path reconciliation (handles moved drives/profiles), conflict resolution (overwrite/rename/skip/backup), partial restores.
+- **Safety Net**: Pre-flight checks, VSS for locked files, chunked SHA-256 verification, resumable progress.
+
+## UX Flow (Deep Scan-Inspired Design)
+Match Windows Fluent Design: Acrylic cards, progress rings, toggle switches. Single-page layout with collapsible sections.
+
+### 1. Destination Selection
+- Drive picker (internal/external/USB; shows free space, NTFS/ReFS only).
+- Encryption toggle (BitLocker API integration; passphrase or Windows Hello).
+- **Summary**: "D:\ (250 GB free) → 128 GB needed".
+
+### 2. What to Protect
+**Users** (auto-detect all profiles):
+- Defaults: Desktop, Documents, Pictures, Downloads, Music, Videos (via KnownFolders).
+- Filters: AppData\Roaming/Local (exclude Temp/Cache); custom include/exclude.
+- Size/throttle sliders (e.g., max 5 GB/user, 50 MB/s).
+
+**Apps** (WMI + registry scan: 95% detection rate):
+| Category | Detection | Includes |
+|----------|-----------|----------|
+| Win32/MSI | Add/Remove Programs | Executables, AppData, Registry keys |
+| Microsoft Store | PackageManager API | .appx data, local state |
+| Portable | File signatures (e.g., Discord.exe patterns) | Config folders |
+- Checkboxes with "Data Only" toggle; dependency warnings (e.g., "Chrome needs profile restore").
+
+**Advanced Options**:
+- Exclusions (globs: *.tmp, $Recycle.Bin).
+- OneDrive handling: Download stubs or metadata only.
+- Registry export for settings (selective hives).
+
+### 3. Pre-Flight Validation
+- Checks: Space (120% buffer), permissions (UAC prompt), path length (<260 chars, long-path aware), VSS ready.
+- **Go/No-Go**: Green "Ready" or red banners with fixes (e.g., "Free 20 GB on D:\")
+
+### 4. Action Buttons
+- **Start Backup** → Staged progress:
+  1. Manifest build (scan/index).
+  2. VSS snapshot + copy (multi-threaded).
+  3. Compress + hash.
+  4. Verify + report.
+- **Start Restore** (from .rrarchive):
+  1. Manifest parse + path mapping.
+  2. Conflict preview (e.g., "5 files overwritten?").
+  3. Restore files/ACLS → app data → registry.
+  4. Integrity check + post-report (e.g., "98% success; reinstall Chrome").
+
+## Technical Implementation (Windows-Optimized)
+- **Stack**: C# WPF (Fluent UI), .NET 8; PowerShell modules for detection.
+- **Key APIs**:
+  | Feature | Windows API/Logic |
+  |---------|-------------------|
+  | User Folders | SHGetKnownFolderPath |
+  | App Inventory | WMI Win32_Product, Get-AppxPackage |
+  | Locked Files | VSS (IVssBackupComponents) + fallback USN Journal |
+  | Hashing | SHA256 (chunked for large files) |
+  | Compression | LZNT1 (native, faster than ZIP) |
+  | Paths/ACLS | Ntfs APIs, SetNamedSecurityInfo |
+- **Guardrails**:
+  - Elevation: Manifest-triggered UAC.
+  - Interrupt: SQLite journal for resumability.
+  - Privacy: Local-only; no telemetry.
+  - Size: <200 MB exe (self-contained).
+
+## Restore Intelligence
+- **Path Mapping**: Detect profile GUIDs, drive letters (e.g., C:\Users\Old → current).
+- **App Smarts**: Best-effort data drop + PowerShell script for reinstall (Store: winget; Win32: .msi stubs).
+- **Partial Mode**: Tree-view selector (users/apps/files).
+- **Validation**: Post-restore diff (hash mismatches flagged); "Reset Simulator" previews layout.
+
+## Status & Reporting
+- Real-time: Segmented progress bars (e.g., "Files: 75% | Hashing: 40%").
+- Post-Run: HTML report (successes/errors/skips/logs); toast: "Backup complete—safe to reset!".
+- Errors: Actionable (e.g., "VSS failed: Run as admin").
+
+## Differentiation & Win Potential
+- **Unique Edge**: "Reset-Ready" certification (integrates with Settings > Recovery).
+- **Metrics Goal**: 10x faster than manual copy; 99% restore success.
+- **Monetization**: Free core; Pro ($19): Cloud sync, scheduled, multi-PC.
+
+## Future Roadmap
+- Win12 support (Copilot+ optimizations).
+- Android/iOS companion for mobile data.
+- Enterprise: AD integration, GPO policies.

@@ -34,6 +34,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("PathPilot", "Control runtime precedence and PATH backups", "\uE71B", typeof(PathPilotPage)),
             new("Registry optimizer", "Stage registry defaults safely", "\uE9F5", typeof(RegistryOptimizerPage)),
             new("Maintenance", "Review installed packages, updates, and removals", "\uE90A", typeof(PackageMaintenancePage)),
+            new("Reset rescue", "Backup and restore user data fast", "\uE8B8", typeof(ResetRescuePage)),
             new("Deep scan", "Scan to surface files fast", "\uE721", typeof(DeepScanPage)),
             new("Cleanup", "Preview clutter before removing files", "\uE74D", typeof(CleanupPage)),
             new("Logs", "Inspect activity across automation features", "\uE90E", typeof(LogsPage)),
