@@ -1,10 +1,10 @@
 {
-  "version": "3.9.4",
+  "version": "3.9.5",
   "channel": "stable",
-  "summary": "##  Installer, Title Bar & Release Notes UX\n\n###  Installer Flow\n- Removed auto-restart flag when launching the installer\n- Fixes ghost “Setup” window lingering in Alt-Tab\n- Relaunch now happens cleanly from the installer Finish page\n\n###  Title Bar Enhancements\n- Added a **chrome-hosted title-bar content slot** for page-specific controls\n- Introduced a reusable **Essentials Pivot Title Bar** component\n- Wired the title bar into Install Hub, Maintenance, and Processes pages\n- Essentials now sets/clears title-bar content on enter/exit and removed the old in-page “Switch views” block\n\n###  Registry Optimizer UX\n- Added **Presets** quick-action button that opens a popup selector\n- Removed always-visible presets panel from the right column\n- Keeps the layout cleaner while preserving fast preset access\n- Added popup open/close handlers for reliable state control\n\n###  Release Notes Rendering\n- Release notes now flow through a **markdown-aware pipeline**:\n  - Normalizes markdown\n  - Builds a styled FlowDocument\n  - Preserves icon metadata and supports raw markdown copy\n- Overlay now renders formatted headings, lists, links, and inline code\n- Empty state is based on actual markdown presence\n- Replaced flat list layout with a scrollable, formatted view",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.9.4/TidyWindow-Setup-3.9.4.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.9.4",
-  "publishedAt": "2026-01-23T13:31:44Z",
-  "installerSizeBytes": 91002444,
-  "sha256": "8d7fbbfda37418ffd996abd9e38c73348593835942ce4881f8f26e1814c6993d"
+  "summary": "##  Performance, Cancellation & Layout Refinements\n\n###  Essentials & Maintenance\n- Widened Essentials task tiles (380–520) so status chips don’t get cramped\n- Package inventory refresh now runs **off the UI thread**, keeping Maintenance responsive\n\n###  PathPilot Responsiveness\n- Inventory refresh now uses **linked cancellation + timeouts** and is cancelled on navigation\n- Refresh and switch operations run on background tasks with UI updates marshaled safely\n- Centralized cancellation management ensures in-flight work stops cleanly\n- Navigating away from PathPilot now cancels all active operations\n\n###  Deep Scan UX\n- Prominent **top search bar** with inline mode/case/hidden/system/folder filters\n- Remaining filters grouped below; options card now focuses on force-delete\n\n###  Cleanup Setup UX\n- Setup cards now use an **adaptive grid** for consistent spacing\n- “Top items” card redesigned:\n  - Clear header + right-aligned cap pill\n  - Wider slider with min/max labels\n  - Presets in a tidy grid\n  - No text overlap; cleaner stacking\n  - Evenly spaced slider labels\n\n###  Navigation Cache\n- Added **LRU page cache cap (4 pages)** so old pages dispose cleanly during rapid navigation",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v3.9.5/TidyWindow-Setup-3.9.5.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v3.9.5",
+  "publishedAt": "2026-01-23T18:58:03Z",
+  "installerSizeBytes": 91006303,
+  "sha256": "3b716f2561e12bae7629dd431c679cf4d70781f534680b383cdbd07ceabaec52"
 }
