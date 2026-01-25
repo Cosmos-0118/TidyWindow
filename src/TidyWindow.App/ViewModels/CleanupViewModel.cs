@@ -10,6 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
@@ -217,7 +218,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private const int DefaultPreviewCount = 50;
     private const int MaxLockInspectionItemsPerCategory = 32;
     private const int MaxLockInspectionSampleTotal = 600;
-    private const int PreviewUiYieldInterval = 6;
+    private const int PreviewUiYieldInterval = 3;
 
     private readonly CleanupPreviewFilter _previewFilter;
     private readonly PreviewPagingController _previewPagingController;
@@ -348,6 +349,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _isBusy;
+
+    [ObservableProperty]
+    private bool _isDeletionPreparationInProgress;
 
     [ObservableProperty]
     private string _headline = "Preview and clean up system clutter";
@@ -922,7 +926,9 @@ public sealed partial class CleanupViewModel : ViewModelBase
             ClearTargets();
             CurrentPage = 1;
 
-            var report = await _cleanupService.PreviewAsync(IncludeDownloads, IncludeBrowserHistory, PreviewCount, SelectedItemKind);
+            var report = await Task.Run(
+                () => _cleanupService.PreviewAsync(IncludeDownloads, IncludeBrowserHistory, PreviewCount, SelectedItemKind),
+                CancellationToken.None).ConfigureAwait(true);
 
             var previewPrep = await Task.Run(() =>
             {
@@ -990,11 +996,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteSelected))]
-    private Task DeleteSelectedAsync()
+    private async Task DeleteSelectedAsync()
     {
-        if (IsBusy)
+        if (IsBusy || IsDeletionPreparationInProgress)
         {
-            return Task.CompletedTask;
+            return;
         }
 
         var itemsToDelete = Targets
@@ -1003,11 +1009,32 @@ public sealed partial class CleanupViewModel : ViewModelBase
 
         if (itemsToDelete.Count == 0)
         {
-            return Task.CompletedTask;
+            return;
         }
 
-        PrepareDeletionConfirmation(itemsToDelete);
-        return Task.CompletedTask;
+        var previousBusyMessage = BusyStatusMessage;
+        var previousBusyDetail = BusyStatusDetail;
+
+        IsDeletionPreparationInProgress = true;
+        BusyStatusMessage = "Preparing confirmation…";
+        BusyStatusDetail = "Summarizing your selection before showing the sheet.";
+
+        try
+        {
+            // Let the dispatcher paint the overlay before any heavier UI-thread work runs.
+            await Dispatcher.Yield(DispatcherPriority.Render);
+
+            // Force a UI pass so the overlay renders before prep.
+            var dispatcher = Dispatcher.FromThread(Thread.CurrentThread) ?? Dispatcher.CurrentDispatcher;
+            await dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
+            PrepareDeletionConfirmation(itemsToDelete);
+        }
+        finally
+        {
+            BusyStatusMessage = previousBusyMessage;
+            BusyStatusDetail = previousBusyDetail;
+            IsDeletionPreparationInProgress = false;
+        }
     }
 
     [RelayCommand]
@@ -1088,7 +1115,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
         }
     }
 
-    private bool CanDeleteSelected() => !IsBusy && HasSelection && !IsConfirmationSheetVisible;
+    private bool CanDeleteSelected() => !IsBusy && !IsDeletionPreparationInProgress && HasSelection && !IsConfirmationSheetVisible;
 
     private void PrepareDeletionConfirmation(List<(CleanupTargetGroupViewModel group, CleanupPreviewItemViewModel item)> itemsToDelete)
     {
@@ -3097,6 +3124,11 @@ public sealed partial class CleanupViewModel : ViewModelBase
         ShowRunConfirmationPopupCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnIsDeletionPreparationInProgressChanged(bool value)
+    {
+        DeleteSelectedCommand.NotifyCanExecuteChanged();
+    }
+
     partial void OnBusyStatusMessageChanged(string value)
     {
         OnPropertyChanged(nameof(ActiveOperationStatus));
@@ -3533,10 +3565,17 @@ public sealed partial class CleanupViewModel : ViewModelBase
             return;
         }
 
+        var materialized = await Task.Run(() =>
+            targets
+                .Where(static target => target is not null)
+                .Select(static target => new CleanupTargetGroupViewModel(target))
+                .ToList(),
+            CancellationToken.None).ConfigureAwait(true);
+
         var added = 0;
-        foreach (var target in targets)
+        foreach (var group in materialized)
         {
-            AddTargetGroup(new CleanupTargetGroupViewModel(target));
+            AddTargetGroup(group);
             added++;
 
             if (added % PreviewUiYieldInterval == 0)

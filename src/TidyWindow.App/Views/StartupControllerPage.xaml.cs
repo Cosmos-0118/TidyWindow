@@ -310,12 +310,12 @@ public partial class StartupControllerPage : Page
     {
         // Run immediately for already-realized viewers, and schedule a follow-up once layout settles.
         ScrollToTopInternal();
-        Dispatcher.BeginInvoke(ScrollToTopInternal, DispatcherPriority.Loaded);
+        Dispatcher.BeginInvoke(ScrollToTopInternal, DispatcherPriority.Render);
     }
 
     private void ScrollToTopInternal()
     {
-        _entriesScrollViewer ??= FindScrollViewer(EntriesItemsControl);
+        _entriesScrollViewer = FindScrollViewer(EntriesItemsControl);
         _entriesScrollViewer?.ScrollToVerticalOffset(0);
     }
 

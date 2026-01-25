@@ -2,6 +2,8 @@ using System;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.ViewModels;
 using Forms = System.Windows.Forms;
@@ -17,6 +19,8 @@ public partial class DeepScanPage : Page
         InitializeComponent();
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         DataContext = _viewModel;
+        _viewModel.PageChanged += OnPageChanged;
+        Unloaded += OnUnloaded;
     }
 
     private void BrowseButton_OnClick(object sender, RoutedEventArgs e)
@@ -31,6 +35,20 @@ public partial class DeepScanPage : Page
         if (dialog.ShowDialog() == Forms.DialogResult.OK)
         {
             _viewModel.TargetPath = dialog.SelectedPath;
+        }
+    }
+
+    private void OnLocationOverlayMouseDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        // Close the overlay when clicking the dimmed background (not the content panel)
+        if (e.OriginalSource is not System.Windows.Controls.Grid grid || grid.Name != "LocationOverlay")
+        {
+            return;
+        }
+
+        if (_viewModel.HideLocationPickerCommand.CanExecute(null))
+        {
+            _viewModel.HideLocationPickerCommand.Execute(null);
         }
     }
 
@@ -111,5 +129,54 @@ public partial class DeepScanPage : Page
         {
             relayCommand.Execute(item);
         }
+    }
+
+    private void OnPageChanged(object? sender, EventArgs e)
+    {
+        ScrollToTop();
+    }
+
+    private void ScrollToTop()
+    {
+        var listViewer = FindScrollViewer(FindingsListView);
+        listViewer?.ScrollToVerticalOffset(0);
+        RootScrollViewer?.ScrollToVerticalOffset(0);
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            var refreshedViewer = FindScrollViewer(FindingsListView);
+            refreshedViewer?.ScrollToVerticalOffset(0);
+            RootScrollViewer?.ScrollToVerticalOffset(0);
+        }, DispatcherPriority.Render);
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        _viewModel.PageChanged -= OnPageChanged;
+        Unloaded -= OnUnloaded;
+    }
+
+    private static ScrollViewer? FindScrollViewer(DependencyObject? root)
+    {
+        if (root is null)
+        {
+            return null;
+        }
+
+        if (root is ScrollViewer viewer)
+        {
+            return viewer;
+        }
+
+        for (var i = 0; i < VisualTreeHelper.GetChildrenCount(root); i++)
+        {
+            var result = FindScrollViewer(VisualTreeHelper.GetChild(root, i));
+            if (result is not null)
+            {
+                return result;
+            }
+        }
+
+        return null;
     }
 }

@@ -6,6 +6,7 @@
         xmlns:converters="clr-namespace:TidyWindow.App.Converters"
         xmlns:controls="clr-namespace:TidyWindow.App.Views"
         xmlns:ux="clr-namespace:TidyWindow.App.Controls"
+        xmlns:sys="clr-namespace:System;assembly=mscorlib"
             mc:Ignorable="d"
             Title="Deep scan"
             Background="Transparent"
@@ -91,6 +92,12 @@
             <GradientStop Color="#FB7185"
                   Offset="1"/>
         </LinearGradientBrush>
+          <LinearGradientBrush x:Key="DeepScanProgressBrush"
+                        StartPoint="0,0"
+                        EndPoint="1,1">
+            <GradientStop Color="#5DF2BC" Offset="0"/>
+            <GradientStop Color="#38BDF8" Offset="1"/>
+          </LinearGradientBrush>
           <DropShadowEffect x:Key="DeepScanDangerShadowEffect"
                       Color="#FF1F1F"
                       BlurRadius="24"
@@ -337,7 +344,8 @@
                           Margin="32"
                           VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled"
-                          CanContentScroll="True"
+                                                    CanContentScroll="True"
+                                                    ScrollViewer.IsDeferredScrollingEnabled="False"
                                                     PanningMode="VerticalOnly"
                                                     UseLayoutRounding="True"
                                                     SnapsToDevicePixels="True">
@@ -377,6 +385,60 @@
                                    FontSize="12"
                                    Foreground="#8CA3C8"
                                    Margin="0,4,0,0"/>
+                        <StackPanel Margin="0,10,0,0">
+                            <StackPanel.Style>
+                                <Style TargetType="StackPanel">
+                                    <Setter Property="Opacity" Value="0"/>
+                                    <Setter Property="Height" Value="0"/>
+                                    <Setter Property="IsHitTestVisible" Value="False"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsProgressVisible}" Value="True">
+                                            <Setter Property="Opacity" Value="1"/>
+                                            <Setter Property="Height" Value="{x:Static sys:Double.NaN}"/>
+                                            <Setter Property="IsHitTestVisible" Value="True"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </StackPanel.Style>
+                            <Border Background="#0A1626"
+                                    BorderBrush="#1E2F4B"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="6"
+                                    HorizontalAlignment="Stretch">
+                                <ProgressBar Height="10"
+                                             Minimum="0"
+                                             Maximum="100"
+                                             IsIndeterminate="True"
+                                             Foreground="{StaticResource DeepScanProgressBrush}"
+                                             Background="#0A1524"
+                                             BorderThickness="0"/>
+                            </Border>
+                            <TextBlock Text="{Binding ScanProgressLabel}"
+                                       FontSize="12"
+                                       Foreground="#94A3B8"
+                                       Margin="0,6,0,0"
+                                       TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding CurrentPathDisplay}"
+                                       FontSize="11"
+                                       Foreground="#64748B"
+                                       Margin="0,2,0,0"
+                                       TextTrimming="CharacterEllipsis">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding CurrentPathDisplay}" Value="">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding CurrentPathDisplay}" Value="{x:Null}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1"
@@ -528,21 +590,15 @@
                                                 BorderBrush="#0F172A"
                                                 Cursor="Hand"/>
                                     </StackPanel>
-                                    <ComboBox Margin="0,16,0,0"
-                                              ItemsSource="{Binding PresetLocations}"
-                                              SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
-                                              Style="{StaticResource App.ComboBoxStyle}">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding Label}"/>
-                                                    <TextBlock Text="{Binding Description}"
-                                                               Foreground="#94A3B8"
-                                                               FontSize="11"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
+                                    <Button Content="Choose from presets"
+                                            Command="{Binding ShowLocationPickerCommand}"
+                                            Margin="0,16,0,0"
+                                            Padding="14,8"
+                                            HorizontalAlignment="Left"
+                                            Background="#1E293B"
+                                            Foreground="#38BDF8"
+                                            BorderBrush="#0F172A"
+                                            Cursor="Hand"/>
                                     <TextBlock Margin="0,8,0,0"
                                                Text="{Binding SelectedPreset.Description, TargetNullValue=Select a preset to jump there}"
                                                Foreground="#94A3B8"
@@ -621,39 +677,41 @@
                             <RowDefinition Height="*"/>
                         </Grid.RowDefinitions>
 
-               <DockPanel Grid.Row="0"
-                    Margin="0,0,0,12">
-                <StackPanel Orientation="Horizontal"
-                         VerticalAlignment="Center"
-                         DockPanel.Dock="Left">
-                    <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
-                         FontSize="12"
-                        Foreground="#E4F1FF"/>
-                    <TextBlock Text="•"
-                         Margin="8,0"
-                         FontSize="12"
-                        Foreground="#7D93BB"/>
-                    <TextBlock Text="{Binding PageDisplay}"
-                         FontSize="12"
-                        Foreground="#9DB7D6"/>
-                    <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
-                         FontSize="12"
-                        Foreground="#9DB7D6"
-                         Margin="8,0,0,0"/>
-                </StackPanel>
-                            <StackPanel Orientation="Horizontal"
-                                        DockPanel.Dock="Right">
-                                <Button Content="⟨ Prev"
-                                        Command="{Binding PreviousPageCommand}"
-                                        IsEnabled="{Binding CanGoToPreviousPage}"
-                                        Margin="0,0,8,0"
-                                        Style="{StaticResource PaginationButtonStyle}"/>
-                                <Button Content="Next ⟩"
-                                        Command="{Binding NextPageCommand}"
-                                        IsEnabled="{Binding CanGoToNextPage}"
-                                        Style="{StaticResource PaginationButtonStyle}"/>
-                            </StackPanel>
-                        </DockPanel>
+            <DockPanel Grid.Row="0"
+                Margin="0,0,0,12">
+             <StackPanel Orientation="Horizontal"
+                    VerticalAlignment="Center"
+                    DockPanel.Dock="Left">
+                <TextBlock Text="{Binding TotalFindings, StringFormat={}{0:N0} items}"
+                    FontSize="12"
+                    Foreground="#E4F1FF"/>
+                <TextBlock Text="•"
+                    Margin="10,0,10,0"
+                    FontSize="12"
+                    Foreground="#7D93BB"/>
+                <TextBlock Text="{Binding PageDisplay}"
+                    FontSize="12"
+                    Foreground="#9DB7D6"
+                            Margin="0,0,10,0"/>
+                <TextBlock Text="{Binding PageSize, StringFormat={}{0} per page}"
+                    FontSize="12"
+                    Foreground="#9DB7D6"/>
+             </StackPanel>
+                       <StackPanel Orientation="Horizontal"
+                                DockPanel.Dock="Right"
+                                VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                          <Button Content="⟨ Prev"
+                                Command="{Binding PreviousPageCommand}"
+                                IsEnabled="{Binding CanGoToPreviousPage}"
+                                Style="{StaticResource PaginationButtonStyle}"
+                                Margin="0,0,10,0"/>
+                          <Button Content="Next ⟩"
+                                Command="{Binding NextPageCommand}"
+                                IsEnabled="{Binding CanGoToNextPage}"
+                                Style="{StaticResource PaginationButtonStyle}"/>
+                       </StackPanel>
+                    </DockPanel>
 
                         <ux:BubbleScrollListView x:Name="FindingsListView"
                                                  Grid.Row="1"
@@ -666,12 +724,17 @@
                                                  ScrollViewer.CanContentScroll="True"
                                                  VirtualizingPanel.IsVirtualizing="True"
                                                  VirtualizingPanel.VirtualizationMode="Recycling"
-                                                 VirtualizingPanel.CacheLength="1"
+                                                 VirtualizingPanel.CacheLength="3"
                                                  VirtualizingPanel.CacheLengthUnit="Item"
                                                  VirtualizingStackPanel.ScrollUnit="Pixel"
                                                  UseLayoutRounding="True"
                                                  SnapsToDevicePixels="True"
                                                  ParentScrollViewerName="RootScrollViewer">
+                            <ListView.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel/>
+                                </ItemsPanelTemplate>
+                            </ListView.ItemsPanel>
                             <ListView.Resources>
                                 <Style x:Key="DeepScanChipStyle"
                                        TargetType="Border">
@@ -762,7 +825,10 @@
                         BorderThickness="1"
                         CornerRadius="12"
                         Padding="16"
-                                            SnapsToDevicePixels="True">
+                        SnapsToDevicePixels="True">
+                        <Border.CacheMode>
+                            <BitmapCache RenderAtScale="1" EnableClearType="True"/>
+                        </Border.CacheMode>
                                         <Border.Style>
                                             <Style TargetType="Border">
                                                 <Setter Property="Background"
@@ -1104,19 +1170,10 @@
                             </TextBlock.Style>
                         </TextBlock>
                     </Grid>
-                </Grid>
-            </Border>
-        </Grid>
-            </ScrollViewer>
-        </Grid>
 
-    <ContentControl x:Name="DeepScanOverlay"
-                    Panel.ZIndex="20"
-                    HorizontalAlignment="Stretch"
-                    VerticalAlignment="Stretch"
-                    Focusable="False"
-                    IsEnabled="{Binding IsBusy}">
-        <ContentControl.Template>
+                    <ContentControl IsEnabled="{Binding IsBusy}"
+                                    Panel.ZIndex="30">
+                        <ContentControl.Template>
             <ControlTemplate TargetType="ContentControl">
                 <Grid x:Name="DeepScanOverlayRoot"
                       Background="Transparent"
@@ -1537,5 +1594,115 @@
             </ControlTemplate>
         </Button.Template>
     </Button>
-    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+    </ScrollViewer>
+
+        <Grid x:Name="LocationOverlay"
+              Panel.ZIndex="30"
+              Background="#B0020617"
+              Visibility="{Binding IsLocationPickerVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
+              IsHitTestVisible="{Binding IsLocationPickerVisible}"
+              MouseDown="OnLocationOverlayMouseDown">
+            <Border MaxWidth="900"
+                    MinWidth="420"
+                    MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Window}}"
+                    Margin="32"
+                    Padding="24"
+                    Background="#0B1626"
+                    BorderBrush="#1F2D44"
+                    BorderThickness="1"
+                    CornerRadius="22"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0">
+                        <TextBlock Text="Scan presets"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="#E2E8F0"/>
+                        <TextBlock Text="Jump to a common location without typing the path."
+                                   FontSize="12"
+                                   Foreground="#94A3B8"
+                                   Margin="0,6,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1"
+                            Background="#0A162C"
+                            BorderBrush="#1F2D44"
+                            BorderThickness="1"
+                            CornerRadius="12"
+                            Padding="10"
+                            Margin="0,14,0,14">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled"
+                                      MaxHeight="620">
+                            <ListBox ItemsSource="{Binding PresetLocations}"
+                                     SelectedItem="{Binding SelectedPreset, Mode=TwoWay}"
+                                     Background="Transparent"
+                                     BorderThickness="0"
+                                     Foreground="#F8FAFC"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     ScrollViewer.CanContentScroll="True"
+                                     VirtualizingStackPanel.IsVirtualizing="True"
+                                     VirtualizingStackPanel.VirtualizationMode="Recycling">
+                                <ListBox.ItemContainerStyle>
+                                    <Style TargetType="ListBoxItem">
+                                        <Setter Property="Margin" Value="0,6"/>
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    </Style>
+                                </ListBox.ItemContainerStyle>
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#101D30"
+                                                BorderBrush="#1F2D44"
+                                                BorderThickness="1"
+                                                CornerRadius="10"
+                                                Padding="12">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Label}"
+                                                           FontSize="15"
+                                                           FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Path}"
+                                                           FontSize="12"
+                                                           Foreground="#94A3B8"
+                                                           Margin="0,2,0,0"/>
+                                                <TextBlock Text="{Binding Description}"
+                                                           FontSize="12"
+                                                           Foreground="#94A3B8"
+                                                           Margin="0,4,0,0"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </ScrollViewer>
+                    </Border>
+
+                    <StackPanel Grid.Row="2"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right">
+                        <Button Content="Close"
+                                Command="{Binding HideLocationPickerCommand}"
+                                Padding="14,8"
+                                Margin="0,0,8,0"
+                                Background="#162132"
+                                Foreground="#E2E8F0"
+                                BorderBrush="#27374D"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+</Grid>
+</Grid>
 </Page>

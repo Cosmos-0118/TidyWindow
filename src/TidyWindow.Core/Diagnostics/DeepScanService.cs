@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -175,6 +176,8 @@ internal static class DeepScanAggregation
 /// </summary>
 public sealed class DeepScanService
 {
+    private static readonly ConcurrentDictionary<CacheKey, CacheEntry> Cache = new(new CacheKeyComparer());
+
     public Task<DeepScanResult> RunScanAsync(DeepScanRequest request, CancellationToken cancellationToken = default)
     {
         return RunScanAsync(request, progress: null, cancellationToken);
@@ -188,6 +191,15 @@ public sealed class DeepScanService
         }
 
         var resolvedRoot = ResolveRootPath(request.RootPath);
+
+        var key = BuildCacheKey(resolvedRoot, request);
+        if (TryGetRootTimestamp(resolvedRoot, out var rootTimestamp)
+            && Cache.TryGetValue(key, out var cached)
+            && cached.RootTimestamp == rootTimestamp)
+        {
+            return cached.Result;
+        }
+
         return await Task.Run(
             () => ExecuteScan(resolvedRoot, request, progress, cancellationToken),
             cancellationToken).ConfigureAwait(false);
@@ -212,6 +224,8 @@ public sealed class DeepScanService
             return DeepScanResult.FromFindings(resolvedRoot, Array.Empty<DeepScanFinding>());
         }
 
+        var hasRootTimestamp = TryGetRootTimestamp(resolvedRoot, out var rootTimestamp);
+
         if (File.Exists(resolvedRoot))
         {
             var queue = new PriorityQueue<DeepScanFinding, long>(1);
@@ -227,7 +241,12 @@ public sealed class DeepScanService
 
             context.Emit(queue, rootFile?.FullPath, isFinal: true, latestFinding: null, force: true);
             var single = DrainQueue(queue);
-            return BuildResult(resolvedRoot, single, context.SystemPathsSkipped);
+            var result = BuildResult(resolvedRoot, single, context.SystemPathsSkipped);
+            if (hasRootTimestamp)
+            {
+                CacheResult(resolvedRoot, request, result, rootTimestamp!.Value);
+            }
+            return result;
         }
 
         var results = new PriorityQueue<DeepScanFinding, long>(context.Limit);
@@ -253,7 +272,12 @@ public sealed class DeepScanService
 
         context.Emit(results, resolvedRoot, isFinal: true, latestFinding: null, force: true);
         var findings = DrainQueue(results);
-        return BuildResult(resolvedRoot, findings, context.SystemPathsSkipped);
+        var directoryResult = BuildResult(resolvedRoot, findings, context.SystemPathsSkipped);
+        if (hasRootTimestamp)
+        {
+            CacheResult(resolvedRoot, request, directoryResult, rootTimestamp!.Value);
+        }
+        return directoryResult;
     }
 
     private static long ProcessDirectory(string directoryPath, PriorityQueue<DeepScanFinding, long> queue, ScanContext context, CancellationToken cancellationToken)
@@ -743,7 +767,7 @@ public sealed class DeepScanService
             Progress = progress;
 
             var processorCount = Environment.ProcessorCount > 0 ? Environment.ProcessorCount : 1;
-            var suggestedDegree = processorCount <= 2 ? processorCount : Math.Min(processorCount, 8);
+            var suggestedDegree = processorCount <= 2 ? processorCount : Math.Min(processorCount * 2, 16);
             MaxDegreeOfParallelism = Math.Max(1, suggestedDegree);
 
             var attributesToSkip = FileAttributes.ReparsePoint;
@@ -1007,6 +1031,129 @@ public sealed class DeepScanService
 
             list.Sort(static (left, right) => right.SizeBytes.CompareTo(left.SizeBytes));
             return list;
+        }
+    }
+
+    private static bool TryGetRootTimestamp(string resolvedRoot, out DateTimeOffset? timestamp)
+    {
+        try
+        {
+            if (File.Exists(resolvedRoot))
+            {
+                timestamp = File.GetLastWriteTimeUtc(resolvedRoot);
+                return true;
+            }
+
+            if (Directory.Exists(resolvedRoot))
+            {
+                timestamp = Directory.GetLastWriteTimeUtc(resolvedRoot);
+                return true;
+            }
+        }
+        catch (Exception)
+        {
+        }
+
+        timestamp = null;
+        return false;
+    }
+
+    private static CacheKey BuildCacheKey(string resolvedRoot, DeepScanRequest request)
+    {
+        return new CacheKey(
+            resolvedRoot,
+            request.MaxItems,
+            request.MinimumSizeInMegabytes,
+            request.IncludeHiddenFiles,
+            request.IncludeSystemFiles,
+            request.AllowProtectedSystemPaths,
+            request.NameFilters,
+            request.NameMatchMode,
+            request.IsCaseSensitiveNameMatch,
+            request.IncludeDirectories);
+    }
+
+    private static void CacheResult(string resolvedRoot, DeepScanRequest request, DeepScanResult result, DateTimeOffset rootTimestamp)
+    {
+        var key = BuildCacheKey(resolvedRoot, request);
+        var entry = new CacheEntry(result, rootTimestamp);
+        Cache[key] = entry;
+    }
+
+    private readonly record struct CacheKey(
+        string Root,
+        int MaxItems,
+        int MinimumSizeMb,
+        bool IncludeHidden,
+        bool IncludeSystem,
+        bool AllowProtected,
+        IReadOnlyList<string> NameFilters,
+        DeepScanNameMatchMode NameMatchMode,
+        bool IsCaseSensitive,
+        bool IncludeDirectories);
+
+    private readonly record struct CacheEntry(DeepScanResult Result, DateTimeOffset RootTimestamp);
+
+    private sealed class CacheKeyComparer : IEqualityComparer<CacheKey>
+    {
+        private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+
+        public bool Equals(CacheKey x, CacheKey y)
+        {
+            if (!PathComparer.Equals(x.Root, y.Root))
+            {
+                return false;
+            }
+
+            if (x.MaxItems != y.MaxItems
+                || x.MinimumSizeMb != y.MinimumSizeMb
+                || x.IncludeHidden != y.IncludeHidden
+                || x.IncludeSystem != y.IncludeSystem
+                || x.AllowProtected != y.AllowProtected
+                || x.NameMatchMode != y.NameMatchMode
+                || x.IsCaseSensitive != y.IsCaseSensitive
+                || x.IncludeDirectories != y.IncludeDirectories)
+            {
+                return false;
+            }
+
+            if (x.NameFilters.Count != y.NameFilters.Count)
+            {
+                return false;
+            }
+
+            var comparer = x.IsCaseSensitive ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+            for (var i = 0; i < x.NameFilters.Count; i++)
+            {
+                if (!comparer.Equals(x.NameFilters[i], y.NameFilters[i]))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        public int GetHashCode(CacheKey obj)
+        {
+            var hash = new HashCode();
+            hash.Add(obj.Root, PathComparer);
+            hash.Add(obj.MaxItems);
+            hash.Add(obj.MinimumSizeMb);
+            hash.Add(obj.IncludeHidden);
+            hash.Add(obj.IncludeSystem);
+            hash.Add(obj.AllowProtected);
+            hash.Add(obj.NameMatchMode);
+            hash.Add(obj.IsCaseSensitive);
+            hash.Add(obj.IncludeDirectories);
+
+            var comparer = obj.IsCaseSensitive ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+            for (var i = 0; i < obj.NameFilters.Count; i++)
+            {
+                hash.Add(obj.NameFilters[i], comparer);
+            }
+
+            return hash.ToHashCode();
         }
     }
 }

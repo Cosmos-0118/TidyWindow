@@ -24,17 +24,17 @@
                          Color="#111A28"/>
         <SolidColorBrush x:Key="IconHoverBrush"
                          Color="#1A2A40"/>
-        <LinearGradientBrush x:Key="NeonStrokeBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#6EF0FF" Offset="0"/>
-            <GradientStop Color="#3B82F6" Offset="0.45"/>
-            <GradientStop Color="#8B5CF6" Offset="1"/>
+        <LinearGradientBrush x:Key="TitleOrbitBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#5EE0FF" Offset="0"/>
+            <GradientStop Color="#3EA8FF" Offset="0.55"/>
+            <GradientStop Color="#9DB8FF" Offset="1"/>
         </LinearGradientBrush>
         <SolidColorBrush x:Key="TitleForegroundBrush"
                          Color="#FCFEFF"/>
         <SolidColorBrush x:Key="SubtitleForegroundBrush"
                          Color="#C5D5EE"/>
-        <Style x:Key="TitleBarBadgeStyle"
-               TargetType="Border">
+         <Style x:Key="TitleBarBadgeStyle"
+             TargetType="Border">
             <Setter Property="CornerRadius"
             Value="10"/>
             <Setter Property="Padding"
@@ -273,35 +273,21 @@
                   IsHitTestVisible="False"
                   Opacity="0">
                 <Border CornerRadius="{Binding CornerRadius, ElementName=RootControl}"
-                        BorderThickness="1.4"
+                        BorderThickness="1"
                         Background="Transparent"
-                        BorderBrush="{Binding AccentBrush, ElementName=RootControl, TargetNullValue=#60D6FF}">
-                    <Border.Effect>
-                        <DropShadowEffect BlurRadius="18"
-                                          ShadowDepth="0"
-                                          Color="#5BE3FF"
-                                          Opacity="0.45"/>
-                    </Border.Effect>
-                </Border>
-
-                <Rectangle x:Name="NeonOrbit"
-                           RadiusX="{Binding CornerRadius.TopLeft, ElementName=RootControl}"
-                           RadiusY="{Binding CornerRadius.TopLeft, ElementName=RootControl}"
-                           StrokeThickness="2"
-                           Stroke="{StaticResource NeonStrokeBrush}"
-                           StrokeDashArray="42 130"
-                           StrokeDashCap="Round"
-                           StrokeStartLineCap="Round"
-                           StrokeEndLineCap="Round"
-                           Fill="Transparent"
-                           Margin="1">
-                    <Rectangle.Effect>
-                        <DropShadowEffect BlurRadius="12"
-                                          ShadowDepth="0"
-                                          Color="#6EF0FF"
-                                          Opacity="0.7"/>
-                    </Rectangle.Effect>
-                </Rectangle>
+                                                BorderBrush="{Binding AccentBrush, ElementName=RootControl, TargetNullValue=#60D6FF}"/>
+                                <Rectangle x:Name="OrbitStroke"
+                                                     RadiusX="{Binding CornerRadius.TopLeft, ElementName=RootControl}"
+                                                     RadiusY="{Binding CornerRadius.TopLeft, ElementName=RootControl}"
+                                                     StrokeThickness="1.2"
+                                                     Stroke="{StaticResource TitleOrbitBrush}"
+                                                     StrokeDashArray="16 180"
+                                                     StrokeDashCap="Round"
+                                                     StrokeStartLineCap="Round"
+                                                     StrokeEndLineCap="Round"
+                                                     Fill="Transparent"
+                                                     Opacity="0.8"
+                                                     Margin="0.5"/>
             </Grid>
         </Grid>
     </Border>
@@ -312,28 +298,28 @@
                 <Storyboard>
                     <DoubleAnimation Storyboard.TargetName="HoverNeonLayer"
                                      Storyboard.TargetProperty="Opacity"
-                                     To="1"
-                                     Duration="0:0:0.22"/>
+                                     To="0.35"
+                                     Duration="0:0:0.16"/>
                 </Storyboard>
             </BeginStoryboard>
-            <BeginStoryboard x:Name="NeonOrbitStoryboard">
+            <BeginStoryboard x:Name="OrbitStoryboard">
                 <Storyboard RepeatBehavior="Forever">
-                    <DoubleAnimation Storyboard.TargetName="NeonOrbit"
+                    <DoubleAnimation Storyboard.TargetName="OrbitStroke"
                                      Storyboard.TargetProperty="StrokeDashOffset"
                                      From="0"
-                                     To="-240"
-                                     Duration="0:0:2.8"/>
+                                     To="-196"
+                                     Duration="0:0:2.6"/>
                 </Storyboard>
             </BeginStoryboard>
         </EventTrigger>
         <EventTrigger RoutedEvent="MouseLeave">
-            <StopStoryboard BeginStoryboardName="NeonOrbitStoryboard"/>
+            <StopStoryboard BeginStoryboardName="OrbitStoryboard"/>
             <BeginStoryboard>
                 <Storyboard>
                     <DoubleAnimation Storyboard.TargetName="HoverNeonLayer"
                                      Storyboard.TargetProperty="Opacity"
                                      To="0"
-                                     Duration="0:0:0.25"/>
+                                     Duration="0:0:0.18"/>
                 </Storyboard>
             </BeginStoryboard>
         </EventTrigger>

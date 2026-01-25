@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using MessageBox = System.Windows.MessageBox;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Helpers;
 using TidyWindow.Core.Cleanup;
 using TidyWindow.Core.Diagnostics;
 
@@ -42,10 +43,17 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private bool _isCaseSensitiveMatch;
     private bool _includeDirectories;
     private DeepScanLocationOption? _selectedPreset;
+    private bool _isLocationPickerVisible;
+
+    private long _processedEntries;
+    private long _processedSizeBytes;
+    private string _currentPath = string.Empty;
 
     private int _currentPage = 1;
     private int _totalFindings;
     private bool _suppressPresetSync;
+
+    public event EventHandler? PageChanged;
 
     public DeepScanViewModel(DeepScanService deepScanService, CleanupService cleanupService, MainViewModel mainViewModel)
     {
@@ -56,7 +64,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) ?? string.Empty;
         PresetLocations = BuildPresetLocations(userProfile);
 
-        var defaultScanRoot = Directory.Exists("C:\\") ? "C:\\" : userProfile;
+        var downloads = SafeCombine(userProfile, "Downloads");
+        var defaultScanRoot = Directory.Exists("C:\\")
+            ? "C:\\"
+            : (Directory.Exists(downloads) ? downloads : (Directory.Exists(userProfile) ? userProfile : string.Empty));
         TargetPath = defaultScanRoot ?? string.Empty;
 
         VisibleFindings = new ObservableCollection<DeepScanItemViewModel>();
@@ -79,6 +90,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             {
                 OnPropertyChanged(nameof(CanForceDelete));
                 OnPropertyChanged(nameof(CanCancel));
+                OnPropertyChanged(nameof(IsProgressVisible));
             }
         }
     }
@@ -107,11 +119,25 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         set => SetProperty(ref _maxItems, value < 1 ? 1 : value);
     }
 
+    public bool IsLocationPickerVisible
+    {
+        get => _isLocationPickerVisible;
+        set => SetProperty(ref _isLocationPickerVisible, value);
+    }
+
     public bool IncludeHidden
     {
         get => _includeHidden;
         set => SetProperty(ref _includeHidden, value);
     }
+
+    public bool IsProgressVisible => _isBusy;
+
+    public string ScanProgressLabel => _processedEntries <= 0
+        ? "Scanning…"
+        : $"Processed {_processedEntries:N0} item(s) • {ByteSizeFormatter.FormatBytes(_processedSizeBytes)}";
+
+    public string CurrentPathDisplay => string.IsNullOrWhiteSpace(_currentPath) ? string.Empty : _currentPath;
 
     public bool AllowProtectedSystemPaths
     {
@@ -215,6 +241,11 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             if (SetProperty(ref _selectedPreset, value))
             {
                 ApplyPreset(value);
+                if (value is not null)
+                {
+                    TargetPath = value.Path;
+                    IsLocationPickerVisible = false;
+                }
             }
         }
     }
@@ -242,6 +273,12 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         : "No scans yet.";
 
     [RelayCommand]
+    private void ShowLocationPicker() => IsLocationPickerVisible = true;
+
+    [RelayCommand]
+    private void HideLocationPicker() => IsLocationPickerVisible = false;
+
+    [RelayCommand]
     private async Task RefreshAsync()
     {
         if (IsBusy)
@@ -265,6 +302,8 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             IsBusy = true;
             _mainViewModel.SetStatusMessage("Scanning for large files...");
 
+            ResetProgressState();
+
             ClearFindings();
             Summary = "Scanning…";
 
@@ -286,7 +325,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
 
             var progress = new Progress<DeepScanProgressUpdate>(update => ApplyProgress(update));
 
-            var result = await _deepScanService.RunScanAsync(request, progress, cancellation.Token);
+            var result = await Task.Run(async () =>
+            {
+                return await _deepScanService.RunScanAsync(request, progress, cancellation.Token).ConfigureAwait(false);
+            }, cancellation.Token).ConfigureAwait(true);
 
             ReplaceFindings(result.Findings);
 
@@ -389,7 +431,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 AllowProtectedSystemPaths = AllowSystemDeletion
             };
 
-            var result = await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options);
+            var result = await Task.Run(async () =>
+            {
+                return await _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options).ConfigureAwait(false);
+            }).ConfigureAwait(true);
             var entry = result.Entries.FirstOrDefault();
 
             if (entry is null)
@@ -612,7 +657,7 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             }
         }
 
-        Summary = $"{_allFindings.Count} item(s) • {FormatBytes(totalSize)}";
+        Summary = $"{_allFindings.Count} item(s) • {ByteSizeFormatter.FormatBytes(totalSize)}";
     }
 
     private void SetTotalFindings(int totalCount, bool resetPage, bool forceRefresh = false)
@@ -671,12 +716,31 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             RefreshVisibleFindings();
         }
 
+        if (changed)
+        {
+            PageChanged?.Invoke(this, EventArgs.Empty);
+        }
+
         return changed;
+    }
+
+    private void ResetProgressState()
+    {
+        _processedEntries = 0;
+        _processedSizeBytes = 0;
+        _currentPath = string.Empty;
+        OnPropertyChanged(nameof(ScanProgressLabel));
+        OnPropertyChanged(nameof(CurrentPathDisplay));
     }
 
     private void ApplyProgress(DeepScanProgressUpdate update)
     {
         ReplaceFindings(update.Findings);
+        _processedEntries = update.ProcessedEntries;
+        _processedSizeBytes = update.ProcessedSizeBytes;
+        _currentPath = update.CurrentPath;
+        OnPropertyChanged(nameof(ScanProgressLabel));
+        OnPropertyChanged(nameof(CurrentPathDisplay));
         Summary = BuildStreamingSummary(update);
     }
 
@@ -747,30 +811,10 @@ public sealed partial class DeepScanViewModel : ViewModelBase
             .Where(static pair => pair.Value > 0)
             .OrderByDescending(static pair => pair.Value)
             .Take(3)
-            .Select(static pair => $"{pair.Key}: {FormatBytes(pair.Value)}")
+            .Select(static pair => $"{pair.Key}: {ByteSizeFormatter.FormatBytes(pair.Value)}")
             .ToList();
 
         return top.Count == 0 ? string.Empty : " • " + string.Join(", ", top);
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        if (bytes <= 0)
-        {
-            return "0 B";
-        }
-
-        double size = bytes;
-        var units = new[] { "B", "KB", "MB", "GB", "TB", "PB" };
-        var unitIndex = 0;
-
-        while (size >= 1024 && unitIndex < units.Length - 1)
-        {
-            size /= 1024;
-            unitIndex++;
-        }
-
-        return $"{size:0.0} {units[unitIndex]}";
     }
 
     private static bool ConfirmAllowProtectedSystemPaths()
@@ -856,52 +900,42 @@ public sealed partial class DeepScanViewModel : ViewModelBase
     private static IReadOnlyList<DeepScanLocationOption> BuildPresetLocations(string defaultRoot)
     {
         var items = new List<DeepScanLocationOption>();
+        var candidates = new List<(string Label, string Path, string Description)>
+        {
+            ("C:", "C:\\", "Full system drive."),
+            ("Program Files", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Installed applications (64-bit)."),
+            ("Program Files (x86)", Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Installed applications (32-bit)."),
+            ("ProgramData", Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Shared app data and caches."),
+            ("Local AppData", Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Application caches and logs."),
+            ("Roaming AppData", Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Profiles and settings."),
+            ("Temp", Path.GetTempPath(), "Temporary files and installers."),
+        };
 
         if (!string.IsNullOrWhiteSpace(defaultRoot))
         {
-            items.Add(new DeepScanLocationOption("User profile", defaultRoot, "Scan the full user profile."));
-
-            var downloads = SafeCombine(defaultRoot, "Downloads");
-            if (!string.IsNullOrWhiteSpace(downloads))
-            {
-                items.Add(new DeepScanLocationOption("Downloads", downloads, "Focus on downloaded installers and archives."));
-            }
-
-            var desktop = SafeCombine(defaultRoot, "Desktop");
-            if (!string.IsNullOrWhiteSpace(desktop))
-            {
-                items.Add(new DeepScanLocationOption("Desktop", desktop, "Review files stacked on the desktop."));
-            }
+            candidates.Add(("User profile", defaultRoot, "Scan the full user profile."));
+            candidates.Add(("Downloads", SafeCombine(defaultRoot, "Downloads"), "Downloaded installers and archives."));
+            candidates.Add(("Desktop", SafeCombine(defaultRoot, "Desktop"), "Files on the desktop."));
         }
 
         void AddKnownFolder(Environment.SpecialFolder folder, string label, string description)
         {
-            var path = Environment.GetFolderPath(folder);
-            if (!string.IsNullOrWhiteSpace(path))
+            candidates.Add((label, Environment.GetFolderPath(folder), description));
+        }
+
+        AddKnownFolder(Environment.SpecialFolder.MyDocuments, "Documents", "Docs and archives.");
+        AddKnownFolder(Environment.SpecialFolder.MyPictures, "Pictures", "High-resolution photos and media.");
+        AddKnownFolder(Environment.SpecialFolder.MyVideos, "Videos", "Video captures and renders.");
+
+        foreach (var (label, path, description) in candidates)
+        {
+            if (!string.IsNullOrWhiteSpace(path) && Directory.Exists(path))
             {
                 items.Add(new DeepScanLocationOption(label, path, description));
             }
         }
 
-        AddKnownFolder(Environment.SpecialFolder.MyDocuments, "Documents", "Large documents and archives.");
-        AddKnownFolder(Environment.SpecialFolder.MyPictures, "Pictures", "High-resolution photos and media.");
-        AddKnownFolder(Environment.SpecialFolder.MyVideos, "Videos", "Video captures and renders.");
-
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (!string.IsNullOrWhiteSpace(localAppData))
-        {
-            items.Add(new DeepScanLocationOption("Local AppData", localAppData, "Application caches and logs."));
-
-            var browserCache = SafeCombine(localAppData, "Microsoft", "Edge", "User Data");
-            if (!string.IsNullOrWhiteSpace(browserCache))
-            {
-                items.Add(new DeepScanLocationOption("Edge profiles", browserCache, "Inspect heavy browser profiles."));
-            }
-        }
-
-        return items
-            .Where(option => !string.IsNullOrWhiteSpace(option.Path) && Directory.Exists(option.Path))
-            .ToList();
+        return items;
     }
 
     private static string SafeCombine(string basePath, params string[] segments)

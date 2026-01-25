@@ -11,7 +11,8 @@ public sealed class AppDataFilterTests
     [Fact]
     public void FilterUsefulPaths_ReturnsEmpty_ForNullOrWhitespace()
     {
-        var nullResult = AppDataFilter.FilterUsefulPaths(null);
+        string[]? nullInput = null;
+        var nullResult = AppDataFilter.FilterUsefulPaths(nullInput!);
         Assert.Empty(nullResult);
 
         var whitespaceResult = AppDataFilter.FilterUsefulPaths(new[] { string.Empty, "   ", "\t" });

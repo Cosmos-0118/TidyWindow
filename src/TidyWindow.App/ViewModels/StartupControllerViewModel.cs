@@ -239,18 +239,25 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         {
             await Task.Yield(); // Let the UI paint the busy indicator before heavy work begins.
 
-            var snapshot = await _inventory.GetInventoryAsync();
-            var mapped = snapshot.Items.Select(startup => new StartupEntryItemViewModel(startup)).ToList();
-            var guarded = _guardService.GetAll();
-            foreach (var entry in mapped)
+            var (mapped, baselineDisabled) = await Task.Run(async () =>
             {
-                entry.IsAutoGuardEnabled = guarded.Contains(entry.Item.Id, StringComparer.OrdinalIgnoreCase);
-            }
+                var snapshot = await _inventory.GetInventoryAsync().ConfigureAwait(false);
+                var mappedEntries = snapshot.Items.Select(startup => new StartupEntryItemViewModel(startup)).ToList();
+                var guarded = _guardService.GetAll();
+                foreach (var entry in mappedEntries)
+                {
+                    entry.IsAutoGuardEnabled = guarded.Contains(entry.Item.Id, StringComparer.OrdinalIgnoreCase);
+                }
 
-            CacheRunBackups(mapped);
-            await AutoReDisableAsync(mapped).ConfigureAwait(true);
+                CacheRunBackups(mappedEntries);
+                await AutoReDisableAsync(mappedEntries).ConfigureAwait(false);
+
+                var disabledBaseline = mappedEntries.Count(item => !item.IsEnabled);
+                return (mappedEntries, disabledBaseline);
+            }).ConfigureAwait(true);
+
             Entries = new ObservableCollection<StartupEntryItemViewModel>(mapped);
-            BaselineDisabledCount = mapped.Count(item => !item.IsEnabled);
+            BaselineDisabledCount = baselineDisabled;
         }
         finally
         {
@@ -387,11 +394,11 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 {
                     return;
                 }
-                result = await _control.DisableAsync(item.Item);
+                result = await Task.Run(async () => await _control.DisableAsync(item.Item).ConfigureAwait(false)).ConfigureAwait(true);
             }
             else
             {
-                result = await _control.EnableAsync(item.Item);
+                result = await Task.Run(async () => await _control.EnableAsync(item.Item).ConfigureAwait(false)).ConfigureAwait(true);
             }
 
             if (result.Succeeded)
@@ -434,7 +441,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         item.IsBusy = true;
         try
         {
-            var result = await _control.EnableAsync(item.Item);
+            var result = await Task.Run(async () => await _control.EnableAsync(item.Item).ConfigureAwait(false)).ConfigureAwait(true);
             if (result.Succeeded)
             {
                 item.UpdateFrom(result.Item);
@@ -480,7 +487,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         item.IsBusy = true;
         try
         {
-            var result = await _control.DisableAsync(item.Item);
+            var result = await Task.Run(async () => await _control.DisableAsync(item.Item).ConfigureAwait(false)).ConfigureAwait(true);
             if (result.Succeeded)
             {
                 item.UpdateFrom(result.Item);
@@ -594,7 +601,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         try
         {
             var delaySeconds = DefaultDelaySeconds;
-            var result = await _delay.DelayAsync(item.Item, TimeSpan.FromSeconds(delaySeconds));
+            var result = await Task.Run(async () => await _delay.DelayAsync(item.Item, TimeSpan.FromSeconds(delaySeconds)).ConfigureAwait(false)).ConfigureAwait(true);
             if (result.Succeeded)
             {
                 _activityLog.LogSuccess("StartupController", $"Delayed {item.Name} by {delaySeconds}s", new object?[] { result.ReplacementTaskPath });
@@ -695,7 +702,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
             try
             {
-                var result = await _control.DisableAsync(entry.Item).ConfigureAwait(true);
+                var result = await Task.Run(async () => await _control.DisableAsync(entry.Item).ConfigureAwait(false)).ConfigureAwait(true);
                 if (result.Succeeded)
                 {
                     entry.UpdateFrom(result.Item);

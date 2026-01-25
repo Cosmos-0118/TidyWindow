@@ -85,15 +85,15 @@
                 </LinearGradientBrush>
                 <DropShadowEffect x:Key="SurfaceShadowEffect"
                                                     x:Shared="False"
-                                                    BlurRadius="28"
+                                                    BlurRadius="20"
                                                     ShadowDepth="0"
-                                                    Opacity="0.45"
+                                                    Opacity="0.38"
                                                     Color="#050A16"/>
                 <DropShadowEffect x:Key="CardShadowEffect"
                                                     x:Shared="False"
-                                                    BlurRadius="20"
+                                                    BlurRadius="12"
                                                     ShadowDepth="0"
-                                                    Opacity="0.32"
+                                                    Opacity="0.26"
                                                     Color="#050A16"/>
     <converters:StringLengthToFontSizeConverter x:Key="CleanupTitleFontSizeConverter"
                             LargeSize="16"
@@ -1112,14 +1112,16 @@
         </Setter>
     </Style>
     </Page.Resources>
-        <Grid UseLayoutRounding="True"
-                    SnapsToDevicePixels="True">
+                <Grid UseLayoutRounding="True"
+                                        SnapsToDevicePixels="True"
+                                        TextOptions.TextFormattingMode="Display"
+                                        TextOptions.TextRenderingMode="ClearType">
                     <ScrollViewer x:Name="RootScrollViewer"
                       Margin="32"
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       CanContentScroll="False"
-                        IsDeferredScrollingEnabled="False"
+                                                IsDeferredScrollingEnabled="True"
                                             PanningMode="VerticalOnly"
                                             UseLayoutRounding="True"
                                             SnapsToDevicePixels="True">
@@ -1917,7 +1919,7 @@
                                                      VirtualizingPanel.IsContainerVirtualizable="True"
                                                      VirtualizingPanel.ScrollUnit="Pixel"
                                                      VirtualizingPanel.VirtualizationMode="Recycling"
-                                                     VirtualizingPanel.CacheLength="1"
+                                                     VirtualizingPanel.CacheLength="2"
                                                      VirtualizingPanel.CacheLengthUnit="Page"
                                                      ParentScrollViewerName="RootScrollViewer"
                                                      UseLayoutRounding="True"
@@ -2111,7 +2113,7 @@
                                                              VirtualizingPanel.IsContainerVirtualizable="True"
                                                              VirtualizingPanel.ScrollUnit="Pixel"
                                                              VirtualizingPanel.VirtualizationMode="Recycling"
-                                                             VirtualizingPanel.CacheLength="1"
+                                                             VirtualizingPanel.CacheLength="2"
                                                              VirtualizingPanel.CacheLengthUnit="Page"
                                                                                                                          ParentScrollViewerName="RootScrollViewer"
                                                                                                                          UseLayoutRounding="True"
@@ -2340,6 +2342,57 @@
             </Border>
         </StackPanel>
     </ScrollViewer>
+
+        <Border Background="#CC020B1F"
+            Visibility="{Binding IsDeletionPreparationInProgress, Converter={StaticResource BooleanToVisibilityConverter}}"
+            IsHitTestVisible="{Binding IsDeletionPreparationInProgress}"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Panel.ZIndex="5"
+            Focusable="False">
+            <Grid>
+                <Border HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                        BorderBrush="{StaticResource CleanupBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="18"
+                        Padding="28"
+                        MinWidth="420"
+                        Effect="{StaticResource SurfaceShadowEffect}">
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center">
+                        <Border Width="48"
+                                Height="48"
+                                Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                CornerRadius="16"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,12">
+                            <TextBlock Text="⌛"
+                                       FontSize="20"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="{Binding BusyStatusMessage}"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"
+                                   Margin="0,0,0,4"
+                                   TextAlignment="Center"/>
+                        <TextBlock Text="{Binding BusyStatusDetail}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="360"
+                                   Margin="0,0,0,12"/>
+                        <ProgressBar Height="6"
+                                     IsIndeterminate="True"
+                                     Foreground="{StaticResource CleanupProgressBrush}"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
 
         <Border Background="#CC020B1F"
             Visibility="{Binding IsAutomationPanelVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
