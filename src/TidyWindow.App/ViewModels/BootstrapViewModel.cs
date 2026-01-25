@@ -20,6 +20,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
     private readonly ActivityLogService _activityLog;
     private readonly IAutomationWorkTracker _workTracker;
     private readonly Dictionary<string, PackageManagerEntryViewModel> _managerLookup = new(StringComparer.OrdinalIgnoreCase);
+    private bool _hasSuccessfulDetection;
     private static readonly Uri AppInstallerStoreUri = new("ms-windows-store://pdp/?productid=9NBLGGH4NNS1");
     private static readonly Uri AppInstallerDownloadUri = new("https://aka.ms/getwinget");
 
@@ -77,7 +78,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
 
             var results = await _detector.DetectAsync(includeScoop, includeChocolatey);
 
-            UpdateManagers(results);
+            UpdateManagers(results, detectionSucceeded: true);
             var completionMessage = $"Detection completed at {DateTime.Now:t}.";
             _mainViewModel.SetStatusMessage(completionMessage);
             _activityLog.LogSuccess("Bootstrap", $"Detection completed • {results.Count} manager(s) evaluated.", BuildDetectionDetails(results, includeScoop, includeChocolatey));
@@ -346,7 +347,7 @@ public sealed partial class BootstrapViewModel : ViewModelBase
         }
     }
 
-    private void UpdateManagers(IReadOnlyList<PackageManagerInfo> detected)
+    private void UpdateManagers(IReadOnlyList<PackageManagerInfo> detected, bool detectionSucceeded)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -376,7 +377,12 @@ public sealed partial class BootstrapViewModel : ViewModelBase
             }
         }
 
-        ShowPowerShellCallout = Managers.Count == 0;
+        if (detectionSucceeded)
+        {
+            _hasSuccessfulDetection = true;
+        }
+
+        ShowPowerShellCallout = !_hasSuccessfulDetection;
     }
 
     private static string? TryGetAdminMessage(IReadOnlyList<string> errors)

@@ -24,8 +24,8 @@
             <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
             <converters:AlternationIndexToBrushConverter x:Key="AlternationIndexToBrushConverter"/>
 
-            <SolidColorBrush x:Key="RegistryHeroTitleBrush" Color="#FDFEFE"/>
-            <SolidColorBrush x:Key="RegistryHeroBodyBrush" Color="#C9D7F8"/>
+            <SolidColorBrush x:Key="RegistryHeroTitleBrush" Color="#F4FAFF"/>
+            <SolidColorBrush x:Key="RegistryHeroBodyBrush" Color="#C3D7F2"/>
 
             <Style x:Key="RegistryHeroTitleTextStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="20"/>
@@ -45,7 +45,7 @@
 
             <Style x:Key="RegistryMetricLabelTextStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="11"/>
-                <Setter Property="Foreground" Value="#93C5FD"/>
+                <Setter Property="Foreground" Value="#93D6F6"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
                 <Setter Property="TextAlignment" Value="Center"/>
             </Style>
@@ -53,7 +53,7 @@
             <Style x:Key="RegistryMetricValueTextStyle" TargetType="TextBlock">
                 <Setter Property="FontSize" Value="18"/>
                 <Setter Property="FontWeight" Value="SemiBold"/>
-                <Setter Property="Foreground" Value="#F8FAFC"/>
+                <Setter Property="Foreground" Value="#EAF6FF"/>
                 <Setter Property="TextAlignment" Value="Center"/>
             </Style>
 
@@ -83,13 +83,13 @@
                 </Style.Triggers>
             </Style>
 
-            <SolidColorBrush x:Key="RegistryLoaderBackdropBrush" Color="#102136"/>
-            <SolidColorBrush x:Key="RegistryLoaderAccentBrush" Color="#38BDF8"/>
-            <SolidColorBrush x:Key="RegistryLoaderSoftBrush" Color="#5EEAD4"/>
+            <SolidColorBrush x:Key="RegistryLoaderBackdropBrush" Color="#0D1F33"/>
+            <SolidColorBrush x:Key="RegistryLoaderAccentBrush" Color="#22D3EE"/>
+            <SolidColorBrush x:Key="RegistryLoaderSoftBrush" Color="#34D399"/>
         </ResourceDictionary>
     </Page.Resources>
 
-    <Grid>
+    <Grid Background="{StaticResource RegistryPrimaryBackgroundBrush}">
         <ScrollViewer x:Name="ContentScrollViewer"
                       Margin="32"
                       VerticalScrollBarVisibility="Auto"
@@ -132,10 +132,10 @@
                             Grid.Row="0"
                             Grid.Column="0"
                             Margin="0,0,24,0">
-                    <Border Style="{StaticResource RegistryCardStyle}"
+                        <Border Style="{StaticResource RegistryCardStyle}"
                             Padding="24"
-                            Background="#111D2C"
-                            BorderBrush="#1B2F4C">
+                            Background="{StaticResource RegistryCardBackgroundBrush}"
+                            BorderBrush="{StaticResource RegistryCardBorderBrush}">
                         <StackPanel>
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -143,11 +143,11 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Border Width="56"
-                                        Height="56"
-                                        CornerRadius="18"
-                                        Background="#1E3A5F"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center">
+                                    Height="56"
+                                    CornerRadius="18"
+                                    Background="{StaticResource RegistryRowHoverBrush}"
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
                                     <TextBlock Text="🛡️"
                                                FontSize="24"
                                                HorizontalAlignment="Center"
@@ -163,9 +163,9 @@
                                 </StackPanel>
                             </Grid>
 
-                            <TextBlock Text="{Binding LastOperationSummary}"
+                                <TextBlock Text="{Binding LastOperationSummary}"
                                     Margin="0,18,0,0"
-                                    Foreground="#38BDF8">
+                                    Foreground="{StaticResource RegistryAccentBrush}">
                                 <TextBlock.Style>
                                  <Style TargetType="TextBlock"
                                      BasedOn="{StaticResource RegistryHeroBodyTextStyle}">
@@ -182,10 +182,10 @@
                                 </TextBlock.Style>
                             </TextBlock>
 
-                            <ux:AdaptiveTilePanel Margin="0,20,0,0"
-                                                 MinColumnWidth="160"
-                                                 ColumnSpacing="12"
-                                                 RowSpacing="12">
+                            <ux:AdaptiveTilePanel Margin="0,22,0,0"
+                                                 MinColumnWidth="170"
+                                                 ColumnSpacing="14"
+                                                 RowSpacing="14">
                                 <Border Style="{StaticResource RegistryMetaPillStyle}">
                                     <StackPanel HorizontalAlignment="Center">
                                         <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksHeader}"
@@ -215,7 +215,7 @@
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasPendingChanges}" Value="True">
                                                             <Setter Property="Text" Value="Review required"/>
-                                                            <Setter Property="Foreground" Value="#FBBF24"/>
+                                                            <Setter Property="Foreground" Value="#FACC15"/>
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -238,7 +238,7 @@
                                         </CollectionViewSource.GroupDescriptions>
                                     </CollectionViewSource>
                                 </ItemsControl.Resources>
-                                <ItemsControl.ItemsSource>
+                                    <ItemsControl.ItemsSource>
                                     <Binding Source="{StaticResource RegistryRiskSummary}" Path="Groups"/>
                                 </ItemsControl.ItemsSource>
                                 <ItemsControl.ItemsPanel>
@@ -256,13 +256,13 @@
                                                         VerticalAlignment="Center">
                                                 <TextBlock Text="{Binding Name}"
                                                            FontSize="12"
-                                                           Foreground="#E2E8F0"
+                                                           Foreground="{StaticResource RegistrySoftTextBrush}"
                                                            FontWeight="SemiBold"
                                                            TextAlignment="Center"
                                                            HorizontalAlignment="Center"/>
                                                 <TextBlock Text="{Binding ItemCount, StringFormat='{}{0}'}"
                                                            FontSize="12"
-                                                           Foreground="#94A3B8"
+                                                           Foreground="{StaticResource RegistryMutedBrush}"
                                                            Margin="6,0,0,0"
                                                            TextAlignment="Center"
                                                            HorizontalAlignment="Center"/>
@@ -300,10 +300,10 @@
                                 <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksHeader}"
                                            FontSize="16"
                                            FontWeight="SemiBold"
-                                           Foreground="#E2E8F0"/>
+                                           Foreground="{StaticResource RegistrySoftTextBrush}"/>
                                 <TextBlock Text="{x:Static strings:RegistryOptimizerStrings.TweaksDescription}"
                                            FontSize="12"
-                                           Foreground="#64748B"/>
+                                           Foreground="{StaticResource RegistryMutedBrush}"/>
                             </StackPanel>
 
                             <ListView x:Name="TweaksListView"
@@ -311,7 +311,7 @@
                                       ItemsSource="{Binding Tweaks}"
                                       Background="Transparent"
                                       BorderThickness="0"
-                                      Foreground="#F8FAFC"
+                                      Foreground="{StaticResource RegistrySoftTextBrush}"
                                       MinHeight="260"
                                       AlternationCount="6"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
@@ -320,7 +320,7 @@
                                       ScrollViewer.IsDeferredScrollingEnabled="True"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
-                                      VirtualizingPanel.CacheLength="2"
+                                      VirtualizingPanel.CacheLength="4"
                                       VirtualizingPanel.CacheLengthUnit="Item"
                                       VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                                       VirtualizingStackPanel.ScrollUnit="Pixel">
@@ -382,10 +382,10 @@
                                                         <TextBlock Text="{Binding Title}"
                                                                    FontSize="16"
                                                                    FontWeight="SemiBold"
-                                                                   Foreground="#F8FAFC"/>
+                                                                   Foreground="{StaticResource RegistrySoftTextBrush}"/>
                                                         <TextBlock Text="{Binding Summary}"
                                                                    FontSize="12"
-                                                                   Foreground="#9CAEC8"
+                                                                   Foreground="{StaticResource RegistryMutedBrush}"
                                                                    TextWrapping="Wrap"
                                                                    Margin="0,6,0,0"/>
                                                         <ux:AdaptiveTilePanel Margin="0,12,0,0"

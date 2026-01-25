@@ -66,8 +66,7 @@
     <Grid x:Name="OverlayRoot"
           Background="{StaticResource LoaderBackdropBrush}"
           Opacity="0"
-          Visibility="Collapsed"
-          IsHitTestVisible="{Binding IsActive, RelativeSource={RelativeSource AncestorType=UserControl}}">
+            Visibility="Collapsed">
         <Border HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Background="{StaticResource LoaderSurfaceBrush}"

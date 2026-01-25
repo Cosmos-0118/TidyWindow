@@ -1,102 +1,92 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
         <SolidColorBrush x:Key="RegistryPrimaryBackgroundBrush"
-                                         Color="#0F172A"/>
+                                         Color="#08111F"/>
         <SolidColorBrush x:Key="RegistrySecondaryBackgroundBrush"
-                                         Color="#101D30"/>
+                                         Color="#0C1A2B"/>
         <LinearGradientBrush x:Key="RegistryCardBackgroundBrush"
                                                  StartPoint="0,0"
-                                                 EndPoint="0,1">
-                <GradientStop Color="#162842"
-                                          Offset="0"/>
-                <GradientStop Color="#101B30"
-                                          Offset="0.58"/>
-                <GradientStop Color="#0B1424"
-                                          Offset="1"/>
+                                                 EndPoint="1,1">
+                <GradientStop Color="#0E1D31" Offset="0"/>
+                <GradientStop Color="#0A1626" Offset="0.52"/>
+                <GradientStop Color="#091321" Offset="1"/>
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="RegistryCardBorderBrush"
                                                  StartPoint="0,0"
-                                                 EndPoint="0,1">
-                <GradientStop Color="#2D476B"
-                                          Offset="0"/>
-                <GradientStop Color="#1F334F"
-                                          Offset="0.55"/>
-                <GradientStop Color="#142036"
-                                          Offset="1"/>
+                                                 EndPoint="1,1">
+                <GradientStop Color="#2A4362" Offset="0"/>
+                <GradientStop Color="#1D314B" Offset="0.6"/>
+                <GradientStop Color="#14253A" Offset="1"/>
         </LinearGradientBrush>
     <SolidColorBrush x:Key="RegistryMutedBrush"
-                     Color="#94A3B8"/>
+                     Color="#9CB6D6"/>
+    <SolidColorBrush x:Key="RegistrySoftTextBrush"
+                     Color="#E7F3FF"/>
     <SolidColorBrush x:Key="RegistryTitleBrush"
-                     Color="#F8FAFC"/>
+                     Color="#F8FAFD"/>
     <SolidColorBrush x:Key="RegistryAccentBrush"
-                     Color="#38BDF8"/>
+                     Color="#22D3EE"/>
         <SolidColorBrush x:Key="RegistryAccentSafeBrush"
                                          Color="#34D399"/>
         <SolidColorBrush x:Key="RegistryAccentModerateBrush"
-                                         Color="#F97316"/>
+                                         Color="#FB923C"/>
         <SolidColorBrush x:Key="RegistryAccentCautionBrush"
                                          Color="#FACC15"/>
         <SolidColorBrush x:Key="RegistryAccentAdvancedBrush"
-                                         Color="#F87171"/>
+                                         Color="#F97373"/>
     <SolidColorBrush x:Key="RegistryAccentHoverBrush"
-                     Color="#1D9CEC"/>
+                     Color="#2FE4FF"/>
     <SolidColorBrush x:Key="RegistryAccentActiveBrush"
-                     Color="#177FCC"/>
+                     Color="#0EA5E9"/>
     <SolidColorBrush x:Key="RegistrySecondaryButtonBackground"
-                     Color="#162132"/>
+                     Color="#0F2237"/>
     <SolidColorBrush x:Key="RegistrySecondaryButtonHover"
-                     Color="#1C2F47"/>
+                     Color="#12304B"/>
     <SolidColorBrush x:Key="RegistrySecondaryButtonActive"
-                     Color="#142236"/>
+                     Color="#0D2238"/>
     <SolidColorBrush x:Key="RegistrySecondaryButtonBorder"
-                     Color="#27374D"/>
+                     Color="#204063"/>
     <SolidColorBrush x:Key="RegistryRiskInformationalBrush"
-                     Color="#1C2F47"/>
+                     Color="#13263E"/>
     <SolidColorBrush x:Key="RegistryRiskWarningBrush"
-                     Color="#422006"/>
+                     Color="#3A1F07"/>
     <SolidColorBrush x:Key="RegistryRiskWarningBorderBrush"
-                     Color="#7C2D12"/>
+                     Color="#8B3B0A"/>
     <SolidColorBrush x:Key="RegistryRiskInformationalBorderBrush"
-                     Color="#243B5A"/>
+                     Color="#284566"/>
         <LinearGradientBrush x:Key="RegistryRowBackgroundBrush"
                              StartPoint="0,0"
-                             EndPoint="0,1">
-                <GradientStop Color="#14233A"
-                              Offset="0"/>
-                <GradientStop Color="#0F1B30"
-                              Offset="1"/>
+                             EndPoint="1,1">
+                <GradientStop Color="#0E1E33" Offset="0"/>
+                <GradientStop Color="#0A1626" Offset="1"/>
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="RegistryRowHoverBrush"
                              StartPoint="0,0"
-                             EndPoint="0,1">
-                <GradientStop Color="#1A3453"
-                              Offset="0"/>
-                <GradientStop Color="#122846"
-                              Offset="1"/>
+                             EndPoint="1,1">
+                <GradientStop Color="#12304A" Offset="0"/>
+                <GradientStop Color="#0D2237" Offset="1"/>
         </LinearGradientBrush>
         <LinearGradientBrush x:Key="RegistryRowSelectedBrush"
                              StartPoint="0,0"
-                             EndPoint="0,1">
-                <GradientStop Color="#1F3F65"
-                              Offset="0"/>
-                <GradientStop Color="#153351"
-                              Offset="1"/>
+                             EndPoint="1,1">
+                <GradientStop Color="#18435F" Offset="0"/>
+                <GradientStop Color="#10324C" Offset="1"/>
         </LinearGradientBrush>
         <SolidColorBrush x:Key="RegistryValueChipBrush"
-                                         Color="#101C33"/>
+                                         Color="#0E1B2E"/>
         <SolidColorBrush x:Key="RegistryValueChipBorderBrush"
-                                         Color="#1C2C44"/>
+                                         Color="#1E3250"/>
 
         <DropShadowEffect x:Key="RegistryCardShadow"
-                                          Color="#030712"
-                                          BlurRadius="20"
+                                          Color="#02060F"
+                                          BlurRadius="18"
                                           ShadowDepth="0"
-                                          Opacity="0.45"/>
+                                          Opacity="0.42"/>
         <DropShadowEffect x:Key="RegistryRowShadow"
-                                          Color="#020A16"
-                                          BlurRadius="12"
+                                          Color="#010914"
+                                          BlurRadius="10"
                                           ShadowDepth="0"
-                                          Opacity="0.38"/>
+                                          Opacity="0.34"/>
 
     <Style x:Key="RegistryCardSurfaceStyle"
            TargetType="Border">
@@ -107,7 +97,7 @@
         <Setter Property="BorderThickness"
                 Value="1"/>
         <Setter Property="CornerRadius"
-                Value="14"/>
+                Value="16"/>
         <Setter Property="SnapsToDevicePixels"
                 Value="True"/>
         <Setter Property="UseLayoutRounding"
@@ -137,7 +127,7 @@
            TargetType="Border"
            BasedOn="{StaticResource RegistryCardSurfaceStyle}">
         <Setter Property="Padding"
-                Value="20"/>
+                Value="24"/>
         <Setter Property="Effect"
                 Value="{StaticResource RegistryCardShadow}"/>
     </Style>
@@ -209,6 +199,7 @@
            BasedOn="{StaticResource RegistryToggleRowStyle}">
         <Setter Property="BorderBrush"
                 Value="Transparent"/>
+        <Setter Property="CornerRadius" Value="14"/>
         <Style.Triggers>
                         <MultiDataTrigger>
                                 <MultiDataTrigger.Conditions>
@@ -301,38 +292,38 @@
         <Setter Property="Padding"
                 Value="8,2"/>
         <Setter Property="Background"
-                Value="#172840"/>
+                Value="#0F2135"/>
         <Setter Property="BorderBrush"
-                Value="#243654"/>
+                Value="#224064"/>
         <Setter Property="BorderThickness"
                 Value="1"/>
     </Style>
 
-    <Style x:Key="RegistryDangerChipStyle"
-           TargetType="Border"
-           BasedOn="{StaticResource RegistryMetaPillStyle}">
-        <Setter Property="Background" Value="#132A42"/>
-        <Setter Property="BorderBrush" Value="#1F3B57"/>
+        <Style x:Key="RegistryDangerChipStyle"
+                   TargetType="Border"
+                   BasedOn="{StaticResource RegistryMetaPillStyle}">
+                <Setter Property="Background" Value="#11273C"/>
+                <Setter Property="BorderBrush" Value="#1F4563"/>
         <Style.Triggers>
             <DataTrigger Binding="{Binding RiskLevel}"
                          Value="Safe">
-                <Setter Property="Background" Value="#0F2D23"/>
-                <Setter Property="BorderBrush" Value="#34D399"/>
+                                <Setter Property="Background" Value="#0D2820"/>
+                                <Setter Property="BorderBrush" Value="#2EC29A"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding RiskLevel}"
                          Value="Moderate">
-                <Setter Property="Background" Value="#3B2410"/>
-                <Setter Property="BorderBrush" Value="#F97316"/>
+                                <Setter Property="Background" Value="#2E1A0B"/>
+                                <Setter Property="BorderBrush" Value="#F59E0B"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding RiskLevel}"
                          Value="Caution">
-                <Setter Property="Background" Value="#332805"/>
-                <Setter Property="BorderBrush" Value="#FACC15"/>
+                                <Setter Property="Background" Value="#2C2406"/>
+                                <Setter Property="BorderBrush" Value="#EAB308"/>
             </DataTrigger>
             <DataTrigger Binding="{Binding RiskLevel}"
                          Value="Advanced">
-                <Setter Property="Background" Value="#3C1316"/>
-                <Setter Property="BorderBrush" Value="#F87171"/>
+                                <Setter Property="Background" Value="#331019"/>
+                                <Setter Property="BorderBrush" Value="#FB7185"/>
             </DataTrigger>
         </Style.Triggers>
     </Style>
@@ -348,21 +339,27 @@
         <Setter Property="CornerRadius"
                 Value="12"/>
         <Setter Property="Padding"
-                Value="14,12"/>
+                Value="12,10"/>
     </Style>
 
     <Style x:Key="RegistryAccentButtonStyle"
            TargetType="Button">
-        <Setter Property="Background"
-                Value="#38BDF8"/>
+        <Setter Property="Background">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                    <GradientStop Color="#22D3EE" Offset="0"/>
+                    <GradientStop Color="#14B8A6" Offset="1"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
         <Setter Property="Foreground"
-                Value="#04152B"/>
+                Value="#04121F"/>
         <Setter Property="BorderBrush"
                 Value="Transparent"/>
         <Setter Property="BorderThickness"
                 Value="0"/>
         <Setter Property="Padding"
-                Value="14,6"/>
+                Value="16,8"/>
         <Setter Property="MinWidth"
                 Value="120"/>
         <Setter Property="Cursor"
@@ -374,7 +371,7 @@
                             Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8"
+                            CornerRadius="10"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter HorizontalAlignment="Center"
                                           VerticalAlignment="Center"/>
@@ -384,21 +381,21 @@
                                  Value="True">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="#1D9CEC"/>
+                                    Value="#2FE4FF"/>
                         </Trigger>
                         <Trigger Property="IsPressed"
                                  Value="True">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="#177FCC"/>
+                                    Value="#0EA5E9"/>
                         </Trigger>
                         <Trigger Property="IsEnabled"
                                  Value="False">
                             <Setter TargetName="Root"
                                     Property="Background"
-                                    Value="#1C2F47"/>
+                                    Value="#11273D"/>
                             <Setter Property="Foreground"
-                                    Value="#64748B"/>
+                                    Value="#4B5B72"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>

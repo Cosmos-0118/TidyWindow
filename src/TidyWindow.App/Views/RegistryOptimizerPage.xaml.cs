@@ -483,7 +483,7 @@ public partial class RegistryOptimizerPage : Page
         }
 
         var distance = Math.Abs(clampedTarget - start);
-        var duration = TimeSpan.FromMilliseconds(Math.Max(90d, Math.Min(260d, distance * 1.15)));
+        var duration = TimeSpan.FromMilliseconds(Math.Max(80d, Math.Min(210d, distance * 0.92)));
         var easing = new CubicEase
         {
             EasingMode = EasingMode.EaseOut
@@ -532,12 +532,16 @@ public partial class RegistryOptimizerPage : Page
         }
 
         var direction = wheelDelta > 0 ? -1d : 1d;
-        var magnitude = Math.Max(72d, viewportHeight * 0.32);
+        var magnitude = Math.Max(56d, Math.Min(320d, viewportHeight * 0.22));
         var wheelIntensity = Math.Max(1d, Math.Abs(wheelDelta) / 120d);
 
         if (accelerate)
         {
-            magnitude *= 1.65;
+            magnitude *= 1.35;
+        }
+        else
+        {
+            magnitude *= 0.9;
         }
 
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && !accelerate)
@@ -548,7 +552,7 @@ public partial class RegistryOptimizerPage : Page
         var lineMultiplier = SystemParameters.WheelScrollLines;
         if (lineMultiplier > 0)
         {
-            magnitude *= Math.Max(0.6, Math.Min(2.2, lineMultiplier / 3d));
+            magnitude *= Math.Max(0.65, Math.Min(1.8, lineMultiplier / 3d));
         }
 
         return direction * magnitude * wheelIntensity;

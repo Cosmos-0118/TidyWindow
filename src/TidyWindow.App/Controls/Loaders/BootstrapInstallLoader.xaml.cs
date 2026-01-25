@@ -68,11 +68,13 @@ public partial class BootstrapInstallLoader : System.Windows.Controls.UserContro
         if (isActive)
         {
             OverlayRoot.Visibility = Visibility.Visible;
+            OverlayRoot.IsHitTestVisible = true;
             StartAnimations();
         }
         else if (!isLoadedInvocation)
         {
             StopAnimations();
+            OverlayRoot.IsHitTestVisible = true;
         }
 
         var duration = TimeSpan.FromMilliseconds(isActive ? 260 : 180);
@@ -88,8 +90,13 @@ public partial class BootstrapInstallLoader : System.Windows.Controls.UserContro
                 if (!IsActive)
                 {
                     OverlayRoot.Visibility = Visibility.Collapsed;
+                    OverlayRoot.IsHitTestVisible = false;
                 }
             };
+        }
+        else
+        {
+            OverlayRoot.IsHitTestVisible = true;
         }
 
         OverlayRoot.BeginAnimation(OpacityProperty, fadeAnimation);
@@ -103,5 +110,9 @@ public partial class BootstrapInstallLoader : System.Windows.Controls.UserContro
     private void StopAnimations()
     {
         _spinnerStoryboard?.Stop(OverlayRoot);
+        if (OverlayRoot != null)
+        {
+            OverlayRoot.IsHitTestVisible = false;
+        }
     }
 }

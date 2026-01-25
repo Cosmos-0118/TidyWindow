@@ -161,7 +161,8 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
                 tweak.GetBaselineParameterOverrides()))
             .ToImmutableArray();
 
-        var plan = _registryService.BuildPlan(selections);
+        // Build plans off the UI thread to keep the page responsive when many tweaks are selected.
+        var plan = await Task.Run(() => _registryService.BuildPlan(selections)).ConfigureAwait(true);
         if (!plan.HasWork)
         {
             foreach (var tweak in pendingTweaks)
