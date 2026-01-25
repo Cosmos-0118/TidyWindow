@@ -21,10 +21,12 @@ public partial class PathPilotPage : Page
 
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
+        _viewModel.Activate();
         _viewModel.PageChanged -= OnPageChanged;
         _viewModel.PageChanged += OnPageChanged;
         _viewModel.ResetCachedInteractionState();
@@ -55,13 +57,30 @@ public partial class PathPilotPage : Page
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
         _viewModel.PageChanged -= OnPageChanged;
-        _viewModel.CancelInFlightWork();
+        _viewModel.Deactivate();
     }
 
     private void OnPageChanged(object? sender, EventArgs e)
     {
         _runtimesScrollViewer ??= FindScrollViewer(RuntimesList);
         _runtimesScrollViewer?.ScrollToVerticalOffset(0);
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (_viewModel is null)
+        {
+            return;
+        }
+
+        if (e.NewValue is bool isVisible && isVisible)
+        {
+            _viewModel.Activate();
+        }
+        else
+        {
+            _viewModel.Deactivate();
+        }
     }
 
     private void OnRuntimesLoaded(object sender, RoutedEventArgs e)

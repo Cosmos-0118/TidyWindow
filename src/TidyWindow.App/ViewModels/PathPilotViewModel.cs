@@ -27,11 +27,13 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     private readonly UserPreferencesService _preferences;
     private readonly int _pageSize = 12;
     private bool _isDisposed;
+    private bool _isActive;
     private bool _hasAcknowledgedMachineScopeWarning;
     private PathPilotSwitchRequest? _pendingSwitchRequest;
     private int _currentPage = 1;
     private bool _suppressPagingNotifications;
     private bool _isPageInfoOpen;
+    private CancellationTokenSource? _lifecycleCancellation;
     private CancellationTokenSource? _inventoryCancellation;
     private CancellationTokenSource? _switchCancellation;
 
@@ -129,6 +131,32 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     public event EventHandler? PageChanged;
 
+    public void Activate()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isActive = true;
+        if (_lifecycleCancellation is null || _lifecycleCancellation.IsCancellationRequested)
+        {
+            _lifecycleCancellation = new CancellationTokenSource();
+        }
+    }
+
+    public void Deactivate()
+    {
+        if (_isDisposed)
+        {
+            return;
+        }
+
+        _isActive = false;
+        CancelInFlightWork();
+        CancelAndDispose(ref _lifecycleCancellation);
+    }
+
     public void ResetCachedInteractionState()
     {
         _pendingSwitchRequest = null;
@@ -155,7 +183,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task RefreshAsync()
     {
-        if (IsBusy)
+        if (!_isActive || _isDisposed || IsBusy)
         {
             return;
         }
@@ -165,13 +193,18 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         _mainViewModel.SetStatusMessage("Scanning runtimes...");
 
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+        using var linkedCts = CreateLinkedCancellationSource(timeoutCts.Token);
         ReplaceInventoryCancellation(linkedCts);
 
         try
         {
             var snapshot = await Task.Run(async () =>
                 await _inventoryService.GetInventoryAsync(cancellationToken: linkedCts.Token).ConfigureAwait(false), linkedCts.Token).ConfigureAwait(false);
+
+            if (!IsOperational(linkedCts.Token))
+            {
+                return;
+            }
 
             await RunOnUiThreadAsync(() => ApplySnapshot(snapshot)).ConfigureAwait(false);
 
@@ -279,7 +312,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     private async Task ExecuteSwitchRuntimeAsync(PathPilotSwitchRequest request)
     {
-        if (IsBusy)
+        if (!_isActive || _isDisposed || IsBusy)
         {
             return;
         }
@@ -293,7 +326,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         Guid workToken = Guid.Empty;
 
         using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(90));
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(timeoutCts.Token);
+        using var linkedCts = CreateLinkedCancellationSource(timeoutCts.Token);
         ReplaceSwitchCancellation(linkedCts);
 
         try
@@ -306,6 +339,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
             var result = await Task.Run(async () =>
                 await _inventoryService.SwitchRuntimeAsync(request, cancellationToken: linkedCts.Token).ConfigureAwait(false), linkedCts.Token).ConfigureAwait(false);
             var snapshotToApply = result.Snapshot;
+
+            if (!IsOperational(linkedCts.Token))
+            {
+                return;
+            }
 
             const int refreshAttempts = 3;
             for (var attempt = 0; attempt < refreshAttempts; attempt++)
@@ -333,6 +371,11 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
             }
 
             snapshotToApply = ApplySwitchResultSnapshot(snapshotToApply, result.SwitchResult);
+
+            if (!IsOperational(linkedCts.Token))
+            {
+                return;
+            }
 
             await RunOnUiThreadAsync(() => ApplySnapshot(snapshotToApply)).ConfigureAwait(false);
 
@@ -433,7 +476,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
 
     private async Task ExportAsync(PathPilotExportFormat format)
     {
-        if (IsBusy)
+        if (!_isActive || _isDisposed || IsBusy)
         {
             return;
         }
@@ -813,6 +856,7 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         _isDisposed = true;
         Runtimes.CollectionChanged -= OnRuntimeCollectionChanged;
         Warnings.CollectionChanged -= OnWarningsCollectionChanged;
+        CancelAndDispose(ref _lifecycleCancellation);
         CancelAndDispose(ref _inventoryCancellation);
         CancelAndDispose(ref _switchCancellation);
     }
@@ -869,6 +913,21 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
     {
         CancelAndDispose(ref _switchCancellation);
         _switchCancellation = cts;
+    }
+
+    private bool IsOperational(CancellationToken token)
+    {
+        return _isActive && !_isDisposed && !token.IsCancellationRequested;
+    }
+
+    private CancellationTokenSource CreateLinkedCancellationSource(CancellationToken token)
+    {
+        if (_lifecycleCancellation is { IsCancellationRequested: false } lifecycle)
+        {
+            return CancellationTokenSource.CreateLinkedTokenSource(token, lifecycle.Token);
+        }
+
+        return CancellationTokenSource.CreateLinkedTokenSource(token);
     }
 }
 
