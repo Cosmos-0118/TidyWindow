@@ -25,6 +25,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private readonly IRegistryOptimizerService _registryService;
     private readonly RegistryPreferenceService _registryPreferenceService;
     private readonly ISystemRestoreGuardService _restoreGuardService;
+    private readonly Func<double>? _getTotalRamGb;
     private bool _isInitialized;
     private bool _isRestoringState;
 
@@ -37,13 +38,15 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         MainViewModel mainViewModel,
         IRegistryOptimizerService registryService,
         RegistryPreferenceService registryPreferenceService,
-        ISystemRestoreGuardService restoreGuardService)
+        ISystemRestoreGuardService restoreGuardService,
+        Func<double>? getTotalRamGb = null)
     {
         _activityLog = activityLogService ?? throw new ArgumentNullException(nameof(activityLogService));
         _mainViewModel = mainViewModel ?? throw new ArgumentNullException(nameof(mainViewModel));
         _registryService = registryService ?? throw new ArgumentNullException(nameof(registryService));
         _registryPreferenceService = registryPreferenceService ?? throw new ArgumentNullException(nameof(registryPreferenceService));
         _restoreGuardService = restoreGuardService ?? throw new ArgumentNullException(nameof(restoreGuardService));
+        _getTotalRamGb = getTotalRamGb;
 
         Tweaks = new ObservableCollection<RegistryTweakCardViewModel>();
         Presets = new ObservableCollection<RegistryPresetViewModel>();
@@ -421,8 +424,12 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         {
             try
             {
-                var info = new ComputerInfo();
-                var totalRamGb = info.TotalPhysicalMemory / 1024d / 1024d / 1024d;
+                var totalRamGb = _getTotalRamGb?.Invoke();
+                if (totalRamGb is null)
+                {
+                    var info = new ComputerInfo();
+                    totalRamGb = info.TotalPhysicalMemory / 1024d / 1024d / 1024d;
+                }
                 if (totalRamGb < minimumRamGb)
                 {
                     error = $"Skip 'Keep kernel in RAM' on systems with under {minimumRamGb:0} GB (detected {totalRamGb:0.#} GB).";

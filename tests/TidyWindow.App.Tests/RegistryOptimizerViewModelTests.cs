@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
@@ -47,11 +48,29 @@ public sealed class RegistryOptimizerViewModelTests
         });
     }
 
+    [Fact]
+    public async Task ApplyAsync_BlocksDisablePagingExecutiveWhenRamTooLow()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new RegistryOptimizerTestScope(getTotalRamGb: () => 8);
+            scope.RestoreGuard.EnqueueResult(new SystemRestoreGuardCheckResult(true, DateTimeOffset.UtcNow, null));
+
+            var pagingTweak = scope.ViewModel.Tweaks.Single(t => string.Equals(t.Id, "disable-paging-executive", StringComparison.OrdinalIgnoreCase));
+            pagingTweak.IsSelected = true;
+
+            await scope.ViewModel.ApplyCommand.ExecuteAsync(null);
+
+            Assert.Equal(0, scope.Service.ApplyCallCount);
+            Assert.Contains("Keep kernel in RAM", scope.ViewModel.LastOperationSummary, StringComparison.OrdinalIgnoreCase);
+        });
+    }
+
     private sealed class RegistryOptimizerTestScope : IDisposable
     {
         private readonly string _tempDirectory;
 
-        public RegistryOptimizerTestScope()
+        public RegistryOptimizerTestScope(Func<double>? getTotalRamGb = null)
         {
             _tempDirectory = Path.Combine(Path.GetTempPath(), "TidyWindowTests", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(_tempDirectory);
@@ -65,7 +84,7 @@ public sealed class RegistryOptimizerViewModelTests
             var navigation = new NavigationService(serviceProvider, ActivityLog, new SmartPageCache());
             Main = new MainViewModel(navigation, ActivityLog);
 
-            ViewModel = new RegistryOptimizerViewModel(ActivityLog, Main, Service, Preferences, RestoreGuard);
+            ViewModel = new RegistryOptimizerViewModel(ActivityLog, Main, Service, Preferences, RestoreGuard, getTotalRamGb);
         }
 
         public ActivityLogService ActivityLog { get; }
@@ -94,14 +113,17 @@ public sealed class RegistryOptimizerViewModelTests
 
     private sealed class TestRegistryOptimizerService : IRegistryOptimizerService
     {
-        private readonly RegistryTweakDefinition _tweak;
+        private readonly ImmutableArray<RegistryTweakDefinition> _tweaks;
         private readonly RegistryPresetDefinition _preset;
 
         public TestRegistryOptimizerService()
         {
             var enableOperation = new RegistryOperationDefinition("enable.ps1", null);
             var disableOperation = new RegistryOperationDefinition("disable.ps1", null);
-            _tweak = new RegistryTweakDefinition(
+            var pagingEnable = new RegistryOperationDefinition("paging-enable.ps1", null);
+            var pagingDisable = new RegistryOperationDefinition("paging-disable.ps1", null);
+
+            var sample = new RegistryTweakDefinition(
                 "sample.tweak",
                 "Sample tweak",
                 "Performance",
@@ -114,6 +136,22 @@ public sealed class RegistryOptimizerViewModelTests
                 null,
                 enableOperation,
                 disableOperation);
+
+            var disablePagingExecutive = new RegistryTweakDefinition(
+                "disable-paging-executive",
+                "Keep kernel in RAM",
+                "Performance",
+                "Keeps kernel memory resident",
+                "Medium",
+                "ram",
+                false,
+                null,
+                null,
+                null,
+                pagingEnable,
+                pagingDisable);
+
+            _tweaks = ImmutableArray.Create(sample, disablePagingExecutive);
             _preset = new RegistryPresetDefinition(
                 "default",
                 "Default",
@@ -122,39 +160,45 @@ public sealed class RegistryOptimizerViewModelTests
                 true,
                 new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase)
                 {
-                    ["sample.tweak"] = false
+                    ["sample.tweak"] = false,
+                    ["disable-paging-executive"] = false
                 });
         }
 
         public int ApplyCallCount { get; private set; }
 
-        public IReadOnlyList<RegistryTweakDefinition> Tweaks => new[] { _tweak };
+        public IReadOnlyList<RegistryTweakDefinition> Tweaks => _tweaks;
 
         public IReadOnlyList<RegistryPresetDefinition> Presets => new[] { _preset };
 
-        public RegistryTweakDefinition GetTweak(string tweakId) => _tweak;
+        public RegistryTweakDefinition GetTweak(string tweakId) => _tweaks.First(tweak => string.Equals(tweak.Id, tweakId, StringComparison.OrdinalIgnoreCase));
 
         public RegistryOperationPlan BuildPlan(IEnumerable<RegistrySelection> selections)
         {
-            var invocation = new RegistryScriptInvocation(
-                _tweak.Id,
-                "Apply tweak",
-                true,
-                "script.ps1",
-                ImmutableDictionary<string, object?>.Empty);
+            var invocations = selections
+                .Select(selection => new RegistryScriptInvocation(
+                    selection.TweakId,
+                    "Apply tweak",
+                    selection.TargetState,
+                    $"{selection.TweakId}.ps1",
+                    ImmutableDictionary<string, object?>.Empty))
+                .ToImmutableArray();
 
-            return new RegistryOperationPlan(ImmutableArray.Create(invocation), ImmutableArray<RegistryScriptInvocation>.Empty);
+            return new RegistryOperationPlan(invocations, ImmutableArray<RegistryScriptInvocation>.Empty);
         }
 
         public Task<RegistryOperationResult> ApplyAsync(RegistryOperationPlan plan, CancellationToken cancellationToken = default)
         {
             ApplyCallCount++;
-            var summary = new RegistryExecutionSummary(
-                plan.ApplyOperations[0],
-                ImmutableArray<string>.Empty,
-                ImmutableArray<string>.Empty,
-                0);
-            return Task.FromResult(new RegistryOperationResult(ImmutableArray.Create(summary)));
+            var summaries = plan.ApplyOperations
+                .Select(operation => new RegistryExecutionSummary(
+                    operation,
+                    ImmutableArray<string>.Empty,
+                    ImmutableArray<string>.Empty,
+                    0))
+                .ToImmutableArray();
+
+            return Task.FromResult(new RegistryOperationResult(summaries));
         }
 
         public Task<RegistryRestorePoint?> SaveRestorePointAsync(IEnumerable<RegistrySelection> selections, RegistryOperationPlan plan, CancellationToken cancellationToken = default)
