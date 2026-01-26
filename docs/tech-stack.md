@@ -80,9 +80,3 @@ This document lists the primary technologies, libraries, and tooling that power 
 -   **Portable Build** – Unzipped binaries (`out/` folder) for manual deployment.
 -   **Documentation** – Markdown under `docs/` shipped with the repo and packaged releases.
 
-## Future Stack Considerations
-
--   .NET MAUI or WinUI ports for cross-platform UI (investigation ongoing).
--   Integrating Windows App SDK for richer notification and windowing APIs.
--   Enabling optional telemetry pipeline via Azure Application Insights (targeted opt-in).
-
