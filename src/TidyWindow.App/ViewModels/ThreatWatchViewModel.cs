@@ -185,6 +185,12 @@ public sealed partial class ThreatWatchViewModel : ViewModelBase
 
         try
         {
+            if (hit.IsBusy)
+            {
+                return;
+            }
+
+            hit.LastActionMessage = "Running Defender file scan...";
             hit.IsBusy = true;
             var verdict = await _scanService.ScanFileAsync(hit.FilePath);
             var message = verdict.Verdict switch
@@ -194,6 +200,11 @@ public sealed partial class ThreatWatchViewModel : ViewModelBase
                 _ => "No additional telemetry available."
             };
             hit.LastActionMessage = message;
+
+            _mainViewModel.LogActivityInformation(
+                "Threat Watch",
+                $"Scanned {hit.ProcessName}",
+                new[] { hit.FilePath, message });
         }
         catch (Exception ex)
         {

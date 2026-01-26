@@ -176,6 +176,43 @@ function Resolve-SearchIndexerDllPath {
     return $null
 }
 
+function Stop-TidyAppxProcesses {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $PackageName,
+        [string[]] $ProcessNames = @()
+    )
+
+    try {
+        $families = @(Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFamilyName }) | Where-Object { $_ }
+        $nameSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
+
+        foreach ($n in $ProcessNames) { if (-not [string]::IsNullOrWhiteSpace($n)) { [void]$nameSet.Add($n) } }
+        foreach ($fam in $families) {
+            $short = $fam.Split('_')[0]
+            if ($short) { [void]$nameSet.Add($short) }
+        }
+
+        if ($nameSet.Count -eq 0) { return }
+
+        $allProcs = Get-Process -ErrorAction SilentlyContinue
+        foreach ($proc in $allProcs) {
+            if (-not $nameSet.Contains($proc.ProcessName)) { continue }
+
+            try {
+                Write-TidyOutput -Message ("Stopping process {0} (PID {1}) for package {2}" -f $proc.ProcessName, $proc.Id, $PackageName)
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            }
+            catch {
+                Write-TidyOutput -Message ("Unable to stop process {0} (PID {1}): {2}" -f $proc.ProcessName, $proc.Id, $_.Exception.Message)
+            }
+        }
+    }
+    catch {
+        Write-TidyOutput -Message ("Process stop helper failed for {0}: {1}" -f $PackageName, $_.Exception.Message)
+    }
+}
+
 function ReRegister-AppxPackage {
     param(
         [Parameter(Mandatory = $true)]
@@ -481,41 +518,4 @@ if ($script:UsingResultFile) {
     }
 
     exit 1
-}
-
-function Stop-TidyAppxProcesses {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string] $PackageName,
-        [string[]] $ProcessNames = @()
-    )
-
-    try {
-        $families = @(Get-AppxPackage -AllUsers -Name $PackageName -ErrorAction SilentlyContinue | ForEach-Object { $_.PackageFamilyName }) | Where-Object { $_ }
-        $nameSet = New-Object System.Collections.Generic.HashSet[string] ([StringComparer]::OrdinalIgnoreCase)
-
-        foreach ($n in $ProcessNames) { if (-not [string]::IsNullOrWhiteSpace($n)) { [void]$nameSet.Add($n) } }
-        foreach ($fam in $families) {
-            $short = $fam.Split('_')[0]
-            if ($short) { [void]$nameSet.Add($short) }
-        }
-
-        if ($nameSet.Count -eq 0) { return }
-
-        $allProcs = Get-Process -ErrorAction SilentlyContinue
-        foreach ($proc in $allProcs) {
-            if (-not $nameSet.Contains($proc.ProcessName)) { continue }
-
-            try {
-                Write-TidyOutput -Message ("Stopping process {0} (PID {1}) for package {2}" -f $proc.ProcessName, $proc.Id, $PackageName)
-                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-            }
-            catch {
-                Write-TidyOutput -Message ("Unable to stop process {0} (PID {1}): {2}" -f $proc.ProcessName, $proc.Id, $_.Exception.Message)
-            }
-        }
-    }
-    catch {
-        Write-TidyOutput -Message ("Process stop helper failed for {0}: {1}" -f $PackageName, $_.Exception.Message)
-    }
 }
