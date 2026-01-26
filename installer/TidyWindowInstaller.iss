@@ -46,8 +46,8 @@ Name: "{autoprograms}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Workin
 Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: desktopicon; WorkingDir: "{app}"; AppUserModelID: "{#MyAppAumid}"
 
 [Run]
-Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: postinstall skipifsilent runasoriginaluser unchecked
-
+; Launch without holding the installer process open; shellexec breaks any parent/child wait chain
+Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: postinstall skipifsilent runasoriginaluser unchecked nowait shellexec
 [InstallDelete]
 ; Remove any stale binaries from earlier builds so removed files do not linger after upgrades
 Type: filesandordirs; Name: "{app}\\*"
@@ -153,7 +153,13 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+const
+  WM_CLOSE = $0010;
 begin
   if CurStep = ssPostInstall then
     Log('Post-install step complete.');
+
+  { Make sure the wizard tears down cleanly once the Finish page is done }
+  if CurStep = ssDone then
+    PostMessage(WizardForm.Handle, WM_CLOSE, 0, 0);
 end;
