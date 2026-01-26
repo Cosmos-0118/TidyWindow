@@ -56,6 +56,9 @@ Type: filesandordirs; Name: "{app}\\*"
 Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\\{#MyAppExeName}"""; Check: IsTaskSelected('runatstartup')
 
 [Code]
+const
+  WM_CLOSE = $0010;
+
 type
   TSystemTime = record
     Year: Word;
@@ -153,8 +156,6 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
-const
-  WM_CLOSE = $0010;
 begin
   if CurStep = ssPostInstall then
     Log('Post-install step complete.');
