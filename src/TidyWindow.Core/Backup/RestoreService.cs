@@ -305,7 +305,32 @@ public sealed class RestoreService
         switch (value.Kind?.ToUpperInvariant())
         {
             case "BINARY":
-                return value.Data is string s ? Convert.FromBase64String(s) : Array.Empty<byte>();
+                if (value.Data is System.Text.Json.JsonElement binaryElement)
+                {
+                    if (binaryElement.ValueKind == JsonValueKind.String)
+                    {
+                        var encoded = binaryElement.GetString();
+                        return string.IsNullOrEmpty(encoded) ? Array.Empty<byte>() : Convert.FromBase64String(encoded);
+                    }
+
+                    if (binaryElement.ValueKind == JsonValueKind.Array)
+                    {
+                        // Handle historical raw byte array serialization (unlikely here but safe).
+                        var bytes = new List<byte>();
+                        foreach (var item in binaryElement.EnumerateArray())
+                        {
+                            if (item.ValueKind == JsonValueKind.Number && item.TryGetByte(out var b))
+                            {
+                                bytes.Add(b);
+                            }
+                        }
+                        return bytes.ToArray();
+                    }
+                }
+
+                return value.Data is string s
+                    ? Convert.FromBase64String(s)
+                    : Array.Empty<byte>();
             case "MULTISTRING":
                 if (value.Data is System.Text.Json.JsonElement je && je.ValueKind == System.Text.Json.JsonValueKind.Array)
                 {
@@ -338,6 +363,11 @@ public sealed class RestoreService
                 }
                 return 0L;
             default:
+                if (value.Data is JsonElement strElement && strElement.ValueKind == JsonValueKind.String)
+                {
+                    return strElement.GetString() ?? string.Empty;
+                }
+
                 return value.Data?.ToString() ?? string.Empty;
         }
     }

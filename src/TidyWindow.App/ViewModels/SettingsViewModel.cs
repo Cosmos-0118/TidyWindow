@@ -108,10 +108,10 @@ public sealed class SettingsViewModel : ViewModelBase
     public bool IsRunningElevated => CurrentPrivilegeMode == PrivilegeMode.Administrator;
 
     public string CurrentPrivilegeDisplay => IsRunningElevated
-        ? "Current session: Administrator mode"
-        : "Current session: User mode";
+        ? "Running as Administrator (required)"
+        : "Not elevated — restart TidyWindow to continue.";
 
-    public string CurrentPrivilegeAdvice => "TidyWindow relaunches with administrative rights so installs, registry updates, and repairs can finish without interruptions.";
+    public string CurrentPrivilegeAdvice => "TidyWindow requires elevation to run installs, service templates, registry fixes, and new features end-to-end. If elevation is lost, restart the app from the tray or Start menu.";
 
     public bool RunInBackground
     {

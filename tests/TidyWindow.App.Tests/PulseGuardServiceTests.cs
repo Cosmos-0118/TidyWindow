@@ -24,6 +24,34 @@ public sealed class PulseGuardServiceTests
     }
 
     [Fact]
+    public async Task MissingPowerShellSevenShowsPrompt()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
+
+            scope.ActivityLog.LogError("Bootstrap", "pwsh.exe was not found on PATH. Install PowerShell 7+.");
+
+            var scenario = await scope.Prompt.WaitForScenarioAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal(HighFrictionScenario.LegacyPowerShell, scenario);
+        });
+    }
+
+    [Fact]
+    public async Task ScriptErrorDoesNotMimicPowerShellRequirement()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
+
+            scope.ActivityLog.LogError("Bootstrap", "PowerShell script failed while updating drivers due to missing file.");
+
+            await Assert.ThrowsAsync<TimeoutException>(() => scope.Prompt.WaitForScenarioAsync(TimeSpan.FromMilliseconds(250)));
+        });
+    }
+
+    [Fact]
     public async Task SuccessNotificationsRespectCooldownWindow()
     {
         await WpfTestHelper.RunAsync(async () =>
@@ -61,6 +89,19 @@ public sealed class PulseGuardServiceTests
             using var scope = new PulseGuardTestScope();
 
             scope.ActivityLog.LogWarning("Known Processes", "Contoso Telemetry Service: Service not found.");
+
+            await Assert.ThrowsAsync<TimeoutException>(() => scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromMilliseconds(200)));
+        });
+    }
+
+    [Fact]
+    public async Task NavigationMessagesDoNotNotify()
+    {
+        await WpfTestHelper.RunAsync(async () =>
+        {
+            using var scope = new PulseGuardTestScope();
+
+            scope.ActivityLog.LogInformation("Navigation", "Navigating to Bootstrap");
 
             await Assert.ThrowsAsync<TimeoutException>(() => scope.Tray.WaitForFirstNotificationAsync(TimeSpan.FromMilliseconds(200)));
         });

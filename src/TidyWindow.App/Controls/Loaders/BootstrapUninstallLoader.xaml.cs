@@ -36,8 +36,7 @@ public partial class BootstrapUninstallLoader : System.Windows.Controls.UserCont
 
     private void OnLoaderLoaded(object sender, RoutedEventArgs e)
     {
-        Loaded -= OnLoaderLoaded;
-        _spinnerStoryboard = TryFindResource("LoaderSpinnerStoryboard") as Storyboard;
+        _spinnerStoryboard ??= TryFindResource("LoaderSpinnerStoryboard") as Storyboard;
         _isTemplateLoaded = true;
         UpdateVisualState(IsActive, true);
     }

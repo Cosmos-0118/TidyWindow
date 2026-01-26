@@ -183,14 +183,21 @@ public partial class MainWindow : Window
             if (activeWork.Count > 0)
             {
                 var decision = _pulseGuard.PromptPendingAutomation(activeWork);
-                if (decision == PendingAutomationDecision.WaitForCompletion)
+                switch (decision)
                 {
-                    e.Cancel = true;
-                    ArmAutoClose();
-                    return;
+                    case PendingAutomationDecision.WaitAndCloseAfterCompletion:
+                        e.Cancel = true;
+                        ArmAutoClose();
+                        return;
+                    case PendingAutomationDecision.WaitWithoutClosing:
+                        e.Cancel = true;
+                        CancelAutoCloseSubscription();
+                        _viewModel.SetStatusMessage("Waiting for automation to finish; TidyWindow will stay open.");
+                        return;
+                    default:
+                        CancelAutoCloseSubscription();
+                        break;
                 }
-
-                CancelAutoCloseSubscription();
             }
         }
 

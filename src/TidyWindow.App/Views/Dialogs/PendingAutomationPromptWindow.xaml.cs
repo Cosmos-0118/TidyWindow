@@ -16,7 +16,7 @@ public partial class PendingAutomationPromptWindow : Window
         DataContext = CreateViewModel(workItems);
     }
 
-    public PendingAutomationDecision Result { get; private set; } = PendingAutomationDecision.WaitForCompletion;
+    public PendingAutomationDecision Result { get; private set; } = PendingAutomationDecision.WaitAndCloseAfterCompletion;
 
     private static PendingAutomationPromptViewModel CreateViewModel(IReadOnlyList<AutomationWorkItem> workItems)
     {
@@ -38,9 +38,15 @@ public partial class PendingAutomationPromptWindow : Window
         DialogResult = true;
     }
 
-    private void OnWait(object sender, RoutedEventArgs e)
+    private void OnWaitAndClose(object sender, RoutedEventArgs e)
     {
-        Result = PendingAutomationDecision.WaitForCompletion;
+        Result = PendingAutomationDecision.WaitAndCloseAfterCompletion;
+        DialogResult = true;
+    }
+
+    private void OnWaitOnly(object sender, RoutedEventArgs e)
+    {
+        Result = PendingAutomationDecision.WaitWithoutClosing;
         DialogResult = true;
     }
 

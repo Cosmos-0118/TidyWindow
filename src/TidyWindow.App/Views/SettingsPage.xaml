@@ -413,32 +413,9 @@
                                                 BorderThickness="1"
                                                 Margin="0,0,0,16">
                                         <StackPanel>
-                                                <TextBlock Text="Telemetry sharing"
+                                                <TextBlock Text="Elevation status"
                                                                    Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
-                                                <TextBlock Text="Opt in to share anonymized diagnostics so PulseGuard can spot regressions early."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,6,0,20"/>
-                                                <CheckBox Style="{StaticResource App.CheckBoxStyle}"
-                                                          Content="Enable telemetry"
-                                                                  IsChecked="{Binding TelemetryEnabled, Mode=TwoWay}"
-                                                                  FontSize="14"
-                                                                  Foreground="#E2E8F0"
-                                                                  Margin="0,0,0,4"/>
-                                                <TextBlock Text="Telemetry never includes personal files or command input; it only tracks script health."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"/>
-                                        </StackPanel>
-                                </Border>
-
-                                <Border Background="#0B1120"
-                                                Padding="24"
-                                                CornerRadius="16"
-                                                BorderBrush="#1D2A44"
-                                                BorderThickness="1"
-                                                Margin="0,0,0,16">
-                                        <StackPanel>
-                                                <TextBlock Text="Session &amp; elevation"
-                                                                   Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
-                                                <TextBlock Text="Maintenance scripts swap services, installers, and registry state. Staying elevated by default keeps those flows seamless."
+                                                <TextBlock Text="TidyWindow always runs elevated so repairs, installers, and registry updates can finish without prompts."
                                                                    Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                                                    Margin="0,6,0,0"/>
                                                 <Border Margin="0,20,0,0"
@@ -447,23 +424,43 @@
                                                         <Border.Style>
                                                                 <Style TargetType="Border">
                                                                         <Setter Property="Background"
-                                                                                        Value="#0F172A"/>
+                                                                                        Value="#12244A"/>
                                                                         <Setter Property="BorderBrush"
-                                                                                        Value="#1D2A44"/>
+                                                                                        Value="#1E3A8A"/>
                                                                         <Setter Property="BorderThickness"
                                                                                         Value="1"/>
                                                                         <Style.Triggers>
                                                                                 <DataTrigger Binding="{Binding IsRunningElevated}"
                                                                                                          Value="True">
                                                                                         <Setter Property="Background"
-                                                                                                        Value="#1E3A8A"/>
+                                                                                                        Value="#0B192F"/>
                                                                                         <Setter Property="BorderBrush"
-                                                                                                        Value="#3B82F6"/>
+                                                                                                        Value="#22D3EE"/>
                                                                                 </DataTrigger>
                                                                         </Style.Triggers>
                                                                 </Style>
                                                         </Border.Style>
                                                         <StackPanel>
+                                                                <StackPanel Orientation="Horizontal"
+                                                                                   Margin="0,0,0,8"
+                                                                                   VerticalAlignment="Center">
+                                                                        <Border Background="#22D3EE"
+                                                                                        CornerRadius="8"
+                                                                                        Padding="8,4"
+                                                                                        Margin="0,0,8,0">
+                                                                                <TextBlock Text="Administrator (required)"
+                                                                                                   FontWeight="SemiBold"
+                                                                                                   Foreground="#0B1120"/>
+                                                                        </Border>
+                                                                        <Border Background="#0EA5E9"
+                                                                                        CornerRadius="8"
+                                                                                        Padding="8,4">
+                                                                                <TextBlock Text="Always elevated for repairs"
+                                                                                                   FontWeight="SemiBold"
+                                                                                                   Foreground="#0B1120"/>
+                                                                        </Border>
+                                                                </StackPanel>
+
                                                                 <TextBlock Text="{Binding CurrentPrivilegeDisplay}"
                                                                                    FontSize="16"
                                                                                    FontWeight="SemiBold"
@@ -471,9 +468,16 @@
                                                                 <TextBlock Text="{Binding CurrentPrivilegeAdvice}"
                                                                                    Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                                                                    Margin="0,8,0,0"/>
-                                                                <TextBlock Text="If you relaunch in user mode, package installs and service repairs will pause until elevation is restored."
+                                                                <TextBlock Text="If elevation is ever lost, you'll be prompted to restart TidyWindow so installs, service templates, and new features can keep working."
                                                                                    Style="{StaticResource SettingsSectionSubtitleTextStyle}"
                                                                                    Margin="0,6,0,0"/>
+                                                                <ItemsControl Margin="0,10,0,0">
+                                                                        <ItemsControl.Items>
+                                                                                <TextBlock Text="• Deep Scan, Install Hub, and Registry Optimizer all expect admin access." Foreground="#E2E8F0"/>
+                                                                                <TextBlock Text="• Package installs, service repairs, and rollback flows stay elevated end-to-end." Foreground="#E2E8F0" Margin="0,4,0,0"/>
+                                                                                <TextBlock Text="• PulseGuard monitors elevated tasks and surfaces issues without modal prompts." Foreground="#E2E8F0" Margin="0,4,0,0"/>
+                                                                        </ItemsControl.Items>
+                                                                </ItemsControl>
                                                         </StackPanel>
                                                 </Border>
                                         </StackPanel>

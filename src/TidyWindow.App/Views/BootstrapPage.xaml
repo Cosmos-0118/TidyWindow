@@ -184,14 +184,65 @@
                                                FontSize="12"
                                                Foreground="#38BDF8"
                                                FontWeight="SemiBold"/>
-                                    <TextBox Margin="0,6,0,0"
-                                             Text="winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements"
-                                             IsReadOnly="True"
-                                             BorderThickness="0"
-                                             Style="{StaticResource App.TextBoxStyle}"
-                                             FontFamily="Consolas"
-                                             FontSize="12"
-                                             TextWrapping="Wrap"/>
+                                    <Grid Margin="0,6,0,0">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Row="0" Grid.Column="0"
+                                                 Text="{Binding PowerShellInstallCommandText, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 BorderThickness="0"
+                                                 Style="{StaticResource App.TextBoxStyle}"
+                                                 FontFamily="Consolas"
+                                                 FontSize="12"
+                                                 TextWrapping="Wrap"
+                                                 Margin="0,0,8,0"/>
+                                        <Button Grid.Row="0" Grid.Column="1"
+                                                Content="Copy"
+                                                Command="{Binding CopyPowerShellCommandCommand}"
+                                                MinWidth="88"
+                                                Padding="12,6"
+                                                HorizontalAlignment="Right">
+                                            <Button.Style>
+                                                <Style TargetType="Button"
+                                                       BasedOn="{StaticResource BootstrapAccentButtonStyle}">
+                                                    <Setter Property="FontWeight"
+                                                            Value="SemiBold"/>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                        <TextBlock Grid.Row="1" Grid.Column="1"
+                                                   Margin="0,4,0,0"
+                                                   FontSize="11"
+                                                   Foreground="#22C55E"
+                                                   Text="{Binding CopyCommandFeedback}"
+                                                   HorizontalAlignment="Right">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="{x:Null}">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="Copied">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="Copied!">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </Grid>
                                 </StackPanel>
                             </Border>
                             <TextBlock Text="Already on PowerShell 7+? You’re good to go—detection runs will use that runtime automatically."

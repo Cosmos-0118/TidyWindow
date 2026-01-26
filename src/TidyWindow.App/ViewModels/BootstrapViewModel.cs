@@ -4,11 +4,13 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
 using TidyWindow.Core.Automation;
 using TidyWindow.Core.PackageManagers;
+using WindowsClipboard = System.Windows.Clipboard;
 
 namespace TidyWindow.App.ViewModels;
 
@@ -21,8 +23,10 @@ public sealed partial class BootstrapViewModel : ViewModelBase
     private readonly IAutomationWorkTracker _workTracker;
     private readonly Dictionary<string, PackageManagerEntryViewModel> _managerLookup = new(StringComparer.OrdinalIgnoreCase);
     private bool _hasSuccessfulDetection;
+    private CancellationTokenSource? _copyFeedbackCts;
     private static readonly Uri AppInstallerStoreUri = new("ms-windows-store://pdp/?productid=9NBLGGH4NNS1");
     private static readonly Uri AppInstallerDownloadUri = new("https://aka.ms/getwinget");
+    private const string PowerShellInstallCommand = "winget install --id Microsoft.PowerShell -e --accept-package-agreements --accept-source-agreements";
 
     [ObservableProperty]
     private bool _includeScoop = true;
@@ -47,6 +51,11 @@ public sealed partial class BootstrapViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _showPowerShellCallout = true;
+
+    [ObservableProperty]
+    private string _copyCommandFeedback = string.Empty;
+
+    public string PowerShellInstallCommandText => PowerShellInstallCommand;
 
     public ObservableCollection<PackageManagerEntryViewModel> Managers { get; } = new();
 
@@ -302,6 +311,39 @@ public sealed partial class BootstrapViewModel : ViewModelBase
             AppInstallerDownloadUri,
             "Opening App Installer download page in your browser.",
             "Unable to open download page. Copy https://aka.ms/getwinget into your browser manually.");
+    }
+
+    [RelayCommand]
+    private void CopyPowerShellCommand()
+    {
+        try
+        {
+            WindowsClipboard.SetText(PowerShellInstallCommand);
+            _mainViewModel.SetStatusMessage("PowerShell install command copied.");
+            CopyCommandFeedback = "Copied";
+            _ = ClearCopyFeedbackAsync();
+        }
+        catch
+        {
+            _mainViewModel.SetStatusMessage("Unable to access the clipboard.");
+        }
+    }
+
+    private async Task ClearCopyFeedbackAsync()
+    {
+        _copyFeedbackCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _copyFeedbackCts = cts;
+
+        try
+        {
+            await Task.Delay(2000, cts.Token);
+            CopyCommandFeedback = string.Empty;
+        }
+        catch (OperationCanceledException)
+        {
+            // Swallow cancellation from rapid re-copies.
+        }
     }
 
     private void OpenWingetUri(PackageManagerEntryViewModel? manager, Uri target, string startingStatus, string failureStatus)

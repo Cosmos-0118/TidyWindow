@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
@@ -16,13 +14,6 @@ public sealed class PulseGuardService : IDisposable
     private static readonly TimeSpan SuccessCooldown = TimeSpan.FromMinutes(2);
     private static readonly TimeSpan InsightCooldown = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan ActionCooldown = TimeSpan.FromMinutes(1);
-    private static readonly string[] KnownProcessMissingPhrases =
-    {
-        "not found",
-        "does not exist",
-        "cannot find",
-        "missing"
-    };
 
     private readonly ActivityLogService _activityLog;
     private readonly UserPreferencesService _preferencesService;
@@ -55,7 +46,7 @@ public sealed class PulseGuardService : IDisposable
             return PendingAutomationDecision.CloseAnyway;
         }
 
-        PendingAutomationDecision decision = PendingAutomationDecision.WaitForCompletion;
+        PendingAutomationDecision decision = PendingAutomationDecision.WaitAndCloseAfterCompletion;
 
         _dispatcher.Invoke(() =>
         {
@@ -72,13 +63,17 @@ public sealed class PulseGuardService : IDisposable
             .Select(item => $"{item.Type}: {item.Description}")
             .ToArray();
 
-        if (decision == PendingAutomationDecision.WaitForCompletion)
+        switch (decision)
         {
-            _activityLog.LogWarning("PulseGuard", "Exit postponed until active automation finishes.", detailLines);
-        }
-        else
-        {
-            _activityLog.LogWarning("PulseGuard", "Exit forced while automation was still active.", detailLines);
+            case PendingAutomationDecision.WaitAndCloseAfterCompletion:
+                _activityLog.LogWarning("PulseGuard", "Exit postponed until active automation finishes.", detailLines);
+                break;
+            case PendingAutomationDecision.WaitWithoutClosing:
+                _activityLog.LogInformation("PulseGuard", "Exit cancelled. Automation will continue while the app stays open.", detailLines);
+                break;
+            default:
+                _activityLog.LogWarning("PulseGuard", "Exit forced while automation was still active.", detailLines);
+                break;
         }
 
         return decision;
@@ -117,7 +112,7 @@ public sealed class PulseGuardService : IDisposable
             return;
         }
 
-        var scenario = ResolveHighFrictionScenario(entry);
+        var scenario = PulseGuardHeuristics.ResolveHighFrictionScenario(entry);
         if (scenario != HighFrictionScenario.None)
         {
             _ = _dispatcher.InvokeAsync(() => _promptService.TryShowPrompt(scenario, entry));
@@ -141,12 +136,12 @@ public sealed class PulseGuardService : IDisposable
             }
         }
 
-        if (ShouldSuppressNotification(entry))
+        if (PulseGuardHeuristics.ShouldSuppressNotification(entry))
         {
             return;
         }
 
-        var kind = ResolveKind(entry);
+        var kind = PulseGuardHeuristics.ResolveKind(entry);
         if (kind is PulseGuardNotificationKind.SuccessDigest && !preferences.PulseGuardShowSuccessSummaries)
         {
             return;
@@ -247,156 +242,6 @@ public sealed class PulseGuardService : IDisposable
         }
 
         return true;
-    }
-
-    private static PulseGuardNotificationKind ResolveKind(ActivityLogEntry entry)
-    {
-        return entry.Level switch
-        {
-            ActivityLogLevel.Success => PulseGuardNotificationKind.SuccessDigest,
-            ActivityLogLevel.Warning => PulseGuardNotificationKind.Insight,
-            ActivityLogLevel.Error => PulseGuardNotificationKind.ActionRequired,
-            _ => PulseGuardNotificationKind.Insight
-        };
-    }
-
-    private static HighFrictionScenario ResolveHighFrictionScenario(ActivityLogEntry entry)
-    {
-        if (entry.Level != ActivityLogLevel.Error && entry.Level != ActivityLogLevel.Warning)
-        {
-            return HighFrictionScenario.None;
-        }
-
-        var text = BuildNormalizedText(entry);
-        if (text.Length == 0)
-        {
-            return HighFrictionScenario.None;
-        }
-
-        if (DetectLegacyPowerShell(text))
-        {
-            return HighFrictionScenario.LegacyPowerShell;
-        }
-
-        if (DetectRestartRequirement(text))
-        {
-            return HighFrictionScenario.AppRestartRequired;
-        }
-
-        return HighFrictionScenario.None;
-    }
-
-    private static string BuildNormalizedText(ActivityLogEntry entry)
-    {
-        var builder = new StringBuilder();
-
-        if (!string.IsNullOrWhiteSpace(entry.Message))
-        {
-            builder.Append(entry.Message).Append(' ');
-        }
-
-        foreach (var detail in entry.Details)
-        {
-            if (!string.IsNullOrWhiteSpace(detail))
-            {
-                builder.Append(detail).Append(' ');
-            }
-        }
-
-        return builder.ToString().Trim().ToLowerInvariant();
-    }
-
-    private static bool DetectLegacyPowerShell(string text)
-    {
-        if (!text.Contains("powershell", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        return text.Contains("5.1", StringComparison.Ordinal)
-            || text.Contains("update", StringComparison.Ordinal)
-            || text.Contains("upgrade", StringComparison.Ordinal)
-            || text.Contains("install powershell", StringComparison.Ordinal)
-            || text.Contains("newer version", StringComparison.Ordinal);
-    }
-
-    private static bool DetectRestartRequirement(string text)
-    {
-        return text.Contains("restart", StringComparison.Ordinal)
-            || text.Contains("relaunch", StringComparison.Ordinal)
-            || text.Contains("re-open", StringComparison.Ordinal)
-            || text.Contains("reopen", StringComparison.Ordinal);
-    }
-
-    private static bool ShouldSuppressNotification(ActivityLogEntry entry)
-    {
-        if (IsKnownProcessesMissingServiceWarning(entry))
-        {
-            return true;
-        }
-
-        if (IsThreatWatchPassiveScanEntry(entry))
-        {
-            return true;
-        }
-
-        return false;
-    }
-
-    private static bool IsKnownProcessesMissingServiceWarning(ActivityLogEntry entry)
-    {
-        if (entry.Level != ActivityLogLevel.Warning)
-        {
-            return false;
-        }
-
-        if (!string.Equals(entry.Source, "Known Processes", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (ContainsMissingServiceLanguage(entry.Message))
-        {
-            return true;
-        }
-
-        foreach (var detail in entry.Details)
-        {
-            if (ContainsMissingServiceLanguage(detail))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool ContainsMissingServiceLanguage(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        foreach (var phrase in KnownProcessMissingPhrases)
-        {
-            if (text.IndexOf(phrase, StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static bool IsThreatWatchPassiveScanEntry(ActivityLogEntry entry)
-    {
-        if (!string.Equals(entry.Source, "Threat Watch", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return entry.Level is ActivityLogLevel.Information or ActivityLogLevel.Success;
     }
 
     private PulseGuardNotification CreateNotification(ActivityLogEntry entry, PulseGuardNotificationKind kind)

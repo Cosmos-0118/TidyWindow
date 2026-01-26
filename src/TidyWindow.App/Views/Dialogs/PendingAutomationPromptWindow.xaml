@@ -114,7 +114,7 @@
                            Foreground="#CBD5F5"
                            TextWrapping="Wrap"
                            Margin="0,0,0,12"/>
-                <TextBlock Text="PulseGuard recommends waiting until these tasks finish."
+                <TextBlock Text="PulseGuard recommends waiting until these tasks finish. Choose &quot;Wait and close&quot; to exit once they're done, or &quot;Wait (stay open)&quot; to keep working."
                            FontSize="13"
                            Foreground="#CBD5F5"
                            TextWrapping="Wrap"
@@ -155,15 +155,20 @@
                 </Border>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Wait and close"
+                        MinWidth="140"
+                        Margin="0,0,10,0"
+                        Style="{StaticResource PulseGuardPrimaryButton}"
+                        Click="OnWaitAndClose"/>
+                    <Button Content="Wait (stay open)"
+                        MinWidth="140"
+                        Margin="0,0,10,0"
+                        Style="{StaticResource PulseGuardButton}"
+                        Click="OnWaitOnly"/>
                     <Button Content="Close anyway"
-                            MinWidth="120"
-                            Margin="0,0,12,0"
-                            Style="{StaticResource PulseGuardPrimaryButton}"
-                            Click="OnCloseAnyway"/>
-                    <Button Content="Wait"
-                            MinWidth="110"
-                            Style="{StaticResource PulseGuardGhostButton}"
-                            Click="OnWait"/>
+                        MinWidth="120"
+                        Style="{StaticResource PulseGuardGhostButton}"
+                        Click="OnCloseAnyway"/>
                 </StackPanel>
             </StackPanel>
         </Grid>
