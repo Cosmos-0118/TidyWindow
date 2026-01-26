@@ -39,6 +39,22 @@ public sealed class RegistryOptimizerConfigurationTests
     }
 
     [Fact]
+    public void TelemetryTweakUsesValidParameters()
+    {
+        var service = CreateService();
+        var telemetry = service.GetTweak("telemetry-level");
+
+        var enableParams = telemetry.EnableOperation?.Parameters;
+        Assert.NotNull(enableParams);
+        Assert.True(enableParams!.ContainsKey("Level"));
+        Assert.False(enableParams.ContainsKey("TelemetryLevel"));
+
+        var disableParams = telemetry.DisableOperation?.Parameters;
+        Assert.NotNull(disableParams);
+        Assert.True(disableParams!.ContainsKey("RevertToWindowsDefault"));
+    }
+
+    [Fact]
     public void GamingPresetBuildPlanCoversAllChangedTweaks()
     {
         var service = CreateService();

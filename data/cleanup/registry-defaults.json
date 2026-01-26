@@ -177,7 +177,7 @@
         "enable": {
           "script": "automation/registry/set-telemetry-level.ps1",
           "parameters": {
-            "TelemetryLevel": 1
+            "Level": "Security"
           }
         },
         "disable": {
