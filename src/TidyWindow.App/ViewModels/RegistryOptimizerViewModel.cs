@@ -8,6 +8,7 @@ using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.VisualBasic.Devices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using TidyWindow.App.Services;
@@ -160,6 +161,14 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
                 tweak.GetTargetParameterOverrides(),
                 tweak.GetBaselineParameterOverrides()))
             .ToImmutableArray();
+
+        if (!TryRunPreflight(selections, out var preflightError))
+        {
+            LastOperationSummary = preflightError;
+            _activityLog.LogWarning("Registry", preflightError);
+            _mainViewModel.SetStatusMessage(preflightError);
+            return;
+        }
 
         // Build plans off the UI thread to keep the page responsive when many tweaks are selected.
         var plan = await Task.Run(() => _registryService.BuildPlan(selections)).ConfigureAwait(true);
@@ -398,6 +407,36 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
 
         UpdatePresetCustomizationState();
+    }
+
+    private bool TryRunPreflight(IReadOnlyList<RegistrySelection> selections, out string error)
+    {
+        const double minimumRamGb = 16d;
+
+        var targetsDisablePagingExecutive = selections.Any(selection =>
+            string.Equals(selection.TweakId, "disable-paging-executive", StringComparison.OrdinalIgnoreCase)
+            && selection.TargetState);
+
+        if (targetsDisablePagingExecutive)
+        {
+            try
+            {
+                var info = new ComputerInfo();
+                var totalRamGb = info.TotalPhysicalMemory / 1024d / 1024d / 1024d;
+                if (totalRamGb < minimumRamGb)
+                {
+                    error = $"Skip 'Keep kernel in RAM' on systems with under {minimumRamGb:0} GB (detected {totalRamGb:0.#} GB).";
+                    return false;
+                }
+            }
+            catch
+            {
+                // If we cannot read memory, fall through and allow apply.
+            }
+        }
+
+        error = string.Empty;
+        return true;
     }
 
     private void UpdatePresetCustomizationState()

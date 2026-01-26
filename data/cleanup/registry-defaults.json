@@ -1028,6 +1028,708 @@
           }
         }
       }
+    },
+    {
+      "id": "file-visibility",
+      "name": "Show extensions and hidden files",
+      "category": "File Explorer",
+      "summary": "Shows file extensions and hidden items to reduce spoofing risk and ease troubleshooting.",
+      "riskLevel": "Safe",
+      "icon": "📁",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-file-visibility.ps1",
+          "parameters": {
+            "ShowExtensions": true,
+            "ShowHidden": true,
+            "ShowProtected": false
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-file-visibility.ps1",
+          "parameters": {
+            "RevertToWindowsDefaults": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+            "valueName": "HideFileExt",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          },
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+            "valueName": "Hidden",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          },
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced",
+            "valueName": "ShowSuperHidden",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "classic-context-menu",
+      "name": "Classic context menu (Win11)",
+      "category": "Startup & shell",
+      "summary": "Restores the classic right-click menu on Windows 11.",
+      "riskLevel": "Moderate",
+      "icon": "🖱️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/toggle-classic-context-menu.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/toggle-classic-context-menu.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": []
+      }
+    },
+    {
+      "id": "start-promos",
+      "name": "Hide Start/lock screen promos",
+      "category": "Privacy",
+      "summary": "Disables suggested apps and promotional content in Start and lock screen.",
+      "riskLevel": "Safe",
+      "icon": "🧹",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-start-promos.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-start-promos.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+            "valueName": "SystemPaneSuggestionsEnabled",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          },
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\ContentDeliveryManager",
+            "valueName": "SubscribedContent-338388Enabled",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "search-web-results",
+      "name": "Disable web results in search",
+      "category": "Privacy",
+      "summary": "Keeps Start/Search queries local and turns off search highlights web content.",
+      "riskLevel": "Safe",
+      "icon": "🔍",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-search-web-results.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-search-web-results.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Policies\\Microsoft\\Windows\\Explorer",
+            "valueName": "DisableSearchBoxSuggestions",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          },
+          {
+            "hive": "HKCU",
+            "key": "Software\\Policies\\Microsoft\\Windows\\Windows Search",
+            "valueName": "EnableDynamicContentInWSB",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "advertising-id",
+      "name": "Disable advertising ID",
+      "category": "Privacy",
+      "summary": "Turns off the per-user advertising identifier and related tracking toggles.",
+      "riskLevel": "Safe",
+      "icon": "🛡️",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-advertising-id.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-advertising-id.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\AdvertisingInfo",
+            "valueName": "Enabled",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\AdvertisingInfo",
+            "valueName": "DisabledByGroupPolicy",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "consumer-experiences",
+      "name": "Disable consumer experience",
+      "category": "Privacy",
+      "summary": "Blocks Spotlight/consumer content and suggested apps system-wide.",
+      "riskLevel": "Moderate",
+      "icon": "🚫",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-consumer-experiences.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-consumer-experiences.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+            "valueName": "DisableWindowsConsumerFeatures",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\CloudContent",
+            "valueName": "DisableWindowsSpotlightFeatures",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "shared-experiences",
+      "name": "Disable shared experiences",
+      "category": "Privacy",
+      "summary": "Turns off cross-device sharing and nearby features backed by CDP.",
+      "riskLevel": "Moderate",
+      "icon": "📡",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-shared-experiences.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-shared-experiences.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\System",
+            "valueName": "EnableCdp",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          },
+          {
+            "hive": "HKCU",
+            "key": "Software\\Microsoft\\Windows\\CurrentVersion\\CDP",
+            "valueName": "CdpSessionUserAuthzPolicy",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "driver-updates",
+      "name": "Block driver updates via WU",
+      "category": "Reliability",
+      "summary": "Excludes drivers from Windows Update to avoid surprise device regressions.",
+      "riskLevel": "Moderate",
+      "icon": "🧭",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/block-driver-updates.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/block-driver-updates.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate",
+            "valueName": "ExcludeWUDriversInQualityUpdate",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "remote-assistance",
+      "name": "Disable Remote Assistance",
+      "category": "Security",
+      "summary": "Turns off unsolicited Remote Assistance invitations.",
+      "riskLevel": "Safe",
+      "icon": "🛑",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-remote-assistance.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-remote-assistance.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\Remote Assistance",
+            "valueName": "fAllowToGetHelp",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "smb1-client",
+      "name": "Disable SMB1 client",
+      "category": "Security",
+      "summary": "Turns off the legacy SMB1 client stack when present.",
+      "riskLevel": "Moderate",
+      "icon": "📦",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-smb1-client.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-smb1-client.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Services\\LanmanWorkstation\\Parameters",
+            "valueName": "SMB1",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "game-mode",
+      "name": "Ensure Game Mode",
+      "category": "Performance & gaming",
+      "summary": "Keeps Game Mode enabled via policy for consistent scheduling behaviour.",
+      "riskLevel": "Safe",
+      "icon": "🎮",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-game-mode.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-game-mode.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\GameBar",
+            "valueName": "AllowAutoGameMode",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "hags",
+      "name": "Hardware GPU scheduling",
+      "category": "Performance & gaming",
+      "summary": "Toggles Hardware Accelerated GPU Scheduling (HwSchMode).",
+      "riskLevel": "Advanced",
+      "icon": "🖥️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/toggle-hags.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/toggle-hags.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers",
+            "valueName": "HwSchMode",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "disable-paging-executive",
+      "name": "Keep kernel in RAM",
+      "category": "Performance & gaming",
+      "summary": "Sets DisablePagingExecutive=1 to avoid paging kernel code (best for 16GB+ RAM).",
+      "riskLevel": "Advanced",
+      "icon": "🧠",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/toggle-disable-paging-executive.ps1",
+          "parameters": {
+            "Enable": true
+          }
+        },
+        "disable": {
+          "script": "automation/registry/toggle-disable-paging-executive.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Memory Management",
+            "valueName": "DisablePagingExecutive",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "mouse-queue-size",
+      "name": "Trim mouse queue size",
+      "category": "Input & devices",
+      "summary": "Sets MouseDataQueueSize to tighten buffering for snappier cursor movement.",
+      "riskLevel": "Moderate",
+      "icon": "🖱️",
+      "defaultState": false,
+      "constraints": {
+        "type": "range",
+        "min": 16,
+        "max": 50,
+        "default": 32
+      },
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-mouse-queue-size.ps1",
+          "parameters": {
+            "MouseDataQueueSize": 32
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-mouse-queue-size.ps1",
+          "parameters": {
+            "Revert": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SYSTEM\\CurrentControlSet\\Services\\mouclass\\Parameters",
+            "valueName": "MouseDataQueueSize",
+            "valueType": "DWord",
+            "supportsCustomValue": true,
+            "recommendedValue": 32
+          }
+        ]
+      }
+    },
+    {
+      "id": "keyboard-delay",
+      "name": "Zero keyboard repeat delay",
+      "category": "Input & devices",
+      "summary": "Sets KeyboardDelay to 0 for instant key repeat start.",
+      "riskLevel": "Safe",
+      "icon": "⌨️",
+      "defaultState": false,
+      "constraints": {
+        "type": "range",
+        "min": 0,
+        "max": 3,
+        "default": 0
+      },
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-keyboard-delay.ps1",
+          "parameters": {
+            "KeyboardDelay": 0
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-keyboard-delay.ps1",
+          "parameters": {
+            "Revert": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Keyboard",
+            "valueName": "KeyboardDelay",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "mmcss-games-category",
+      "name": "Games MMCSS scheduling",
+      "category": "Performance & gaming",
+      "summary": "Sets Games MMCSS profile to High scheduling category with GPU Priority 8.",
+      "riskLevel": "Advanced",
+      "icon": "🎚️",
+      "defaultState": false,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/set-mmcss-games-category.ps1",
+          "parameters": {
+            "SchedulingCategory": "High",
+            "SfioPriority": "High",
+            "Priority": 6,
+            "GpuPriority": 8
+          }
+        },
+        "disable": {
+          "script": "automation/registry/set-mmcss-games-category.ps1",
+          "parameters": {
+            "Revert": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+            "valueName": "Scheduling Category",
+            "valueType": "String",
+            "supportsCustomValue": false,
+            "recommendedValue": "High"
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+            "valueName": "SFIO Priority",
+            "valueType": "String",
+            "supportsCustomValue": false,
+            "recommendedValue": "High"
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+            "valueName": "Priority",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 6
+          },
+          {
+            "hive": "HKLM",
+            "key": "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Multimedia\\SystemProfile\\Tasks\\Games",
+            "valueName": "GPU Priority",
+            "valueType": "DWord",
+            "supportsCustomValue": false,
+            "recommendedValue": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": "pointer-acceleration",
+      "name": "Disable pointer acceleration",
+      "category": "Input & devices",
+      "summary": "Turns off Enhance Pointer Precision for consistent mouse movement.",
+      "riskLevel": "Safe",
+      "icon": "🖲️",
+      "defaultState": true,
+      "operations": {
+        "enable": {
+          "script": "automation/registry/disable-pointer-acceleration.ps1",
+          "parameters": {
+            "Enable": true,
+            "MouseSpeed": 0,
+            "MouseThreshold1": 0,
+            "MouseThreshold2": 0
+          }
+        },
+        "disable": {
+          "script": "automation/registry/disable-pointer-acceleration.ps1",
+          "parameters": {
+            "Disable": true
+          }
+        }
+      },
+      "detection": {
+        "values": [
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Mouse",
+            "valueName": "MouseSpeed",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "0"
+          },
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Mouse",
+            "valueName": "MouseThreshold1",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "0"
+          },
+          {
+            "hive": "HKCU",
+            "key": "Control Panel\\Mouse",
+            "valueName": "MouseThreshold2",
+            "valueType": "String",
+            "supportsCustomValue": true,
+            "recommendedValue": "0"
+          }
+        ]
+      }
     }
   ],
   "presets": [
@@ -1065,7 +1767,24 @@
         "gpu-priority": false,
         "keyboard-polling": false,
         "usb-selective-suspend": false,
-        "hpet-toggle": false
+        "hpet-toggle": false,
+        "file-visibility": true,
+        "classic-context-menu": false,
+        "start-promos": true,
+        "search-web-results": true,
+        "advertising-id": true,
+        "consumer-experiences": true,
+        "shared-experiences": true,
+        "driver-updates": false,
+        "remote-assistance": true,
+        "smb1-client": true,
+        "game-mode": true,
+        "hags": false,
+        "pointer-acceleration": true,
+        "disable-paging-executive": false,
+        "mouse-queue-size": false,
+        "keyboard-delay": false,
+        "mmcss-games-category": false
       }
     },
     {
@@ -1101,7 +1820,24 @@
         "gpu-priority": true,
         "keyboard-polling": true,
         "usb-selective-suspend": true,
-        "hpet-toggle": true
+        "hpet-toggle": true,
+        "file-visibility": true,
+        "classic-context-menu": true,
+        "start-promos": true,
+        "search-web-results": true,
+        "advertising-id": true,
+        "consumer-experiences": true,
+        "shared-experiences": true,
+        "driver-updates": true,
+        "remote-assistance": true,
+        "smb1-client": true,
+        "game-mode": true,
+        "hags": true,
+        "pointer-acceleration": true,
+        "disable-paging-executive": true,
+        "mouse-queue-size": true,
+        "keyboard-delay": true,
+        "mmcss-games-category": true
       }
     },
     {
@@ -1137,7 +1873,24 @@
         "gpu-priority": false,
         "keyboard-polling": false,
         "usb-selective-suspend": false,
-        "hpet-toggle": false
+        "hpet-toggle": false,
+        "file-visibility": false,
+        "classic-context-menu": false,
+        "start-promos": false,
+        "search-web-results": false,
+        "advertising-id": false,
+        "consumer-experiences": false,
+        "shared-experiences": false,
+        "driver-updates": false,
+        "remote-assistance": false,
+        "smb1-client": false,
+        "game-mode": false,
+        "hags": false,
+        "pointer-acceleration": false,
+        "disable-paging-executive": false,
+        "mouse-queue-size": false,
+        "keyboard-delay": false,
+        "mmcss-games-category": false
       }
     },
     {
@@ -1173,7 +1926,24 @@
         "gpu-priority": true,
         "keyboard-polling": true,
         "usb-selective-suspend": true,
-        "hpet-toggle": true
+        "hpet-toggle": true,
+        "file-visibility": true,
+        "classic-context-menu": true,
+        "start-promos": true,
+        "search-web-results": true,
+        "advertising-id": true,
+        "consumer-experiences": true,
+        "shared-experiences": true,
+        "driver-updates": true,
+        "remote-assistance": true,
+        "smb1-client": true,
+        "game-mode": true,
+        "hags": true,
+        "pointer-acceleration": true,
+        "disable-paging-executive": true,
+        "mouse-queue-size": true,
+        "keyboard-delay": true,
+        "mmcss-games-category": true
       }
     },
     {
@@ -1209,7 +1979,24 @@
         "gpu-priority": false,
         "keyboard-polling": false,
         "usb-selective-suspend": false,
-        "hpet-toggle": false
+        "hpet-toggle": false,
+        "file-visibility": true,
+        "classic-context-menu": false,
+        "start-promos": true,
+        "search-web-results": true,
+        "advertising-id": true,
+        "consumer-experiences": true,
+        "shared-experiences": true,
+        "driver-updates": false,
+        "remote-assistance": true,
+        "smb1-client": true,
+        "game-mode": true,
+        "hags": false,
+        "pointer-acceleration": true,
+        "disable-paging-executive": false,
+        "mouse-queue-size": false,
+        "keyboard-delay": true,
+        "mmcss-games-category": false
       }
     },
     {
@@ -1245,7 +2032,24 @@
         "gpu-priority": false,
         "keyboard-polling": false,
         "usb-selective-suspend": false,
-        "hpet-toggle": false
+        "hpet-toggle": false,
+        "file-visibility": true,
+        "classic-context-menu": false,
+        "start-promos": true,
+        "search-web-results": true,
+        "advertising-id": true,
+        "consumer-experiences": true,
+        "shared-experiences": true,
+        "driver-updates": false,
+        "remote-assistance": false,
+        "smb1-client": true,
+        "game-mode": true,
+        "hags": false,
+        "pointer-acceleration": true,
+        "disable-paging-executive": false,
+        "mouse-queue-size": false,
+        "keyboard-delay": true,
+        "mmcss-games-category": false
       }
     }
   ]
