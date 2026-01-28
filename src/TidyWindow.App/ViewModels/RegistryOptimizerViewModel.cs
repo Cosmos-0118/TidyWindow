@@ -134,8 +134,30 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     [RelayCommand(CanExecute = nameof(CanApply))]
     private async Task ApplyAsync()
     {
-        if (!HasPendingChanges)
+        var selectedPreset = SelectedPreset;
+
+        var hasAppliedSnapshot = _registryPreferenceService.HasAppliedSnapshot();
+        var appliedPresetId = _registryPreferenceService.GetAppliedPresetId();
+
+        var presetAlreadyApplied = selectedPreset is not null
+            && hasAppliedSnapshot
+            && _registryPreferenceService.AppliedStatesMatch(selectedPreset.States)
+            && string.Equals(appliedPresetId, selectedPreset.Id, StringComparison.OrdinalIgnoreCase);
+
+        var forcePresetReplay = selectedPreset is not null
+            && !presetAlreadyApplied
+            && (!hasAppliedSnapshot || string.IsNullOrWhiteSpace(appliedPresetId) || !string.Equals(appliedPresetId, selectedPreset.Id, StringComparison.OrdinalIgnoreCase));
+
+        if (!HasPendingChanges && !forcePresetReplay)
         {
+            if (presetAlreadyApplied && selectedPreset is not null)
+            {
+                var skipMessage = $"Preset '{selectedPreset.Name}' already applied; nothing to change.";
+                LastOperationSummary = skipMessage;
+                _activityLog.LogInformation("Registry", skipMessage);
+                _mainViewModel.SetStatusMessage("Preset already applied.");
+            }
+
             return;
         }
 
@@ -149,10 +171,39 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         }
 
         var pendingTweaks = Tweaks.Where(t => t.HasPendingChanges).ToList();
+
+        if (!forcePresetReplay && selectedPreset is not null && hasAppliedSnapshot)
+        {
+            forcePresetReplay = string.IsNullOrWhiteSpace(appliedPresetId)
+                || !string.Equals(appliedPresetId, selectedPreset.Id, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if (forcePresetReplay && selectedPreset is not null)
+        {
+            var presetTweaks = Tweaks.Where(tweak => selectedPreset.TryGetState(tweak.Id, out _));
+            pendingTweaks = pendingTweaks
+                .Concat(presetTweaks)
+                .DistinctBy(t => t.Id)
+                .ToList();
+        }
+
         if (pendingTweaks.Count == 0)
         {
             UpdatePendingChanges();
             UpdateValidationState();
+
+            if (presetAlreadyApplied && selectedPreset is not null)
+            {
+                var skipMessage = $"Preset '{selectedPreset.Name}' already applied; nothing to change.";
+                LastOperationSummary = skipMessage;
+                _activityLog.LogInformation("Registry", skipMessage);
+                _mainViewModel.SetStatusMessage("Preset already applied.");
+                return;
+            }
+
+            LastOperationSummary = $"No registry scripts required ({DateTime.Now:t}).";
+            _activityLog.LogInformation("Registry", LastOperationSummary);
+            _mainViewModel.SetStatusMessage("Registry tweaks already in desired state.");
             return;
         }
 
@@ -227,7 +278,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
                     tweak.SupportsCustomValue && tweak.CustomValueIsValid ? tweak.CustomValue?.Trim() : null));
             }
 
-            _registryPreferenceService.SetAppliedStates(appliedStates, DateTimeOffset.UtcNow);
+            _registryPreferenceService.SetAppliedStates(appliedStates, DateTimeOffset.UtcNow, selectedPreset?.Id);
 
             UpdatePendingChanges();
             UpdateValidationState();
@@ -404,6 +455,19 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private void UpdatePendingChanges()
     {
         var pending = Tweaks.Any(tweak => tweak.HasPendingChanges);
+
+        if (!pending && SelectedPreset is not null)
+        {
+            var hasAppliedSnapshot = _registryPreferenceService.HasAppliedSnapshot();
+            var appliedPresetId = _registryPreferenceService.GetAppliedPresetId();
+            var presetMatch = hasAppliedSnapshot && _registryPreferenceService.AppliedStatesMatch(SelectedPreset.States);
+
+            if (!presetMatch || string.IsNullOrWhiteSpace(appliedPresetId) || !string.Equals(appliedPresetId, SelectedPreset.Id, StringComparison.OrdinalIgnoreCase))
+            {
+                pending = true;
+            }
+        }
+
         if (HasPendingChanges != pending)
         {
             HasPendingChanges = pending;
@@ -1405,6 +1469,8 @@ public sealed class RegistryPresetViewModel
     public string Icon => string.IsNullOrWhiteSpace(_definition.Icon) ? "🧰" : _definition.Icon;
 
     public bool IsDefault => _definition.IsDefault;
+
+    public IReadOnlyDictionary<string, bool> States => _definition.States;
 
     public bool TryGetState(string tweakId, out bool value) => _definition.TryGetState(tweakId, out value);
 }

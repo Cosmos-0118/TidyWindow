@@ -19,6 +19,17 @@ try {
         $change = Set-RegistryValue -Path $path -Name 'ShowSecondsInSystemClock' -Value 1 -Type 'DWord'
         Register-RegistryChange -Change $change -Description 'Enabled seconds on system clock.'
         Write-RegistryOutput 'Explorer clock will show seconds.'
+
+        # Double-check the value in case the shell blocks the first attempt.
+        $observed = Get-ItemProperty -LiteralPath (Resolve-RegistryUserPath -Path $path) -Name 'ShowSecondsInSystemClock' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ShowSecondsInSystemClock -ErrorAction SilentlyContinue
+        if ($observed -ne 1) {
+            Write-RegistryOutput 'Retrying clock-seconds flag via reg.exe fallback.'
+            & reg.exe add 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced' /v ShowSecondsInSystemClock /t REG_DWORD /d 1 /f | Out-Null
+            $observed = Get-ItemProperty -LiteralPath (Resolve-RegistryUserPath -Path $path) -Name 'ShowSecondsInSystemClock' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty ShowSecondsInSystemClock -ErrorAction SilentlyContinue
+            if ($observed -ne 1) {
+                throw "Unable to persist ShowSecondsInSystemClock (observed '$observed')."
+            }
+        }
     }
     else {
         $change = Set-RegistryValue -Path $path -Name 'ShowSecondsInSystemClock' -Value 0 -Type 'DWord'

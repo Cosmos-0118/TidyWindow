@@ -25,6 +25,7 @@ public sealed class RegistryPreferenceService
     private Dictionary<string, bool> _appliedStates;
     private Dictionary<string, string> _appliedCustomValues;
     private DateTimeOffset? _lastAppliedUtc;
+    private string? _appliedPresetId;
     private string? _selectedPresetId;
 
     public RegistryPreferenceService()
@@ -170,6 +171,11 @@ public sealed class RegistryPreferenceService
 
     public void SetAppliedStates(IEnumerable<RegistryAppliedState> appliedStates, DateTimeOffset appliedAtUtc)
     {
+        SetAppliedStates(appliedStates, appliedAtUtc, null);
+    }
+
+    public void SetAppliedStates(IEnumerable<RegistryAppliedState> appliedStates, DateTimeOffset appliedAtUtc, string? appliedPresetId)
+    {
         if (appliedStates is null)
         {
             return;
@@ -197,7 +203,50 @@ public sealed class RegistryPreferenceService
             }
 
             _lastAppliedUtc = appliedAtUtc;
+            _appliedPresetId = string.IsNullOrWhiteSpace(appliedPresetId) ? null : appliedPresetId.Trim();
             SaveToDiskLocked();
+        }
+    }
+
+    public bool HasAppliedSnapshot()
+    {
+        lock (_syncRoot)
+        {
+            return _appliedStates.Count > 0 || _lastAppliedUtc.HasValue;
+        }
+    }
+
+    public string? GetAppliedPresetId()
+    {
+        lock (_syncRoot)
+        {
+            return _appliedPresetId;
+        }
+    }
+
+    public bool AppliedStatesMatch(IReadOnlyDictionary<string, bool> targetStates)
+    {
+        if (targetStates is null)
+        {
+            return false;
+        }
+
+        lock (_syncRoot)
+        {
+            if (_appliedStates.Count == 0)
+            {
+                return false;
+            }
+
+            foreach (var pair in targetStates)
+            {
+                if (!_appliedStates.TryGetValue(pair.Key, out var appliedState) || appliedState != pair.Value)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
@@ -265,6 +314,11 @@ public sealed class RegistryPreferenceService
                 _lastAppliedUtc = model.LastAppliedUtc.Value;
             }
 
+            if (!string.IsNullOrWhiteSpace(model.AppliedPresetId))
+            {
+                _appliedPresetId = model.AppliedPresetId;
+            }
+
             if (!string.IsNullOrWhiteSpace(model.SelectedPresetId))
             {
                 _selectedPresetId = model.SelectedPresetId;
@@ -277,6 +331,7 @@ public sealed class RegistryPreferenceService
             _appliedStates = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
             _appliedCustomValues = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             _lastAppliedUtc = null;
+            _appliedPresetId = null;
             _selectedPresetId = null;
         }
     }
@@ -298,6 +353,7 @@ public sealed class RegistryPreferenceService
                 AppliedStates = new Dictionary<string, bool>(_appliedStates, StringComparer.OrdinalIgnoreCase),
                 AppliedCustomValues = new Dictionary<string, string>(_appliedCustomValues, StringComparer.OrdinalIgnoreCase),
                 LastAppliedUtc = _lastAppliedUtc,
+                AppliedPresetId = _appliedPresetId,
                 SelectedPresetId = _selectedPresetId
             };
 
@@ -321,6 +377,8 @@ public sealed class RegistryPreferenceService
         public Dictionary<string, string>? AppliedCustomValues { get; set; }
 
         public DateTimeOffset? LastAppliedUtc { get; set; }
+
+        public string? AppliedPresetId { get; set; }
 
         public string? SelectedPresetId { get; set; }
     }

@@ -500,13 +500,13 @@
         "enable": {
           "script": "automation/registry/toggle-lock-workstation.ps1",
           "parameters": {
-            "EnsureEnabled": true
+            "Enable": true
           }
         },
         "disable": {
           "script": "automation/registry/toggle-lock-workstation.ps1",
           "parameters": {
-            "EnsureEnabled": false
+            "Disable": true
           }
         }
       },

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using TidyWindow.App.Infrastructure;
 using TidyWindow.App.Services;
 using TidyWindow.App.Views;
 
@@ -13,10 +14,12 @@ public sealed partial class MainViewModel : ViewModelBase
 {
     private readonly NavigationService _navigationService;
     private readonly ActivityLogService _activityLogService;
+    private readonly UiDebounceDispatcher _navigationDebounce = new(TimeSpan.FromMilliseconds(140));
     private NavigationItemViewModel? _selectedItem;
     private string _statusMessage = "Ready";
     private int _loadingOperations;
     private object? _titleBarContent;
+    private bool _suppressSelectionNavigation;
 
     public MainViewModel(NavigationService navigationService, ActivityLogService activityLogService)
     {
@@ -54,7 +57,12 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             if (SetProperty(ref _selectedItem, value) && value is not null)
             {
-                NavigateTo(value);
+                if (_suppressSelectionNavigation)
+                {
+                    return;
+                }
+
+                NavigateTo(value, useDebounce: true);
             }
         }
     }
@@ -121,7 +129,7 @@ public sealed partial class MainViewModel : ViewModelBase
         var target = NavigationItems.FirstOrDefault(item => item.PageType == pageType);
         if (target is not null)
         {
-            SelectedItem = target;
+            SetSelectedItem(target, navigateImmediately: true);
         }
     }
 
@@ -135,15 +143,36 @@ public sealed partial class MainViewModel : ViewModelBase
 
         if (SelectedItem is null)
         {
-            SelectedItem = NavigationItems.First();
+            SetSelectedItem(NavigationItems.First(), navigateImmediately: true);
         }
         else
         {
-            NavigateTo(SelectedItem);
+            NavigateTo(SelectedItem, useDebounce: false);
         }
     }
 
-    private void NavigateTo(NavigationItemViewModel item)
+    private void SetSelectedItem(NavigationItemViewModel item, bool navigateImmediately)
+    {
+        _suppressSelectionNavigation = true;
+        SelectedItem = item;
+        _suppressSelectionNavigation = false;
+
+        NavigateTo(item, useDebounce: !navigateImmediately);
+    }
+
+    private void NavigateTo(NavigationItemViewModel item, bool useDebounce)
+    {
+        if (useDebounce)
+        {
+            _navigationDebounce.Schedule(() => NavigateInternal(item));
+            return;
+        }
+
+        _navigationDebounce.Schedule(() => NavigateInternal(item));
+        _navigationDebounce.Flush();
+    }
+
+    private void NavigateInternal(NavigationItemViewModel item)
     {
         if (!_navigationService.IsInitialized)
         {
