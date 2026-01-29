@@ -22,7 +22,7 @@ using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.ViewModels;
 
-public sealed partial class ProcessPreferencesViewModel : ViewModelBase
+public sealed partial class ProcessPreferencesViewModel : ViewModelBase, IDisposable
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
     {
@@ -41,6 +41,7 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
     private readonly ObservableCollection<ProcessPreferenceSegmentViewModel> _segments = new();
     private bool _hasPromptedFirstRunQuestionnaire;
     private bool _suspendAutomationStateUpdates;
+    private bool _disposed;
 
     public ProcessPreferencesViewModel(
         MainViewModel mainViewModel,
@@ -76,6 +77,18 @@ public sealed partial class ProcessPreferencesViewModel : ViewModelBase
         LoadAutomationSettings(_autoStopEnforcer.CurrentSettings);
 
         _ = RefreshProcessPreferencesAsync();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _autoStopEnforcer.SettingsChanged -= OnAutoStopSettingsChanged;
+        _relativeTimeTicker.Tick -= OnRelativeTimeTick;
     }
 
     public ICollectionView ProcessEntriesView { get; }

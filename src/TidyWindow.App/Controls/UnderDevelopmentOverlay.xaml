@@ -1,0 +1,99 @@
+<UserControl x:Class="TidyWindow.App.Controls.UnderDevelopmentOverlay"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DesignHeight="600"
+             d:DesignWidth="800">
+    <!--
+    ╔═══════════════════════════════════════════════════════════════════════════╗
+    ║  UNDER DEVELOPMENT OVERLAY                                                 ║
+    ║                                                                            ║
+    ║  To ENABLE this overlay on a page:                                         ║
+    ║    1. Add xmlns:ux="clr-namespace:TidyWindow.App.Controls" to the Page    ║
+    ║    2. Wrap your page content in a Grid                                     ║
+    ║    3. Add <ux:UnderDevelopmentOverlay /> as the last child of the Grid    ║
+    ║                                                                            ║
+    ║  To DISABLE/REMOVE this overlay:                                           ║
+    ║    Simply delete or comment out the <ux:UnderDevelopmentOverlay /> tag    ║
+    ║                                                                            ║
+    ║  Or set IsEnabled="False" on this control to hide it temporarily          ║
+    ╚═══════════════════════════════════════════════════════════════════════════╝
+    -->
+    <Grid>
+        <!-- Semi-transparent backdrop -->
+        <Border Background="#E8050A18"
+                IsHitTestVisible="True" />
+
+        <!-- Centered content card -->
+        <Border HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Background="#0F1B2E"
+                BorderBrush="#2A3F5F"
+                BorderThickness="1"
+                CornerRadius="16"
+                Padding="48,40"
+                MaxWidth="500">
+            <Border.Effect>
+                <DropShadowEffect Color="#000000"
+                                  BlurRadius="40"
+                                  ShadowDepth="0"
+                                  Opacity="0.6" />
+            </Border.Effect>
+
+            <StackPanel HorizontalAlignment="Center">
+                <!-- Construction icon -->
+                <Border Width="72"
+                        Height="72"
+                        Background="#1A2D47"
+                        CornerRadius="36"
+                        HorizontalAlignment="Center"
+                        Margin="0,0,0,24">
+                    <TextBlock Text="🚧"
+                               FontSize="32"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Border>
+
+                <!-- Title -->
+                <TextBlock Text="Under Development"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           Foreground="#F5F7FF"
+                           HorizontalAlignment="Center"
+                           Margin="0,0,0,12" />
+
+                <!-- Description -->
+                <TextBlock Text="This feature is currently being improved and will be available soon. We're working hard to make it even better!"
+                           FontSize="14"
+                           Foreground="#9CA3AF"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           MaxWidth="380"
+                           LineHeight="22"
+                           Margin="0,0,0,24" />
+
+                <!-- Status badge -->
+                <Border Background="#1E3A5F"
+                        BorderBrush="#2E5A8F"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="16,8"
+                        HorizontalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="8"
+                                 Height="8"
+                                 Fill="#FBBF24"
+                                 Margin="0,0,8,0"
+                                 VerticalAlignment="Center" />
+                        <TextBlock Text="Bug fixes in progress"
+                                   FontSize="13"
+                                   Foreground="#7DD3FC"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </Border>
+    </Grid>
+</UserControl>

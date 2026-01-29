@@ -58,6 +58,7 @@ public partial class PathPilotPage : Page
     {
         _viewModel.PageChanged -= OnPageChanged;
         _viewModel.Deactivate();
+        _runtimesScrollViewer = null;
     }
 
     private void OnPageChanged(object? sender, EventArgs e)

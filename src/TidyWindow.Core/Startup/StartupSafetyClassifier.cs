@@ -148,6 +148,15 @@ public static class StartupSafetyClassifier
         var publisher = (item.Publisher ?? string.Empty).Trim();
         var exePath = NormalizePath(item.ExecutablePath);
 
+        // New high-impact startup types are always considered system-critical due to their nature
+        if (item.SourceKind is StartupItemSourceKind.Winlogon
+            or StartupItemSourceKind.BootExecute
+            or StartupItemSourceKind.AppInitDll
+            or StartupItemSourceKind.ImageFileExecutionOptions)
+        {
+            return true;
+        }
+
         // Anything running directly from core Windows folders is considered critical.
         if (!string.IsNullOrWhiteSpace(exePath) && IsUnderSystemPath(exePath))
         {

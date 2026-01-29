@@ -68,8 +68,10 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
     private bool _canHorizontallyScroll;
     private bool _canVerticallyScroll = true;
     private double _averageRowHeight = DefaultRowHeight;
+    private double _rowHeightSum;
     private LayoutResult _lastLayout;
     private bool _hasLayout;
+    private bool _unloadedHandlerAttached;
 
     public double MinColumnWidth
     {
@@ -158,8 +160,15 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
         _viewport = new WpfSize(viewportWidth, viewportHeight);
 
         var itemCount = _itemsOwner.HasItems ? _itemsOwner.Items.Count : 0;
-        var range = GetRealizationRange(layout, itemCount);
+        var isVirtualizing = ScrollOwner is not null && GetIsVirtualizing();
+        var range = isVirtualizing
+            ? GetRealizationRange(layout, itemCount)
+            : (FirstIndex: 0, LastIndex: itemCount - 1, IsEmpty: itemCount == 0);
         CleanUpItems(range.FirstIndex, range.LastIndex);
+        if (isVirtualizing && !range.IsEmpty && layout.Columns > 0)
+        {
+            TrimRowHeightCache(range.FirstIndex, range.LastIndex, layout.Columns);
+        }
         if (!range.IsEmpty)
         {
             RealizeRange(range.FirstIndex, range.LastIndex, layout);
@@ -168,7 +177,11 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
         UpdateExtent(layout, itemCount);
         ScrollOwner?.InvalidateScrollInfo();
 
-        return new WpfSize(viewportWidth, Math.Min(_extent.Height, viewportHeight));
+        var desiredHeight = isVirtualizing
+            ? Math.Min(_extent.Height, viewportHeight)
+            : _extent.Height;
+
+        return new WpfSize(viewportWidth, desiredHeight);
     }
 
     protected override WpfSize ArrangeOverride(WpfSize finalSize)
@@ -319,11 +332,45 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
     {
         _childIndexLookup.Clear();
         _rowHeightCache.Clear();
+        _rowHeightSum = 0d;
         _offset = default;
         _averageRowHeight = DefaultRowHeight;
         _extent = default;
         _viewport = default;
         _hasLayout = false;
+    }
+
+    /// <summary>
+    /// Clears all cached state and releases the ScrollOwner reference.
+    /// Called when the panel is removed from the visual tree to prevent memory leaks.
+    /// </summary>
+    private void ReleaseResources()
+    {
+        ResetLayoutState();
+        _itemsOwner = null;
+        ScrollOwner = null;
+    }
+
+    protected override void OnVisualParentChanged(DependencyObject oldParent)
+    {
+        base.OnVisualParentChanged(oldParent);
+
+        if (VisualParent is null)
+        {
+            // Panel is being removed from the visual tree - release all resources
+            ReleaseResources();
+        }
+        else if (!_unloadedHandlerAttached)
+        {
+            // Attach Unloaded handler as additional safety net
+            Unloaded += OnPanelUnloaded;
+            _unloadedHandlerAttached = true;
+        }
+    }
+
+    private void OnPanelUnloaded(object sender, RoutedEventArgs e)
+    {
+        ReleaseResources();
     }
 
     private (int FirstIndex, int LastIndex, bool IsEmpty) GetRealizationRange(LayoutResult layout, int itemCount)
@@ -481,20 +528,20 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
         var sanitizedHeight = Math.Max(MinRowHeight, height);
         if (_rowHeightCache.TryGetValue(row, out var existing))
         {
-            sanitizedHeight = Math.Max(existing, sanitizedHeight);
+            if (sanitizedHeight <= existing)
+            {
+                return;
+            }
+
+            _rowHeightSum -= existing;
         }
 
         _rowHeightCache[row] = sanitizedHeight;
-
-        var sum = 0d;
-        foreach (var value in _rowHeightCache.Values)
-        {
-            sum += value;
-        }
+        _rowHeightSum += sanitizedHeight;
 
         if (_rowHeightCache.Count > 0)
         {
-            _averageRowHeight = Math.Max(MinRowHeight, sum / _rowHeightCache.Count);
+            _averageRowHeight = Math.Max(MinRowHeight, _rowHeightSum / _rowHeightCache.Count);
         }
     }
 
@@ -510,13 +557,60 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
             return 0;
         }
 
-        var offset = 0d;
-        for (var i = 0; i < row; i++)
+        var estimatedHeight = GetEstimatedRowHeight();
+        var offset = row * (estimatedHeight + RowSpacing);
+
+        foreach (var entry in _rowHeightCache)
         {
-            offset += GetRowHeight(i) + RowSpacing;
+            if (entry.Key >= row)
+            {
+                continue;
+            }
+
+            offset += entry.Value - estimatedHeight;
         }
 
         return offset;
+    }
+
+    private void TrimRowHeightCache(int firstIndex, int lastIndex, int columns)
+    {
+        if (_rowHeightCache.Count == 0 || columns <= 0 || lastIndex < firstIndex)
+        {
+            return;
+        }
+
+        var firstRow = firstIndex / columns;
+        var lastRow = lastIndex / columns;
+        var minRowToKeep = Math.Max(0, firstRow - CacheRowCount * 2);
+        var maxRowToKeep = lastRow + CacheRowCount * 2;
+
+        var rowsToRemove = new List<int>();
+        foreach (var row in _rowHeightCache.Keys)
+        {
+            if (row < minRowToKeep || row > maxRowToKeep)
+            {
+                rowsToRemove.Add(row);
+            }
+        }
+
+        foreach (var row in rowsToRemove)
+        {
+            if (_rowHeightCache.TryGetValue(row, out var height))
+            {
+                _rowHeightCache.Remove(row);
+                _rowHeightSum -= height;
+            }
+        }
+
+        if (_rowHeightCache.Count == 0)
+        {
+            _averageRowHeight = DefaultRowHeight;
+        }
+        else
+        {
+            _averageRowHeight = Math.Max(MinRowHeight, _rowHeightSum / _rowHeightCache.Count);
+        }
     }
 
     private void UpdateExtent(LayoutResult layout, int itemCount)
@@ -708,6 +802,11 @@ public sealed class VirtualizingAdaptiveTilePanel : VirtualizingPanel, IScrollIn
     private static object CoercePadding(DependencyObject d, object baseValue)
     {
         return baseValue is Thickness thickness ? thickness : default(Thickness);
+    }
+
+    private bool GetIsVirtualizing()
+    {
+        return VirtualizingPanel.GetIsVirtualizing(this) || VirtualizingPanel.GetIsVirtualizingWhenGrouping(this);
     }
 
     private static bool AreClose(double left, double right)

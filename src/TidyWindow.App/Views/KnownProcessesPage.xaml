@@ -1337,7 +1337,7 @@
     </ScrollViewer>
 
     <Grid Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-          Background="#B30E1A33"
+          Background="#B30B1629"
           Panel.ZIndex="20">
         <Border HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -1346,30 +1346,14 @@
                 CornerRadius="14"
                 BorderBrush="#1F2E46"
                 BorderThickness="1">
-            <StackPanel>
-                <ProgressBar Width="220"
-                             Height="8"
-                             Minimum="0"
-                             Maximum="100"
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <ProgressBar Width="200"
+                             Height="10"
+                             IsIndeterminate="True"
                              Foreground="#38BDF8"
                              Background="#102A43"
-                             BorderBrush="#1F2E46"
-                             BorderThickness="1">
-                    <ProgressBar.Resources>
-                        <Storyboard x:Key="ProcessesOverlayMarqueeAnimation" RepeatBehavior="Forever">
-                            <DoubleAnimation Storyboard.TargetProperty="Value"
-                                             From="0"
-                                             To="100"
-                                             Duration="0:0:1.6"
-                                             AutoReverse="True" />
-                        </Storyboard>
-                    </ProgressBar.Resources>
-                    <ProgressBar.Triggers>
-                        <EventTrigger RoutedEvent="Loaded">
-                            <BeginStoryboard Storyboard="{StaticResource ProcessesOverlayMarqueeAnimation}" />
-                        </EventTrigger>
-                    </ProgressBar.Triggers>
-                </ProgressBar>
+                             BorderBrush="#1F2E46" />
                 <TextBlock Margin="0,10,0,0"
                            Text="Working on processes..."
                            Foreground="#E5E7EB"

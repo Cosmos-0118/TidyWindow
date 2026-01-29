@@ -30,11 +30,21 @@ try {
                 throw "Unable to persist ShowSecondsInSystemClock (observed '$observed')."
             }
         }
+
+        # Restart Explorer to apply the UI change
+        Write-RegistryOutput 'Restarting explorer to apply clock seconds display.'
+        Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 500
     }
     else {
         $change = Set-RegistryValue -Path $path -Name 'ShowSecondsInSystemClock' -Value 0 -Type 'DWord'
         Register-RegistryChange -Change $change -Description 'Disabled seconds on system clock.'
         Write-RegistryOutput 'Explorer clock seconds hidden.'
+
+        # Restart Explorer to apply the UI change
+        Write-RegistryOutput 'Restarting explorer to apply clock seconds display.'
+        Stop-Process -Name explorer -Force -ErrorAction SilentlyContinue
+        Start-Sleep -Milliseconds 500
     }
 }
 catch {

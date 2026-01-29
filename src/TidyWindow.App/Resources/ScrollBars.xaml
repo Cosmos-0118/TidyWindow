@@ -163,13 +163,9 @@
                                                                                         ScaleX="1"
                                                                                         ScaleY="1"/>
                                                 </Grid.RenderTransform>
-                                                <Grid.Effect>
-                                                        <DropShadowEffect x:Name="ThumbShadow"
-                                                                                          BlurRadius="14"
-                                                                                          Color="#5AD6FF"
-                                                                                          ShadowDepth="0"
-                                                                                          Opacity="0"/>
-                                                </Grid.Effect>
+                                                <Grid.CacheMode>
+                                                        <BitmapCache EnableClearType="True"/>
+                                                </Grid.CacheMode>
                                                 <Border x:Name="Glow"
                                                                 Background="{StaticResource ScrollBar.ThumbGlowBrush}"
                                                                 CornerRadius="8"
@@ -237,11 +233,6 @@
                                                                                                                  To="1.2"
                                                                                                                  Duration="0:0:0.2"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
-                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
-                                                                                                                 Storyboard.TargetProperty="Opacity"
-                                                                                                                 To="0.55"
-                                                                                                                 Duration="0:0:0.22"
-                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                         </Storyboard>
                                                                 </BeginStoryboard>
                                                         </Trigger.EnterActions>
@@ -278,11 +269,6 @@
                                                                                                                  Storyboard.TargetProperty="StrokeThickness"
                                                                                                                  To="0.85"
                                                                                                                  Duration="0:0:0.18"
-                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
-                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
-                                                                                                                 Storyboard.TargetProperty="Opacity"
-                                                                                                                 To="0"
-                                                                                                                 Duration="0:0:0.2"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                         </Storyboard>
                                                                 </BeginStoryboard>
@@ -330,11 +316,6 @@
                                                                                                                  To="1.35"
                                                                                                                  Duration="0:0:0.18"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
-                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
-                                                                                                                 Storyboard.TargetProperty="Opacity"
-                                                                                                                 To="0.75"
-                                                                                                                 Duration="0:0:0.18"
-                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                         </Storyboard>
                                                                 </BeginStoryboard>
                                                         </Trigger.EnterActions>
@@ -371,11 +352,6 @@
                                                                                                                  To="1.2"
                                                                                                                  Duration="0:0:0.2"
                                                                                                                  EasingFunction="{StaticResource ScrollBarEase}"/>
-                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
-                                                                                                                 Storyboard.TargetProperty="Opacity"
-                                                                                                                 To="0.55"
-                                                                                                                 Duration="0:0:0.22"
-                                                                                                                 EasingFunction="{StaticResource ScrollBarEase}"/>
                                                                         </Storyboard>
                                                                 </BeginStoryboard>
                                                         </Trigger.ExitActions>
@@ -393,10 +369,6 @@
                                                                                                                  To="0"
                                                                                                                  Duration="0:0:0.1"/>
                                                                                 <DoubleAnimation Storyboard.TargetName="Shimmer"
-                                                                                                                 Storyboard.TargetProperty="Opacity"
-                                                                                                                 To="0"
-                                                                                                                 Duration="0:0:0.1"/>
-                                                                                <DoubleAnimation Storyboard.TargetName="ThumbShadow"
                                                                                                                  Storyboard.TargetProperty="Opacity"
                                                                                                                  To="0"
                                                                                                                  Duration="0:0:0.1"/>

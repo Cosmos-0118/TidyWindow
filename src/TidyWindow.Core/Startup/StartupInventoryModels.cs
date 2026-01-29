@@ -11,7 +11,14 @@ public enum StartupItemSourceKind
     StartupFolder = 3,
     ScheduledTask = 4,
     Service = 5,
-    PackagedTask = 6
+    PackagedTask = 6,
+    Winlogon = 7,
+    ActiveSetup = 8,
+    ShellFolder = 9,
+    ExplorerRun = 10,
+    AppInitDll = 11,
+    ImageFileExecutionOptions = 12,
+    BootExecute = 13
 }
 
 public enum StartupSignatureStatus

@@ -215,7 +215,18 @@ public partial class StartupControllerPage : Page
             return;
         }
 
-        if (!_includeRun && (entry.Item.SourceKind == StartupItemSourceKind.RunKey || entry.Item.SourceKind == StartupItemSourceKind.RunOnce))
+        // Group Run keys and similar registry-based startup types together
+        var isRunType = entry.Item.SourceKind is StartupItemSourceKind.RunKey
+            or StartupItemSourceKind.RunOnce
+            or StartupItemSourceKind.Winlogon
+            or StartupItemSourceKind.ActiveSetup
+            or StartupItemSourceKind.ExplorerRun
+            or StartupItemSourceKind.AppInitDll
+            or StartupItemSourceKind.ImageFileExecutionOptions
+            or StartupItemSourceKind.BootExecute
+            or StartupItemSourceKind.ShellFolder;
+
+        if (!_includeRun && isRunType)
         {
             e.Accepted = false;
             return;

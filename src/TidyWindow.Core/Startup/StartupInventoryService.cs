@@ -72,6 +72,15 @@ public sealed class StartupInventoryService
         ExecuteSafe(() => EnumeratePackagedStartupTasks(effectiveOptions, items, warnings, cancellationToken), warnings, "Packaged startup tasks");
         ExecuteSafe(() => AppendStartupApprovedOrphans(effectiveOptions, items, warnings, cancellationToken), warnings, "StartupApproved orphans");
 
+        // Additional hidden/legacy startup locations
+        ExecuteSafe(() => EnumerateWinlogonEntries(effectiveOptions, items, warnings, cancellationToken), warnings, "Winlogon entries");
+        ExecuteSafe(() => EnumerateActiveSetup(effectiveOptions, items, warnings, cancellationToken), warnings, "Active Setup");
+        ExecuteSafe(() => EnumerateShellFolders(effectiveOptions, items, warnings, cancellationToken), warnings, "Shell folders");
+        ExecuteSafe(() => EnumerateExplorerRun(effectiveOptions, items, warnings, cancellationToken), warnings, "Explorer Run");
+        ExecuteSafe(() => EnumerateAppInitDlls(effectiveOptions, items, warnings, cancellationToken), warnings, "AppInit_DLLs");
+        ExecuteSafe(() => EnumerateImageFileExecutionOptions(effectiveOptions, items, warnings, cancellationToken), warnings, "Image File Execution Options");
+        ExecuteSafe(() => EnumerateBootExecute(effectiveOptions, items, warnings, cancellationToken), warnings, "Boot Execute");
+
         AppendDelayWarnings(items, warnings);
 
         return new StartupInventorySnapshot(items, warnings, DateTimeOffset.UtcNow, warnings.Count > 0);
@@ -1240,4 +1249,569 @@ public sealed class StartupInventoryService
     {
         public static FileMetadata Unknown { get; } = new(null, StartupSignatureStatus.Unknown, null, null);
     }
+
+    #region Additional Startup Locations
+
+    /// <summary>
+    /// Enumerates Winlogon Shell, Userinit, and related entries that run at logon.
+    /// These are commonly hijacked by malware.
+    /// </summary>
+    private static void EnumerateWinlogonEntries(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        // HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon
+        var winlogonPath = @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon";
+        var winlogonValues = new[] { "Shell", "Userinit", "Taskman" };
+
+        EnumerateWinlogonKey(Registry.LocalMachine, winlogonPath, winlogonValues, "HKLM Winlogon", items, warnings, cancellationToken);
+        EnumerateWinlogonKey(Registry.CurrentUser, winlogonPath, winlogonValues, "HKCU Winlogon", items, warnings, cancellationToken);
+
+        // Also check WOW6432Node
+        var winlogonPath32 = @"SOFTWARE\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Winlogon";
+        EnumerateWinlogonKey(Registry.LocalMachine, winlogonPath32, winlogonValues, "HKLM Winlogon (32-bit)", items, warnings, cancellationToken);
+    }
+
+    private static void EnumerateWinlogonKey(RegistryKey root, string subKey, string[] valueNames, string sourceTag, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            foreach (var valueName in valueNames)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var raw = key.GetValue(valueName)?.ToString();
+                if (string.IsNullOrWhiteSpace(raw))
+                {
+                    continue;
+                }
+
+                // Winlogon values can contain multiple comma-separated entries
+                var entries = raw.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+                for (var i = 0; i < entries.Length; i++)
+                {
+                    var entry = entries[i].Trim();
+                    if (string.IsNullOrWhiteSpace(entry))
+                    {
+                        continue;
+                    }
+
+                    // Skip default Windows values
+                    if (valueName == "Shell" && entry.Equals("explorer.exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    if (valueName == "Userinit" && entry.EndsWith("userinit.exe", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+
+                    var (exe, args) = ParseCommand(entry);
+                    if (string.IsNullOrWhiteSpace(exe))
+                    {
+                        continue;
+                    }
+
+                    var metadata = InspectFile(exe);
+                    var id = $"winlogon:{sourceTag}:{valueName}#{i}";
+                    var name = Path.GetFileName(exe) ?? entry;
+
+                    items.Add(new StartupItem(
+                        id,
+                        name,
+                        exe,
+                        StartupItemSourceKind.Winlogon,
+                        $"{sourceTag} ({valueName})",
+                        args,
+                        entry,
+                        true, // Winlogon entries are always "enabled" if present
+                        $"{GetRootName(root)}\\{subKey}",
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        StartupImpact.High, // Winlogon entries have high impact
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        root == Registry.LocalMachine ? "Machine" : "CurrentUser"));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Winlogon enumeration failed for {sourceTag}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Active Setup entries. These run once per user on first logon.
+    /// </summary>
+    private static void EnumerateActiveSetup(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunOnce)
+        {
+            return;
+        }
+
+        var activeSetupPath = @"SOFTWARE\Microsoft\Active Setup\Installed Components";
+        EnumerateActiveSetupKey(Registry.LocalMachine, activeSetupPath, "HKLM Active Setup", items, warnings, cancellationToken);
+        EnumerateActiveSetupKey(Registry.CurrentUser, activeSetupPath, "HKCU Active Setup", items, warnings, cancellationToken);
+
+        // 32-bit on 64-bit OS
+        var activeSetupPath32 = @"SOFTWARE\Wow6432Node\Microsoft\Active Setup\Installed Components";
+        EnumerateActiveSetupKey(Registry.LocalMachine, activeSetupPath32, "HKLM Active Setup (32-bit)", items, warnings, cancellationToken);
+    }
+
+    private static void EnumerateActiveSetupKey(RegistryKey root, string subKey, string sourceTag, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            foreach (var componentGuid in key.GetSubKeyNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                using var componentKey = key.OpenSubKey(componentGuid, writable: false);
+                if (componentKey is null)
+                {
+                    continue;
+                }
+
+                var stubPath = componentKey.GetValue("StubPath")?.ToString();
+                if (string.IsNullOrWhiteSpace(stubPath))
+                {
+                    continue;
+                }
+
+                var isEnabled = componentKey.GetValue("IsInstalled");
+                if (isEnabled is int installed && installed == 0)
+                {
+                    continue; // Disabled
+                }
+
+                var (exe, args) = ParseCommand(stubPath);
+                if (string.IsNullOrWhiteSpace(exe))
+                {
+                    continue;
+                }
+
+                var metadata = InspectFile(exe);
+                var displayName = componentKey.GetValue(null)?.ToString() ?? componentKey.GetValue("(Default)")?.ToString() ?? componentGuid;
+                var id = $"activesetup:{componentGuid}";
+
+                items.Add(new StartupItem(
+                    id,
+                    displayName,
+                    exe,
+                    StartupItemSourceKind.ActiveSetup,
+                    sourceTag,
+                    args,
+                    stubPath,
+                    true, // Active Setup entries run once per user
+                    $"{GetRootName(root)}\\{subKey}\\{componentGuid}",
+                    metadata.Publisher,
+                    metadata.SignatureStatus,
+                    StartupImpact.Medium,
+                    metadata.FileSizeBytes,
+                    metadata.LastWriteTimeUtc,
+                    root == Registry.LocalMachine ? "Machine" : "CurrentUser"));
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Active Setup enumeration failed for {sourceTag}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Shell Folders (user shell startup locations specified in registry).
+    /// </summary>
+    private static void EnumerateShellFolders(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeStartupFolders)
+        {
+            return;
+        }
+
+        // Check for custom Startup folder paths that differ from defaults
+        var shellFolderPaths = new[]
+        {
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders", "Startup"),
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders", "Startup"),
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders", "Common Startup"),
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders", "Common Startup")
+        };
+
+        foreach (var (path, valueName) in shellFolderPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(path, writable: false);
+                var folderPath = key?.GetValue(valueName)?.ToString();
+                if (string.IsNullOrWhiteSpace(folderPath))
+                {
+                    continue;
+                }
+
+                // Expand environment variables
+                folderPath = Environment.ExpandEnvironmentVariables(folderPath);
+
+                // Skip if this is the standard startup folder (already enumerated)
+                var userStartup = Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+                var commonStartup = Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+                if (folderPath.Equals(userStartup, StringComparison.OrdinalIgnoreCase) ||
+                    folderPath.Equals(commonStartup, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Check for non-standard startup folder hijacking
+                if (Directory.Exists(folderPath))
+                {
+                    var id = $"shellfolder:{path}:{valueName}";
+                    var isMachineScope = valueName.Contains("Common", StringComparison.OrdinalIgnoreCase);
+
+                    items.Add(new StartupItem(
+                        id,
+                        $"Custom Shell Folder: {valueName}",
+                        folderPath,
+                        StartupItemSourceKind.ShellFolder,
+                        "Custom Shell Folder",
+                        null,
+                        folderPath,
+                        true,
+                        $"HKCU\\{path}",
+                        null,
+                        StartupSignatureStatus.Unknown,
+                        StartupImpact.High, // Non-standard shell folders are suspicious
+                        null,
+                        null,
+                        isMachineScope ? "Machine" : "CurrentUser"));
+                }
+            }
+            catch
+            {
+                // Non-fatal, continue to next path
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Explorer Run and RunOnce entries (separate from standard Run keys).
+    /// </summary>
+    private static void EnumerateExplorerRun(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        // Explorer-specific Run keys that run in the context of Explorer shell
+        var explorerRunPaths = new[]
+        {
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Run", "HKCU Explorer Run"),
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\RunOnce", "HKCU Explorer RunOnce")
+        };
+
+        foreach (var (path, sourceTag) in explorerRunPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(path, writable: false);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                foreach (var valueName in key.GetValueNames())
+                {
+                    var raw = key.GetValue(valueName)?.ToString();
+                    if (string.IsNullOrWhiteSpace(raw))
+                    {
+                        continue;
+                    }
+
+                    var (exe, args) = ParseCommand(raw);
+                    if (string.IsNullOrWhiteSpace(exe))
+                    {
+                        continue;
+                    }
+
+                    var metadata = InspectFile(exe);
+                    var id = $"explorer:{sourceTag}:{valueName}";
+                    var name = string.IsNullOrWhiteSpace(valueName) ? Path.GetFileName(exe) ?? sourceTag : valueName;
+
+                    items.Add(new StartupItem(
+                        id,
+                        name,
+                        exe,
+                        StartupItemSourceKind.ExplorerRun,
+                        sourceTag,
+                        args,
+                        raw,
+                        true,
+                        $"HKCU\\{path}",
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        StartupImpact.Medium,
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        "CurrentUser"));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Explorer Run enumeration failed for {sourceTag}: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates AppInit_DLLs entries. These DLLs are loaded into every process that uses User32.dll.
+    /// Very high impact and commonly exploited.
+    /// </summary>
+    private static void EnumerateAppInitDlls(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        var appInitPaths = new[]
+        {
+            (@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Windows", false),
+            (@"SOFTWARE\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Windows", true)
+        };
+
+        foreach (var (path, is32Bit) in appInitPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(path, writable: false);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                var loadAppInit = key.GetValue("LoadAppInit_DLLs");
+                if (loadAppInit is not int loadValue || loadValue == 0)
+                {
+                    continue; // AppInit_DLLs loading is disabled
+                }
+
+                var appInitDlls = key.GetValue("AppInit_DLLs")?.ToString();
+                if (string.IsNullOrWhiteSpace(appInitDlls))
+                {
+                    continue;
+                }
+
+                // AppInit_DLLs can contain multiple space or comma-separated DLLs
+                var dlls = appInitDlls.Split(new[] { ' ', ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+                for (var i = 0; i < dlls.Length; i++)
+                {
+                    var dll = dlls[i].Trim().Trim('"');
+                    if (string.IsNullOrWhiteSpace(dll))
+                    {
+                        continue;
+                    }
+
+                    var metadata = InspectFile(dll);
+                    var sourceTag = is32Bit ? "AppInit_DLLs (32-bit)" : "AppInit_DLLs";
+                    var id = $"appinit:{path}#{i}";
+
+                    items.Add(new StartupItem(
+                        id,
+                        Path.GetFileName(dll) ?? dll,
+                        dll,
+                        StartupItemSourceKind.AppInitDll,
+                        sourceTag,
+                        null,
+                        dll,
+                        true,
+                        $"HKLM\\{path}",
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        StartupImpact.High, // AppInit_DLLs have very high impact
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        "Machine"));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"AppInit_DLLs enumeration failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Image File Execution Options debugger entries.
+    /// Can be used to hijack process execution.
+    /// </summary>
+    private static void EnumerateImageFileExecutionOptions(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        var ifeoPaths = new[]
+        {
+            @"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options",
+            @"SOFTWARE\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options"
+        };
+
+        foreach (var path in ifeoPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(path, writable: false);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                foreach (var imageName in key.GetSubKeyNames())
+                {
+                    using var imageKey = key.OpenSubKey(imageName, writable: false);
+                    if (imageKey is null)
+                    {
+                        continue;
+                    }
+
+                    var debugger = imageKey.GetValue("Debugger")?.ToString();
+                    if (string.IsNullOrWhiteSpace(debugger))
+                    {
+                        continue;
+                    }
+
+                    var (exe, args) = ParseCommand(debugger);
+                    if (string.IsNullOrWhiteSpace(exe))
+                    {
+                        continue;
+                    }
+
+                    var metadata = InspectFile(exe);
+                    var sourceTag = path.Contains("Wow6432Node") ? "IFEO Debugger (32-bit)" : "IFEO Debugger";
+                    var id = $"ifeo:{imageName}";
+
+                    items.Add(new StartupItem(
+                        id,
+                        $"{imageName} Debugger",
+                        exe,
+                        StartupItemSourceKind.ImageFileExecutionOptions,
+                        sourceTag,
+                        args,
+                        debugger,
+                        true,
+                        $"HKLM\\{path}\\{imageName}",
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        StartupImpact.High, // IFEO debuggers can hijack any process
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        "Machine"));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"IFEO enumeration failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Boot Execute entries. These run very early in the boot process.
+    /// </summary>
+    private static void EnumerateBootExecute(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager", writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            var bootExecute = key.GetValue("BootExecute") as string[];
+            if (bootExecute is null || bootExecute.Length == 0)
+            {
+                return;
+            }
+
+            for (var i = 0; i < bootExecute.Length; i++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var entry = bootExecute[i];
+                if (string.IsNullOrWhiteSpace(entry))
+                {
+                    continue;
+                }
+
+                // Skip the default autocheck entry
+                if (entry.Equals("autocheck autochk *", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var (exe, args) = ParseCommand(entry);
+                if (string.IsNullOrWhiteSpace(exe))
+                {
+                    exe = entry;
+                }
+
+                var id = $"bootexec:{i}";
+
+                items.Add(new StartupItem(
+                    id,
+                    $"Boot Execute: {exe}",
+                    exe,
+                    StartupItemSourceKind.BootExecute,
+                    "Boot Execute",
+                    args,
+                    entry,
+                    true,
+                    @"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager",
+                    null,
+                    StartupSignatureStatus.Unknown,
+                    StartupImpact.High, // Boot Execute runs before Windows fully loads
+                    null,
+                    null,
+                    "Machine"));
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Boot Execute enumeration failed: {ex.Message}");
+        }
+    }
+
+    #endregion
 }

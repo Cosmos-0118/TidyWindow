@@ -202,7 +202,7 @@ public sealed partial class CleanupLockProcessViewModel : ObservableObject
     }
 }
 
-public sealed partial class CleanupViewModel : ViewModelBase
+public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
 {
     private readonly CleanupService _cleanupService;
     private readonly MainViewModel _mainViewModel;
@@ -236,6 +236,7 @@ public sealed partial class CleanupViewModel : ViewModelBase
     private LockInspectionSampleStats _lastLockInspectionStats = new(0, 0, 0);
     private DateTime? _minimumAgeThresholdUtc;
     private bool _suspendAutomationStateUpdates;
+    private bool _disposed;
 
     public CleanupViewModel(
         CleanupService cleanupService,
@@ -758,6 +759,50 @@ public sealed partial class CleanupViewModel : ViewModelBase
     public bool HasCelebrationFailures => CelebrationFailures.Count > 0;
 
     public bool HasCelebrationCategories => CelebrationCategories.Count > 0;
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        _cleanupAutomationScheduler.SettingsChanged -= OnCleanupAutomationSettingsChanged;
+        _relativeTimeTicker.Tick -= OnRelativeTimeTick;
+        _previewPagingController.StateChanged -= OnPreviewPagingStateChanged;
+        _extensionFilterModel.PropertyChanged -= OnExtensionFilterPropertyChanged;
+        _extensionFilterModel.FilterChanged -= OnExtensionFilterChanged;
+
+        CelebrationFailures.CollectionChanged -= OnCelebrationFailuresCollectionChanged;
+        _pendingDeletionCategories.CollectionChanged -= OnPendingDeletionCategoriesCollectionChanged;
+        _celebrationCategories.CollectionChanged -= OnCelebrationCategoriesCollectionChanged;
+        LockingProcesses.CollectionChanged -= OnLockingProcessesCollectionChanged;
+
+        foreach (var process in LockingProcesses)
+        {
+            process.PropertyChanged -= OnLockingProcessPropertyChanged;
+        }
+
+        foreach (var group in Targets)
+        {
+            group.SelectionChanged -= OnGroupSelectionChanged;
+            group.ItemsChanged -= OnGroupItemsChanged;
+        }
+
+        _refreshToastCancellation?.Cancel();
+        _refreshToastCancellation?.Dispose();
+        _refreshToastCancellation = null;
+
+        _phaseTransitionCancellation?.Cancel();
+        _phaseTransitionCancellation?.Dispose();
+        _phaseTransitionCancellation = null;
+
+        _lockInspectionCancellation?.Cancel();
+        _lockInspectionCancellation?.Dispose();
+        _lockInspectionCancellation = null;
+    }
 
     public bool CanReviewCelebrationReport => !string.IsNullOrWhiteSpace(CelebrationReportPath) && File.Exists(CelebrationReportPath);
 

@@ -306,6 +306,7 @@
                     Padding="0">
                 <Frame x:Name="ContentFrame"
                        NavigationUIVisibility="Hidden"
+                       JournalOwnership="OwnsJournal"
                        Margin="0"
                        Background="{DynamicResource SurfaceBrush}"/>
             </Border>

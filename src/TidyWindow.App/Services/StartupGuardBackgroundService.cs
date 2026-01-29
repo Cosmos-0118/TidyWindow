@@ -4,17 +4,20 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using Microsoft.Win32;
 using TidyWindow.Core.Startup;
 
 namespace TidyWindow.App.Services;
 
 /// <summary>
-/// Lightweight background loop that re-disables guarded startup items when they are re-enabled externally.
+/// Robust background service that ensures guarded startup items stay disabled.
+/// Uses both periodic polling and registry watchers for comprehensive coverage.
 /// </summary>
 public sealed class StartupGuardBackgroundService : IDisposable
 {
-    private static readonly TimeSpan DefaultInitialDelay = TimeSpan.FromSeconds(20);
-    private static readonly TimeSpan DefaultScanInterval = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan DefaultInitialDelay = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan DefaultScanInterval = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan RapidScanInterval = TimeSpan.FromSeconds(30);
 
     private readonly StartupInventoryService _inventory;
     private readonly StartupControlService _control;
@@ -29,6 +32,11 @@ public sealed class StartupGuardBackgroundService : IDisposable
     private Task? _loopTask;
     private int _scanInFlight;
     private bool _disposed;
+    private int _consecutiveViolations;
+    private DateTime _lastScanTime = DateTime.MinValue;
+
+    // Registry watchers for real-time detection
+    private readonly List<RegistryMonitor> _registryMonitors = new();
 
     public StartupGuardBackgroundService(
         StartupInventoryService inventory,
@@ -61,6 +69,20 @@ public sealed class StartupGuardBackgroundService : IDisposable
         EvaluateLoopState(_preferences.Current);
     }
 
+    /// <summary>
+    /// Gets the number of consecutive violations detected. Higher numbers indicate
+    /// persistent applications that keep re-enabling themselves.
+    /// </summary>
+    public int ConsecutiveViolations => _consecutiveViolations;
+
+    /// <summary>
+    /// Force an immediate scan for violations, regardless of the regular schedule.
+    /// </summary>
+    public async Task ForceScanAsync(CancellationToken cancellationToken = default)
+    {
+        await RunOnceAsync(cancellationToken, terminateProcesses: true).ConfigureAwait(false);
+    }
+
     public void Dispose()
     {
         if (_disposed)
@@ -70,6 +92,7 @@ public sealed class StartupGuardBackgroundService : IDisposable
 
         _disposed = true;
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.RemoveHandler(_preferences, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
+        StopRegistryMonitors();
         StopLoop();
     }
 
@@ -88,9 +111,11 @@ public sealed class StartupGuardBackgroundService : IDisposable
         if (ShouldRun(preferences))
         {
             StartLoop();
+            StartRegistryMonitors();
         }
         else
         {
+            StopRegistryMonitors();
             StopLoop();
         }
     }
@@ -148,6 +173,91 @@ public sealed class StartupGuardBackgroundService : IDisposable
         }
     }
 
+    private void StartRegistryMonitors()
+    {
+        lock (_gate)
+        {
+            if (_registryMonitors.Count > 0)
+            {
+                return; // Already running
+            }
+
+            // Monitor key startup locations for changes
+            var monitorPaths = new[]
+            {
+                (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Run"),
+                (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\RunOnce"),
+                (Registry.CurrentUser, @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run"),
+                (Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Run"),
+                (Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\RunOnce"),
+                (Registry.LocalMachine, @"Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run")
+            };
+
+            foreach (var (root, path) in monitorPaths)
+            {
+                try
+                {
+                    var monitor = new RegistryMonitor(root, path);
+                    monitor.RegistryChanged += OnRegistryChanged;
+                    monitor.Start();
+                    _registryMonitors.Add(monitor);
+                }
+                catch
+                {
+                    // Non-fatal: fall back to polling only
+                }
+            }
+        }
+    }
+
+    private void StopRegistryMonitors()
+    {
+        lock (_gate)
+        {
+            foreach (var monitor in _registryMonitors)
+            {
+                try
+                {
+                    monitor.RegistryChanged -= OnRegistryChanged;
+                    monitor.Dispose();
+                }
+                catch
+                {
+                    // Suppress disposal exceptions
+                }
+            }
+
+            _registryMonitors.Clear();
+        }
+    }
+
+    private void OnRegistryChanged(object? sender, EventArgs e)
+    {
+        // Registry changed - trigger immediate scan if not already in flight
+        if (_cts is null || _cts.Token.IsCancellationRequested)
+        {
+            return;
+        }
+
+        // Debounce: don't trigger if we just scanned
+        if (DateTime.UtcNow - _lastScanTime < TimeSpan.FromSeconds(5))
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RunOnceAsync(_cts?.Token ?? CancellationToken.None, terminateProcesses: true).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Suppress
+            }
+        });
+    }
+
     private async Task RunLoopAsync(CancellationToken cancellationToken)
     {
         try
@@ -161,11 +271,14 @@ public sealed class StartupGuardBackgroundService : IDisposable
 
         while (!cancellationToken.IsCancellationRequested)
         {
-            await RunOnceAsync(cancellationToken).ConfigureAwait(false);
+            var violationsFound = await RunOnceAsync(cancellationToken, terminateProcesses: true).ConfigureAwait(false);
+
+            // If violations keep occurring, use faster scan interval
+            var interval = _consecutiveViolations > 2 ? RapidScanInterval : _scanInterval;
 
             try
             {
-                await Task.Delay(_scanInterval, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(interval, cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -174,19 +287,24 @@ public sealed class StartupGuardBackgroundService : IDisposable
         }
     }
 
-    private async Task RunOnceAsync(CancellationToken cancellationToken)
+    private async Task<bool> RunOnceAsync(CancellationToken cancellationToken, bool terminateProcesses = false)
     {
         if (Interlocked.Exchange(ref _scanInFlight, 1) == 1)
         {
-            return;
+            return false;
         }
+
+        var foundViolations = false;
 
         try
         {
+            _lastScanTime = DateTime.UtcNow;
+
             var guardIds = _guard.GetAll();
             if (guardIds.Count == 0)
             {
-                return;
+                _consecutiveViolations = 0;
+                return false;
             }
 
             var guardSet = new HashSet<string>(guardIds, StringComparer.OrdinalIgnoreCase);
@@ -197,8 +315,12 @@ public sealed class StartupGuardBackgroundService : IDisposable
 
             if (candidates.Count == 0)
             {
-                return;
+                _consecutiveViolations = 0;
+                return false;
             }
+
+            foundViolations = true;
+            _consecutiveViolations++;
 
             foreach (var item in candidates)
             {
@@ -206,13 +328,23 @@ public sealed class StartupGuardBackgroundService : IDisposable
 
                 try
                 {
-                    var result = await _control.DisableAsync(item, cancellationToken).ConfigureAwait(false);
+                    // Use the new overload that can terminate running processes
+                    var result = await _control.DisableAsync(item, terminateProcesses, cancellationToken).ConfigureAwait(false);
+
                     if (result.Succeeded)
                     {
+                        var severity = _consecutiveViolations > 3 ? "critical" : "warning";
                         _activityLog.LogWarning(
                             "StartupGuard",
-                            $"Auto-disabled guarded startup entry: {result.Item.Name}",
-                            new object?[] { result.Item.Id, result.Item.SourceKind.ToString(), result.Item.EntryLocation ?? string.Empty });
+                            $"Auto-disabled guarded startup entry ({severity}): {result.Item.Name} (violation #{_consecutiveViolations})",
+                            new object?[]
+                            {
+                                result.Item.Id,
+                                result.Item.SourceKind.ToString(),
+                                result.Item.EntryLocation ?? string.Empty,
+                                _consecutiveViolations,
+                                terminateProcesses ? "processes terminated" : "processes not terminated"
+                            });
                     }
                     else
                     {
@@ -239,6 +371,8 @@ public sealed class StartupGuardBackgroundService : IDisposable
         {
             Interlocked.Exchange(ref _scanInFlight, 0);
         }
+
+        return foundViolations;
     }
 
     private static TimeSpan NormalizeDelay(TimeSpan delay)
@@ -249,5 +383,125 @@ public sealed class StartupGuardBackgroundService : IDisposable
     private static TimeSpan NormalizeInterval(TimeSpan interval)
     {
         return interval <= TimeSpan.Zero ? TimeSpan.FromMinutes(2) : interval;
+    }
+}
+
+/// <summary>
+/// Simple registry change monitor using RegNotifyChangeKeyValue.
+/// </summary>
+internal sealed class RegistryMonitor : IDisposable
+{
+    private readonly RegistryKey _rootKey;
+    private readonly string _subKeyPath;
+    private readonly ManualResetEvent _stopEvent = new(false);
+    private readonly AutoResetEvent _changeEvent = new(false);
+    private Thread? _monitorThread;
+    private RegistryKey? _openedKey;
+    private bool _disposed;
+
+    public event EventHandler? RegistryChanged;
+
+    public RegistryMonitor(RegistryKey rootKey, string subKeyPath)
+    {
+        _rootKey = rootKey ?? throw new ArgumentNullException(nameof(rootKey));
+        _subKeyPath = subKeyPath ?? throw new ArgumentNullException(nameof(subKeyPath));
+    }
+
+    public void Start()
+    {
+        if (_monitorThread is not null)
+        {
+            return;
+        }
+
+        _openedKey = _rootKey.OpenSubKey(_subKeyPath, writable: false);
+        if (_openedKey is null)
+        {
+            return; // Key doesn't exist, nothing to monitor
+        }
+
+        _monitorThread = new Thread(MonitorThread)
+        {
+            IsBackground = true,
+            Name = $"RegistryMonitor_{_subKeyPath}"
+        };
+        _monitorThread.Start();
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+        _stopEvent.Set();
+        _monitorThread?.Join(TimeSpan.FromSeconds(2));
+        _openedKey?.Dispose();
+        _stopEvent.Dispose();
+        _changeEvent.Dispose();
+    }
+
+    private void MonitorThread()
+    {
+        var handles = new WaitHandle[] { _stopEvent, _changeEvent };
+
+        while (!_disposed)
+        {
+            try
+            {
+                if (_openedKey is null)
+                {
+                    return;
+                }
+
+                // Use P/Invoke to call RegNotifyChangeKeyValue
+                var result = NativeMethods.RegNotifyChangeKeyValue(
+                    _openedKey.Handle,
+                    watchSubtree: true,
+                    notifyFilter: NativeMethods.REG_NOTIFY_CHANGE_LAST_SET | NativeMethods.REG_NOTIFY_CHANGE_NAME,
+                    eventHandle: _changeEvent.SafeWaitHandle,
+                    asynchronous: true);
+
+                if (result != 0)
+                {
+                    return; // Failed to register, exit thread
+                }
+
+                var waitResult = WaitHandle.WaitAny(handles, TimeSpan.FromSeconds(30));
+
+                if (waitResult == 0)
+                {
+                    return; // Stop event signaled
+                }
+
+                if (waitResult == 1)
+                {
+                    // Registry changed
+                    RegistryChanged?.Invoke(this, EventArgs.Empty);
+                }
+
+                // Timeout or spurious wake - just loop again
+            }
+            catch
+            {
+                return; // Exit on any error
+            }
+        }
+    }
+
+    private static class NativeMethods
+    {
+        public const int REG_NOTIFY_CHANGE_NAME = 0x00000001;
+        public const int REG_NOTIFY_CHANGE_LAST_SET = 0x00000004;
+
+        [System.Runtime.InteropServices.DllImport("advapi32.dll", SetLastError = true)]
+        public static extern int RegNotifyChangeKeyValue(
+            Microsoft.Win32.SafeHandles.SafeRegistryHandle hKey,
+            bool watchSubtree,
+            int notifyFilter,
+            Microsoft.Win32.SafeHandles.SafeWaitHandle eventHandle,
+            bool asynchronous);
     }
 }

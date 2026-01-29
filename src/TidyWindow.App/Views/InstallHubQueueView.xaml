@@ -34,7 +34,7 @@
                     HorizontalContentAlignment="Center"
                     PanningMode="VerticalOnly"
                     ScrollViewer.CanContentScroll="True"
-                    IsDeferredScrollingEnabled="True">
+                    IsDeferredScrollingEnabled="False">
             <ScrollViewer.CacheMode>
                 <BitmapCache EnableClearType="True"/>
             </ScrollViewer.CacheMode>
@@ -218,7 +218,7 @@
                                               ScrollViewer.VerticalScrollBarVisibility="Auto"
                                               ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                               ScrollViewer.CanContentScroll="True"
-                                              ScrollViewer.IsDeferredScrollingEnabled="True"
+                                              ScrollViewer.IsDeferredScrollingEnabled="False"
                                               VirtualizingPanel.IsVirtualizing="True"
                                               VirtualizingPanel.VirtualizationMode="Recycling"
                                               VirtualizingPanel.CacheLength="4"

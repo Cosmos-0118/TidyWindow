@@ -15,15 +15,25 @@ public static class SmoothScrollBehavior
 {
     private sealed class ScrollState
     {
+        private WeakReference<ScrollViewer>? _viewerRef;
+
         public MouseWheelEventHandler? Handler { get; set; }
-        public ScrollChangedEventHandler? ScrollChangedHandler { get; set; }
         public EventHandler? RenderingHandler { get; set; }
         public double TargetVertical { get; set; }
         public double TargetHorizontal { get; set; }
         public bool IsRendering { get; set; }
+        public bool IsAnimating { get; set; }
+        public int FramesSinceLastWheel { get; set; }
+
+        public ScrollViewer? Viewer
+        {
+            get => _viewerRef?.TryGetTarget(out var v) == true ? v : null;
+            set => _viewerRef = value is not null ? new WeakReference<ScrollViewer>(value) : null;
+        }
     }
 
     private static readonly ConditionalWeakTable<ScrollViewer, ScrollState> States = new();
+    private const int MaxIdleFrames = 3;
 
     public static readonly DependencyProperty IsEnabledProperty = DependencyProperty.RegisterAttached(
         "IsEnabled",
@@ -74,35 +84,50 @@ public static class SmoothScrollBehavior
                 return;
             }
 
+            state.Viewer = viewer;
+            state.TargetVertical = viewer.VerticalOffset;
+            state.TargetHorizontal = viewer.HorizontalOffset;
+
             MouseWheelEventHandler handler = (sender, args) => HandleMouseWheel(viewer, args);
             state.Handler = handler;
             viewer.PreviewMouseWheel += handler;
 
-            ScrollChangedEventHandler scrollChanged = (_, _) =>
-            {
-                state.TargetVertical = viewer.VerticalOffset;
-                state.TargetHorizontal = viewer.HorizontalOffset;
-            };
-            state.ScrollChangedHandler = scrollChanged;
-            viewer.ScrollChanged += scrollChanged;
-
-            state.TargetVertical = viewer.VerticalOffset;
-            state.TargetHorizontal = viewer.HorizontalOffset;
+            // Subscribe to Unloaded to clean up when the ScrollViewer is removed
+            viewer.Unloaded += OnScrollViewerUnloaded;
         }
         else if (States.TryGetValue(viewer, out var state) && state.Handler is not null)
         {
+            viewer.Unloaded -= OnScrollViewerUnloaded;
             viewer.PreviewMouseWheel -= state.Handler;
             state.Handler = null;
-
-            if (state.ScrollChangedHandler is not null)
-            {
-                viewer.ScrollChanged -= state.ScrollChangedHandler;
-                state.ScrollChangedHandler = null;
-            }
-
+            state.Viewer = null;
             StopRendering(state);
             States.Remove(viewer);
         }
+    }
+
+    private static void OnScrollViewerUnloaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ScrollViewer viewer)
+        {
+            return;
+        }
+
+        // Clean up when the ScrollViewer is unloaded to prevent memory leaks
+        if (States.TryGetValue(viewer, out var state))
+        {
+            if (state.Handler is not null)
+            {
+                viewer.PreviewMouseWheel -= state.Handler;
+                state.Handler = null;
+            }
+
+            state.Viewer = null;
+            StopRendering(state);
+            States.Remove(viewer);
+        }
+
+        viewer.Unloaded -= OnScrollViewerUnloaded;
     }
 
     private static void HandleMouseWheel(ScrollViewer viewer, MouseWheelEventArgs e)
@@ -121,47 +146,45 @@ public static class SmoothScrollBehavior
             }
         }
 
-        var hasVertical = viewer.ScrollableHeight > 0.0;
-        var hasHorizontal = viewer.ScrollableWidth > 0.0;
+        var hasVertical = viewer.ScrollableHeight > 0.5;
+        var hasHorizontal = viewer.ScrollableWidth > 0.5;
         if (!hasVertical && !hasHorizontal)
         {
             return;
         }
 
         var state = States.GetValue(viewer, static _ => new ScrollState());
+        state.FramesSinceLastWheel = 0;
+
+        // Sync target with current offset if not animating to prevent drift
+        if (!state.IsAnimating)
+        {
+            state.TargetVertical = viewer.VerticalOffset;
+            state.TargetHorizontal = viewer.HorizontalOffset;
+        }
 
         var multiplier = Math.Max(0.16, GetMultiplier(viewer));
-        var boost = 1.0 + Math.Min(1.5, Math.Abs(e.Delta) / 480d); // faster when device reports larger deltas
+        var boost = 1.0 + Math.Min(1.5, Math.Abs(e.Delta) / 480d);
         var delta = e.Delta * multiplier * boost;
 
         if ((Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && hasHorizontal) || (!hasVertical && hasHorizontal))
         {
-            var start = state.TargetHorizontal;
-            if (double.IsNaN(start) || double.IsInfinity(start))
-            {
-                start = viewer.HorizontalOffset;
-            }
-
-            var target = Clamp(start - delta, 0, viewer.ScrollableWidth);
-            if (Math.Abs(target - viewer.HorizontalOffset) > 0.05)
+            var target = Clamp(state.TargetHorizontal - delta, 0, viewer.ScrollableWidth);
+            if (Math.Abs(target - viewer.HorizontalOffset) > 0.5)
             {
                 state.TargetHorizontal = target;
+                state.IsAnimating = true;
                 StartRendering(viewer, state);
                 e.Handled = true;
             }
         }
         else if (hasVertical)
         {
-            var start = state.TargetVertical;
-            if (double.IsNaN(start) || double.IsInfinity(start))
-            {
-                start = viewer.VerticalOffset;
-            }
-
-            var target = Clamp(start - delta, 0, viewer.ScrollableHeight);
-            if (Math.Abs(target - viewer.VerticalOffset) > 0.05)
+            var target = Clamp(state.TargetVertical - delta, 0, viewer.ScrollableHeight);
+            if (Math.Abs(target - viewer.VerticalOffset) > 0.5)
             {
                 state.TargetVertical = target;
+                state.IsAnimating = true;
                 StartRendering(viewer, state);
                 e.Handled = true;
             }
@@ -175,7 +198,8 @@ public static class SmoothScrollBehavior
             return;
         }
 
-        EventHandler tick = (_, _) => Tick(viewer, state);
+        state.Viewer = viewer;
+        EventHandler tick = (_, _) => Tick(state);
         state.RenderingHandler = tick;
         CompositionTarget.Rendering += tick;
         state.IsRendering = true;
@@ -183,7 +207,7 @@ public static class SmoothScrollBehavior
 
     private static void StopRendering(ScrollState state)
     {
-        if (state.RenderingHandler is null)
+        if (!state.IsRendering || state.RenderingHandler is null)
         {
             return;
         }
@@ -191,43 +215,52 @@ public static class SmoothScrollBehavior
         CompositionTarget.Rendering -= state.RenderingHandler;
         state.RenderingHandler = null;
         state.IsRendering = false;
+        state.IsAnimating = false;
     }
 
-    private static void Tick(ScrollViewer viewer, ScrollState state)
+    private static void Tick(ScrollState state)
     {
+        var viewer = state.Viewer;
+        if (viewer is null || !viewer.IsLoaded)
+        {
+            StopRendering(state);
+            return;
+        }
+
+        state.FramesSinceLastWheel++;
+
         var vDiff = state.TargetVertical - viewer.VerticalOffset;
         var hDiff = state.TargetHorizontal - viewer.HorizontalOffset;
 
-        var vDone = Math.Abs(vDiff) < 0.1 || viewer.ScrollableHeight <= 0.0;
-        var hDone = Math.Abs(hDiff) < 0.1 || viewer.ScrollableWidth <= 0.0;
+        var vDone = Math.Abs(vDiff) < 0.5 || viewer.ScrollableHeight <= 0.5;
+        var hDone = Math.Abs(hDiff) < 0.5 || viewer.ScrollableWidth <= 0.5;
+
+        // Use a faster easing factor for more responsive feel
+        const double easingFactor = 0.38;
 
         if (!vDone)
         {
-            var step = vDiff * 0.46; // quicker easing toward target
+            var step = vDiff * easingFactor;
             viewer.ScrollToVerticalOffset(viewer.VerticalOffset + step);
         }
-        else
+        else if (viewer.ScrollableHeight > 0.5)
         {
-            if (viewer.ScrollableHeight > 0.0)
-            {
-                viewer.ScrollToVerticalOffset(state.TargetVertical);
-            }
+            viewer.ScrollToVerticalOffset(state.TargetVertical);
         }
 
         if (!hDone)
         {
-            var step = hDiff * 0.46;
+            var step = hDiff * easingFactor;
             viewer.ScrollToHorizontalOffset(viewer.HorizontalOffset + step);
         }
-        else
+        else if (viewer.ScrollableWidth > 0.5)
         {
-            if (viewer.ScrollableWidth > 0.0)
-            {
-                viewer.ScrollToHorizontalOffset(state.TargetHorizontal);
-            }
+            viewer.ScrollToHorizontalOffset(state.TargetHorizontal);
         }
 
-        if ((vDone || viewer.ScrollableHeight <= 0.0) && (hDone || viewer.ScrollableWidth <= 0.0))
+        // Stop rendering when animation is complete or after idle frames without input
+        var animationComplete = (vDone || viewer.ScrollableHeight <= 0.5) && (hDone || viewer.ScrollableWidth <= 0.5);
+        if (animationComplete || state.FramesSinceLastWheel > MaxIdleFrames)
         {
             StopRendering(state);
         }

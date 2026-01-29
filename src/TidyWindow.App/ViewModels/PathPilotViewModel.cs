@@ -192,7 +192,8 @@ public sealed partial class PathPilotViewModel : ViewModelBase, IDisposable
         IsInventoryLoading = true;
         _mainViewModel.SetStatusMessage("Scanning runtimes...");
 
-        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+        // Increased timeout from 60 to 120 seconds to accommodate slower systems with slow disk/network drives
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(120));
         using var linkedCts = CreateLinkedCancellationSource(timeoutCts.Token);
         ReplaceInventoryCancellation(linkedCts);
 

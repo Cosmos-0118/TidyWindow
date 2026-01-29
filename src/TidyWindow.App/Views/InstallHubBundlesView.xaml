@@ -85,9 +85,12 @@
                                  Background="Transparent"
                                  BorderThickness="0"
                                  Padding="0"
-                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                  ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 VirtualizingPanel.CacheLength="2"
                                  infra:ScrollHost.BubbleParentScroll="True">
                             <ListBox.Style>
                                 <Style TargetType="ListBox">
@@ -101,10 +104,7 @@
                             </ListBox.Style>
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <ux:AdaptiveTilePanel MinColumnWidth="280"
-                                                          MaxColumnWidth="420"
-                                                          ColumnSpacing="24"
-                                                          RowSpacing="24"/>
+                                    <ux:AdaptiveTilePanel MinColumnWidth="340" MaxColumnWidth="520" ColumnSpacing="16" RowSpacing="16" />
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
                             <ListBox.ItemContainerStyle>

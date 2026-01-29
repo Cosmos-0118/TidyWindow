@@ -422,7 +422,11 @@
                                               ItemsSource="{Binding CatalogPagePackages}"
                                               Foreground="{StaticResource InstallTextPrimaryBrush}"
                                               Loaded="OnCatalogItemsLoaded"
-                                              SizeChanged="OnCatalogItemsSizeChanged">
+                                              SizeChanged="OnCatalogItemsSizeChanged"
+                                              VirtualizingPanel.IsVirtualizing="True"
+                                              VirtualizingPanel.VirtualizationMode="Recycling"
+                                              VirtualizingPanel.CacheLength="1"
+                                              ScrollViewer.CanContentScroll="True">
                                     <ItemsControl.Style>
                                         <Style TargetType="ItemsControl">
                                             <Setter Property="Visibility" Value="Visible"/>
@@ -435,11 +439,12 @@
                                     </ItemsControl.Style>
                                     <ItemsControl.ItemsPanel>
                                         <ItemsPanelTemplate>
-                                            <ux:AdaptiveTilePanel MinColumnWidth="280"
-                                                                  MaxColumnWidth="420"
-                                                                  ColumnSpacing="18"
-                                                                  RowSpacing="18"
-                                                                  Padding="12,0,12,18"/>
+                                            <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="320"
+                                                                             MaxColumnWidth="520"
+                                                                             MinColumns="1"
+                                                                             MaxColumns="3"
+                                                                             ColumnSpacing="18"
+                                                                             RowSpacing="18" />
                                         </ItemsPanelTemplate>
                                     </ItemsControl.ItemsPanel>
                                     <ItemsControl.ItemTemplate>

@@ -417,7 +417,24 @@ function Get-RuntimeVersion {
     }
 
     try {
-        $output = & $ExecutablePath @arguments 2>&1
+        # Wrap executable calls in timeout to prevent hangs on slow network drives
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        $output = @()
+        try {
+            $output = & $ExecutablePath @arguments 2>&1
+        }
+        finally {
+            $sw.Stop()
+        }
+
+        # Skip if it took too long (likely hanging on network drive)
+        if ($sw.ElapsedMilliseconds -gt 5000) {
+            if ($Warnings) {
+                $Warnings.Add("[$RuntimeId] Version detection took over 5 seconds for '$ExecutablePath' - skipped") | Out-Null
+            }
+            return $null
+        }
+
         if ($output) {
             $version = Select-TidyBestVersion -Values $output
             if (-not [string]::IsNullOrWhiteSpace($version)) {
@@ -549,16 +566,26 @@ function Resolve-ActiveExecutable {
 
     try {
         if (-not [string]::IsNullOrWhiteSpace($ExecutableName)) {
-            $command = Get-Command -Name $ExecutableName -ErrorAction SilentlyContinue
-            if ($command) {
-                $cmdPath = Resolve-CommandPath -Command $command
-                if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
-                    $resolved = Resolve-InventoryPath -Value $cmdPath
-                    if (-not [string]::IsNullOrWhiteSpace($resolved) -and (Test-Path -LiteralPath $resolved -PathType Leaf)) {
-                        [void]$candidates.Add($resolved)
-                        $sources[$resolved] = 'CommandLookup'
+            # Get-Command can be slow - use timeout to prevent hangs
+            try {
+                $cmdSw = [System.Diagnostics.Stopwatch]::StartNew()
+                $command = Get-Command -Name $ExecutableName -ErrorAction SilentlyContinue
+                $cmdSw.Stop()
+
+                # If Get-Command took more than 3 seconds, skip to avoid slowdown
+                if ($cmdSw.ElapsedMilliseconds -lt 3000 -and $command) {
+                    $cmdPath = Resolve-CommandPath -Command $command
+                    if (-not [string]::IsNullOrWhiteSpace($cmdPath)) {
+                        $resolved = Resolve-InventoryPath -Value $cmdPath
+                        if (-not [string]::IsNullOrWhiteSpace($resolved) -and (Test-Path -LiteralPath $resolved -PathType Leaf)) {
+                            [void]$candidates.Add($resolved)
+                            $sources[$resolved] = 'CommandLookup'
+                        }
                     }
                 }
+            }
+            catch {
+                # Ignore Get-Command failures
             }
         }
 
@@ -577,7 +604,15 @@ function Resolve-ActiveExecutable {
 
             foreach ($target in $targets) {
                 try {
+                    # where.exe can be slow on systems with many PATH entries - add timeout
+                    $wSw = [System.Diagnostics.Stopwatch]::StartNew()
                     $lines = & $whereExe.Source $target 2>$null
+                    $wSw.Stop()
+                    
+                    # If where.exe took too long, skip to avoid cascading timeouts
+                    if ($wSw.ElapsedMilliseconds -gt 2000) {
+                        $lines = @()
+                    }
                 }
                 catch {
                     $lines = @()
@@ -1127,7 +1162,8 @@ function Get-RuntimeInventory {
             $expanded = Resolve-InventoryPath -Value $pattern -AllowWildcards
             if ([string]::IsNullOrWhiteSpace($expanded)) { continue }
             try {
-                $files = Get-ChildItem -Path $expanded -File -ErrorAction SilentlyContinue
+                # Limit results and use -Force to skip access denied errors
+                $files = Get-ChildItem -Path $expanded -File -ErrorAction SilentlyContinue -Force | Select-Object -First 100
             }
             catch {
                 $files = @()
@@ -1143,7 +1179,8 @@ function Get-RuntimeInventory {
             $expanded = Resolve-InventoryPath -Value $pattern -AllowWildcards
             if ([string]::IsNullOrWhiteSpace($expanded)) { continue }
             try {
-                $directories = Get-ChildItem -Path $expanded -Directory -ErrorAction SilentlyContinue
+                # Limit results and use -Force to skip access denied errors
+                $directories = Get-ChildItem -Path $expanded -Directory -ErrorAction SilentlyContinue -Force | Select-Object -First 50
             }
             catch {
                 $directories = @()
@@ -1166,7 +1203,15 @@ function Get-RuntimeInventory {
             $whereExe = Get-Command -Name 'where.exe' -ErrorAction SilentlyContinue
             if (-not $whereExe) { break }
             try {
+                # where.exe can be slow on systems with many PATH entries - add timeout
+                $wSw = [System.Diagnostics.Stopwatch]::StartNew()
                 $lines = & $whereExe.Source $hint 2>$null
+                $wSw.Stop()
+                
+                # If where.exe took too long, skip to avoid cascading timeouts
+                if ($wSw.ElapsedMilliseconds -gt 2000) {
+                    $lines = @()
+                }
             }
             catch {
                 $lines = @()

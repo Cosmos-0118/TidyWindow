@@ -5,6 +5,7 @@
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
       xmlns:converters="clr-namespace:TidyWindow.App.Converters"
       xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+      xmlns:ux="clr-namespace:TidyWindow.App.Controls"
       mc:Ignorable="d"
       Title="Startup Controller"
       Background="Transparent"
@@ -669,6 +670,5 @@
             </StackPanel>
             </StackPanel>
         </Border>
-
     </Grid>
 </Page>

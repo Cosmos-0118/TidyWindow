@@ -1121,7 +1121,6 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       CanContentScroll="False"
-                                                IsDeferredScrollingEnabled="True"
                                             PanningMode="VerticalOnly"
                                             UseLayoutRounding="True"
                                             SnapsToDevicePixels="True">
@@ -2107,7 +2106,7 @@
                                                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                                                                                         ScrollViewer.CanContentScroll="True"
-                                                                                                                        ScrollViewer.IsDeferredScrollingEnabled="True"
+                                                                                                                        ScrollViewer.IsDeferredScrollingEnabled="False"
                                                              VirtualizingPanel.IsVirtualizing="True"
                                                              VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                                                              VirtualizingPanel.IsContainerVirtualizable="True"

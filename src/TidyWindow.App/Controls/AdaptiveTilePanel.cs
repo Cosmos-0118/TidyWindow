@@ -99,12 +99,14 @@ public sealed class AdaptiveTilePanel : WpfPanel
     private readonly List<double> _rowHeights = new();
     private ItemsControl? _itemsOwner;
     private ScrollViewer? _viewportHost;
+    private double _cachedViewportWidth;
+    private bool _viewportWidthValid;
 
     protected override WpfSize MeasureOverride(WpfSize availableSize)
     {
         EnsureViewportSubscription();
         EnsureOwnerSubscription();
-        var viewportWidth = ResolveViewportWidth(availableSize);
+        var viewportWidth = ResolveViewportWidthCached(availableSize);
         var padding = Padding;
         var horizontalPadding = padding.Left + padding.Right;
         var verticalPadding = padding.Top + padding.Bottom;
@@ -161,7 +163,7 @@ public sealed class AdaptiveTilePanel : WpfPanel
 
     protected override WpfSize ArrangeOverride(WpfSize finalSize)
     {
-        var viewportWidth = ResolveViewportWidth(finalSize);
+        var viewportWidth = ResolveViewportWidthCached(finalSize);
         var padding = Padding;
         var horizontalPadding = padding.Left + padding.Right;
         var verticalPadding = padding.Top + padding.Bottom;
@@ -404,14 +406,36 @@ public sealed class AdaptiveTilePanel : WpfPanel
             _viewportHost.SizeChanged -= OnViewportSizeChanged;
             _viewportHost = null;
         }
+
+        _viewportWidthValid = false;
     }
 
     private void OnViewportSizeChanged(object sender, SizeChangedEventArgs e)
     {
         if (e.WidthChanged)
         {
+            _viewportWidthValid = false;
             InvalidateMeasure();
         }
+    }
+
+    private double ResolveViewportWidthCached(WpfSize size)
+    {
+        // Fast path: use cached width if available and constraint matches
+        if (_viewportWidthValid && _cachedViewportWidth > 0)
+        {
+            if (!double.IsNaN(size.Width) && !double.IsInfinity(size.Width) && size.Width > 0)
+            {
+                return Math.Min(size.Width, _cachedViewportWidth);
+            }
+
+            return _cachedViewportWidth;
+        }
+
+        var resolved = ResolveViewportWidth(size);
+        _cachedViewportWidth = resolved;
+        _viewportWidthValid = true;
+        return resolved;
     }
 
     private static double FindScrollViewerWidth(DependencyObject source)
@@ -494,6 +518,7 @@ public sealed class AdaptiveTilePanel : WpfPanel
     {
         if (e.WidthChanged)
         {
+            _viewportWidthValid = false;
             InvalidateMeasure();
         }
     }
@@ -605,6 +630,8 @@ public sealed class AdaptiveTilePanel : WpfPanel
         if (VisualParent is null)
         {
             ReleaseViewportSubscription();
+            ReleaseOwnerSubscription();
+            _rowHeights.Clear();
         }
         else
         {
@@ -612,5 +639,14 @@ public sealed class AdaptiveTilePanel : WpfPanel
         }
 
         EnsureOwnerSubscription();
+    }
+
+    private void ReleaseOwnerSubscription()
+    {
+        if (_itemsOwner is not null)
+        {
+            _itemsOwner.SizeChanged -= OnOwnerSizeChanged;
+            _itemsOwner = null;
+        }
     }
 }

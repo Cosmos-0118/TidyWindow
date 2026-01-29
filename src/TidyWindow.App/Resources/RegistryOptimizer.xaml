@@ -116,11 +116,6 @@
                 Value="ClearType"/>
         <Setter Property="TextOptions.TextHintingMode"
                 Value="Fixed"/>
-        <Setter Property="CacheMode">
-            <Setter.Value>
-                <BitmapCache EnableClearType="True"/>
-            </Setter.Value>
-        </Setter>
     </Style>
 
     <Style x:Key="RegistryCardStyle"
