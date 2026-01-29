@@ -3,6 +3,7 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:behaviors="clr-namespace:TidyWindow.App.Behaviors"
     xmlns:controls="clr-namespace:TidyWindow.App.Views"
     xmlns:converters="clr-namespace:TidyWindow.App.Converters"
     xmlns:core="clr-namespace:TidyWindow.Core.Processes;assembly=TidyWindow.Core"
@@ -16,7 +17,8 @@
     TextOptions.TextFormattingMode="Display"
     TextOptions.TextRenderingMode="ClearType"
     TextOptions.TextHintingMode="Fixed"
-    RenderOptions.BitmapScalingMode="HighQuality">
+    RenderOptions.BitmapScalingMode="HighQuality"
+    behaviors:ScrollBubbleBehavior.IsEnabled="True">
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:EnumEqualsConverter x:Key="EnumEqualsConverter" />

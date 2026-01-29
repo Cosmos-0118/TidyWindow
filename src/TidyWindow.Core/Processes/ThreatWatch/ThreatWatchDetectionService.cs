@@ -528,6 +528,16 @@ public sealed class ThreatWatchDetectionService
         AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "Python"));
         AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "nodejs"));
 
+        // VS Code extensions and user profile development directories
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".vscode", "extensions"));
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".vscode-insiders", "extensions"));
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".dotnet"));
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget"));
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "scoop", "apps"));
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WindowsApps"));
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet"));
+        AddIfPresent(roots, Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "chocolatey"));
+
         return roots.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
     }
 

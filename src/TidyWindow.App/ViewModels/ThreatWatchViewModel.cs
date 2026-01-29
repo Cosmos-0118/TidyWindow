@@ -195,9 +195,9 @@ public sealed partial class ThreatWatchViewModel : ViewModelBase
             var verdict = await _scanService.ScanFileAsync(hit.FilePath);
             var message = verdict.Verdict switch
             {
-                ThreatIntelVerdict.KnownBad => $"Defender flagged the file ({verdict.Source}).",
-                ThreatIntelVerdict.KnownGood => "File is trusted by Defender/blocklist.",
-                _ => "No additional telemetry available."
+                ThreatIntelVerdict.KnownBad => $"⚠️ Defender flagged the file as suspicious ({verdict.Source}).",
+                ThreatIntelVerdict.KnownGood => "✓ File scan complete — no threats detected.",
+                _ => "Scan complete — unable to determine file status (Defender unavailable or scan error)."
             };
             hit.LastActionMessage = message;
 
@@ -313,9 +313,9 @@ public sealed partial class ThreatWatchViewModel : ViewModelBase
         var intel = intelResult.Value;
         var verdictLabel = intel.Verdict switch
         {
-            ThreatIntelVerdict.KnownBad => " Defender flagged the file as malicious.",
-            ThreatIntelVerdict.KnownGood => " Defender marked the file as trusted.",
-            _ => " Defender had no opinion."
+            ThreatIntelVerdict.KnownBad => " ⚠️ Defender flagged the file as malicious.",
+            ThreatIntelVerdict.KnownGood => " ✓ Defender scan clean — no threats detected.",
+            _ => string.Empty // Don't add noise when we couldn't determine status
         };
 
         if (!string.IsNullOrWhiteSpace(intel.Source))
@@ -424,7 +424,36 @@ public sealed partial class ThreatWatchViewModel : ViewModelBase
 
         Hits.Clear();
 
-        foreach (var hit in hits.OrderByDescending(static h => h.ObservedAtUtc))
+        // Filter out stale hits where the file no longer exists
+        var staleHitIds = new List<string>();
+        var validHits = new List<SuspiciousProcessHit>();
+
+        foreach (var hit in hits)
+        {
+            if (string.IsNullOrWhiteSpace(hit.FilePath) || !File.Exists(hit.FilePath))
+            {
+                staleHitIds.Add(hit.Id);
+            }
+            else
+            {
+                validHits.Add(hit);
+            }
+        }
+
+        // Clean up stale entries from persistent storage
+        foreach (var staleId in staleHitIds)
+        {
+            try
+            {
+                _stateStore.RemoveSuspiciousHit(staleId);
+            }
+            catch
+            {
+                // Ignore cleanup errors
+            }
+        }
+
+        foreach (var hit in validHits.OrderByDescending(static h => h.ObservedAtUtc))
         {
             var targetGroup = SeverityGroups.FirstOrDefault(group => group.Level == hit.Level);
             if (targetGroup is null)

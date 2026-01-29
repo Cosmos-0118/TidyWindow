@@ -631,23 +631,17 @@
                         </StackPanel>
                 </Grid>
 
-        <!-- Floating pager overlay for navigation without shrinking content -->
+        <!-- Pager control with border highlight -->
         <Border HorizontalAlignment="Right"
             VerticalAlignment="Bottom"
             Margin="24"
             Padding="10,8"
-            Background="#0E1A2C"
+            Background="Transparent"
             BorderBrush="{StaticResource StartupCardBorderBrush}"
             BorderThickness="1"
             CornerRadius="10"
             Panel.ZIndex="6"
             Visibility="{Binding HasMultiplePages, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <Border.Effect>
-                <DropShadowEffect BlurRadius="12"
-                                   ShadowDepth="0"
-                                   Opacity="0.25"
-                                   Color="#000000" />
-            </Border.Effect>
             <StackPanel Orientation="Horizontal"
                 VerticalAlignment="Center">
             <TextBlock Text="{Binding PageDisplay}"

@@ -239,7 +239,8 @@
                              Foreground="{DynamicResource NavForegroundBrush}"
                              Margin="12"
                              FontFamily="Segoe UI"
-                             ScrollViewer.VerticalScrollBarVisibility="Hidden">
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding"

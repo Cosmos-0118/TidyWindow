@@ -59,6 +59,13 @@ public sealed class WindowsDefenderThreatIntelProvider : IThreatIntelProvider
                 return ThreatIntelResult.KnownBad(sha256, "windows-defender", $"MpCmdRun exited with code {exitCode}");
             }
 
+            // Exit code 0 means no threat found - file is clean
+            if (exitCode == 0)
+            {
+                return ThreatIntelResult.KnownGood(sha256, "windows-defender", "No threats detected");
+            }
+
+            // Other exit codes (e.g., 1 = command failed, errors) mean we can't determine status
             return ThreatIntelResult.Unknown(sha256);
         }
         catch

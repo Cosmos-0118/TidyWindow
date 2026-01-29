@@ -57,6 +57,36 @@ public sealed class ProcessControlService
 
     public async Task<ProcessControlResult> RestartAsync(string serviceName, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
+        // First check if the service is disabled before attempting restart.
+        var disabledCheck = await Task.Run(() =>
+        {
+            if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(serviceName))
+            {
+                return (IsDisabled: false, Message: string.Empty);
+            }
+
+            try
+            {
+                using var controller = new ServiceController(serviceName.Trim());
+                controller.Refresh();
+                if (controller.StartType == ServiceStartMode.Disabled)
+                {
+                    return (IsDisabled: true, Message: $"{serviceName} is disabled and cannot be restarted.");
+                }
+            }
+            catch
+            {
+                // If we can't check, proceed with normal restart flow.
+            }
+
+            return (IsDisabled: false, Message: string.Empty);
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (disabledCheck.IsDisabled)
+        {
+            return ProcessControlResult.CreateFailure(disabledCheck.Message);
+        }
+
         var stopResult = await StopAsync(serviceName, timeout, cancellationToken).ConfigureAwait(false);
         if (!stopResult.Success)
         {
