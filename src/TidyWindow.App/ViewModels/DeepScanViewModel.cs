@@ -562,18 +562,42 @@ public sealed partial class DeepScanViewModel : ViewModelBase
         var endExclusive = Math.Min(startIndex + PageSize, _allFindings.Count);
         var targetCount = Math.Max(0, endExclusive - startIndex);
 
-        for (var i = VisibleFindings.Count - 1; i >= targetCount; i--)
+        // Reuse existing ViewModels when the finding reference is the same
+        var needsUpdate = false;
+        if (VisibleFindings.Count == targetCount)
         {
-            VisibleFindings.RemoveAt(i);
+            for (var offset = 0; offset < targetCount; offset++)
+            {
+                var finding = _allFindings[startIndex + offset];
+                if (!ReferenceEquals(VisibleFindings[offset].Finding, finding))
+                {
+                    needsUpdate = true;
+                    break;
+                }
+            }
+
+            if (!needsUpdate)
+            {
+                return; // No changes needed
+            }
         }
 
+        // Remove excess items from the end
+        if (VisibleFindings.Count > targetCount)
+        {
+            for (var i = VisibleFindings.Count - 1; i >= targetCount; i--)
+            {
+                VisibleFindings.RemoveAt(i);
+            }
+        }
+
+        // Update or add items
         for (var offset = 0; offset < targetCount; offset++)
         {
             var finding = _allFindings[startIndex + offset];
             if (offset < VisibleFindings.Count)
             {
-                var current = VisibleFindings[offset];
-                if (!ReferenceEquals(current.Finding, finding))
+                if (!ReferenceEquals(VisibleFindings[offset].Finding, finding))
                 {
                     VisibleFindings[offset] = new DeepScanItemViewModel(finding);
                 }

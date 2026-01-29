@@ -68,11 +68,12 @@ internal static class DeepScanAggregation
 
     public static IReadOnlyDictionary<string, long> CalculateCategoryTotals(IEnumerable<DeepScanFinding> findings)
     {
-        var totals = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         if (findings is null)
         {
-            return new ReadOnlyDictionary<string, long>(totals);
+            return new ReadOnlyDictionary<string, long>(new Dictionary<string, long>(0));
         }
+
+        var totals = new Dictionary<string, long>(16, StringComparer.OrdinalIgnoreCase);
 
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         var directories = new List<string>();
@@ -738,6 +739,9 @@ public sealed class DeepScanService
         private static readonly IReadOnlyDictionary<string, long> EmptyCategoryTotals = new ReadOnlyDictionary<string, long>(new Dictionary<string, long>());
 
         private readonly object _syncRoot = new();
+        private readonly object _pathCacheLock = new();
+        private readonly HashSet<string> _systemPathCache = new(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _safePathCache = new(StringComparer.OrdinalIgnoreCase);
         private int _itemsSinceLastReport;
         private DateTime _lastReportTimestamp = DateTime.UtcNow - ReportInterval;
         private bool _hasPendingCandidate;
@@ -831,13 +835,40 @@ public sealed class DeepScanService
                 return false;
             }
 
-            if (!CleanupSystemPathSafety.IsSystemCriticalPath(path))
+            lock (_pathCacheLock)
             {
-                return false;
+                if (_safePathCache.Contains(path))
+                {
+                    return false;
+                }
+
+                if (_systemPathCache.Contains(path))
+                {
+                    Interlocked.Increment(ref _systemPathsSkipped);
+                    return true;
+                }
             }
 
-            Interlocked.Increment(ref _systemPathsSkipped);
-            return true;
+            var isSystemPath = CleanupSystemPathSafety.IsSystemCriticalPath(path);
+
+            lock (_pathCacheLock)
+            {
+                if (isSystemPath)
+                {
+                    _systemPathCache.Add(path);
+                }
+                else
+                {
+                    _safePathCache.Add(path);
+                }
+            }
+
+            if (isSystemPath)
+            {
+                Interlocked.Increment(ref _systemPathsSkipped);
+            }
+
+            return isSystemPath;
         }
 
         public void RecordProcessed(long sizeBytes, string currentPath, PriorityQueue<DeepScanFinding, long> queue)
@@ -946,13 +977,13 @@ public sealed class DeepScanService
         {
             var snapshot = BuildSnapshot(queue, isFinal);
             IReadOnlyDictionary<string, long> categories;
-            if (snapshot.Count == 0)
+            if (snapshot.Count == 0 || (!isFinal && snapshot.Count > 100))
             {
                 categories = EmptyCategoryTotals;
             }
             else
             {
-                var dict = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+                var dict = new Dictionary<string, long>(snapshot.Count, StringComparer.OrdinalIgnoreCase);
                 for (var index = 0; index < snapshot.Count; index++)
                 {
                     var finding = snapshot[index];
