@@ -31,7 +31,7 @@
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="14" />
             <Setter Property="Padding" Value="16" />
-            <Setter Property="Margin" Value="0,0,0,12" />
+            <Setter Property="Margin" Value="0" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
             <Setter Property="UseLayoutRounding" Value="True" />
             <Style.Triggers>
@@ -145,7 +145,7 @@
         </Style>
 
         <DataTemplate x:Key="RuntimeCardTemplate" DataType="{x:Type vm:PathPilotRuntimeCardViewModel}">
-            <Border Style="{StaticResource CardStyle}" MinWidth="440" MaxWidth="760" Padding="22" Margin="0,0,0,10">
+            <Border Style="{StaticResource CardStyle}" MinWidth="440" MaxWidth="760" Padding="22">
                 <StackPanel>
                     <StackPanel.Resources>
                         <Style TargetType="FrameworkElement">
@@ -400,7 +400,7 @@
                         <ListBox.ItemContainerStyle>
                             <Style TargetType="ListBoxItem">
                                 <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0,0,22,22" />
+                                <Setter Property="Margin" Value="0" />
                                 <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                 <Setter Property="VerticalContentAlignment" Value="Stretch" />
                                 <Setter Property="Background" Value="Transparent" />

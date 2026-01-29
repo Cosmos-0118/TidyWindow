@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Threading;
@@ -216,26 +217,45 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
                 tweak.GetBaselineParameterOverrides()))
             .ToImmutableArray();
 
-        if (!TryRunPreflight(selections, out var preflightError))
+        var (filteredSelections, skippedTweakIds, skippedWarnings) = RunPreflightAndFilter(selections);
+
+        // Log warnings for skipped tweaks
+        foreach (var warning in skippedWarnings)
         {
-            LastOperationSummary = preflightError;
-            _activityLog.LogWarning("Registry", preflightError);
-            _mainViewModel.SetStatusMessage(preflightError);
+            _activityLog.LogWarning("Registry", warning);
+        }
+
+        // Filter out skipped tweaks from pending list
+        var skippedSet = new HashSet<string>(skippedTweakIds, StringComparer.OrdinalIgnoreCase);
+        var applicableTweaks = pendingTweaks.Where(t => !skippedSet.Contains(t.Id)).ToList();
+
+        // If all tweaks were filtered out, show a message and return
+        if (filteredSelections.Count == 0)
+        {
+            var allSkippedMessage = skippedWarnings.Count > 0
+                ? string.Join(" ", skippedWarnings)
+                : "No applicable tweaks to apply.";
+            LastOperationSummary = allSkippedMessage;
+            _mainViewModel.SetStatusMessage(allSkippedMessage);
             return;
         }
 
         // Build plans off the UI thread to keep the page responsive when many tweaks are selected.
-        var plan = await Task.Run(() => _registryService.BuildPlan(selections)).ConfigureAwait(true);
+        var plan = await Task.Run(() => _registryService.BuildPlan(filteredSelections)).ConfigureAwait(true);
         if (!plan.HasWork)
         {
-            foreach (var tweak in pendingTweaks)
+            foreach (var tweak in applicableTweaks)
             {
                 tweak.CommitSelection();
             }
 
             UpdatePendingChanges();
             UpdateValidationState();
-            LastOperationSummary = $"No registry scripts required ({DateTime.Now:t}).";
+
+            var summaryMessage = skippedWarnings.Count > 0
+                ? $"No registry scripts required ({DateTime.Now:t}). {string.Join(" ", skippedWarnings)}"
+                : $"No registry scripts required ({DateTime.Now:t}).";
+            LastOperationSummary = summaryMessage;
             _activityLog.LogInformation("Registry", LastOperationSummary);
             _mainViewModel.SetStatusMessage("Registry tweaks already in desired state.");
             return;
@@ -265,7 +285,7 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
             var appliedStates = new List<RegistryAppliedState>(Tweaks.Count);
 
-            foreach (var tweak in pendingTweaks)
+            foreach (var tweak in applicableTweaks)
             {
                 tweak.CommitSelection();
             }
@@ -282,15 +302,20 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
 
             UpdatePendingChanges();
             UpdateValidationState();
-            var appliedCount = pendingTweaks.Count;
-            var summary = $"Applied {appliedCount} registry tweak(s) at {DateTime.Now:t}.";
+            var appliedCount = applicableTweaks.Count;
+            var skippedNote = skippedWarnings.Count > 0 ? $" {string.Join(" ", skippedWarnings)}" : "";
+            var summary = $"Applied {appliedCount} registry tweak(s) at {DateTime.Now:t}.{skippedNote}";
             LastOperationSummary = summary;
             _activityLog.LogSuccess("Registry", summary, result.Executions.SelectMany(exec => exec.Output));
             _mainViewModel.SetStatusMessage("Registry tweaks applied.");
 
+            // Refresh shell components after all tweaks complete to ensure Explorer\Advanced settings
+            // (like clock seconds, taskbar animations, etc.) take effect properly without race conditions.
+            await RefreshShellComponentsAsync(applicableTweaks).ConfigureAwait(true);
+
             try
             {
-                var restorePoint = await _registryService.SaveRestorePointAsync(selections, plan);
+                var restorePoint = await _registryService.SaveRestorePointAsync(filteredSelections, plan);
                 if (restorePoint is not null)
                 {
                     UpdateRestorePointState(restorePoint);
@@ -476,15 +501,20 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
         UpdatePresetCustomizationState();
     }
 
-    private bool TryRunPreflight(IReadOnlyList<RegistrySelection> selections, out string error)
+    private (IReadOnlyList<RegistrySelection> FilteredSelections, IReadOnlyList<string> SkippedTweakIds, IReadOnlyList<string> Warnings) RunPreflightAndFilter(
+        IReadOnlyList<RegistrySelection> selections)
     {
         const double minimumRamGb = 16d;
+        var warnings = new List<string>();
+        var skippedTweakIds = new List<string>();
+        var filtered = new List<RegistrySelection>(selections);
 
-        var targetsDisablePagingExecutive = selections.Any(selection =>
+        // Check for disable-paging-executive tweak on low-RAM systems
+        var pagingExecutiveSelection = selections.FirstOrDefault(selection =>
             string.Equals(selection.TweakId, "disable-paging-executive", StringComparison.OrdinalIgnoreCase)
             && selection.TargetState);
 
-        if (targetsDisablePagingExecutive)
+        if (pagingExecutiveSelection is not null)
         {
             try
             {
@@ -496,18 +526,99 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
                 }
                 if (totalRamGb < minimumRamGb)
                 {
-                    error = $"Skip 'Keep kernel in RAM' on systems with under {minimumRamGb:0} GB (detected {totalRamGb:0.#} GB).";
-                    return false;
+                    // Remove the tweak from selections and add a warning
+                    filtered.RemoveAll(s => string.Equals(s.TweakId, "disable-paging-executive", StringComparison.OrdinalIgnoreCase));
+                    skippedTweakIds.Add("disable-paging-executive");
+                    warnings.Add($"Skipped 'Keep kernel in RAM' – requires {minimumRamGb:0}+ GB RAM (detected {totalRamGb:0.#} GB).");
                 }
             }
             catch
             {
-                // If we cannot read memory, fall through and allow apply.
+                // If we cannot read memory, allow the tweak to proceed.
             }
         }
 
-        error = string.Empty;
-        return true;
+        return (filtered, skippedTweakIds, warnings);
+    }
+
+    // Tweak IDs that require shell component refresh after being applied.
+    private static readonly HashSet<string> ShellRefreshTweakIds = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "taskbar-seconds",
+        "taskbar-last-active",
+        "window-animations",
+        "visual-effects"
+    };
+
+    /// <summary>
+    /// Refreshes shell components (ShellExperienceHost) after tweaks that modify Explorer\Advanced settings.
+    /// This ensures settings like clock seconds are applied correctly after all tweaks complete,
+    /// preventing race conditions where later tweaks trigger a shell refresh that resets earlier ones.
+    /// </summary>
+    private async Task RefreshShellComponentsAsync(IEnumerable<RegistryTweakCardViewModel> appliedTweaks)
+    {
+        var requiresShellRefresh = appliedTweaks.Any(t => ShellRefreshTweakIds.Contains(t.Id));
+        if (!requiresShellRefresh)
+        {
+            return;
+        }
+
+        await Task.Run(() =>
+        {
+            try
+            {
+                // Stop ShellExperienceHost (it auto-restarts) to pick up all Explorer\Advanced changes
+                foreach (var proc in Process.GetProcessesByName("ShellExperienceHost"))
+                {
+                    try
+                    {
+                        proc.Kill();
+                        proc.WaitForExit(2000);
+                    }
+                    catch
+                    {
+                        // Process may have already exited
+                    }
+                }
+
+                // Wait for ShellExperienceHost to restart and apply settings
+                System.Threading.Thread.Sleep(1500);
+
+                // Verify clock seconds value if that tweak was applied
+                if (appliedTweaks.Any(t => string.Equals(t.Id, "taskbar-seconds", StringComparison.OrdinalIgnoreCase) && t.IsSelected))
+                {
+                    // Re-verify and re-apply if needed
+                    using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                        @"Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", writable: true);
+
+                    if (key is not null)
+                    {
+                        var value = key.GetValue("ShowSecondsInSystemClock");
+                        if (value is not int intValue || intValue != 1)
+                        {
+                            // Value was reset, re-apply it
+                            key.SetValue("ShowSecondsInSystemClock", 1, Microsoft.Win32.RegistryValueKind.DWord);
+
+                            // One more shell restart to pick up the fix
+                            System.Threading.Thread.Sleep(300);
+                            foreach (var proc in Process.GetProcessesByName("ShellExperienceHost"))
+                            {
+                                try
+                                {
+                                    proc.Kill();
+                                }
+                                catch { }
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Shell refresh is best-effort; don't fail the tweak application
+                System.Diagnostics.Debug.WriteLine($"Shell refresh warning: {ex.Message}");
+            }
+        }).ConfigureAwait(false);
     }
 
     private void UpdatePresetCustomizationState()

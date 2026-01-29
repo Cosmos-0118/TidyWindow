@@ -49,7 +49,7 @@ public sealed class RegistryOptimizerViewModelTests
     }
 
     [Fact]
-    public async Task ApplyAsync_BlocksDisablePagingExecutiveWhenRamTooLow()
+    public async Task ApplyAsync_SkipsDisablePagingExecutiveWhenRamTooLow()
     {
         await WpfTestHelper.RunAsync(async () =>
         {
@@ -61,8 +61,11 @@ public sealed class RegistryOptimizerViewModelTests
 
             await scope.ViewModel.ApplyCommand.ExecuteAsync(null);
 
+            // The tweak should be skipped (not blocking), so ApplyCallCount is 0 because no other tweaks were selected
+            // and the only selected tweak was filtered out, leaving an empty apply list.
             Assert.Equal(0, scope.Service.ApplyCallCount);
             Assert.Contains("Keep kernel in RAM", scope.ViewModel.LastOperationSummary, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("Skipped", scope.ViewModel.LastOperationSummary, StringComparison.OrdinalIgnoreCase);
         });
     }
 

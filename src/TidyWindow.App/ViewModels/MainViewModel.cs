@@ -34,6 +34,7 @@ public sealed partial class MainViewModel : ViewModelBase
             new("Processes", "Review safe auto-stop recommendations", "\uEDA2", typeof(KnownProcessesPage)),
             new("Startup", "Control Run keys, startup folders, tasks, and services", "\uE7E7", typeof(StartupControllerPage)),
             new("Performance lab", "Lean 8-step stack: power, services, hardware, kernel, security, tracing, scheduler, auto-tune", "\uE945", typeof(PerformanceLabPage)),
+            new("Latency guard", "Keep audio smooth while GPU-heavy jobs run", "\uE7F4", typeof(LatencyGuardPage)),
             new("PathPilot", "Control runtime precedence and PATH backups", "\uE71B", typeof(PathPilotPage)),
             new("Registry optimizer", "Stage registry defaults safely", "\uE9F5", typeof(RegistryOptimizerPage)),
             new("Maintenance", "Review installed packages, updates, and removals", "\uE90A", typeof(PackageMaintenancePage)),

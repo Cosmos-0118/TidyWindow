@@ -1556,44 +1556,6 @@
         </ContentControl.Template>
     </ContentControl>
 
-    <!-- Always-on-top cancel button so it remains clickable even when the overlay dims the page. -->
-    <Button Panel.ZIndex="40"
-            HorizontalAlignment="Right"
-            VerticalAlignment="Top"
-            Margin="0,18,18,0"
-            Padding="14,8"
-            Content="Cancel scan"
-            Command="{Binding CancelScanCommand}"
-            IsEnabled="{Binding CanCancel}"
-            Visibility="{Binding CanCancel, Converter={StaticResource BooleanToVisibilityConverter}}"
-            Background="#0F172A"
-            Foreground="#E2E8F0"
-            BorderBrush="#38BDF8"
-            BorderThickness="1"
-            Cursor="Hand"
-            Effect="{StaticResource DeepScanSoftShadowEffect}">
-        <Button.Template>
-            <ControlTemplate TargetType="Button">
-                <Border x:Name="CancelTopBorder"
-                        Background="{TemplateBinding Background}"
-                        BorderBrush="{TemplateBinding BorderBrush}"
-                        BorderThickness="{TemplateBinding BorderThickness}"
-                        CornerRadius="8"
-                        Padding="{TemplateBinding Padding}">
-                    <ContentPresenter HorizontalAlignment="Center"
-                                      VerticalAlignment="Center"/>
-                </Border>
-                <ControlTemplate.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True">
-                        <Setter TargetName="CancelTopBorder" Property="Background" Value="#1E293B"/>
-                    </Trigger>
-                    <Trigger Property="IsEnabled" Value="False">
-                        <Setter TargetName="CancelTopBorder" Property="Opacity" Value="0.55"/>
-                    </Trigger>
-                </ControlTemplate.Triggers>
-            </ControlTemplate>
-        </Button.Template>
-    </Button>
                 </Grid>
             </Border>
         </Grid>
@@ -1704,5 +1666,44 @@
             </Border>
         </Grid>
 </Grid>
+
+    <!-- Floating cancel button stays above the busy overlay and remains clickable. -->
+    <Button Panel.ZIndex="200"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Margin="0,18,18,0"
+            Padding="14,8"
+            Content="Cancel scan"
+            Command="{Binding CancelScanCommand}"
+            IsEnabled="{Binding CanCancel}"
+            Visibility="{Binding CanCancel, Converter={StaticResource BooleanToVisibilityConverter}}"
+            Background="#0F172A"
+            Foreground="#E2E8F0"
+            BorderBrush="#38BDF8"
+            BorderThickness="1"
+            Cursor="Hand"
+            Effect="{StaticResource DeepScanSoftShadowEffect}">
+        <Button.Template>
+            <ControlTemplate TargetType="Button">
+                <Border x:Name="CancelTopBorder"
+                        Background="{TemplateBinding Background}"
+                        BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}"
+                        CornerRadius="8"
+                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"/>
+                </Border>
+                <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter TargetName="CancelTopBorder" Property="Background" Value="#1E293B"/>
+                    </Trigger>
+                    <Trigger Property="IsEnabled" Value="False">
+                        <Setter TargetName="CancelTopBorder" Property="Opacity" Value="0.55"/>
+                    </Trigger>
+                </ControlTemplate.Triggers>
+            </ControlTemplate>
+        </Button.Template>
+    </Button>
 </Grid>
 </Page>

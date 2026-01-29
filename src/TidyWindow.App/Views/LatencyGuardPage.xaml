@@ -1,0 +1,321 @@
+<Page x:Class="TidyWindow.App.Views.LatencyGuardPage"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:controls="clr-namespace:TidyWindow.App.Views"
+      xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
+      mc:Ignorable="d"
+      Title="Latency guard"
+      Background="Transparent"
+      FontFamily="Segoe UI Variable Text"
+      TextOptions.TextFormattingMode="Ideal"
+      TextOptions.TextRenderingMode="ClearType"
+      TextOptions.TextHintingMode="Fixed"
+      UseLayoutRounding="True"
+      SnapsToDevicePixels="True">
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <SolidColorBrush x:Key="LatencySurfaceBrush" Color="#060F1F"/>
+        <LinearGradientBrush x:Key="LatencyCardBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#111F3A" Offset="0"/>
+            <GradientStop Color="#0B1628" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="LatencyCardBorderBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1D3B67" Offset="0"/>
+            <GradientStop Color="#123050" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="LatencyPrimaryActionBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#5DF2BC" Offset="0"/>
+            <GradientStop Color="#2ED4FF" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="LatencyPrimaryActionHoverBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#58E396" Offset="0"/>
+            <GradientStop Color="#1BB4FF" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="LatencySecondaryActionBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#1D335A" Offset="0"/>
+            <GradientStop Color="#162540" Offset="1"/>
+        </LinearGradientBrush>
+        <LinearGradientBrush x:Key="LatencySecondaryActionHoverBrush" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#234070" Offset="0"/>
+            <GradientStop Color="#1F3A63" Offset="1"/>
+        </LinearGradientBrush>
+        <SolidColorBrush x:Key="LatencyMutedBrush" Color="#8CA3C8"/>
+        <SolidColorBrush x:Key="LatencyStrongBrush" Color="#E9F2FF"/>
+
+        <DropShadowEffect x:Key="LatencyCardShadowEffect"
+                          Color="#01060C"
+                          BlurRadius="18"
+                          ShadowDepth="0"
+                          Opacity="0.55"/>
+
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource LatencyCardBackgroundBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource LatencyCardBorderBrush}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="14"/>
+            <Setter Property="Padding" Value="18"/>
+            <Setter Property="Margin" Value="0,0,0,18"/>
+            <Setter Property="Effect" Value="{StaticResource LatencyCardShadowEffect}"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#041217"/>
+            <Setter Property="Background" Value="{StaticResource LatencyPrimaryActionBrush}"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" CornerRadius="10" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource LatencyPrimaryActionHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#103041"/>
+                                <Setter Property="Foreground" Value="#5C708E"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Foreground" Value="#E5EEFF"/>
+            <Setter Property="Background" Value="{StaticResource LatencySecondaryActionBrush}"/>
+            <Setter Property="BorderBrush" Value="#2B4A79"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="14,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" CornerRadius="10" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource LatencySecondaryActionHoverBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Background" Value="#0E1728"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#1E293B"/>
+                                <Setter Property="Foreground" Value="#61708B"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Page.Resources>
+
+    <Grid Background="{StaticResource LatencySurfaceBrush}" UseLayoutRounding="True" SnapsToDevicePixels="True">
+        <ScrollViewer Margin="32" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel MinWidth="760">
+                <controls:PageTitleBar Title="Latency guard"
+                                       Subtitle="Keep audio smooth while heavy GPU jobs run"
+                                       IconGlyph="🎧"
+                                       Margin="0,0,0,20" />
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding HeroHeadline}"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource LatencyStrongBrush}" />
+                        <TextBlock Text="{Binding HeroBody}"
+                                   FontSize="13"
+                                   Foreground="{StaticResource LatencyMutedBrush}"
+                                   Margin="0,8,0,0"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Live status"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource LatencyStrongBrush}" />
+                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                            <StackPanel Width="160" Margin="0,0,18,0">
+                                <TextBlock Text="GPU utilization"
+                                           Foreground="{StaticResource LatencyMutedBrush}"/>
+                                <TextBlock Text="{Binding GpuUtil, StringFormat={}{0:F1}%}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#38BDF8"/>
+                            </StackPanel>
+                            <StackPanel Width="160" Margin="0,0,18,0">
+                                <TextBlock Text="DPC (% DPC Time)"
+                                           Foreground="{StaticResource LatencyMutedBrush}"/>
+                                <TextBlock Text="{Binding DpcUtil, StringFormat={}{0:F1}%}"
+                                           FontSize="20"
+                                           FontWeight="SemiBold"
+                                           Foreground="#22C55E"/>
+                            </StackPanel>
+                            <Button Content="Refresh metrics"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding RefreshCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Top GPU consumers"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource LatencyStrongBrush}"
+                                   Margin="0,14,0,6"/>
+                        <ItemsControl ItemsSource="{Binding TopProcesses}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding Name}"
+                                                   Foreground="#CBD5F5"/>
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding UtilizationPercent, StringFormat={}{0:F1}%}"
+                                                   Foreground="#94A3B8"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Low-latency profile"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource LatencyStrongBrush}" />
+
+                        <TextBlock Text="{Binding ProfileStatus}"
+                                   Margin="0,6,0,0"
+                                   Foreground="{StaticResource LatencyMutedBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <CheckBox Content="Trim visual effects"
+                                      Margin="0,0,12,0"
+                                      IsChecked="{Binding TrimEffects}"
+                                      Foreground="#CBD5F5"/>
+                            <CheckBox Content="Cap refresh swings"
+                                      Margin="0,0,12,0"
+                                      IsChecked="{Binding TrimRefreshRate}"
+                                      Foreground="#CBD5F5"/>
+                            <CheckBox Content="Throttle AI models"
+                                      IsChecked="{Binding ThrottleModels}"
+                                      Foreground="#CBD5F5"/>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Apply profile"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Margin="0,0,10,0"
+                                    Command="{Binding ApplyProfileCommand}"/>
+                            <Button Content="Revert"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding RevertProfileCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Best effort: trims desktop effects, holds refresh swings down, and can lower AI model priority. Revert to restore your previous state." 
+                                   Margin="0,10,0,0"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- HAGS Toggle -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Hardware-Accelerated GPU Scheduling (HAGS)"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource LatencyStrongBrush}" />
+
+                        <TextBlock Text="{Binding HagsStatus}"
+                                   Margin="0,6,0,0"
+                                   Foreground="{StaticResource LatencyMutedBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Toggle HAGS"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Command="{Binding ToggleHagsCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Disabling HAGS gives the Windows kernel more control over GPU scheduling, which can reduce DPC latency spikes. Requires a reboot to take effect." 
+                                   Margin="0,10,0,0"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Ollama Configuration -->
+                <Border Style="{StaticResource CardStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Ollama Configuration"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource LatencyStrongBrush}" />
+
+                        <TextBlock Text="{Binding OllamaStatus}"
+                                   Margin="0,6,0,0"
+                                   Foreground="{StaticResource LatencyMutedBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <StackPanel Margin="0,0,20,0">
+                                <TextBlock Text="Context size (OLLAMA_NUM_CTX)"
+                                           Foreground="#94A3B8"
+                                           FontSize="12"/>
+                                <TextBox Text="{Binding OllamaNumCtxText, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="100"
+                                         Padding="8,6"
+                                         Margin="0,4,0,0"
+                                         Background="#0E1728"
+                                         Foreground="#E5EEFF"
+                                         BorderBrush="#2B4A79"/>
+                            </StackPanel>
+                            <StackPanel>
+                                <TextBlock Text="Parallel requests (OLLAMA_NUM_PARALLEL)"
+                                           Foreground="#94A3B8"
+                                           FontSize="12"/>
+                                <TextBox Text="{Binding OllamaNumParallelText, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="100"
+                                         Padding="8,6"
+                                         Margin="0,4,0,0"
+                                         Background="#0E1728"
+                                         Foreground="#E5EEFF"
+                                         BorderBrush="#2B4A79"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                            <Button Content="Apply &amp; restart Ollama"
+                                    Style="{StaticResource PrimaryButtonStyle}"
+                                    Command="{Binding ApplyOllamaConfigCommand}"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Lower context size (e.g., 2048) and parallel=1 keeps GPU headroom for audio. Ollama will restart with new settings." 
+                                   Margin="0,10,0,0"
+                                   Foreground="#94A3B8"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>

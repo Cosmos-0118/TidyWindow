@@ -403,7 +403,7 @@
                   VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   CanContentScroll="False">
-        <Grid>
+        <Grid behaviors:ScrollBubbleBehavior.IsEnabled="True">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="Auto" />
@@ -554,7 +554,7 @@
                     </Style>
                 </Grid.Style>
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              CanContentScroll="True">
+                              CanContentScroll="False">
                     <ScrollViewer.Style>
                         <Style TargetType="ScrollViewer">
                             <Setter Property="Visibility" Value="Visible" />

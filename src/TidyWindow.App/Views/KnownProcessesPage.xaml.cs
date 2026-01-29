@@ -30,6 +30,7 @@ public partial class KnownProcessesPage : Page
     {
         AttachTitleBar();
         _viewModel.EnsureInitialized();
+        ResetScrollPosition();
     }
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -37,6 +38,17 @@ public partial class KnownProcessesPage : Page
         if (IsVisible)
         {
             AttachTitleBar();
+            ResetScrollPosition();
+        }
+    }
+
+    private void ResetScrollPosition()
+    {
+        // Reset the scroll position to top when the page becomes visible
+        // This fixes scroll issues when navigating back to cached pages
+        if (PageScrollViewer is not null)
+        {
+            PageScrollViewer.ScrollToTop();
         }
     }
 
