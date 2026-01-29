@@ -423,7 +423,10 @@
                         </StackPanel>
                         <TextBlock Margin="0,4,0,8" Text="Disable telemetry, Xbox, and other consumer services with reversible templates." Style="{StaticResource SubtleCaptionTextStyle}" />
 
-                        <ListBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate, Mode=TwoWay}" Margin="0,8,0,0" Background="#0E1C30" BorderBrush="#1F2E46" Foreground="#E5E7EB">
+                        <ListBox ItemsSource="{Binding Templates}" SelectedItem="{Binding SelectedTemplate, Mode=TwoWay}" Margin="0,8,0,0" Background="#0E1C30" BorderBrush="#1F2E46" Foreground="#E5E7EB"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 VirtualizingStackPanel.ScrollUnit="Pixel">
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
                                     <Setter Property="Margin" Value="4" />
@@ -808,7 +811,10 @@
                                          Background="Transparent"
                                          BorderThickness="0"
                                          Foreground="#E5E7EB"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         VirtualizingStackPanel.ScrollUnit="Pixel">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
                                             <Setter Property="Margin" Value="0,2" />
@@ -949,7 +955,10 @@
                                          Background="Transparent"
                                          BorderThickness="0"
                                          Foreground="#E5E7EB"
-                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                         VirtualizingPanel.IsVirtualizing="True"
+                                         VirtualizingPanel.VirtualizationMode="Recycling"
+                                         VirtualizingStackPanel.ScrollUnit="Pixel">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
                                             <Setter Property="Margin" Value="0,2" />

@@ -25,9 +25,23 @@ public partial class EssentialsPage : Page
         _shouldDisposeOnUnload = !PageCacheRegistry.IsCacheable(GetType());
         Loaded += OnPageLoaded;
         Unloaded += OnPageUnloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
     }
 
     private void OnPageLoaded(object sender, RoutedEventArgs e)
+    {
+        AttachTitleBar();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            AttachTitleBar();
+        }
+    }
+
+    private void AttachTitleBar()
     {
         _shellViewModel ??= System.Windows.Application.Current?.MainWindow?.DataContext as MainViewModel;
         _shellViewModel?.SetTitleBarContent(_titleBar);
@@ -65,6 +79,7 @@ public partial class EssentialsPage : Page
             return;
         }
 
+        IsVisibleChanged -= OnIsVisibleChanged;
         Unloaded -= OnPageUnloaded;
         _shellViewModel?.SetTitleBarContent(null);
         _viewModel.Dispose();

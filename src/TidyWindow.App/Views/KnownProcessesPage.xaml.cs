@@ -23,13 +23,21 @@ public partial class KnownProcessesPage : Page
         DataContext = viewModel;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        IsVisibleChanged += OnIsVisibleChanged;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        Loaded -= OnLoaded;
         AttachTitleBar();
         _viewModel.EnsureInitialized();
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (IsVisible)
+        {
+            AttachTitleBar();
+        }
     }
 
     private void OnUnloaded(object? sender, RoutedEventArgs e)
