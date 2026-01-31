@@ -32,7 +32,6 @@ public static class PageCacheRegistry
         { typeof(LogsPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
         { typeof(PackageMaintenancePage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(25)) },
         // PathPilot is heavier (PowerShell inventory + cached visuals); keep uncached to avoid lingering UI latency after navigation.
-        { typeof(LatencyGuardPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(20)) },
         { typeof(ResetRescuePage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(25)) },
         { typeof(RegistryOptimizerPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(30)) },
         { typeof(SettingsPage), PageCachePolicy.Sliding(TimeSpan.FromMinutes(30)) }

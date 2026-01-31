@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using TidyWindow.App.Services;
@@ -32,6 +33,8 @@ public partial class MainWindow : Window
     private bool _initialNavigationCompleted;
     private bool _autoCloseArmed;
     private DispatcherTimer? _traySweepTimer;
+    private HwndSource? _hwndSource;
+    private static uint _taskbarCreatedMessage;
     private static readonly TimeSpan TraySweepIntervalMinimum = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan TraySweepIntervalMaximum = TimeSpan.FromMinutes(10);
 
@@ -64,6 +67,51 @@ public partial class MainWindow : Window
             _frameNavigationService.LoadCompleted += OnInitialNavigationCompleted;
         }
         _viewModel.Activate();
+
+        // Hook into window messages for shell restart notification (explorer.exe crashes)
+        RegisterForShellRestart();
+    }
+
+    /// <summary>
+    /// Registers for TaskbarCreated message to detect when explorer.exe restarts.
+    /// This allows us to recreate the tray icon if it was lost.
+    /// </summary>
+    private void RegisterForShellRestart()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            _taskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
+            var helper = new WindowInteropHelper(this);
+            _hwndSource = HwndSource.FromHwnd(helper.Handle);
+            _hwndSource?.AddHook(WndProc);
+        }
+        catch
+        {
+            // Non-critical; tray service has backup health checks
+        }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterWindowMessage(string lpString);
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        // Check if this is the TaskbarCreated message (explorer.exe restarted)
+        if (_taskbarCreatedMessage != 0 && msg == _taskbarCreatedMessage)
+        {
+            // Notify the tray service to recreate its icon
+            if (_trayService is TrayService trayService)
+            {
+                trayService.OnShellRestarted();
+            }
+        }
+
+        return IntPtr.Zero;
     }
 
     private async void OnInitialNavigationCompleted(object? sender, System.Windows.Navigation.NavigationEventArgs e)
@@ -160,6 +208,13 @@ public partial class MainWindow : Window
         {
             _frameNavigationService.LoadCompleted -= OnInitialNavigationCompleted;
             _frameNavigationService = null;
+        }
+
+        // Clean up shell restart hook
+        if (_hwndSource is not null)
+        {
+            _hwndSource.RemoveHook(WndProc);
+            _hwndSource = null;
         }
 
         StateChanged -= OnStateChanged;

@@ -193,13 +193,26 @@ public sealed class ThreatWatchDetectionService
     {
         foreach (var entry in request.StartupEntries)
         {
+            // Only flag unsigned startup entries - signed/trusted entries are not suspicious
+            if (!entry.IsUnsigned)
+            {
+                continue;
+            }
+
             var normalizedPath = NormalizeFilePath(entry.ExecutablePath);
             if (string.IsNullOrWhiteSpace(normalizedPath))
             {
                 continue;
             }
 
+            // Skip entries in trusted system directories (Windows, Program Files, etc.)
             if (IsUnderDirectory(normalizedPath, _trustedRoots))
+            {
+                continue;
+            }
+
+            // Skip entries in system roots (System32, SysWOW64, etc.)
+            if (IsUnderDirectory(normalizedPath, _systemRoots))
             {
                 continue;
             }
@@ -211,14 +224,18 @@ public sealed class ThreatWatchDetectionService
             }
 
             var matches = new List<DetectionRuleMatch>();
+
+            // RED: Unsigned startup from temp folders - very suspicious
             if (IsUnderDirectory(normalizedPath, _tempRoots))
             {
                 AddRule(matches, DetectionRuleMatch.Red("startup.temp-exe"));
             }
+            // YELLOW: Unsigned startup from user workspace (Documents, Desktop, Downloads, etc.)
             else if (IsInUserWorkspace(normalizedPath))
             {
                 AddRule(matches, DetectionRuleMatch.Yellow("startup.user-location"));
             }
+            // Only flag risky locations - system files that passed trusted/system roots are OK
 
             if (matches.Count == 0)
             {

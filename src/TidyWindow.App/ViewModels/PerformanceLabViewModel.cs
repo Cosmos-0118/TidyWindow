@@ -80,6 +80,9 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     private bool isBootAutomationEnabled;
 
     [ObservableProperty]
+    private bool isBootConfigDialogVisible;
+
+    [ObservableProperty]
     private bool autoApplyPowerPlan;
 
     [ObservableProperty]
@@ -280,6 +283,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
     public IRelayCommand RemoveAutoTuneProcessCommand => removeAutoTuneProcessCommand ??= new RelayCommand(RemoveSelectedAutoTuneProcess, () => !string.IsNullOrWhiteSpace(SelectedAutoTuneProcess));
     public IAsyncRelayCommand ApplyBootAutomationCommand { get; }
     public IAsyncRelayCommand RunBootAutomationNowCommand { get; }
+    public IRelayCommand OpenBootConfigCommand => openBootConfigCommand ??= new RelayCommand(() => IsBootConfigDialogVisible = true);
+    public IRelayCommand CloseBootConfigDialogCommand => closeBootConfigDialogCommand ??= new RelayCommand(() => IsBootConfigDialogVisible = false);
     public IAsyncRelayCommand DisableAutomationCommand { get; }
     public IRelayCommand ShowStatusCommand { get; }
     public IRelayCommand ShowStepInfoCommand => showStepInfoCommand ??= new RelayCommand<string?>(ShowStepInfo);
@@ -287,6 +292,8 @@ public sealed partial class PerformanceLabViewModel : ObservableObject
 
     private IRelayCommand? showStepInfoCommand;
     private IRelayCommand? closeInfoDialogCommand;
+    private IRelayCommand? openBootConfigCommand;
+    private IRelayCommand? closeBootConfigDialogCommand;
     private IRelayCommand? closeSchedulerPickerCommand;
     private IRelayCommand? addSchedulerProcessCommand;
     private IRelayCommand? removeSchedulerProcessCommand;

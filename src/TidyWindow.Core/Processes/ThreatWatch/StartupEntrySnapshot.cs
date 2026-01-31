@@ -14,7 +14,8 @@ public sealed record StartupEntrySnapshot
         StartupEntryLocation location,
         string? arguments,
         string? source,
-        string? description)
+        string? description,
+        bool isUnsigned = false)
     {
         if (string.IsNullOrWhiteSpace(entryId))
         {
@@ -28,6 +29,7 @@ public sealed record StartupEntrySnapshot
         Arguments = string.IsNullOrWhiteSpace(arguments) ? null : arguments.Trim();
         Source = string.IsNullOrWhiteSpace(source) ? null : source.Trim();
         Description = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
+        IsUnsigned = isUnsigned;
     }
 
     public string EntryId { get; init; }
@@ -43,6 +45,12 @@ public sealed record StartupEntrySnapshot
     public string? Source { get; init; }
 
     public string? Description { get; init; }
+
+    /// <summary>
+    /// Indicates whether the startup entry's executable is unsigned or has an untrusted signature.
+    /// Only unsigned startup entries are flagged by Threat Watch.
+    /// </summary>
+    public bool IsUnsigned { get; init; }
 }
 
 public enum StartupEntryLocation

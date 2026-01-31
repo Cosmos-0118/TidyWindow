@@ -18,7 +18,16 @@ public enum StartupItemSourceKind
     ExplorerRun = 10,
     AppInitDll = 11,
     ImageFileExecutionOptions = 12,
-    BootExecute = 13
+    BootExecute = 13,
+    PrintMonitor = 14,
+    LsaProvider = 15,
+    BrowserHelperObject = 16,
+    ShellExtension = 17,
+    ProtocolFilter = 18,
+    WinsockProvider = 19,
+    KnownDll = 20,
+    ScmExtension = 21,
+    FontDriver = 22
 }
 
 public enum StartupSignatureStatus

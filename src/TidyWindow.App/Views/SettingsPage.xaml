@@ -1,770 +1,411 @@
 <Page x:Class="TidyWindow.App.Views.SettingsPage"
-          xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-          xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-          xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-          xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-          xmlns:controls="clr-namespace:TidyWindow.App.Views"
-          mc:Ignorable="d"
-          Background="Transparent"
-          Title="Settings">
-        <Page.Resources>
-                <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-                <Style x:Key="SettingsToggleSwitchStyle"
-                           TargetType="ToggleButton">
-                        <Setter Property="Width"
-                                        Value="52"/>
-                        <Setter Property="Height"
-                                        Value="28"/>
-                        <Setter Property="Background"
-                                        Value="#1F2937"/>
-                        <Setter Property="BorderBrush"
-                                        Value="#1F2937"/>
-                        <Setter Property="BorderThickness"
-                                        Value="0"/>
-                        <Setter Property="Cursor"
-                                        Value="Hand"/>
-                        <Setter Property="Focusable"
-                                        Value="False"/>
-                        <Setter Property="Template">
-                                <Setter.Value>
-                                        <ControlTemplate TargetType="ToggleButton">
-                                                <Grid>
-                                                        <Border x:Name="Track"
-                                                                        Background="{TemplateBinding Background}"
-                                                                        BorderBrush="#334155"
-                                                                        BorderThickness="1"
-                                                                        CornerRadius="14"/>
-                                                        <Ellipse x:Name="Thumb"
-                                                                         Width="22"
-                                                                         Height="22"
-                                                                         Fill="#F8FAFC"
-                                                                         Margin="4,3,26,3"/>
-                                                </Grid>
-                                                <ControlTemplate.Triggers>
-                                                        <Trigger Property="IsChecked"
-                                                                         Value="True">
-                                                                <Setter TargetName="Track"
-                                                                                Property="Background"
-                                                                                Value="#7C3AED"/>
-                                                                <Setter TargetName="Track"
-                                                                                Property="BorderBrush"
-                                                                                Value="#7C3AED"/>
-                                                                <Setter TargetName="Thumb"
-                                                                                Property="Margin"
-                                                                                Value="26,3,4,3"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsEnabled"
-                                                                         Value="False">
-                                                                <Setter TargetName="Track"
-                                                                                Property="Background"
-                                                                                Value="#1F2937"/>
-                                                                <Setter TargetName="Track"
-                                                                                Property="BorderBrush"
-                                                                                Value="#1F2937"/>
-                                                                <Setter TargetName="Thumb"
-                                                                                Property="Fill"
-                                                                                Value="#475569"/>
-                                                        </Trigger>
-                                                        <Trigger Property="IsMouseOver"
-                                                                         Value="True">
-                                                                <Setter TargetName="Track"
-                                                                                Property="BorderBrush"
-                                                                                Value="#7C3AED"/>
-                                                        </Trigger>
-                                                </ControlTemplate.Triggers>
-                                        </ControlTemplate>
-                                </Setter.Value>
-                        </Setter>
-                </Style>
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+      xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+      xmlns:controls="clr-namespace:TidyWindow.App.Views"
+      mc:Ignorable="d"
+      Background="Transparent"
+      Title="Settings">
 
-                <Style x:Key="SettingsSectionHeaderTextStyle"
-                           TargetType="TextBlock">
-                        <Setter Property="Foreground"
-                                        Value="#F8FAFC"/>
-                        <Setter Property="FontSize"
-                                        Value="18"/>
-                        <Setter Property="FontWeight"
-                                        Value="SemiBold"/>
-                </Style>
+    <Page.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
 
-                <Style x:Key="SettingsSectionSubtitleTextStyle"
-                           TargetType="TextBlock">
-                        <Setter Property="Foreground"
-                                        Value="#94A3B8"/>
-                        <Setter Property="FontSize"
-                                        Value="12"/>
-                        <Setter Property="TextWrapping"
-                                        Value="Wrap"/>
-                </Style>
+        <!-- Modern Toggle Switch -->
+        <Style x:Key="ModernToggleStyle" TargetType="ToggleButton">
+            <Setter Property="Width" Value="44"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Grid>
+                            <Border x:Name="Track" Background="#1E293B" CornerRadius="12" BorderThickness="0"/>
+                            <Ellipse x:Name="Thumb" Width="18" Height="18" Fill="#64748B" HorizontalAlignment="Left" Margin="3,0,0,0"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#8B5CF6"/>
+                                <Setter TargetName="Thumb" Property="Fill" Value="#FFFFFF"/>
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,3,0"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Track" Property="Background" Value="#334155"/>
+                            </Trigger>
+                            <MultiTrigger>
+                                <MultiTrigger.Conditions>
+                                    <Condition Property="IsMouseOver" Value="True"/>
+                                    <Condition Property="IsChecked" Value="True"/>
+                                </MultiTrigger.Conditions>
+                                <Setter TargetName="Track" Property="Background" Value="#A78BFA"/>
+                            </MultiTrigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
 
-                <LinearGradientBrush x:Key="SettingsCheckButtonBrush"
-                                      StartPoint="0,0"
-                                      EndPoint="1,1">
-                        <GradientStop Color="#7C3AED"
-                                      Offset="0"/>
-                        <GradientStop Color="#9333EA"
-                                      Offset="1"/>
-                </LinearGradientBrush>
-                <LinearGradientBrush x:Key="SettingsCheckButtonHoverBrush"
-                                      StartPoint="0,0"
-                                      EndPoint="1,1">
-                        <GradientStop Color="#A855F7"
-                                      Offset="0"/>
-                        <GradientStop Color="#C084FC"
-                                      Offset="1"/>
-                </LinearGradientBrush>
-                <LinearGradientBrush x:Key="SettingsInstallButtonBrush"
-                                      StartPoint="0,0"
-                                      EndPoint="1,1">
-                        <GradientStop Color="#F59E0B"
-                                      Offset="0"/>
-                        <GradientStop Color="#FBBF24"
-                                      Offset="1"/>
-                </LinearGradientBrush>
-                <LinearGradientBrush x:Key="SettingsInstallButtonHoverBrush"
-                                      StartPoint="0,0"
-                                      EndPoint="1,1">
-                        <GradientStop Color="#FBBF24"
-                                      Offset="0"/>
-                        <GradientStop Color="#FDE047"
-                                      Offset="1"/>
-                </LinearGradientBrush>
-                <DropShadowEffect x:Key="SettingsActionButtonGlowEffect"
-                                  Color="#020617"
-                                  BlurRadius="16"
-                                  ShadowDepth="0"
-                                  Opacity="0.55"/>
-                <Style x:Key="SettingsActionButtonStyle"
-                           TargetType="Button">
-                        <Setter Property="Padding"
-                                        Value="18,10"/>
-                        <Setter Property="FontWeight"
-                                        Value="SemiBold"/>
-                        <Setter Property="FontSize"
-                                        Value="14"/>
-                        <Setter Property="Cursor"
-                                        Value="Hand"/>
-                        <Setter Property="BorderThickness"
-                                        Value="0"/>
-                        <Setter Property="Foreground"
-                                        Value="#020617"/>
-                        <Setter Property="Tag"
-                                        Value="#7C3AED"/>
-                        <Setter Property="Template">
-                                <Setter.Value>
-                                        <ControlTemplate TargetType="Button">
-                                                <Border x:Name="ActionBorder"
-                                                                CornerRadius="12"
-                                                                Padding="{TemplateBinding Padding}"
-                                                                Effect="{StaticResource SettingsActionButtonGlowEffect}">
-                                                        <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                        <Setter Property="Opacity"
-                                                                                        Value="1"/>
-                                                                        <Setter Property="Background">
-                                                                                <Setter.Value>
-                                                                                        <Binding Path="Background"
-                                                                                                 RelativeSource="{RelativeSource TemplatedParent}"/>
-                                                                                </Setter.Value>
-                                                                        </Setter>
-                                                                        <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsMouseOver, RelativeSource={RelativeSource TemplatedParent}}"
-                                                                                             Value="True">
-                                                                                        <Setter Property="Background"
-                                                                                                        Value="{Binding Tag, RelativeSource={RelativeSource TemplatedParent}}"/>
-                                                                                </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding IsEnabled, RelativeSource={RelativeSource TemplatedParent}}"
-                                                                                             Value="False">
-                                                                                        <Setter Property="Opacity"
-                                                                                                        Value="0.55"/>
-                                                                                </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                </Style>
-                                                        </Border.Style>
-                                                        <ContentPresenter HorizontalAlignment="Center"
-                                                                          VerticalAlignment="Center"/>
-                                                </Border>
-                                        </ControlTemplate>
-                                </Setter.Value>
-                        </Setter>
-                </Style>
-                <Style x:Key="SettingsCheckButtonStyle"
-                           TargetType="Button"
-                           BasedOn="{StaticResource SettingsActionButtonStyle}">
-                        <Setter Property="Background"
-                                        Value="{StaticResource SettingsCheckButtonBrush}"/>
-                        <Setter Property="Tag"
-                                        Value="{StaticResource SettingsCheckButtonHoverBrush}"/>
-                        <Setter Property="Foreground"
-                                        Value="#F8FAFC"/>
-                </Style>
-                <Style x:Key="SettingsInstallButtonStyle"
-                           TargetType="Button"
-                           BasedOn="{StaticResource SettingsActionButtonStyle}">
-                        <Setter Property="Background"
-                                        Value="{StaticResource SettingsInstallButtonBrush}"/>
-                        <Setter Property="Tag"
-                                        Value="{StaticResource SettingsInstallButtonHoverBrush}"/>
-                        <Setter Property="Foreground"
-                                        Value="#0F172A"/>
-                </Style>
+        <!-- Section Card -->
+        <Style x:Key="SectionCard" TargetType="Border">
+            <Setter Property="Background" Value="#0F172A"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="24"/>
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
 
-                <Style x:Key="SettingsInfoChipStyle" TargetType="Border">
-                        <Setter Property="Background" Value="#0F172A"/>
-                        <Setter Property="BorderBrush" Value="#1E2E46"/>
-                        <Setter Property="BorderThickness" Value="1"/>
-                        <Setter Property="CornerRadius" Value="12"/>
-                        <Setter Property="Padding" Value="12,10"/>
-                        <Setter Property="Margin" Value="0,8,8,0"/>
-                        <Setter Property="SnapsToDevicePixels" Value="True"/>
-                        <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
-                </Style>
-        </Page.Resources>
+        <!-- Section Title -->
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="#F1F5F9"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
 
-        <Grid>
-                <ScrollViewer Margin="32"
-                                          VerticalScrollBarVisibility="Auto"
-                                          HorizontalScrollBarVisibility="Disabled"
-                                          CanContentScroll="False">
-                        <StackPanel>
-                        <controls:PageTitleBar Title="Settings"
-                                               Subtitle="Tune how TidyWindow runs on your machine."
-                                               IconGlyph="⚙️"
-                                               Margin="0,0,0,24"/>
+        <!-- Section Subtitle -->
+        <Style x:Key="SectionSubtitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="#64748B"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,20"/>
+        </Style>
 
-                        <StackPanel>
-                                <Border Background="#0B1120"
-                                                Padding="24"
-                                                CornerRadius="16"
-                                                BorderBrush="#1D2A44"
-                                                BorderThickness="1"
-                                                Margin="0,0,0,16">
-                                        <StackPanel>
-                                                <TextBlock Text="Updates"
-                                                                   Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
-                                                <TextBlock Text="Check for signed releases without reinstalling everything."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,6,0,16"/>
+        <!-- Setting Row -->
+        <Style x:Key="SettingRow" TargetType="Grid">
+            <Setter Property="Margin" Value="0,0,0,16"/>
+        </Style>
 
-                                                <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <StackPanel Margin="0,0,12,0">
-                                                                <TextBlock Text="Current version"
-                                                                                   Foreground="#94A3B8"
-                                                                                   FontSize="12"/>
-                                                                <TextBlock Text="{Binding CurrentVersionDisplay}"
-                                                                                   Foreground="#F8FAFC"
-                                                                                   FontSize="16"
-                                                                                   FontWeight="SemiBold"/>
-                                                        </StackPanel>
-
-                                                        <StackPanel Grid.Column="1"
-                                                                                Margin="12,0">
-                                                                <TextBlock Text="Latest available"
-                                                                                   Foreground="#94A3B8"
-                                                                                   FontSize="12"/>
-                                                                <TextBlock Text="{Binding LatestVersionDisplay}"
-                                                                                   Foreground="#F8FAFC"
-                                                                                   FontSize="16"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="{Binding UpdateChannelDisplay}"
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-
-                                                        <StackPanel Grid.Column="2"
-                                                                                Margin="12,0,0,0">
-                                                                <TextBlock Text="Last checked"
-                                                                                   Foreground="#94A3B8"
-                                                                                   FontSize="12"/>
-                                                                <TextBlock Text="{Binding LastUpdateCheckDisplay}"
-                                                                                   Foreground="#F8FAFC"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"
-                                                                                   TextWrapping="Wrap"/>
-                                                        </StackPanel>
-                                                </Grid>
-
-                                                <StackPanel>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                        Margin="0,16,0,0"
-                                                                        VerticalAlignment="Center">
-                                                                <Button Content="{Binding CheckForUpdatesButtonLabel}"
-                                                                                Command="{Binding CheckForUpdatesCommand}"
-                                                                                Style="{StaticResource SettingsCheckButtonStyle}"
-                                                                                IsEnabled="{Binding IsUpdateActionsEnabled}"/>
-                                                                <Button Content="{Binding InstallUpdateButtonLabel}"
-                                                                                Command="{Binding InstallUpdateCommand}"
-                                                                                Style="{StaticResource SettingsInstallButtonStyle}"
-                                                                                Margin="12,0,0,0"
-                                                                                IsEnabled="{Binding IsUpdateActionsEnabled}"
-                                                                                Visibility="{Binding IsInstallUpdateVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                                <TextBlock Text="{Binding UpdateAvailabilitySummary}"
-                                                                                   Foreground="#94A3B8"
-                                                                                   Margin="12,6,0,0"/>
-                                                        </StackPanel>
-                                                        <ProgressBar Height="4"
-                                                                         Margin="0,8,0,0"
-                                                                         IsIndeterminate="True"
-                                                                         Visibility="{Binding IsCheckingForUpdates, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                        <StackPanel Margin="0,8,0,0"
-                                                                        Visibility="{Binding ShowInstallerProgress, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <ProgressBar Height="4"
-                                                                                 Maximum="100"
-                                                                                 Value="{Binding InstallerDownloadProgress, Mode=OneWay}"
-                                                                                 IsIndeterminate="{Binding IsInstallerProgressIndeterminate, Mode=OneWay}"/>
-                                                                <TextBlock Text="{Binding InstallerDownloadStatus}"
-                                                                                   Foreground="#94A3B8"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                </StackPanel>
-
-                                                <TextBlock Text="{Binding UpdateStatusMessage}"
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,12,0,0"/>
-
-                                                <WrapPanel Margin="0,16,0,0">
-                                                        <Border Style="{StaticResource SettingsInfoChipStyle}">
-                                                                <StackPanel>
-                                                                        <TextBlock Text="Published"
-                                                                                           Foreground="#94A3B8"
-                                                                                           FontSize="11"/>
-                                                                        <TextBlock Text="{Binding LatestReleasePublishedDisplay}"
-                                                                                           Foreground="#F8FAFC"
-                                                                                           FontSize="14"
-                                                                                           FontWeight="SemiBold"/>
-                                                                </StackPanel>
-                                                        </Border>
-
-                                                        <Border Style="{StaticResource SettingsInfoChipStyle}">
-                                                                <StackPanel>
-                                                                        <TextBlock Text="Installer size"
-                                                                                           Foreground="#94A3B8"
-                                                                                           FontSize="11"/>
-                                                                        <TextBlock Text="{Binding InstallerSizeDisplay}"
-                                                                                           Foreground="#F8FAFC"
-                                                                                           FontSize="14"
-                                                                                           FontWeight="SemiBold"/>
-                                                                </StackPanel>
-                                                        </Border>
-
-                                                        <Border Style="{StaticResource SettingsInfoChipStyle}">
-                                                                <StackPanel>
-                                                                        <TextBlock Text="Integrity"
-                                                                                           Foreground="#94A3B8"
-                                                                                           FontSize="11"/>
-                                                                        <TextBlock Text="{Binding LatestIntegrityDisplay}"
-                                                                                           Foreground="#F8FAFC"
-                                                                                           FontSize="13"
-                                                                                           TextWrapping="Wrap"
-                                                                                           MaxWidth="220"/>
-                                                                </StackPanel>
-                                                        </Border>
-                                                </WrapPanel>
-
-                                                <StackPanel Margin="0,16,0,0"
-                                                                Visibility="{Binding HasReleaseNotes, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <TextBlock Text="Release notes"
-                                                                           Foreground="#94A3B8"
-                                                                           FontSize="12"/>
-                                                        <StackPanel Orientation="Horizontal"
-                                                                        Margin="0,6,0,0">
-                                                                <Button Content="View release notes"
-                                                                                Command="{Binding ShowReleaseNotesCommand}"
-                                                                                Style="{StaticResource SettingsCheckButtonStyle}"
-                                                                                MinWidth="170"/>
-                                                                <Button Content="Open on GitHub"
-                                                                                Command="{Binding OpenReleaseNotesLinkCommand}"
-                                                                                Style="{StaticResource SettingsActionButtonStyle}"
-                                                                                Background="#111B33"
-                                                                                Foreground="#E2E8F0"
-                                                                                Tag="#1E293B"
-                                                                                Margin="8,0,0,0"
-                                                                                MinWidth="150"
-                                                                                IsEnabled="{Binding HasReleaseNotesLink}"/>
-                                                        </StackPanel>
-                                                        <TextBlock Text="Opens a focused popup with structured notes."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,6,0,0"/>
-                                                </StackPanel>
-
-                                                <StackPanel Margin="0,12,0,0"
-                                                                Visibility="{Binding HasDownloadLink, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                        <TextBlock Text="Download installer"
-                                                                           Foreground="#94A3B8"
-                                                                           FontSize="12"/>
-                                                        <TextBlock Foreground="#F8FAFC">
-                                                                <Hyperlink NavigateUri="{Binding LatestDownloadUri}"
-                                                                                   RequestNavigate="UpdateLink_RequestNavigate">Download</Hyperlink>
-                                                        </TextBlock>
-                                                </StackPanel>
-                                        </StackPanel>
-                                </Border>
-
-                                <Border Background="#0B1120"
-                                                Padding="24"
-                                                CornerRadius="16"
-                                                BorderBrush="#1D2A44"
-                                                BorderThickness="1"
-                                                Margin="0,0,0,16">
-                                        <StackPanel>
-                                                <TextBlock Text="Elevation status"
-                                                                   Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
-                                                <TextBlock Text="TidyWindow always runs elevated so repairs, installers, and registry updates can finish without prompts."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,6,0,0"/>
-                                                <Border Margin="0,20,0,0"
-                                                                Padding="16"
-                                                                CornerRadius="12">
-                                                        <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                        <Setter Property="Background"
-                                                                                        Value="#12244A"/>
-                                                                        <Setter Property="BorderBrush"
-                                                                                        Value="#1E3A8A"/>
-                                                                        <Setter Property="BorderThickness"
-                                                                                        Value="1"/>
-                                                                        <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding IsRunningElevated}"
-                                                                                                         Value="True">
-                                                                                        <Setter Property="Background"
-                                                                                                        Value="#0B192F"/>
-                                                                                        <Setter Property="BorderBrush"
-                                                                                                        Value="#22D3EE"/>
-                                                                                </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                </Style>
-                                                        </Border.Style>
-                                                        <StackPanel>
-                                                                <StackPanel Orientation="Horizontal"
-                                                                                   Margin="0,0,0,8"
-                                                                                   VerticalAlignment="Center">
-                                                                        <Border Background="#22D3EE"
-                                                                                        CornerRadius="8"
-                                                                                        Padding="8,4"
-                                                                                        Margin="0,0,8,0">
-                                                                                <TextBlock Text="Administrator (required)"
-                                                                                                   FontWeight="SemiBold"
-                                                                                                   Foreground="#0B1120"/>
-                                                                        </Border>
-                                                                        <Border Background="#0EA5E9"
-                                                                                        CornerRadius="8"
-                                                                                        Padding="8,4">
-                                                                                <TextBlock Text="Always elevated for repairs"
-                                                                                                   FontWeight="SemiBold"
-                                                                                                   Foreground="#0B1120"/>
-                                                                        </Border>
-                                                                </StackPanel>
-
-                                                                <TextBlock Text="{Binding CurrentPrivilegeDisplay}"
-                                                                                   FontSize="16"
-                                                                                   FontWeight="SemiBold"
-                                                                                   Foreground="#F8FAFC"/>
-                                                                <TextBlock Text="{Binding CurrentPrivilegeAdvice}"
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,8,0,0"/>
-                                                                <TextBlock Text="If elevation is ever lost, you'll be prompted to restart TidyWindow so installs, service templates, and new features can keep working."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,6,0,0"/>
-                                                                <ItemsControl Margin="0,10,0,0">
-                                                                        <ItemsControl.Items>
-                                                                                <TextBlock Text="• Deep Scan, Install Hub, and Registry Optimizer all expect admin access." Foreground="#E2E8F0"/>
-                                                                                <TextBlock Text="• Package installs, service repairs, and rollback flows stay elevated end-to-end." Foreground="#E2E8F0" Margin="0,4,0,0"/>
-                                                                                <TextBlock Text="• PulseGuard monitors elevated tasks and surfaces issues without modal prompts." Foreground="#E2E8F0" Margin="0,4,0,0"/>
-                                                                        </ItemsControl.Items>
-                                                                </ItemsControl>
-                                                        </StackPanel>
-                                                </Border>
-                                        </StackPanel>
-                                </Border>
-
-                                <Border Background="#0B1120"
-                                                Padding="24"
-                                                CornerRadius="16"
-                                                BorderBrush="#1D2A44"
-                                                BorderThickness="1"
-                                                Margin="0,0,0,16">
-                                        <StackPanel>
-                                                <TextBlock Text="Background presence"
-                                                                   Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
-                                                <TextBlock Text="Keep TidyWindow available from the system tray so queued automation can continue quietly."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,6,0,0"/>
-
-                                                <Grid Margin="0,20,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="Run in background"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Minimize to the tray instead of closing the process."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                        <ToggleButton Grid.Column="1"
-                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                                  IsChecked="{Binding RunInBackground, Mode=TwoWay}"/>
-                                                </Grid>
-
-                                                <Grid Margin="0,16,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="Launch at startup"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Create a Task Scheduler entry that runs with highest privileges so Windows won't prompt every logon."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                        <ToggleButton Grid.Column="1"
-                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                                  IsChecked="{Binding LaunchAtStartup, Mode=TwoWay}"/>
-                                                </Grid>
-                                        </StackPanel>
-                                </Border>
-
-                                <Border Background="#0B1120"
-                                                Padding="24"
-                                                CornerRadius="16"
-                                                BorderBrush="#1D2A44"
-                                                BorderThickness="1">
-                                        <StackPanel>
-                                                <TextBlock Text="PulseGuard watchdog"
-                                                                   Style="{StaticResource SettingsSectionHeaderTextStyle}"/>
-                                                <TextBlock Text="PulseGuard keeps a pulse on automation logs, highlighting success digests and urgent issues without spamming your desktop."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,6,0,0"/>
-
-                                                <Grid Margin="0,20,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="Enable PulseGuard"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Turn on the watchdog so it can classify automation events."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                        <ToggleButton Grid.Column="1"
-                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                                  IsChecked="{Binding PulseGuardEnabled, Mode=TwoWay}"/>
-                                                </Grid>
-
-                                                <Grid Margin="0,16,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="PulseGuard notifications"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Allow PulseGuard to raise Windows toasts and tray tips when you're away from the app."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                        <ToggleButton Grid.Column="1"
-                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                                  IsChecked="{Binding NotificationsEnabled, Mode=TwoWay}"
-                                                                                  IsEnabled="{Binding PulseGuardEnabled}"/>
-                                                </Grid>
-
-                                                <Grid Margin="0,16,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="Only notify when I'm away"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Mute toast notifications while the window stays in focus."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                        <ToggleButton Grid.Column="1"
-                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                                  IsChecked="{Binding NotifyOnlyWhenInactive, Mode=TwoWay}"
-                                                                                  IsEnabled="{Binding CanAdjustPulseGuardNotifications}"/>
-                                                </Grid>
-
-                                                <Grid Margin="0,16,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="Show completion digests"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Get a wrap-up when long-running scripts succeed."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                        <ToggleButton Grid.Column="1"
-                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                                  IsChecked="{Binding PulseGuardShowSuccessSummaries, Mode=TwoWay}"
-                                                                                  IsEnabled="{Binding CanAdjustPulseGuardNotifications}"/>
-                                                </Grid>
-
-                                                <Grid Margin="0,16,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <StackPanel>
-                                                                <TextBlock Text="Show action-required alerts"
-                                                                                   Foreground="#E2E8F0"
-                                                                                   FontSize="14"
-                                                                                   FontWeight="SemiBold"/>
-                                                                <TextBlock Text="Keep blockers like legacy PowerShell or pending restarts front and center."
-                                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                                   Margin="0,4,0,0"/>
-                                                        </StackPanel>
-                                                        <ToggleButton Grid.Column="1"
-                                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                                  IsChecked="{Binding PulseGuardShowActionAlerts, Mode=TwoWay}"
-                                                                                  IsEnabled="{Binding CanAdjustPulseGuardNotifications}"/>
-                                                </Grid>
-
-                                                <TextBlock Text="Every PulseGuard toast includes a &quot;View log&quot; action, so you can jump straight to the evidence."
-                                                                   Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                                                   Margin="0,20,0,0"/>
-                                        </StackPanel>
-                                </Border>
-                        </StackPanel>
-                                        </StackPanel>
-                </ScrollViewer>
-
-                <Grid x:Name="ReleaseNotesOverlay"
-                              Panel.ZIndex="9"
-                              Background="#B0020617"
-                              Visibility="{Binding IsReleaseNotesDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}"
-                              IsHitTestVisible="{Binding IsReleaseNotesDialogVisible}">
-                        <Border MinWidth="540"
-                                        MaxWidth="980"
-                                        Margin="32"
-                                        Padding="28"
-                                        Background="#0B1729"
-                                        BorderBrush="#24344F"
-                                        BorderThickness="1"
-                                        CornerRadius="24"
-                                        HorizontalAlignment="Center"
-                                        VerticalAlignment="Center">
-                                <Grid>
-                                        <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="*"/>
-                                                <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-
-                                        <StackPanel Margin="0,0,0,18">
-                                                <TextBlock Text="{Binding ReleaseNotesDialogTitle}"
-                                                                   FontSize="20"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="#F8FAFC"
-                                                                   TextWrapping="Wrap"/>
-                                                <TextBlock Text="{Binding ReleaseNotesDialogSubtitle}"
-                                                                   Margin="0,6,0,0"
-                                                                   Foreground="#9FB0C7"
-                                                                   FontSize="12"
-                                                                   TextWrapping="Wrap"/>
-                                                <TextBlock Text="{Binding UpdateAvailabilitySummary}"
-                                                                   Margin="0,6,0,0"
-                                                                   Foreground="#B4C4E0"
-                                                                   FontSize="12"
-                                                                   TextWrapping="Wrap"/>
-                                        </StackPanel>
-
-                                        <Border Grid.Row="1"
-                                                        Background="#0A162C"
-                                                        BorderBrush="#1E2F4B"
-                                                        BorderThickness="1"
-                                                        CornerRadius="12"
-                                                        Padding="12">
-                                                <Grid>
-                                                        <FlowDocumentScrollViewer Document="{Binding ReleaseNotesDocument}"
-                                                                                         VerticalScrollBarVisibility="Auto"
-                                                                                         HorizontalScrollBarVisibility="Disabled"
-                                                                                         IsSelectionEnabled="True"
-                                                                                         Padding="2"
-                                                                                         FontSize="13"
-                                                                                         Foreground="#E2E8F0"
-                                                                                         Background="Transparent"
-                                                                                         MaxHeight="540"/>
-                                                        <TextBlock Text="Release notes will appear after the first check."
-                                                                       HorizontalAlignment="Center"
-                                                                       VerticalAlignment="Center"
-                                                                       Foreground="#5F6B84"
-                                                                       FontSize="12">
-                                                                <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                                <Setter Property="Visibility"
-                                                                                                Value="Collapsed"/>
-                                                                                <Style.Triggers>
-                                                                                        <DataTrigger Binding="{Binding HasReleaseNotesContent}"
-                                                                                                         Value="False">
-                                                                                                <Setter Property="Visibility"
-                                                                                                                Value="Visible"/>
-                                                                                        </DataTrigger>
-                                                                                </Style.Triggers>
-                                                                        </Style>
-                                                                </TextBlock.Style>
-                                                        </TextBlock>
-                                                </Grid>
-                                        </Border>
-
-                                        <StackPanel Grid.Row="2"
-                                                    Orientation="Horizontal"
-                                                    HorizontalAlignment="Right"
-                                                    Margin="0,18,0,0">
-                                                <Button Content="Open on GitHub"
-                                                                Command="{Binding OpenReleaseNotesLinkCommand}"
-                                                                Style="{StaticResource SettingsActionButtonStyle}"
-                                                                Background="#111B33"
-                                                                Foreground="#E2E8F0"
-                                                                Tag="#1E293B"
-                                                                Padding="14,6"
-                                                                MinWidth="140"
-                                                                IsEnabled="{Binding HasReleaseNotesLink}"/>
-                                                <Button Content="Copy notes"
-                                                                Command="{Binding CopyReleaseNotesCommand}"
-                                                                Style="{StaticResource SettingsActionButtonStyle}"
-                                                                Background="#0F172A"
-                                                                Foreground="#E2E8F0"
-                                                                Tag="#1F2A3D"
-                                                                Padding="14,6"
-                                                                MinWidth="120"
-                                                                Margin="10,0,0,0"/>
-                                                <Button Content="Close"
-                                                                Command="{Binding CloseReleaseNotesCommand}"
-                                                                Style="{StaticResource SettingsCheckButtonStyle}"
-                                                                Padding="16,8"
-                                                                MinWidth="120"
-                                                                Margin="12,0,0,0"/>
-                                        </StackPanel>
-                                </Grid>
+        <!-- Primary Button -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#8B5CF6"/>
+            <Setter Property="Foreground" Value="#FFFFFF"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#A78BFA"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary Button -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="Foreground" Value="#E2E8F0"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="16,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bg" Background="{TemplateBinding Background}" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#334155"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bg" Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Info Chip -->
+        <Style x:Key="InfoChip" TargetType="Border">
+            <Setter Property="Background" Value="#1E293B"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,0,12,0"/>
+        </Style>
+
+        <!-- Status Badge -->
+        <Style x:Key="StatusBadge" TargetType="Border">
+            <Setter Property="Background" Value="#22C55E"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,4"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="32">
+            <StackPanel>
+
+                <!-- Page Header -->
+                <controls:PageTitleBar Title="Settings" Subtitle="Configure how TidyWindow runs on your machine" IconGlyph="⚙️" Margin="0,0,0,32"/>
+
+                <!-- Updates Section -->
+                <Border Style="{StaticResource SectionCard}">
+                    <StackPanel>
+                        <TextBlock Text="Updates" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Check for new releases and install updates" Style="{StaticResource SectionSubtitle}"/>
+
+                        <!-- Version Info -->
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Style="{StaticResource InfoChip}">
+                                <StackPanel>
+                                    <TextBlock Text="Current" FontSize="11" Foreground="#64748B"/>
+                                    <TextBlock Text="{Binding CurrentVersionDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="1" Style="{StaticResource InfoChip}">
+                                <StackPanel>
+                                    <TextBlock Text="Latest" FontSize="11" Foreground="#64748B"/>
+                                    <TextBlock Text="{Binding LatestVersionDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Grid.Column="2" Style="{StaticResource InfoChip}" HorizontalAlignment="Left">
+                                <StackPanel>
+                                    <TextBlock Text="Last checked" FontSize="11" Foreground="#64748B"/>
+                                    <TextBlock Text="{Binding LastUpdateCheckDisplay}" FontSize="13" Foreground="#94A3B8"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+
+                        <!-- Action Buttons -->
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="{Binding CheckForUpdatesButtonLabel}" Command="{Binding CheckForUpdatesCommand}" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding IsUpdateActionsEnabled}"/>
+                            <Button Content="{Binding InstallUpdateButtonLabel}" Command="{Binding InstallUpdateCommand}" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" IsEnabled="{Binding IsUpdateActionsEnabled}" Visibility="{Binding IsInstallUpdateVisible, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        </StackPanel>
+
+                        <!-- Progress -->
+                        <ProgressBar Height="3" Margin="0,16,0,0" IsIndeterminate="True" Background="#1E293B" Foreground="#8B5CF6" Visibility="{Binding IsCheckingForUpdates, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                        <StackPanel Margin="0,12,0,0" Visibility="{Binding ShowInstallerProgress, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ProgressBar Height="3" Maximum="100" Value="{Binding InstallerDownloadProgress, Mode=OneWay}" Background="#1E293B" Foreground="#8B5CF6" IsIndeterminate="{Binding IsInstallerProgressIndeterminate, Mode=OneWay}"/>
+                            <TextBlock Text="{Binding InstallerDownloadStatus}" Foreground="#64748B" FontSize="12" Margin="0,6,0,0"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding UpdateStatusMessage}" Foreground="#64748B" FontSize="12" Margin="0,12,0,0" TextWrapping="Wrap"/>
+
+                        <!-- Release Notes -->
+                        <StackPanel Orientation="Horizontal" Margin="0,16,0,0" Visibility="{Binding HasReleaseNotes, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Button Content="📄 View release notes" Command="{Binding ShowReleaseNotesCommand}" Style="{StaticResource SecondaryButton}"/>
+                            <Button Content="Open on GitHub" Command="{Binding OpenReleaseNotesLinkCommand}" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" IsEnabled="{Binding HasReleaseNotesLink}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Elevation Section -->
+                <Border Style="{StaticResource SectionCard}">
+                    <StackPanel>
+                        <TextBlock Text="Elevation" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="TidyWindow requires admin privileges for repairs and system changes" Style="{StaticResource SectionSubtitle}"/>
+
+                        <Border Background="#0F172A" CornerRadius="12" Padding="16" BorderBrush="#1E293B" BorderThickness="1">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel>
+                                    <TextBlock Text="{Binding CurrentPrivilegeDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9"/>
+                                    <TextBlock Text="{Binding CurrentPrivilegeAdvice}" Foreground="#64748B" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                                </StackPanel>
+
+                                <Border Grid.Column="1" VerticalAlignment="Center">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+                                            <Setter Property="Background" Value="#22C55E"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsRunningElevated}" Value="False">
+                                                    <Setter Property="Background" Value="#EF4444"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="#0F172A">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Text" Value="ELEVATED"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsRunningElevated}" Value="False">
+                                                        <Setter Property="Text" Value="LIMITED"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Behavior Section -->
+                <Border Style="{StaticResource SectionCard}">
+                    <StackPanel>
+                        <TextBlock Text="Behavior" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Control how the app starts and runs in the background" Style="{StaticResource SectionSubtitle}"/>
+
+                        <!-- Run in background -->
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Run in background" Foreground="#E2E8F0" FontSize="14" FontWeight="Medium"/>
+                                <TextBlock Text="Minimize to tray instead of closing" Foreground="#64748B" FontSize="12"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleStyle}" IsChecked="{Binding RunInBackground, Mode=TwoWay}"/>
+                        </Grid>
+
+                        <!-- Launch at startup -->
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Launch at startup" Foreground="#E2E8F0" FontSize="14" FontWeight="Medium"/>
+                                <TextBlock Text="Start TidyWindow when you log in" Foreground="#64748B" FontSize="12"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleStyle}" IsChecked="{Binding LaunchAtStartup, Mode=TwoWay}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- PulseGuard Section -->
+                <Border Style="{StaticResource SectionCard}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                            <TextBlock Text="PulseGuard" Style="{StaticResource SectionTitle}" Margin="0"/>
+                            <Border Background="#8B5CF6" CornerRadius="4" Padding="6,2" Margin="10,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="WATCHDOG" FontSize="9" FontWeight="Bold" Foreground="#FFFFFF"/>
+                            </Border>
+                        </StackPanel>
+                        <TextBlock Text="Get notified about automation results and system issues" Style="{StaticResource SectionSubtitle}"/>
+
+                        <!-- Enable PulseGuard -->
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Enable PulseGuard" Foreground="#E2E8F0" FontSize="14" FontWeight="Medium"/>
+                                <TextBlock Text="Monitor automation and surface important events" Foreground="#64748B" FontSize="12"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleStyle}" IsChecked="{Binding PulseGuardEnabled, Mode=TwoWay}"/>
+                        </Grid>
+
+                        <!-- Notifications -->
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Show notifications" Foreground="#E2E8F0" FontSize="14" FontWeight="Medium"/>
+                                <TextBlock Text="Display Windows toasts for events" Foreground="#64748B" FontSize="12"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleStyle}" IsChecked="{Binding NotificationsEnabled, Mode=TwoWay}" IsEnabled="{Binding PulseGuardEnabled}"/>
+                        </Grid>
+
+                        <!-- Only when away -->
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Only notify when away" Foreground="#E2E8F0" FontSize="14" FontWeight="Medium"/>
+                                <TextBlock Text="Mute toasts while the window is focused" Foreground="#64748B" FontSize="12"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleStyle}" IsChecked="{Binding NotifyOnlyWhenInactive, Mode=TwoWay}" IsEnabled="{Binding CanAdjustPulseGuardNotifications}"/>
+                        </Grid>
+
+                        <!-- Success summaries -->
+                        <Grid Style="{StaticResource SettingRow}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Show completion digests" Foreground="#E2E8F0" FontSize="14" FontWeight="Medium"/>
+                                <TextBlock Text="Get a summary when scripts finish" Foreground="#64748B" FontSize="12"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleStyle}" IsChecked="{Binding PulseGuardShowSuccessSummaries, Mode=TwoWay}" IsEnabled="{Binding CanAdjustPulseGuardNotifications}"/>
+                        </Grid>
+
+                        <!-- Action alerts -->
+                        <Grid Margin="0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Text="Show action-required alerts" Foreground="#E2E8F0" FontSize="14" FontWeight="Medium"/>
+                                <TextBlock Text="Alert for blockers like pending restarts" Foreground="#64748B" FontSize="12"/>
+                            </StackPanel>
+                            <ToggleButton Grid.Column="1" Style="{StaticResource ModernToggleStyle}" IsChecked="{Binding PulseGuardShowActionAlerts, Mode=TwoWay}" IsEnabled="{Binding CanAdjustPulseGuardNotifications}"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Release Notes Overlay -->
+        <Grid x:Name="ReleaseNotesOverlay" Panel.ZIndex="10" Background="#CC0F172A" Visibility="{Binding IsReleaseNotesDialogVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <Border MaxWidth="700" MaxHeight="600" Margin="48" Background="#0F172A" CornerRadius="20" Padding="28" BorderBrush="#1E293B" BorderThickness="1" VerticalAlignment="Center" HorizontalAlignment="Center">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Margin="0,0,0,20">
+                        <TextBlock Text="{Binding ReleaseNotesDialogTitle}" FontSize="18" FontWeight="SemiBold" Foreground="#F1F5F9"/>
+                        <TextBlock Text="{Binding ReleaseNotesDialogSubtitle}" Foreground="#64748B" FontSize="12" Margin="0,4,0,0"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="1" Background="#0B1120" CornerRadius="12" Padding="16">
+                        <FlowDocumentScrollViewer Document="{Binding ReleaseNotesDocument}" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" IsSelectionEnabled="True" FontSize="13" Foreground="#E2E8F0" Background="Transparent" MaxHeight="400"/>
+                    </Border>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                        <Button Content="Open on GitHub" Command="{Binding OpenReleaseNotesLinkCommand}" Style="{StaticResource SecondaryButton}" IsEnabled="{Binding HasReleaseNotesLink}"/>
+                        <Button Content="Copy" Command="{Binding CopyReleaseNotesCommand}" Style="{StaticResource SecondaryButton}" Margin="12,0"/>
+                        <Button Content="Close" Command="{Binding CloseReleaseNotesCommand}" Style="{StaticResource PrimaryButton}"/>
+                    </StackPanel>
                 </Grid>
+            </Border>
         </Grid>
+    </Grid>
 </Page>

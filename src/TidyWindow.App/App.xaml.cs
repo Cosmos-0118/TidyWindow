@@ -163,8 +163,6 @@ public partial class App : WpfApplication
                 services.AddSingleton<InventoryService>();
                 services.AddSingleton<BackupService>();
                 services.AddSingleton<RestoreService>();
-                services.AddSingleton<ILatencyGuardSampler, LatencyGuardSampler>();
-                services.AddSingleton<ILatencyGuardProfileService, LatencyGuardProfileService>();
 
                 services.AddSingleton<MainViewModel>();
                 services.AddTransient<BootstrapViewModel>();
@@ -184,7 +182,6 @@ public partial class App : WpfApplication
                 services.AddTransient<ThreatWatchViewModel>();
                 services.AddTransient<StartupControllerViewModel>();
                 services.AddTransient<PerformanceLabViewModel>();
-                services.AddTransient<LatencyGuardViewModel>();
                 services.AddTransient<ResetRescueViewModel>();
 
                 services.AddTransient<BootstrapPage>();
@@ -200,7 +197,6 @@ public partial class App : WpfApplication
                 services.AddTransient<KnownProcessesPage>();
                 services.AddTransient<StartupControllerPage>();
                 services.AddTransient<PerformanceLabPage>();
-                services.AddTransient<LatencyGuardPage>();
                 services.AddTransient<ResetRescuePage>();
 
                 services.AddSingleton<MainWindow>();

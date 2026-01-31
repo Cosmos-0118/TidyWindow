@@ -1,14 +1,26 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.Threading;
 using System.Windows;
 using System.Windows.Forms;
+using System.Windows.Threading;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views;
 using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.Services;
 
+/// <summary>
+/// Manages the system tray icon with robust recovery mechanisms.
+/// </summary>
+/// <remarks>
+/// Reliability improvements:
+/// 1. Automatic icon recreation if it becomes invisible/orphaned
+/// 2. Periodic health checks when running in background mode
+/// 3. Thread-safe icon operations with proper dispatcher handling
+/// 4. Graceful handling of explorer.exe crashes/restarts
+/// </remarks>
 public sealed class TrayService : ITrayService
 {
     private readonly NavigationService _navigationService;
@@ -17,14 +29,20 @@ public sealed class TrayService : ITrayService
     private readonly MainViewModel _mainViewModel;
     private readonly IAutomationWorkTracker _workTracker;
     private readonly SmartPageCache _pageCache;
+    private readonly object _iconLock = new();
 
     private NotifyIcon? _notifyIcon;
+    private ContextMenuStrip? _contextMenu;
     private Window? _window;
     private bool _explicitExitRequested;
     private bool _hasShownBackgroundHint;
     private PulseGuardNotification? _lastNotification;
     private ToolStripMenuItem? _notificationsMenuItem;
     private bool _disposed;
+    private DispatcherTimer? _healthCheckTimer;
+    private int _iconCreationAttempts;
+    private const int MaxIconRecreationAttempts = 3;
+    private static readonly TimeSpan HealthCheckInterval = TimeSpan.FromMinutes(2);
 
     public TrayService(NavigationService navigationService, UserPreferencesService preferencesService, ActivityLogService activityLog, MainViewModel mainViewModel, SmartPageCache pageCache, IAutomationWorkTracker workTracker)
     {
@@ -36,9 +54,26 @@ public sealed class TrayService : ITrayService
         _workTracker = workTracker ?? throw new ArgumentNullException(nameof(workTracker));
 
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.AddHandler(_preferencesService, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
+
+        // Register for shell restart notifications (explorer.exe crash/restart)
+        RegisterShellRestartHandler();
     }
 
     public bool IsExitRequested => _explicitExitRequested;
+
+    /// <summary>
+    /// Gets whether the tray icon is currently healthy and visible.
+    /// </summary>
+    public bool IsIconHealthy
+    {
+        get
+        {
+            lock (_iconLock)
+            {
+                return _notifyIcon is not null && _notifyIcon.Visible;
+            }
+        }
+    }
 
     public void Attach(Window window)
     {
@@ -53,24 +88,73 @@ public sealed class TrayService : ITrayService
         }
 
         _window = window;
+        EnsureTrayIconCreated();
+    }
 
-        if (_notifyIcon is not null)
+    /// <summary>
+    /// Ensures the tray icon exists and is visible.
+    /// Safe to call multiple times - will recreate if needed.
+    /// </summary>
+    public void EnsureTrayIconCreated()
+    {
+        lock (_iconLock)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            if (_notifyIcon is not null && _notifyIcon.Visible)
+            {
+                return; // Icon already exists and is healthy
+            }
+
+            // Clean up any existing icon before recreating
+            CleanupIconUnsafe();
+
+            try
+            {
+                _notifyIcon = new NotifyIcon
+                {
+                    Icon = ResolveIcon(),
+                    Visible = true,
+                    Text = BuildTooltip(_preferencesService.Current)
+                };
+
+                _notifyIcon.DoubleClick += OnNotifyIconDoubleClick;
+                _notifyIcon.BalloonTipClicked += OnBalloonTipClicked;
+
+                _contextMenu = BuildContextMenu();
+                _notifyIcon.ContextMenuStrip = _contextMenu;
+
+                _iconCreationAttempts = 0; // Reset on success
+            }
+            catch (Exception ex)
+            {
+                _iconCreationAttempts++;
+                _activityLog.LogWarning("TrayIcon", $"Failed to create tray icon (attempt {_iconCreationAttempts}): {ex.Message}");
+
+                if (_iconCreationAttempts < MaxIconRecreationAttempts)
+                {
+                    // Schedule a retry after a short delay
+                    ScheduleIconRetry();
+                }
+            }
         }
+    }
 
-        _notifyIcon = new NotifyIcon
+    private void ScheduleIconRetry()
+    {
+        _window?.Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
-            Icon = ResolveIcon(),
-            Visible = true,
-            Text = BuildTooltip(_preferencesService.Current)
-        };
+            Thread.Sleep(500); // Brief delay before retry
+            EnsureTrayIconCreated();
+        }));
+    }
 
-        _notifyIcon.DoubleClick += (_, _) => ShowMainWindow();
-        _notifyIcon.BalloonTipClicked += OnBalloonTipClicked;
-
-        var menu = BuildContextMenu();
-        _notifyIcon.ContextMenuStrip = menu;
+    private void OnNotifyIconDoubleClick(object? sender, EventArgs e)
+    {
+        ShowMainWindow();
     }
 
     public void ShowMainWindow()
@@ -82,18 +166,54 @@ public sealed class TrayService : ITrayService
 
         _window.Dispatcher.Invoke(() =>
         {
-            if (!_window.IsVisible)
+            try
             {
-                _window.Show();
-            }
+                if (!_window.IsVisible)
+                {
+                    _window.Show();
+                }
 
-            if (_window.WindowState == WindowState.Minimized)
+                if (_window.WindowState == WindowState.Minimized)
+                {
+                    _window.WindowState = WindowState.Normal;
+                }
+
+                _window.Activate();
+
+                // Bring to foreground even if another window has focus
+                SetForegroundWindowEx(_window);
+            }
+            catch (Exception ex)
             {
-                _window.WindowState = WindowState.Normal;
+                _activityLog.LogWarning("TrayIcon", $"Failed to show main window: {ex.Message}");
             }
-
-            _window.Activate();
         });
+    }
+
+    /// <summary>
+    /// Attempts to bring the window to the foreground, handling edge cases.
+    /// </summary>
+    private static void SetForegroundWindowEx(Window window)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            var helper = new System.Windows.Interop.WindowInteropHelper(window);
+            var hwnd = helper.Handle;
+            if (hwnd != IntPtr.Zero)
+            {
+                // Flash the taskbar button briefly to get permission to steal focus
+                NativeMethods.SetForegroundWindow(hwnd);
+            }
+        }
+        catch
+        {
+            // Non-critical failure
+        }
     }
 
     public void HideToTray(bool showHint)
@@ -111,6 +231,10 @@ public sealed class TrayService : ITrayService
             {
                 _window.Hide();
             }
+
+            // Ensure tray icon is healthy when hiding to tray
+            EnsureTrayIconCreated();
+            StartHealthCheckTimer();
 
             // Trim cached pages only when they are expired and no automation is active.
             if (!_workTracker.HasActiveWork)
@@ -131,22 +255,73 @@ public sealed class TrayService : ITrayService
         });
     }
 
-    public void ShowNotification(PulseGuardNotification notification)
+    private void StartHealthCheckTimer()
     {
-        if (_notifyIcon is null)
+        if (_healthCheckTimer is not null)
         {
             return;
         }
 
-        var icon = notification.Kind switch
+        _healthCheckTimer = new DispatcherTimer
         {
-            PulseGuardNotificationKind.ActionRequired => ToolTipIcon.Warning,
-            PulseGuardNotificationKind.SuccessDigest => ToolTipIcon.Info,
-            _ => ToolTipIcon.None
+            Interval = HealthCheckInterval
         };
+        _healthCheckTimer.Tick += OnHealthCheckTick;
+        _healthCheckTimer.Start();
+    }
 
-        _lastNotification = notification;
-        ShowBalloon(notification.Title, notification.Message, icon);
+    private void StopHealthCheckTimer()
+    {
+        if (_healthCheckTimer is null)
+        {
+            return;
+        }
+
+        _healthCheckTimer.Stop();
+        _healthCheckTimer.Tick -= OnHealthCheckTick;
+        _healthCheckTimer = null;
+    }
+
+    private void OnHealthCheckTick(object? sender, EventArgs e)
+    {
+        // If the window is visible, we don't need health checks
+        if (_window?.IsVisible == true)
+        {
+            StopHealthCheckTimer();
+            return;
+        }
+
+        // Check if tray icon is still healthy
+        if (!IsIconHealthy)
+        {
+            _activityLog.LogWarning("TrayIcon", "Tray icon became unhealthy, attempting recovery...");
+            _iconCreationAttempts = 0; // Reset attempts for recovery
+            EnsureTrayIconCreated();
+        }
+    }
+
+    public void ShowNotification(PulseGuardNotification notification)
+    {
+        // Ensure icon exists before trying to show notification
+        EnsureTrayIconCreated();
+
+        lock (_iconLock)
+        {
+            if (_notifyIcon is null)
+            {
+                return;
+            }
+
+            var icon = notification.Kind switch
+            {
+                PulseGuardNotificationKind.ActionRequired => ToolTipIcon.Warning,
+                PulseGuardNotificationKind.SuccessDigest => ToolTipIcon.Info,
+                _ => ToolTipIcon.None
+            };
+
+            _lastNotification = notification;
+            ShowBalloonInternal(notification.Title, notification.Message, icon);
+        }
     }
 
     public void Dispose()
@@ -158,27 +333,98 @@ public sealed class TrayService : ITrayService
 
         _disposed = true;
 
+        StopHealthCheckTimer();
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.RemoveHandler(_preferencesService, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
+
+        lock (_iconLock)
+        {
+            CleanupIconUnsafe();
+        }
+    }
+
+    /// <summary>
+    /// Cleans up icon resources. Must be called while holding _iconLock.
+    /// </summary>
+    private void CleanupIconUnsafe()
+    {
+        if (_contextMenu is not null)
+        {
+            _contextMenu.Dispose();
+            _contextMenu = null;
+        }
 
         if (_notifyIcon is not null)
         {
-            _notifyIcon.Visible = false;
-            _notifyIcon.BalloonTipClicked -= OnBalloonTipClicked;
-            _notifyIcon.Dispose();
+            try
+            {
+                _notifyIcon.Visible = false;
+                _notifyIcon.DoubleClick -= OnNotifyIconDoubleClick;
+                _notifyIcon.BalloonTipClicked -= OnBalloonTipClicked;
+                _notifyIcon.Dispose();
+            }
+            catch
+            {
+                // Best effort cleanup
+            }
+
             _notifyIcon = null;
         }
+
+        _notificationsMenuItem = null;
     }
 
     public void PrepareForExit()
     {
         _explicitExitRequested = true;
-        _notifyIcon?.Dispose();
-        _notifyIcon = null;
+        StopHealthCheckTimer();
+
+        lock (_iconLock)
+        {
+            CleanupIconUnsafe();
+        }
     }
 
     public void ResetExitRequest()
     {
         _explicitExitRequested = false;
+    }
+
+    /// <summary>
+    /// Registers for shell restart notifications so we can recreate the tray icon
+    /// if explorer.exe crashes and restarts.
+    /// </summary>
+    private void RegisterShellRestartHandler()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        try
+        {
+            // Register the TaskbarCreated message which Windows broadcasts when explorer restarts
+            NativeMethods.TaskbarCreatedMessage = NativeMethods.RegisterWindowMessage("TaskbarCreated");
+        }
+        catch
+        {
+            // Non-critical; we still have the health check timer as backup
+        }
+    }
+
+    /// <summary>
+    /// Called when the shell (explorer.exe) restarts. Recreates the tray icon.
+    /// </summary>
+    public void OnShellRestarted()
+    {
+        _activityLog.LogInformation("TrayIcon", "Shell restarted, recreating tray icon...");
+        _iconCreationAttempts = 0;
+
+        lock (_iconLock)
+        {
+            CleanupIconUnsafe();
+        }
+
+        EnsureTrayIconCreated();
     }
 
     private ContextMenuStrip BuildContextMenu()
@@ -281,31 +527,69 @@ public sealed class TrayService : ITrayService
 
     private void UpdateTrayState(string tooltip, UserPreferences preferences)
     {
-        if (_notifyIcon is not null)
+        lock (_iconLock)
         {
-            _notifyIcon.Text = tooltip;
-        }
+            if (_notifyIcon is not null)
+            {
+                try
+                {
+                    _notifyIcon.Text = tooltip;
+                }
+                catch
+                {
+                    // Icon may have become invalid
+                }
+            }
 
-        if (_notificationsMenuItem is not null)
-        {
-            _notificationsMenuItem.Checked = !preferences.NotificationsEnabled;
+            if (_notificationsMenuItem is not null)
+            {
+                _notificationsMenuItem.Checked = !preferences.NotificationsEnabled;
+            }
         }
     }
 
     private void ShowBalloon(string title, string message, ToolTipIcon icon)
+    {
+        lock (_iconLock)
+        {
+            ShowBalloonInternal(title, message, icon);
+        }
+    }
+
+    /// <summary>
+    /// Shows a balloon notification. Must be called while holding _iconLock or from within lock scope.
+    /// </summary>
+    private void ShowBalloonInternal(string title, string message, ToolTipIcon icon)
     {
         if (_notifyIcon is null)
         {
             return;
         }
 
-        _window?.Dispatcher.Invoke(() =>
+        try
         {
-            _notifyIcon.BalloonTipTitle = title;
-            _notifyIcon.BalloonTipText = message;
-            _notifyIcon.BalloonTipIcon = icon;
-            _notifyIcon.ShowBalloonTip(5000);
-        });
+            if (_window is not null)
+            {
+                _window.Dispatcher.Invoke(() =>
+                {
+                    _notifyIcon.BalloonTipTitle = title;
+                    _notifyIcon.BalloonTipText = message;
+                    _notifyIcon.BalloonTipIcon = icon;
+                    _notifyIcon.ShowBalloonTip(5000);
+                });
+            }
+            else
+            {
+                _notifyIcon.BalloonTipTitle = title;
+                _notifyIcon.BalloonTipText = message;
+                _notifyIcon.BalloonTipIcon = icon;
+                _notifyIcon.ShowBalloonTip(5000);
+            }
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogWarning("TrayIcon", $"Failed to show balloon notification: {ex.Message}");
+        }
     }
 
     private static Icon ResolveIcon()
@@ -341,5 +625,23 @@ public sealed class TrayService : ITrayService
         };
 
         return text.Length <= 63 ? text : text[..63];
+    }
+
+    /// <summary>
+    /// Native methods for window and shell operations.
+    /// </summary>
+    private static class NativeMethods
+    {
+        /// <summary>
+        /// Cached TaskbarCreated message ID, set during initialization.
+        /// </summary>
+        public static uint TaskbarCreatedMessage { get; set; }
+
+        [System.Runtime.InteropServices.DllImport("user32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+        public static extern uint RegisterWindowMessage(string lpString);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        [return: System.Runtime.InteropServices.MarshalAs(System.Runtime.InteropServices.UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
     }
 }

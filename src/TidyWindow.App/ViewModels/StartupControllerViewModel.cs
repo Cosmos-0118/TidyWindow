@@ -192,6 +192,24 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     private int backupOnlyCount;
 
     /// <summary>
+    /// Number of entries that re-enabled themselves since the last refresh.
+    /// </summary>
+    [ObservableProperty]
+    private int reenabledAlertCount;
+
+    /// <summary>
+    /// Message to display in the re-enable alert bar.
+    /// </summary>
+    [ObservableProperty]
+    private string reenabledAlertMessage = string.Empty;
+
+    /// <summary>
+    /// Whether the re-enable alert bar should be visible.
+    /// </summary>
+    [ObservableProperty]
+    private bool showReenabledAlert;
+
+    /// <summary>
     /// Entries that exist only in the backup store (not found in live inventory).
     /// These are merged into <see cref="Entries"/> after refresh.
     /// </summary>
@@ -268,6 +286,14 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     public IAsyncRelayCommand<StartupEntryItemViewModel> DeleteBackupCommand { get; }
 
     [RelayCommand]
+    private void DismissReenabledAlert()
+    {
+        ShowReenabledAlert = false;
+        ReenabledAlertCount = 0;
+        ReenabledAlertMessage = string.Empty;
+    }
+
+    [RelayCommand]
     private void GoToPreviousPage()
     {
         if (!CanGoToPreviousPage)
@@ -317,7 +343,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         {
             await Task.Yield(); // Let the UI paint the busy indicator before heavy work begins.
 
-            var (mapped, baselineDisabled, backupOnly) = await Task.Run(async () =>
+            var (mapped, baselineDisabled, backupOnly, reenabledInfo) = await Task.Run(async () =>
             {
                 var snapshot = await _inventory.GetInventoryAsync().ConfigureAwait(false);
                 var mappedEntries = snapshot.Items.Select(startup => new StartupEntryItemViewModel(startup)).ToList();
@@ -337,7 +363,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
                 // Detect and warn about apps that re-enabled themselves
                 var liveIds = new HashSet<string>(mappedEntries.Select(e => e.Item.Id), StringComparer.OrdinalIgnoreCase);
-                DetectReenabledEntries(mappedEntries, liveIds);
+                var reenabled = DetectReenabledEntries(mappedEntries, liveIds);
 
                 var seenBackupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
                 var backupOnlyEntries = _control.BackupStore.GetAll()
@@ -347,7 +373,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                     .Select(backup => new StartupEntryItemViewModel(backup))
                     .ToList();
 
-                return (mappedEntries, disabledBaseline, backupOnlyEntries);
+                return (mappedEntries, disabledBaseline, backupOnlyEntries, reenabled);
             }).ConfigureAwait(true);
 
             Entries = new ObservableCollection<StartupEntryItemViewModel>(mapped);
@@ -359,6 +385,26 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 BackupOnlyEntries.Add(backupEntry);
             }
             BackupOnlyCount = backupOnly.Count;
+
+            // Update the re-enabled alert if any non-guarded entries re-enabled themselves
+            if (reenabledInfo.Count > 0)
+            {
+                ReenabledAlertCount = reenabledInfo.Count;
+                if (reenabledInfo.Count == 1)
+                {
+                    ReenabledAlertMessage = $"'{reenabledInfo.Names[0]}' re-enabled itself after you disabled it. Consider enabling Auto-Guard for this entry.";
+                }
+                else
+                {
+                    var displayNames = string.Join(", ", reenabledInfo.Names.Take(3));
+                    if (reenabledInfo.Names.Count > 3)
+                    {
+                        displayNames += $" and {reenabledInfo.Names.Count - 3} more";
+                    }
+                    ReenabledAlertMessage = $"{reenabledInfo.Count} startup entries re-enabled themselves: {displayNames}. Consider enabling Auto-Guard.";
+                }
+                ShowReenabledAlert = true;
+            }
         }
         finally
         {
@@ -373,12 +419,23 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     private void CacheRunBackups(IEnumerable<StartupEntryItemViewModel> entries)
     {
+        // Note: We only cache backup data for DISABLED entries.
+        // This backup data is needed to restore the registry value when re-enabling.
+        // We do NOT create backups for ENABLED entries - that would cause false
+        // "re-enabled itself" warnings because DetectReenabledEntries checks if
+        // a backup exists AND the entry is enabled.
         foreach (var entry in entries)
         {
             var item = entry.Item;
             if (item.SourceKind is not (StartupItemSourceKind.RunKey or StartupItemSourceKind.RunOnce))
             {
                 continue;
+            }
+
+            // Only cache for disabled entries that don't already have a backup
+            if (item.IsEnabled)
+            {
+                continue; // Skip enabled entries - backup only needed for disabled ones
             }
 
             if (_control.BackupStore.Get(item.Id) is not null)
@@ -424,11 +481,13 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     /// For guarded entries: automatically re-disables and logs a warning.
     /// For non-guarded entries: logs a warning to alert the user.
     /// Does NOT silently delete backups - the user should be aware and decide.
+    /// Returns a tuple of (nonGuardedCount, nonGuardedNames) for UI notification.
     /// </summary>
-    private void DetectReenabledEntries(IReadOnlyCollection<StartupEntryItemViewModel> mappedEntries, HashSet<string> liveIds)
+    private (int Count, List<string> Names) DetectReenabledEntries(IReadOnlyCollection<StartupEntryItemViewModel> mappedEntries, HashSet<string> liveIds)
     {
         var allBackups = _control.BackupStore.GetAll();
         var guards = _guardService.GetAll();
+        var nonGuardedReenabledNames = new List<string>();
 
         foreach (var backup in allBackups)
         {
@@ -467,7 +526,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             }
             else
             {
-                // NOT guarded - warn the user prominently
+                // NOT guarded - warn the user prominently and track for UI alert
+                nonGuardedReenabledNames.Add(entryName);
                 _activityLog.LogWarning(
                     "StartupController",
                     $"⚠️ '{entryName}' re-enabled itself without your permission!",
@@ -503,6 +563,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
             // For non-guarded items, we remove the obsolete record
             _control.BackupStore.Remove(backup.Id);
         }
+
+        return (nonGuardedReenabledNames.Count, nonGuardedReenabledNames);
     }
 
     private static bool TryParseRegistryLocation(string? location, out string rootName, out string subKey)

@@ -149,6 +149,10 @@ public sealed class ThreatWatchScanService
             _ => StartupEntryLocation.Unknown
         };
 
+        // Determine if the startup entry is unsigned or has an untrusted signature
+        // Only flag entries that are not signed and trusted
+        var isUnsigned = item.SignatureStatus is not StartupSignatureStatus.SignedTrusted;
+
         return new StartupEntrySnapshot(
             item.Id,
             item.Name,
@@ -156,7 +160,8 @@ public sealed class ThreatWatchScanService
             location,
             item.Arguments,
             item.SourceTag,
-            item.RawCommand ?? item.SourceTag);
+            item.RawCommand ?? item.SourceTag,
+            isUnsigned);
     }
 
     private static IReadOnlyDictionary<int, ProcessContext> TryLoadProcessContext()

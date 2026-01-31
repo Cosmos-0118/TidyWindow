@@ -227,75 +227,64 @@
         </DataTemplate>
 
         <DataTemplate x:Key="InstallationTemplate" DataType="{x:Type vm:PathPilotInstallationViewModel}">
-            <Border Padding="20" Margin="0,0,0,14">
+            <Border Padding="18,16" CornerRadius="12" BorderThickness="1">
                 <Border.Style>
-                    <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
+                    <Style TargetType="Border">
+                        <Setter Property="Background" Value="#1E293B" />
+                        <Setter Property="BorderBrush" Value="#334155" />
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                <Setter Property="Background" Value="#0F1F18" />
-                                <Setter Property="BorderBrush" Value="#2F6F55" />
+                                <Setter Property="Background" Value="#0F2318" />
+                                <Setter Property="BorderBrush" Value="#166534" />
                             </DataTrigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="BorderBrush" Value="#475569" />
+                            </Trigger>
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
 
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="3*" />
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <StackPanel Margin="0,6,16,0">
-                        <StackPanel.Resources>
-                            <Style TargetType="FrameworkElement">
-                                <Setter Property="Margin" Value="0,0,0,8" />
-                            </Style>
-                        </StackPanel.Resources>
-
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="{Binding VersionDisplay}" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                            <Border Grid.Column="1" Background="#1E2B45" CornerRadius="12" Padding="12,7" Margin="14,0,0,0" VerticalAlignment="Center"
+                    <StackPanel VerticalAlignment="Center">
+                        <!-- Header row: Version + Active badge -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="{Binding VersionDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" VerticalAlignment="Center" />
+                            <Border Background="#14532D" CornerRadius="6" Padding="8,4" Margin="12,0,0,0" VerticalAlignment="Center"
                                     Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock Text="Active" Foreground="#9BE7C4" FontSize="12" FontWeight="SemiBold" />
-                            </Border>
-                        </Grid>
-
-                        <TextBlock Text="{Binding Directory}" Foreground="#A5B4FC" FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" />
-
-                        <StackPanel Orientation="Horizontal" Margin="0,6,0,2">
-                            <StackPanel.Resources>
-                                <Style TargetType="FrameworkElement">
-                                    <Setter Property="Margin" Value="0,0,6,0" />
-                                </Style>
-                            </StackPanel.Resources>
-                            <Border Style="{StaticResource BadgeStyle}" Background="#0B2538">
-                                <TextBlock Text="{Binding Source}" Foreground="#7DD3FC" FontSize="11" />
-                            </Border>
-                            <Border Style="{StaticResource BadgeStyle}" Background="#0B1F34">
-                                <TextBlock Text="{Binding Architecture}" Foreground="#C084FC" FontSize="11" />
+                                <TextBlock Text="Active" Foreground="#4ADE80" FontSize="11" FontWeight="SemiBold" />
                             </Border>
                         </StackPanel>
 
-                        <Border Background="#1A253A" BorderBrush="#26344D" BorderThickness="1" CornerRadius="10" Padding="10"
+                        <!-- Directory path -->
+                        <TextBlock Text="{Binding Directory}" Foreground="#64748B" FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,0,0,10" />
+
+                        <!-- Badges row -->
+                        <StackPanel Orientation="Horizontal">
+                            <Border Background="#1E3A5F" CornerRadius="6" Padding="8,4" Margin="0,0,8,0">
+                                <TextBlock Text="{Binding Source}" Foreground="#7DD3FC" FontSize="11" />
+                            </Border>
+                            <Border Background="#2E1065" CornerRadius="6" Padding="8,4">
+                                <TextBlock Text="{Binding Architecture}" Foreground="#C4B5FD" FontSize="11" />
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Notes (if any) -->
+                        <Border Background="#1C1917" BorderBrush="#44403C" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,12,0,0"
                                 Visibility="{Binding HasNotes, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="{Binding NotesDisplay}" Foreground="#FDE047" FontSize="11" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding NotesDisplay}" Foreground="#FCD34D" FontSize="11" TextWrapping="Wrap" />
                         </Border>
                     </StackPanel>
 
-                    <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="14,0,0,0">
-                        <StackPanel.Resources>
-                            <Style TargetType="FrameworkElement">
-                                <Setter Property="Margin" Value="0,0,0,12" />
-                            </Style>
-                        </StackPanel.Resources>
-                        <Button Content="Make active" Style="{StaticResource SecondaryButton}" Padding="14,12" MinWidth="158" HorizontalAlignment="Stretch"
-                                Command="{Binding DataContext.SwitchRuntimeCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                CommandParameter="{Binding SwitchRequest}" IsEnabled="{Binding CanSwitch}" />
-                    </StackPanel>
+                    <!-- Action button -->
+                    <Button Grid.Column="1" Content="Make active" Style="{StaticResource SecondaryButton}" 
+                            Padding="16,10" MinWidth="120" VerticalAlignment="Center" Margin="20,0,0,0"
+                            Command="{Binding DataContext.SwitchRuntimeCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                            CommandParameter="{Binding SwitchRequest}" IsEnabled="{Binding CanSwitch}" />
                 </Grid>
             </Border>
         </DataTemplate>
@@ -435,17 +424,24 @@
 
                     <Border Style="{StaticResource CardStyle}" Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
-                            <StackPanel.Resources>
-                                <Style TargetType="FrameworkElement">
-                                    <Setter Property="Margin" Value="0,0,0,10" />
-                                </Style>
-                            </StackPanel.Resources>
-                            <TextBlock Text="Warnings" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" />
+                            <TextBlock Text="Warnings" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,14" />
                             <ItemsControl ItemsSource="{Binding Warnings}">
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Margin" Value="0,0,0,10" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#2F1F1F" BorderBrush="#F87171" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,8">
-                                            <TextBlock Text="{Binding}" Foreground="#FECACA" TextWrapping="Wrap" />
+                                        <Border Background="#1C1212" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="10" Padding="14,12">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Text="⚠" Foreground="#F87171" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0" />
+                                                <TextBlock Grid.Column="1" Text="{Binding}" Foreground="#FCA5A5" TextWrapping="Wrap" FontSize="13" LineHeight="20" />
+                                            </Grid>
                                         </Border>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
@@ -470,170 +466,281 @@
         </Grid>
 
         <Grid Background="#880B172A" Visibility="{Binding IsInventoryLoading, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="10">
-            <Border Background="#0F172A" Padding="22" CornerRadius="14" BorderBrush="#1F2E46" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,8" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <TextBlock Text="Collecting runtime inventory..." Foreground="#E2E8F0" FontWeight="SemiBold" />
-                    <ProgressBar IsIndeterminate="True" Height="6" Width="220" />
+            <Border Background="#0F172A" Padding="28,24" CornerRadius="14" BorderBrush="#334155" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="Collecting runtime inventory..." Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,14" />
+                    <ProgressBar IsIndeterminate="True" Height="5" Width="200" />
                 </StackPanel>
             </Border>
         </Grid>
 
         <Grid Background="#880B172A" Visibility="{Binding IsSwitchingPath, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="16">
-            <Border Background="#0F172A" Padding="22" CornerRadius="14" BorderBrush="#1F2E46" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,8" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <TextBlock Text="Switching PATH winner..." Foreground="#E2E8F0" FontWeight="SemiBold" />
-                    <ProgressBar IsIndeterminate="True" Height="6" Width="200" />
+            <Border Background="#0F172A" Padding="28,24" CornerRadius="14" BorderBrush="#334155" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <StackPanel HorizontalAlignment="Center">
+                    <TextBlock Text="Switching PATH winner..." Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,14" />
+                    <ProgressBar IsIndeterminate="True" Height="5" Width="180" />
                 </StackPanel>
             </Border>
         </Grid>
 
         <Grid Background="#B30B172A" Visibility="{Binding IsMachineScopeWarningOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="14">
-            <Border Background="#0D1A2F" Padding="28" CornerRadius="18" BorderBrush="#2A3C5C" BorderThickness="1" MaxWidth="680" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Background="#0D1A2F" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,10" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <TextBlock Text="Machine-wide change" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                    <TextBlock Text="PathPilot will update HKLM + system PATH. This affects every Windows account." Foreground="#CBD5E1" TextWrapping="Wrap" />
-                    <TextBlock Text="Proceed only if you trust the destination you're promoting." Foreground="#A5B4FC" TextWrapping="Wrap" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                        <StackPanel.Resources>
-                            <Style TargetType="FrameworkElement">
-                                <Setter Property="Margin" Value="0,0,10,0" />
-                            </Style>
-                        </StackPanel.Resources>
-                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}" Command="{Binding CancelMachineScopeWarningCommand}" MinWidth="110" />
-                        <Button Content="Switch now" Style="{StaticResource PrimaryButton}" Command="{Binding DismissMachineScopeWarningCommand}" MinWidth="130" />
-                    </StackPanel>
+                    <Grid Margin="0,0,0,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
+                            <TextBlock Text="⚙" FontSize="20" Foreground="#FBBF24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <TextBlock Text="Machine-wide change" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
+                            <TextBlock Text="This will update HKLM and the system PATH, affecting all Windows accounts on this machine." Foreground="#94A3B8" TextWrapping="Wrap" FontSize="13" LineHeight="20" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Background="#1E1B4B" BorderBrush="#3730A3" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,22">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="ℹ" Foreground="#A5B4FC" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <TextBlock Grid.Column="1" Text="Proceed only if you trust the destination you're promoting." Foreground="#C7D2FE" TextWrapping="Wrap" FontSize="13" />
+                        </Grid>
+                    </Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="Cancel" Style="{StaticResource SecondaryButton}" Command="{Binding CancelMachineScopeWarningCommand}" MinWidth="100" Margin="0,0,12,0" />
+                        <Button Grid.Column="2" Content="Switch now" Style="{StaticResource PrimaryButton}" Command="{Binding DismissMachineScopeWarningCommand}" MinWidth="120" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
         <Grid Background="#880B172A" Visibility="{Binding IsInstallationsDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
-            <Border Background="#0B1322" Padding="30" CornerRadius="18" BorderBrush="#1F2E46" BorderThickness="1" MaxWidth="960" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="720" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,12" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <TextBlock Text="Available PATH targets" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                    <TextBlock Text="Pick the installation to promote. PathPilot will back up the current PATH entry." Foreground="#CBD5E1" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,10" />
-                    <ScrollViewer MaxHeight="520" VerticalScrollBarVisibility="Auto" Margin="0,6,0,0" Padding="4,4,8,6">
-                        <ItemsControl ItemsSource="{Binding InstallationsDialogRuntime.Installations}" ItemTemplate="{StaticResource InstallationTemplate}" Margin="0,0,6,0">
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
+                            <TextBlock Text="⇄" FontSize="18" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <TextBlock Text="Available PATH targets" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
+                            <TextBlock Text="Pick the installation to promote. PathPilot will back up the current PATH entry." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                    <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto" Margin="0,0,0,20">
+                        <ItemsControl ItemsSource="{Binding InstallationsDialogRuntime.Installations}" ItemTemplate="{StaticResource InstallationTemplate}">
                             <ItemsControl.ItemContainerStyle>
                                 <Style TargetType="ContentPresenter">
-                                    <Setter Property="Margin" Value="0,0,0,8" />
+                                    <Setter Property="Margin" Value="0,0,0,10" />
                                 </Style>
                             </ItemsControl.ItemContainerStyle>
                         </ItemsControl>
                     </ScrollViewer>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
-                        <Button Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseInstallationsCommand}" MinWidth="110" />
-                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseInstallationsCommand}" MinWidth="100" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
         <Grid Background="#880B172A" Visibility="{Binding IsDetailsDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
-            <Border Background="#0B1322" Padding="30" CornerRadius="18" BorderBrush="#1F2E46" BorderThickness="1" MaxWidth="960" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="720" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,12" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <TextBlock Text="Runtime details" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                    <TextBlock Text="{Binding DetailsDialogRuntime.Summary}" Foreground="#E2E8F0" TextWrapping="Wrap" />
-                    <Border Background="#0F1F35" BorderBrush="#1F2E46" BorderThickness="1" CornerRadius="12" Padding="16" Margin="0,6,0,10">
-                        <StackPanel>
-                            <TextBlock Text="Active executable" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                            <TextBlock Text="{Binding DetailsDialogRuntime.ActiveExecutablePath}" Foreground="#E2E8F0" TextWrapping="Wrap" />
-                            <TextBlock Text="PATH entry" FontWeight="SemiBold" Foreground="#CBD5E1" Margin="0,8,0,0" />
-                            <TextBlock Text="{Binding DetailsDialogRuntime.PathEntry}" Foreground="#E2E8F0" TextWrapping="Wrap" />
+                    <Grid Margin="0,0,0,18">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
+                            <TextBlock Text="📋" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <TextBlock Text="Runtime details" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
+                            <TextBlock Text="{Binding DetailsDialogRuntime.Summary}" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" />
                         </StackPanel>
+                    </Grid>
+                    <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="12" Padding="16,14" Margin="0,0,0,18">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Active executable" FontWeight="SemiBold" Foreground="#64748B" FontSize="12" Margin="0,0,20,8" />
+                            <TextBlock Grid.Column="1" Text="{Binding DetailsDialogRuntime.ActiveExecutablePath}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13" Margin="0,0,0,8" />
+                            <TextBlock Grid.Row="1" Text="PATH entry" FontWeight="SemiBold" Foreground="#64748B" FontSize="12" Margin="0,0,20,0" />
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetailsDialogRuntime.PathEntry}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13" />
+                        </Grid>
                     </Border>
-                    <TextBlock Text="Installations" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                    <ItemsControl ItemsSource="{Binding DetailsDialogRuntime.Installations}" ItemTemplate="{StaticResource InstallationTemplate}" Margin="0,0,0,4" />
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                        <Button Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseDetailsCommand}" MinWidth="110" />
-                    </StackPanel>
+                    <TextBlock Text="Installations" FontWeight="SemiBold" Foreground="#94A3B8" FontSize="13" Margin="0,0,0,12" />
+                    <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto" Margin="0,0,0,18">
+                        <ItemsControl ItemsSource="{Binding DetailsDialogRuntime.Installations}" ItemTemplate="{StaticResource InstallationTemplate}">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Margin" Value="0,0,0,10" />
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseDetailsCommand}" MinWidth="100" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
         <Grid Background="#880B172A" Visibility="{Binding IsResolutionDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
-            <Border Background="#0B1322" Padding="26" CornerRadius="18" BorderBrush="#1F2E46" BorderThickness="1" MaxWidth="800" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="600" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,10" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <TextBlock Text="PATH resolution order" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                    <ScrollViewer MaxHeight="360" VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
+                            <TextBlock Text="≡" FontSize="22" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <TextBlock Text="PATH resolution order" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
+                            <TextBlock Text="How Windows resolves executables from PATH entries." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Grid>
+                    <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,0,0,20">
                         <ItemsControl ItemsSource="{Binding ResolutionDialogRuntime.ResolutionOrder}">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Margin" Value="0,0,0,8" />
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource CardStyle}" Padding="12" Margin="0,0,0,10">
-                                        <TextBlock Text="{Binding}" Foreground="#E2E8F0" TextWrapping="Wrap" />
+                                    <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="10" Padding="14,12">
+                                        <TextBlock Text="{Binding}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13" />
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </ScrollViewer>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                        <Button Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseResolutionOrderCommand}" MinWidth="110" />
-                    </StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseResolutionOrderCommand}" MinWidth="100" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
         <Grid Background="#880B172A" Visibility="{Binding IsPageInfoOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="13">
-            <Border Background="#0B1322" Padding="28" CornerRadius="18" BorderBrush="#1F2E46" BorderThickness="1" MaxWidth="720" HorizontalAlignment="Center" VerticalAlignment="Center">
+            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="580" HorizontalAlignment="Center" VerticalAlignment="Center">
                 <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,10" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <TextBlock Text="About PathPilot" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                    <TextBlock Text="PathPilot promotes one runtime to the machine PATH so every user session and shell resolves that toolchain consistently." Foreground="#CBD5E1" TextWrapping="Wrap" Margin="0,0,0,12" />
-                    <TextBlock Text="How it works" FontWeight="SemiBold" Foreground="#CBD5E1" Margin="0,0,0,6" />
-                    <ItemsControl>
-                        <ItemsControl.Items>
-                            <TextBlock Text="1) Inventory finds installed runtimes (Python, .NET, Node, JDK, etc.)." Foreground="#E2E8F0" TextWrapping="Wrap" />
-                            <TextBlock Text="2) Switch lets you pick an installation to promote; PathPilot backs up the prior PATH entry." Foreground="#E2E8F0" TextWrapping="Wrap" />
-                            <TextBlock Text="3) Details shows active executables, PATH entries, and installation sources for clarity." Foreground="#E2E8F0" TextWrapping="Wrap" />
-                            <TextBlock Text="4) Resolution order lists how PATH will resolve if multiple installs exist." Foreground="#E2E8F0" TextWrapping="Wrap" />
-                        </ItemsControl.Items>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding}" Margin="0,0,0,6" />
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                    <Border Background="#0F1F35" BorderBrush="#1F2E46" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,4,0,14">
-                        <StackPanel>
-                            <TextBlock Text="Safety" FontWeight="SemiBold" Foreground="#CBD5E1" />
-                            <TextBlock Text="Changes are machine-wide (HKLM + system PATH). A snapshot is taken before switching; you can revert via activity log guidance." Foreground="#E2E8F0" TextWrapping="Wrap" />
+                    <Grid Margin="0,0,0,20">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
+                            <TextBlock Text="ℹ" FontSize="20" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
+                            <TextBlock Text="About PathPilot" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
+                            <TextBlock Text="Promotes one runtime to the machine PATH so every user session resolves that toolchain consistently." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" LineHeight="20" />
                         </StackPanel>
-                    </Border>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
-                        <Button Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding ClosePageInfoCommand}" MinWidth="110" />
+                    </Grid>
+                    <TextBlock Text="How it works" FontWeight="SemiBold" Foreground="#94A3B8" FontSize="13" Margin="0,0,0,14" />
+                    <StackPanel Margin="0,0,0,18">
+                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
+                                    <TextBlock Text="1" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="Inventory finds installed runtimes (Python, .NET, Node, JDK, etc.)." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                            </Grid>
+                        </Border>
+                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
+                                    <TextBlock Text="2" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="Switch lets you pick an installation to promote; PathPilot backs up the prior PATH entry." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                            </Grid>
+                        </Border>
+                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12" Margin="0,0,0,8">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
+                                    <TextBlock Text="3" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="Details shows active executables, PATH entries, and installation sources." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                            </Grid>
+                        </Border>
+                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
+                                    <TextBlock Text="4" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Text="Resolution order lists how PATH will resolve if multiple installs exist." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                            </Grid>
+                        </Border>
                     </StackPanel>
+                    <Border Background="#1E1B4B" BorderBrush="#3730A3" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,20">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="🛡" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Safety" FontWeight="SemiBold" Foreground="#C7D2FE" FontSize="13" Margin="0,0,0,4" />
+                                <TextBlock Text="Changes are machine-wide (HKLM + system PATH). A snapshot is taken before switching; you can revert via activity log guidance." Foreground="#A5B4FC" FontSize="12" TextWrapping="Wrap" LineHeight="18" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding ClosePageInfoCommand}" MinWidth="100" />
+                    </Grid>
                 </StackPanel>
             </Border>
         </Grid>

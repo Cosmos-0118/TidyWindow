@@ -81,6 +81,17 @@ public sealed class StartupInventoryService
         ExecuteSafe(() => EnumerateImageFileExecutionOptions(effectiveOptions, items, warnings, cancellationToken), warnings, "Image File Execution Options");
         ExecuteSafe(() => EnumerateBootExecute(effectiveOptions, items, warnings, cancellationToken), warnings, "Boot Execute");
 
+        // Even more startup locations for comprehensive coverage
+        ExecuteSafe(() => EnumeratePrintMonitors(effectiveOptions, items, warnings, cancellationToken), warnings, "Print Monitors");
+        ExecuteSafe(() => EnumerateLsaProviders(effectiveOptions, items, warnings, cancellationToken), warnings, "LSA Providers");
+        ExecuteSafe(() => EnumerateBrowserHelperObjects(effectiveOptions, items, warnings, cancellationToken), warnings, "Browser Helper Objects");
+        ExecuteSafe(() => EnumerateShellExtensions(effectiveOptions, items, warnings, cancellationToken), warnings, "Shell Extensions");
+        ExecuteSafe(() => EnumerateProtocolFilters(effectiveOptions, items, warnings, cancellationToken), warnings, "Protocol Filters");
+        ExecuteSafe(() => EnumerateWinsockProviders(effectiveOptions, items, warnings, cancellationToken), warnings, "Winsock Providers");
+        ExecuteSafe(() => EnumerateKnownDlls(effectiveOptions, items, warnings, cancellationToken), warnings, "Known DLLs");
+        ExecuteSafe(() => EnumerateServiceControlManagerExtensions(effectiveOptions, items, warnings, cancellationToken), warnings, "SCM Extensions");
+        ExecuteSafe(() => EnumerateFontDrivers(effectiveOptions, items, warnings, cancellationToken), warnings, "Font Drivers");
+
         AppendDelayWarnings(items, warnings);
 
         return new StartupInventorySnapshot(items, warnings, DateTimeOffset.UtcNow, warnings.Count > 0);
@@ -1812,6 +1823,762 @@ public sealed class StartupInventoryService
             warnings.Add($"Boot Execute enumeration failed: {ex.Message}");
         }
     }
+
+    #endregion
+
+    #region Additional Comprehensive Startup Locations
+
+    /// <summary>
+    /// Enumerates print monitors that load DLLs into the spooler process.
+    /// </summary>
+    private static void EnumeratePrintMonitors(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Print\Monitors", writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            foreach (var monitorName in key.GetSubKeyNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                using var monitorKey = key.OpenSubKey(monitorName, writable: false);
+                var driver = monitorKey?.GetValue("Driver")?.ToString();
+                if (string.IsNullOrWhiteSpace(driver))
+                {
+                    continue;
+                }
+
+                // Skip known Windows print monitors
+                if (IsKnownPrintMonitor(monitorName))
+                {
+                    continue;
+                }
+
+                var dllPath = ResolveSystemDll(driver);
+                if (string.IsNullOrWhiteSpace(dllPath))
+                {
+                    continue;
+                }
+
+                var metadata = InspectFile(dllPath);
+                var id = $"printmon:{monitorName}";
+
+                items.Add(new StartupItem(
+                    id,
+                    $"Print Monitor: {monitorName}",
+                    dllPath,
+                    StartupItemSourceKind.PrintMonitor,
+                    "Print Monitor",
+                    null,
+                    driver,
+                    true,
+                    @"HKLM\SYSTEM\CurrentControlSet\Control\Print\Monitors\" + monitorName,
+                    metadata.Publisher,
+                    metadata.SignatureStatus,
+                    StartupImpact.Medium,
+                    metadata.FileSizeBytes,
+                    metadata.LastWriteTimeUtc,
+                    "Machine"));
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Print Monitor enumeration failed: {ex.Message}");
+        }
+    }
+
+    private static bool IsKnownPrintMonitor(string name)
+    {
+        var known = new[] { "Local Port", "Standard TCP/IP Port", "USB Monitor", "WSD Port", "Microsoft Shared Fax Monitor", "AppMon" };
+        return known.Any(k => k.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Enumerates LSA Security Providers and Notification Packages.
+    /// </summary>
+    private static void EnumerateLsaProviders(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        try
+        {
+            using var lsaKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Lsa", writable: false);
+            if (lsaKey is null)
+            {
+                return;
+            }
+
+            // Security Packages
+            EnumerateLsaStringList(lsaKey, "Security Packages", "Security Package", items, cancellationToken);
+
+            // Notification Packages
+            EnumerateLsaStringList(lsaKey, "Notification Packages", "Notification Package", items, cancellationToken);
+
+            // Authentication Packages
+            EnumerateLsaStringList(lsaKey, "Authentication Packages", "Authentication Package", items, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"LSA Provider enumeration failed: {ex.Message}");
+        }
+    }
+
+    private static void EnumerateLsaStringList(RegistryKey parentKey, string valueName, string sourceTag, List<StartupItem> items, CancellationToken cancellationToken)
+    {
+        var packages = parentKey.GetValue(valueName) as string[];
+        if (packages is null || packages.Length == 0)
+        {
+            return;
+        }
+
+        for (var i = 0; i < packages.Length; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var package = packages[i];
+            if (string.IsNullOrWhiteSpace(package))
+            {
+                continue;
+            }
+
+            // Skip known Windows LSA packages
+            if (IsKnownLsaPackage(package))
+            {
+                continue;
+            }
+
+            var dllPath = ResolveSystemDll(package + ".dll");
+            var metadata = InspectFile(dllPath);
+            var id = $"lsa:{valueName}:{package}";
+
+            items.Add(new StartupItem(
+                id,
+                $"{sourceTag}: {package}",
+                dllPath,
+                StartupItemSourceKind.LsaProvider,
+                sourceTag,
+                null,
+                package,
+                true,
+                @"HKLM\SYSTEM\CurrentControlSet\Control\Lsa",
+                metadata.Publisher,
+                metadata.SignatureStatus,
+                StartupImpact.High,
+                metadata.FileSizeBytes,
+                metadata.LastWriteTimeUtc,
+                "Machine"));
+        }
+    }
+
+    private static bool IsKnownLsaPackage(string name)
+    {
+        var known = new[] { "msv1_0", "kerberos", "schannel", "wdigest", "tspkg", "pku2u", "cloudap", "negoexts", "rassfm", "" };
+        return known.Any(k => k.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Enumerates Browser Helper Objects (Internet Explorer extensions).
+    /// </summary>
+    private static void EnumerateBrowserHelperObjects(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        var bhoPaths = new[]
+        {
+            (@"SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects", false),
+            (@"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Explorer\Browser Helper Objects", true)
+        };
+
+        foreach (var (path, is32Bit) in bhoPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(path, writable: false);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                foreach (var clsid in key.GetSubKeyNames())
+                {
+                    var displayName = GetClsidDisplayName(clsid) ?? clsid;
+                    var dllPath = GetClsidDllPath(clsid);
+                    if (string.IsNullOrWhiteSpace(dllPath))
+                    {
+                        continue;
+                    }
+
+                    var metadata = InspectFile(dllPath);
+                    var sourceTag = is32Bit ? "Browser Helper Object (32-bit)" : "Browser Helper Object";
+                    var id = $"bho:{clsid}";
+
+                    items.Add(new StartupItem(
+                        id,
+                        $"BHO: {displayName}",
+                        dllPath,
+                        StartupItemSourceKind.BrowserHelperObject,
+                        sourceTag,
+                        null,
+                        clsid,
+                        true,
+                        $"HKLM\\{path}\\{clsid}",
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        StartupImpact.Medium,
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        "Machine"));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"BHO enumeration failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Shell extensions that load into Explorer.
+    /// </summary>
+    private static void EnumerateShellExtensions(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        var extensionPaths = new[]
+        {
+            @"SOFTWARE\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved",
+            @"SOFTWARE\Wow6432Node\Microsoft\Windows\CurrentVersion\Shell Extensions\Approved"
+        };
+
+        foreach (var path in extensionPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(path, writable: false);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                foreach (var clsid in key.GetValueNames())
+                {
+                    if (string.IsNullOrWhiteSpace(clsid) || !clsid.StartsWith("{"))
+                    {
+                        continue;
+                    }
+
+                    var displayName = key.GetValue(clsid)?.ToString() ?? GetClsidDisplayName(clsid) ?? clsid;
+                    var dllPath = GetClsidDllPath(clsid);
+                    if (string.IsNullOrWhiteSpace(dllPath))
+                    {
+                        continue;
+                    }
+
+                    // Skip Microsoft shell extensions
+                    var metadata = InspectFile(dllPath);
+                    if (IsMicrosoftPublisher(metadata.Publisher))
+                    {
+                        continue;
+                    }
+
+                    var id = $"shellext:{clsid}";
+                    var sourceTag = path.Contains("Wow6432Node") ? "Shell Extension (32-bit)" : "Shell Extension";
+
+                    items.Add(new StartupItem(
+                        id,
+                        displayName,
+                        dllPath,
+                        StartupItemSourceKind.ShellExtension,
+                        sourceTag,
+                        null,
+                        clsid,
+                        true,
+                        $"HKLM\\{path}",
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        StartupImpact.Low,
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        "Machine"));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Shell Extension enumeration failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates URL protocol filters/handlers.
+    /// </summary>
+    private static void EnumerateProtocolFilters(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Classes\PROTOCOLS\Filter", writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            foreach (var filterName in key.GetSubKeyNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                using var filterKey = key.OpenSubKey(filterName, writable: false);
+                var clsid = filterKey?.GetValue("CLSID")?.ToString();
+                if (string.IsNullOrWhiteSpace(clsid))
+                {
+                    continue;
+                }
+
+                var displayName = GetClsidDisplayName(clsid) ?? filterName;
+                var dllPath = GetClsidDllPath(clsid);
+                if (string.IsNullOrWhiteSpace(dllPath))
+                {
+                    continue;
+                }
+
+                var metadata = InspectFile(dllPath);
+
+                // Skip Microsoft protocol filters
+                if (IsMicrosoftPublisher(metadata.Publisher))
+                {
+                    continue;
+                }
+
+                var id = $"protocolfilter:{filterName}";
+
+                items.Add(new StartupItem(
+                    id,
+                    $"Protocol Filter: {displayName}",
+                    dllPath ?? string.Empty,
+                    StartupItemSourceKind.ProtocolFilter,
+                    "Protocol Filter",
+                    null,
+                    clsid,
+                    true,
+                    $"HKLM\\SOFTWARE\\Classes\\PROTOCOLS\\Filter\\{filterName}",
+                    metadata.Publisher,
+                    metadata.SignatureStatus,
+                    StartupImpact.Medium,
+                    metadata.FileSizeBytes,
+                    metadata.LastWriteTimeUtc,
+                    "Machine"));
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Protocol Filter enumeration failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Winsock Layered Service Providers.
+    /// </summary>
+    private static void EnumerateWinsockProviders(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        var winsockPaths = new[]
+        {
+            @"SYSTEM\CurrentControlSet\Services\WinSock2\Parameters\Protocol_Catalog9\Catalog_Entries",
+            @"SYSTEM\CurrentControlSet\Services\WinSock2\Parameters\Protocol_Catalog9\Catalog_Entries64"
+        };
+
+        foreach (var path in winsockPaths)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            try
+            {
+                using var key = Registry.LocalMachine.OpenSubKey(path, writable: false);
+                if (key is null)
+                {
+                    continue;
+                }
+
+                foreach (var entryName in key.GetSubKeyNames())
+                {
+                    using var entryKey = key.OpenSubKey(entryName, writable: false);
+                    var dllPath = entryKey?.GetValue("LibraryPath")?.ToString();
+                    if (string.IsNullOrWhiteSpace(dllPath))
+                    {
+                        continue;
+                    }
+
+                    dllPath = Environment.ExpandEnvironmentVariables(dllPath);
+                    var metadata = InspectFile(dllPath);
+
+                    // Skip Microsoft Winsock providers
+                    if (IsMicrosoftPublisher(metadata.Publisher))
+                    {
+                        continue;
+                    }
+
+                    var protocolName = entryKey?.GetValue("ProtocolName")?.ToString() ?? Path.GetFileName(dllPath);
+                    var id = $"winsock:{entryName}";
+
+                    items.Add(new StartupItem(
+                        id,
+                        $"Winsock Provider: {protocolName}",
+                        dllPath,
+                        StartupItemSourceKind.WinsockProvider,
+                        "Winsock LSP",
+                        null,
+                        dllPath,
+                        true,
+                        $"HKLM\\{path}\\{entryName}",
+                        metadata.Publisher,
+                        metadata.SignatureStatus,
+                        StartupImpact.High,
+                        metadata.FileSizeBytes,
+                        metadata.LastWriteTimeUtc,
+                        "Machine"));
+                }
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Winsock Provider enumeration failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Enumerates Known DLLs that are loaded into every process.
+    /// </summary>
+    private static void EnumerateKnownDlls(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs", writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            foreach (var valueName in key.GetValueNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (string.IsNullOrWhiteSpace(valueName) || valueName.Equals("DllDirectory", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var dllName = key.GetValue(valueName)?.ToString();
+                if (string.IsNullOrWhiteSpace(dllName))
+                {
+                    continue;
+                }
+
+                // Skip standard Windows DLLs
+                if (IsKnownWindowsDll(dllName))
+                {
+                    continue;
+                }
+
+                var dllPath = ResolveSystemDll(dllName);
+                var metadata = InspectFile(dllPath);
+
+                // Skip Microsoft Known DLLs
+                if (IsMicrosoftPublisher(metadata.Publisher))
+                {
+                    continue;
+                }
+
+                var id = $"knowndll:{valueName}";
+
+                items.Add(new StartupItem(
+                    id,
+                    $"Known DLL: {dllName}",
+                    dllPath,
+                    StartupItemSourceKind.KnownDll,
+                    "Known DLLs",
+                    null,
+                    dllName,
+                    true,
+                    @"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs",
+                    metadata.Publisher,
+                    metadata.SignatureStatus,
+                    StartupImpact.High,
+                    metadata.FileSizeBytes,
+                    metadata.LastWriteTimeUtc,
+                    "Machine"));
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Known DLLs enumeration failed: {ex.Message}");
+        }
+    }
+
+    private static bool IsKnownWindowsDll(string dllName)
+    {
+        var knownDlls = new[]
+        {
+            "kernel32.dll", "user32.dll", "ntdll.dll", "advapi32.dll", "gdi32.dll",
+            "shell32.dll", "ole32.dll", "oleaut32.dll", "comdlg32.dll", "comctl32.dll",
+            "msvcrt.dll", "rpcrt4.dll", "secur32.dll", "shlwapi.dll", "ws2_32.dll",
+            "wininet.dll", "urlmon.dll", "crypt32.dll", "wldap32.dll", "normaliz.dll"
+        };
+        return knownDlls.Any(k => k.Equals(dllName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Enumerates Service Control Manager extensions.
+    /// </summary>
+    private static void EnumerateServiceControlManagerExtensions(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeServices)
+        {
+            return;
+        }
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\ServiceGroupOrder", writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            // This is mostly informational - service group order affects boot order
+            // We're looking for unusual service groups that might indicate malware
+            var groups = key.GetValue("List") as string[];
+            if (groups is null)
+            {
+                return;
+            }
+
+            // Check for SvcHost groups that might have been injected
+            using var svcHostKey = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost", writable: false);
+            if (svcHostKey is null)
+            {
+                return;
+            }
+
+            foreach (var groupName in svcHostKey.GetValueNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                if (string.IsNullOrWhiteSpace(groupName))
+                {
+                    continue;
+                }
+
+                // Skip known Windows svchost groups
+                if (IsKnownSvcHostGroup(groupName))
+                {
+                    continue;
+                }
+
+                var services = svcHostKey.GetValue(groupName) as string[];
+                if (services is null || services.Length == 0)
+                {
+                    continue;
+                }
+
+                var id = $"svchostgroup:{groupName}";
+
+                items.Add(new StartupItem(
+                    id,
+                    $"SvcHost Group: {groupName}",
+                    string.Join(", ", services),
+                    StartupItemSourceKind.ScmExtension,
+                    "SvcHost Group",
+                    null,
+                    groupName,
+                    true,
+                    @"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Svchost",
+                    null,
+                    StartupSignatureStatus.Unknown,
+                    StartupImpact.Medium,
+                    null,
+                    null,
+                    "Machine"));
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"SCM Extension enumeration failed: {ex.Message}");
+        }
+    }
+
+    private static bool IsKnownSvcHostGroup(string name)
+    {
+        var known = new[]
+        {
+            "LocalService", "LocalServiceNetworkRestricted", "LocalServiceNoNetwork",
+            "LocalServiceAndNoImpersonation", "LocalSystemNetworkRestricted",
+            "NetworkService", "NetworkServiceNetworkRestricted", "netsvcs",
+            "LocalServiceNoNetworkFirewall", "secsvcs", "DcomLaunch", "wsappx",
+            "appmodel", "apphost", "print", "termsvcs", "wcssvc", "ICService",
+            "UnistackSvcGroup", "defragsvc", "KeyIso", "UmdfPnpHost"
+        };
+        return known.Any(k => k.Equals(name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Enumerates font drivers that load early in the boot process.
+    /// </summary>
+    private static void EnumerateFontDrivers(StartupInventoryOptions options, List<StartupItem> items, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (!options.IncludeRunKeys)
+        {
+            return;
+        }
+
+        try
+        {
+            using var key = Registry.LocalMachine.OpenSubKey(@"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Font Drivers", writable: false);
+            if (key is null)
+            {
+                return;
+            }
+
+            foreach (var driverName in key.GetValueNames())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                var driverPath = key.GetValue(driverName)?.ToString();
+                if (string.IsNullOrWhiteSpace(driverPath))
+                {
+                    continue;
+                }
+
+                driverPath = Environment.ExpandEnvironmentVariables(driverPath);
+                var metadata = InspectFile(driverPath);
+
+                // Skip Microsoft font drivers
+                if (IsMicrosoftPublisher(metadata.Publisher))
+                {
+                    continue;
+                }
+
+                var id = $"fontdriver:{driverName}";
+
+                items.Add(new StartupItem(
+                    id,
+                    $"Font Driver: {driverName}",
+                    driverPath,
+                    StartupItemSourceKind.FontDriver,
+                    "Font Driver",
+                    null,
+                    driverPath,
+                    true,
+                    @"HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Font Drivers",
+                    metadata.Publisher,
+                    metadata.SignatureStatus,
+                    StartupImpact.High,
+                    metadata.FileSizeBytes,
+                    metadata.LastWriteTimeUtc,
+                    "Machine"));
+            }
+        }
+        catch (Exception ex)
+        {
+            warnings.Add($"Font Driver enumeration failed: {ex.Message}");
+        }
+    }
+
+    #region Helper Methods for New Enumerations
+
+    private static string ResolveSystemDll(string dllName)
+    {
+        if (string.IsNullOrWhiteSpace(dllName))
+        {
+            return string.Empty;
+        }
+
+        if (Path.IsPathRooted(dllName))
+        {
+            return Environment.ExpandEnvironmentVariables(dllName);
+        }
+
+        var systemDir = Environment.GetFolderPath(Environment.SpecialFolder.System);
+        return Path.Combine(systemDir, dllName);
+    }
+
+    private static string? GetClsidDisplayName(string clsid)
+    {
+        try
+        {
+            using var key = Registry.ClassesRoot.OpenSubKey($"CLSID\\{clsid}", writable: false);
+            return key?.GetValue(null)?.ToString() ?? key?.GetValue("(Default)")?.ToString();
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? GetClsidDllPath(string clsid)
+    {
+        try
+        {
+            using var key = Registry.ClassesRoot.OpenSubKey($"CLSID\\{clsid}\\InprocServer32", writable: false);
+            var path = key?.GetValue(null)?.ToString() ?? key?.GetValue("(Default)")?.ToString();
+            return string.IsNullOrWhiteSpace(path) ? null : Environment.ExpandEnvironmentVariables(path);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static bool IsMicrosoftPublisher(string? publisher)
+    {
+        if (string.IsNullOrWhiteSpace(publisher))
+        {
+            return false;
+        }
+
+        var microsoftPatterns = new[]
+        {
+            "Microsoft", "Windows", "Microsoft Corporation", "Microsoft Windows"
+        };
+
+        return microsoftPatterns.Any(p => publisher.Contains(p, StringComparison.OrdinalIgnoreCase));
+    }
+
+    #endregion
 
     #endregion
 }
