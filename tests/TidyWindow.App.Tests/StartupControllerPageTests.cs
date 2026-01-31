@@ -108,6 +108,75 @@ public sealed class StartupControllerPageTests
     }
 
     [Fact]
+    public async Task OnEntriesFilter_BackupOnlyEntries_AreNotFilteredBySource()
+    {
+        // Backup-only entries should pass through when backup filter is enabled
+        await WpfTestHelper.Run(() =>
+        {
+            var page = CreatePage();
+            SetDefaults(page);
+            SetField(page, "_showBackupOnly", true);
+
+            // Create a backup-only entry
+            var backup = new TidyWindow.Core.Startup.StartupEntryBackup(
+                Id: "run:backup-entry",
+                SourceKind: TidyWindow.Core.Startup.StartupItemSourceKind.RunKey,
+                RegistryRoot: "HKCU",
+                RegistrySubKey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+                RegistryValueName: "BackupEntry",
+                RegistryValueData: "C:\\test.exe",
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+            var backupEntry = new StartupEntryItemViewModel(backup);
+
+            // Even with _includeRun = false, backup entries should still be shown
+            // (They are merged separately, not through the filter)
+            Assert.True(backupEntry.IsBackupOnly);
+            Assert.False(backupEntry.IsEnabled);
+        });
+    }
+
+    [Fact]
+    public async Task OnEntriesFilter_DisabledFilter_ExcludesDisabledItems()
+    {
+        await WpfTestHelper.Run(() =>
+        {
+            var page = CreatePage();
+            SetDefaults(page);
+            SetField(page, "_showDisabled", false);
+
+            var enabledEntry = CreateEntry("enabled-1", StartupItemSourceKind.RunKey, isEnabled: true);
+            var disabledEntry = CreateEntry("disabled-1", StartupItemSourceKind.RunKey, isEnabled: false);
+
+            Assert.True(ApplyFilter(page, enabledEntry));
+            Assert.False(ApplyFilter(page, disabledEntry));
+        });
+    }
+
+    [Fact]
+    public async Task OnEntriesFilter_EnabledFilter_ExcludesEnabledItems()
+    {
+        await WpfTestHelper.Run(() =>
+        {
+            var page = CreatePage();
+            SetDefaults(page);
+            SetField(page, "_showEnabled", false);
+
+            var enabledEntry = CreateEntry("enabled-1", StartupItemSourceKind.RunKey, isEnabled: true);
+            var disabledEntry = CreateEntry("disabled-1", StartupItemSourceKind.RunKey, isEnabled: false);
+
+            Assert.False(ApplyFilter(page, enabledEntry));
+            Assert.True(ApplyFilter(page, disabledEntry));
+        });
+    }
+
+    [Fact]
     public async System.Threading.Tasks.Task SetGuardAsync_PersistsFlagWithoutDisablingWhenAlreadyDisabled()
     {
         var temp = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"));

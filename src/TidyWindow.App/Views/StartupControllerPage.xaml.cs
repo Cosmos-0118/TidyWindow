@@ -31,6 +31,7 @@ public partial class StartupControllerPage : Page
     private bool _filterHighImpact;
     private bool _showEnabled = true;
     private bool _showDisabled = true;
+    private bool _showBackupOnly;
     private string _search = string.Empty;
 
     public StartupControllerPage(StartupControllerViewModel viewModel)
@@ -127,6 +128,7 @@ public partial class StartupControllerPage : Page
         _filterHighImpact = HighImpactFilter?.IsChecked == true;
         _showEnabled = ShowEnabledFilter?.IsChecked != false; // default true
         _showDisabled = ShowDisabledFilter?.IsChecked != false; // default true
+        _showBackupOnly = BackupFilter?.IsChecked == true;
     }
 
     private void RefreshView(bool resetPage)
@@ -141,6 +143,17 @@ public partial class StartupControllerPage : Page
 
         _entriesView.View.Refresh();
         var filteredItems = _entriesView.View.Cast<StartupEntryItemViewModel>().ToList();
+
+        // When backup filter is active, merge in backup-only entries with deduplication
+        if (_showBackupOnly)
+        {
+            var existingIds = new HashSet<string>(filteredItems.Select(e => e.Item.Id), StringComparer.OrdinalIgnoreCase);
+            var backupEntries = _viewModel.BackupOnlyEntries
+                .Where(b => !existingIds.Contains(b.Item.Id))
+                .ToList();
+            filteredItems.AddRange(backupEntries);
+        }
+
         _viewModel.ApplyVisibleEntries(filteredItems, resetPage);
     }
 

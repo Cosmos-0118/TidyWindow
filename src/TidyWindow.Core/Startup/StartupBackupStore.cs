@@ -18,17 +18,23 @@ public sealed class StartupBackupStore
     };
 
     private readonly string _filePath;
+    private readonly string _baseDirectory;
     private readonly object _lock = new();
 
     public StartupBackupStore(string? rootDirectory = null)
     {
-        var baseDirectory = string.IsNullOrWhiteSpace(rootDirectory)
+        _baseDirectory = string.IsNullOrWhiteSpace(rootDirectory)
             ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "TidyWindow", "StartupBackups")
             : rootDirectory;
 
-        Directory.CreateDirectory(baseDirectory);
-        _filePath = Path.Combine(baseDirectory, BackupFileName);
+        Directory.CreateDirectory(_baseDirectory);
+        _filePath = Path.Combine(_baseDirectory, BackupFileName);
     }
+
+    /// <summary>
+    /// Gets the directory path where backup files are stored.
+    /// </summary>
+    public string BackupDirectory => _baseDirectory;
 
     public StartupEntryBackup? Get(string id)
     {
@@ -100,6 +106,61 @@ public sealed class StartupBackupStore
                 Persist(map);
             }
         }
+    }
+
+    /// <summary>
+    /// Removes backup entries that reference a backup file which no longer exists.
+    /// This cleans up "ghost" entries caused by external file deletion.
+    /// </summary>
+    /// <returns>Number of stale entries removed.</returns>
+    public int CleanupStaleBackups()
+    {
+        lock (_lock)
+        {
+            var map = ReadAll();
+            var staleIds = new List<string>();
+
+            foreach (var (id, backup) in map)
+            {
+                // For StartupFolder entries, check if backup file still exists
+                if (backup.SourceKind == StartupItemSourceKind.StartupFolder &&
+                    !string.IsNullOrWhiteSpace(backup.FileBackupPath) &&
+                    !File.Exists(backup.FileBackupPath))
+                {
+                    // Also check that original file doesn't exist (truly stale)
+                    if (string.IsNullOrWhiteSpace(backup.FileOriginalPath) || !File.Exists(backup.FileOriginalPath))
+                    {
+                        staleIds.Add(id);
+                    }
+                }
+            }
+
+            if (staleIds.Count > 0)
+            {
+                foreach (var id in staleIds)
+                {
+                    map.Remove(id);
+                }
+                Persist(map);
+            }
+
+            return staleIds.Count;
+        }
+    }
+
+    /// <summary>
+    /// Validates a backup entry to ensure it has the minimum required data.
+    /// </summary>
+    public static bool IsValidBackup(StartupEntryBackup? backup)
+    {
+        if (backup is null || string.IsNullOrWhiteSpace(backup.Id))
+            return false;
+
+        // Must have at least some identifying information
+        return !string.IsNullOrWhiteSpace(backup.RegistryValueName) ||
+               !string.IsNullOrWhiteSpace(backup.ServiceName) ||
+               !string.IsNullOrWhiteSpace(backup.TaskPath) ||
+               !string.IsNullOrWhiteSpace(backup.FileOriginalPath);
     }
 
     private Dictionary<string, StartupEntryBackup> ReadAll()

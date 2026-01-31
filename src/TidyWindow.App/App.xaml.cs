@@ -235,9 +235,17 @@ public partial class App : WpfApplication
         mainWindow.Opacity = startHidden ? 1 : 0;
         mainWindow.WindowState = startHidden ? WindowState.Minimized : WindowState.Maximized;
         mainWindow.Show();
-        if (splash is not null)
+        if (splash is not null && mainWindow.IsLoaded)
         {
-            splash.Owner = mainWindow;
+            try
+            {
+                splash.Owner = mainWindow;
+            }
+            catch (InvalidOperationException)
+            {
+                // Owner assignment can fail if the main window is not yet fully shown.
+                // Proceed without ownership; splash will close shortly anyway.
+            }
         }
         if (!startHidden)
         {

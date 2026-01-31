@@ -17,7 +17,66 @@ public sealed partial class StartupEntryItemViewModel : ObservableObject
         UpdateFrom(item ?? throw new ArgumentNullException(nameof(item)));
     }
 
+    /// <summary>
+    /// Creates a backup-only entry from a backup record.
+    /// Used when the startup item no longer exists in the live inventory.
+    /// </summary>
+    public StartupEntryItemViewModel(StartupEntryBackup backup)
+    {
+        ArgumentNullException.ThrowIfNull(backup);
+        IsBackupOnly = true;
+        BackupRecord = backup;
+
+        var syntheticItem = new StartupItem(
+            Id: backup.Id,
+            Name: backup.RegistryValueName ?? backup.ServiceName ?? backup.TaskPath ?? "Unknown",
+            ExecutablePath: backup.FileOriginalPath ?? backup.RegistryValueData ?? string.Empty,
+            SourceKind: backup.SourceKind,
+            SourceTag: $"Backup ({backup.SourceKind})",
+            Arguments: null,
+            RawCommand: backup.RegistryValueData,
+            IsEnabled: false,
+            EntryLocation: BuildEntryLocation(backup),
+            Publisher: null,
+            SignatureStatus: StartupSignatureStatus.Unknown,
+            Impact: StartupImpact.Unknown,
+            FileSizeBytes: null,
+            LastModifiedUtc: backup.CreatedAtUtc,
+            UserContext: null);
+
+        UpdateFrom(syntheticItem);
+    }
+
+    private static string? BuildEntryLocation(StartupEntryBackup backup)
+    {
+        // For Run keys: combine registry root and subkey
+        if (!string.IsNullOrWhiteSpace(backup.RegistryRoot) && !string.IsNullOrWhiteSpace(backup.RegistrySubKey))
+        {
+            return $"{backup.RegistryRoot}\\{backup.RegistrySubKey}";
+        }
+
+        // For StartupFolder entries: RegistrySubKey contains the folder path, use FileOriginalPath or RegistrySubKey
+        if (backup.SourceKind == StartupItemSourceKind.StartupFolder)
+        {
+            return backup.FileOriginalPath ?? backup.RegistrySubKey;
+        }
+
+        // For other types (Tasks, Services, etc.)
+        return backup.TaskPath ?? backup.ServiceName ?? backup.RegistrySubKey;
+    }
+
     public StartupItem Item { get; private set; } = null!;
+
+    /// <summary>
+    /// True if this entry exists only in the backup store (not found in live inventory).
+    /// </summary>
+    [ObservableProperty]
+    private bool isBackupOnly;
+
+    /// <summary>
+    /// The backup record for backup-only entries.
+    /// </summary>
+    public StartupEntryBackup? BackupRecord { get; private set; }
 
     [ObservableProperty]
     private bool isEnabled;
@@ -129,6 +188,15 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     [ObservableProperty]
     private int baselineDisabledCount;
 
+    [ObservableProperty]
+    private int backupOnlyCount;
+
+    /// <summary>
+    /// Entries that exist only in the backup store (not found in live inventory).
+    /// These are merged into <see cref="Entries"/> after refresh.
+    /// </summary>
+    public ObservableCollection<StartupEntryItemViewModel> BackupOnlyEntries { get; } = new();
+
     private readonly int _pageSize = 24;
     private int _currentPage = 1;
 
@@ -156,6 +224,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         EnableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(EnableAsync, CanEnable);
         DisableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DisableAsync, CanDisable);
         DelayCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DelayAsync, CanDelay);
+        RestoreFromBackupCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(RestoreFromBackupAsync, CanRestoreFromBackup);
+        DeleteBackupCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DeleteBackupAsync, CanDeleteBackup);
 
         StartupGuardEnabled = _preferences.Current.StartupGuardEnabled;
         ShowStartupHero = _preferences.Current.ShowStartupHero;
@@ -193,6 +263,10 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> DelayCommand { get; }
 
+    public IAsyncRelayCommand<StartupEntryItemViewModel> RestoreFromBackupCommand { get; }
+
+    public IAsyncRelayCommand<StartupEntryItemViewModel> DeleteBackupCommand { get; }
+
     [RelayCommand]
     private void GoToPreviousPage()
     {
@@ -217,11 +291,13 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         RefreshPagedEntries(raisePageChanged: true);
     }
 
-    private bool CanToggle(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy;
+    private bool CanToggle(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && !item.IsBackupOnly;
 
-    private bool CanEnable(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && !item.IsEnabled;
+    private bool CanEnable(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && !item.IsEnabled && !item.IsBackupOnly;
 
-    private bool CanDisable(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && item.IsEnabled;
+    private bool CanDisable(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && item.IsEnabled && !item.IsBackupOnly;
+
+    private bool CanRestoreFromBackup(StartupEntryItemViewModel? item) => item is not null && !IsBusy && !item.IsBusy && item.IsBackupOnly && item.BackupRecord is not null;
 
     partial void OnIsBusyChanged(bool value)
     {
@@ -229,6 +305,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         EnableCommand.NotifyCanExecuteChanged();
         DisableCommand.NotifyCanExecuteChanged();
         DelayCommand.NotifyCanExecuteChanged();
+        RestoreFromBackupCommand.NotifyCanExecuteChanged();
+        DeleteBackupCommand.NotifyCanExecuteChanged();
     }
 
     private async Task RefreshAsync()
@@ -239,7 +317,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         {
             await Task.Yield(); // Let the UI paint the busy indicator before heavy work begins.
 
-            var (mapped, baselineDisabled) = await Task.Run(async () =>
+            var (mapped, baselineDisabled, backupOnly) = await Task.Run(async () =>
             {
                 var snapshot = await _inventory.GetInventoryAsync().ConfigureAwait(false);
                 var mappedEntries = snapshot.Items.Select(startup => new StartupEntryItemViewModel(startup)).ToList();
@@ -253,11 +331,34 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 await AutoReDisableAsync(mappedEntries).ConfigureAwait(false);
 
                 var disabledBaseline = mappedEntries.Count(item => !item.IsEnabled);
-                return (mappedEntries, disabledBaseline);
+
+                // Clean up stale/ghost backups (files deleted externally)
+                _control.BackupStore.CleanupStaleBackups();
+
+                // Detect and warn about apps that re-enabled themselves
+                var liveIds = new HashSet<string>(mappedEntries.Select(e => e.Item.Id), StringComparer.OrdinalIgnoreCase);
+                DetectReenabledEntries(mappedEntries, liveIds);
+
+                var seenBackupIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var backupOnlyEntries = _control.BackupStore.GetAll()
+                    .Where(backup => StartupBackupStore.IsValidBackup(backup))
+                    .Where(backup => !liveIds.Contains(backup.Id))
+                    .Where(backup => seenBackupIds.Add(backup.Id)) // Deduplication
+                    .Select(backup => new StartupEntryItemViewModel(backup))
+                    .ToList();
+
+                return (mappedEntries, disabledBaseline, backupOnlyEntries);
             }).ConfigureAwait(true);
 
             Entries = new ObservableCollection<StartupEntryItemViewModel>(mapped);
             BaselineDisabledCount = baselineDisabled;
+
+            BackupOnlyEntries.Clear();
+            foreach (var backupEntry in backupOnly)
+            {
+                BackupOnlyEntries.Add(backupEntry);
+            }
+            BackupOnlyCount = backupOnly.Count;
         }
         finally
         {
@@ -315,6 +416,92 @@ public sealed partial class StartupControllerViewModel : ObservableObject
                 CreatedAtUtc: DateTimeOffset.UtcNow);
 
             _control.BackupStore.Save(backup);
+        }
+    }
+
+    /// <summary>
+    /// Detects and handles entries where the application re-created its startup after we disabled it.
+    /// For guarded entries: automatically re-disables and logs a warning.
+    /// For non-guarded entries: logs a warning to alert the user.
+    /// Does NOT silently delete backups - the user should be aware and decide.
+    /// </summary>
+    private void DetectReenabledEntries(IReadOnlyCollection<StartupEntryItemViewModel> mappedEntries, HashSet<string> liveIds)
+    {
+        var allBackups = _control.BackupStore.GetAll();
+        var guards = _guardService.GetAll();
+
+        foreach (var backup in allBackups)
+        {
+            if (!liveIds.Contains(backup.Id))
+            {
+                continue; // Backup is still valid (entry not in live inventory)
+            }
+
+            // Find the live entry that matches this backup
+            var liveEntry = mappedEntries.FirstOrDefault(e =>
+                string.Equals(e.Item.Id, backup.Id, StringComparison.OrdinalIgnoreCase));
+
+            if (liveEntry is null || !liveEntry.IsEnabled)
+            {
+                continue; // Entry is disabled, no conflict
+            }
+
+            // The app has re-created its startup entry!
+            var entryName = backup.RegistryValueName ?? backup.ServiceName ?? backup.TaskPath ?? backup.Id;
+            var isGuarded = guards.Contains(backup.Id, StringComparer.OrdinalIgnoreCase);
+
+            if (isGuarded)
+            {
+                // Auto-Guard will handle re-disabling via AutoReDisableAsync
+                // Just log a prominent warning
+                _activityLog.LogWarning(
+                    "StartupController",
+                    $"⚠️ '{entryName}' re-enabled itself! Auto-Guard will re-disable it.",
+                    new object[]
+                    {
+                        $"The application re-created its startup entry after you disabled it.",
+                        $"Because Auto-Guard is enabled, TidyWindow will disable it again.",
+                        $"ID: {backup.Id}",
+                        $"Source: {backup.SourceKind}"
+                    });
+            }
+            else
+            {
+                // NOT guarded - warn the user prominently
+                _activityLog.LogWarning(
+                    "StartupController",
+                    $"⚠️ '{entryName}' re-enabled itself without your permission!",
+                    new object[]
+                    {
+                        $"The application re-created its startup entry after you disabled it.",
+                        $"This is often done by apps that want to run at startup regardless of your preference.",
+                        $"Consider enabling 'Auto-keep disabled' (Auto-Guard) to prevent this.",
+                        $"ID: {backup.Id}",
+                        $"Source: {backup.SourceKind}",
+                        $"You can find this entry and disable it again from the Startup Controller."
+                    });
+            }
+
+            // Clean up the OLD backup file (if any) since app created a NEW file
+            // But keep the backup RECORD so we have history
+            if (backup.SourceKind == StartupItemSourceKind.StartupFolder &&
+                !string.IsNullOrWhiteSpace(backup.FileBackupPath) &&
+                System.IO.File.Exists(backup.FileBackupPath))
+            {
+                try
+                {
+                    System.IO.File.Delete(backup.FileBackupPath);
+                }
+                catch
+                {
+                    // Non-fatal
+                }
+            }
+
+            // Remove the backup record ONLY after handling
+            // For guarded items, AutoReDisableAsync will create a new backup
+            // For non-guarded items, we remove the obsolete record
+            _control.BackupStore.Remove(backup.Id);
         }
     }
 
@@ -516,6 +703,217 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         {
             item.IsBusy = false;
         }
+    }
+
+    private async Task RestoreFromBackupAsync(StartupEntryItemViewModel? item)
+    {
+        if (item is null || !item.IsBackupOnly || item.BackupRecord is null)
+        {
+            return;
+        }
+
+        item.IsBusy = true;
+        try
+        {
+            var backup = item.BackupRecord;
+            var syntheticItem = item.Item;
+
+            var result = await Task.Run(async () => await _control.EnableAsync(syntheticItem).ConfigureAwait(false)).ConfigureAwait(true);
+
+            if (result.Succeeded)
+            {
+                _activityLog.LogSuccess(
+                    "StartupController",
+                    $"Restored startup entry from backup: {item.Name}",
+                    BuildRestoreDetails(backup));
+
+                // Remove from backup-only list and trigger full refresh
+                BackupOnlyEntries.Remove(item);
+                BackupOnlyCount = BackupOnlyEntries.Count;
+                await RefreshCommand.ExecuteAsync(null).ConfigureAwait(true);
+            }
+            else
+            {
+                _activityLog.LogWarning(
+                    "StartupController",
+                    $"Failed to restore {item.Name} from backup: {result.ErrorMessage}",
+                    BuildRestoreDetails(backup));
+            }
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogError(
+                "StartupController",
+                $"Error restoring {item.Name} from backup: {ex.Message}",
+                BuildRestoreErrorDetails(item.BackupRecord, ex));
+        }
+        finally
+        {
+            item.IsBusy = false;
+        }
+    }
+
+    private static IEnumerable<object?> BuildRestoreDetails(StartupEntryBackup backup)
+    {
+        yield return $"Source kind: {backup.SourceKind}";
+        if (!string.IsNullOrWhiteSpace(backup.RegistryRoot))
+        {
+            yield return $"Registry: {backup.RegistryRoot}\\{backup.RegistrySubKey}";
+        }
+        if (!string.IsNullOrWhiteSpace(backup.RegistryValueName))
+        {
+            yield return $"Value name: {backup.RegistryValueName}";
+        }
+        if (!string.IsNullOrWhiteSpace(backup.RegistryValueData))
+        {
+            yield return $"Command: {backup.RegistryValueData}";
+        }
+        if (!string.IsNullOrWhiteSpace(backup.TaskPath))
+        {
+            yield return $"Task: {backup.TaskPath}";
+        }
+        if (!string.IsNullOrWhiteSpace(backup.ServiceName))
+        {
+            yield return $"Service: {backup.ServiceName}";
+        }
+        yield return $"Backup created: {backup.CreatedAtUtc:u}";
+    }
+
+    private static IEnumerable<object?> BuildRestoreErrorDetails(StartupEntryBackup? backup, Exception ex)
+    {
+        if (backup is not null)
+        {
+            foreach (var detail in BuildRestoreDetails(backup))
+            {
+                yield return detail;
+            }
+        }
+        yield return $"Error: {ex.Message}";
+        yield return $"Stack trace: {ex.StackTrace}";
+    }
+
+    private static bool CanDeleteBackup(StartupEntryItemViewModel? item) => item?.IsBackupOnly == true && item.BackupRecord is not null;
+
+    private async Task DeleteBackupAsync(StartupEntryItemViewModel? item)
+    {
+        if (item is null || !item.IsBackupOnly || item.BackupRecord is null)
+        {
+            return;
+        }
+
+        var backup = item.BackupRecord;
+
+        // Build a detailed warning message
+        var hasBackupFile = !string.IsNullOrWhiteSpace(backup.FileBackupPath) && System.IO.File.Exists(backup.FileBackupPath);
+        var warningMessage = BuildDeleteWarningMessage(item, backup, hasBackupFile);
+
+        if (!_confirmationService.Confirm("Permanently delete backup?", warningMessage))
+        {
+            return;
+        }
+
+        item.IsBusy = true;
+        try
+        {
+            await Task.Run(() =>
+            {
+                // Delete the backup file if it exists
+                if (hasBackupFile)
+                {
+                    try
+                    {
+                        System.IO.File.Delete(backup.FileBackupPath!);
+                    }
+                    catch
+                    {
+                        // Non-fatal: file cleanup failed
+                    }
+                }
+
+                // Remove from backup store
+                _control.BackupStore.Remove(backup.Id);
+            }).ConfigureAwait(true);
+
+            _activityLog.LogSuccess(
+                "StartupController",
+                $"Permanently deleted backup: {item.Name}",
+                BuildDeleteDetails(backup, hasBackupFile));
+
+            // Remove from backup-only list
+            BackupOnlyEntries.Remove(item);
+            BackupOnlyCount = BackupOnlyEntries.Count;
+
+            // Remove from visible entries if currently shown
+            if (_filteredEntries.Contains(item))
+            {
+                _filteredEntries.Remove(item);
+                RefreshPagedEntries(raisePageChanged: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogError(
+                "StartupController",
+                $"Error deleting backup for {item.Name}: {ex.Message}",
+                BuildDeleteDetails(backup, hasBackupFile));
+        }
+        finally
+        {
+            item.IsBusy = false;
+        }
+    }
+
+    private static string BuildDeleteWarningMessage(StartupEntryItemViewModel item, StartupEntryBackup backup, bool hasBackupFile)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("⚠️ This action is PERMANENT and cannot be undone.");
+        sb.AppendLine();
+        sb.AppendLine($"Entry: {item.Name}");
+        sb.AppendLine($"Type: {backup.SourceKind}");
+
+        if (!string.IsNullOrWhiteSpace(backup.RegistryValueData))
+        {
+            sb.AppendLine($"Command: {backup.RegistryValueData}");
+        }
+        else if (!string.IsNullOrWhiteSpace(backup.FileOriginalPath))
+        {
+            sb.AppendLine($"Original path: {backup.FileOriginalPath}");
+        }
+
+        sb.AppendLine($"Backup created: {backup.CreatedAtUtc.ToLocalTime():yyyy-MM-dd HH:mm}");
+        sb.AppendLine();
+
+        if (hasBackupFile)
+        {
+            sb.AppendLine("🗑️ The backed-up startup file will be permanently deleted.");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine("After deletion, you will NOT be able to restore this startup entry.");
+        sb.AppendLine("You would need to reinstall the application to get it back.");
+        sb.AppendLine();
+        sb.AppendLine("Are you sure you want to continue?");
+
+        return sb.ToString();
+    }
+
+    private static IEnumerable<object?> BuildDeleteDetails(StartupEntryBackup backup, bool hadBackupFile)
+    {
+        yield return $"ID: {backup.Id}";
+        yield return $"Source kind: {backup.SourceKind}";
+        if (!string.IsNullOrWhiteSpace(backup.RegistryValueName))
+        {
+            yield return $"Value name: {backup.RegistryValueName}";
+        }
+        if (!string.IsNullOrWhiteSpace(backup.FileOriginalPath))
+        {
+            yield return $"Original path: {backup.FileOriginalPath}";
+        }
+        if (hadBackupFile)
+        {
+            yield return $"Backup file deleted: {backup.FileBackupPath}";
+        }
+        yield return $"Backup was created: {backup.CreatedAtUtc:u}";
     }
 
     private bool ConfirmDisableIfSystemCritical(StartupItem item)

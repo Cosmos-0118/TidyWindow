@@ -358,11 +358,61 @@ public sealed class StartupControlService
         {
             var entryName = Path.GetFileName(item.RawCommand ?? item.ExecutablePath);
             var root = ResolveStartupFolderRoot(item.EntryLocation);
-            if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
+
+            // Find the actual shortcut file in the startup folder
+            var startupFolderPath = ResolveStartupFolderPath(item.EntryLocation);
+            string? originalFilePath = null;
+            string? backupFilePath = null;
+
+            if (!string.IsNullOrWhiteSpace(startupFolderPath) && Directory.Exists(startupFolderPath))
             {
-                if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: false, out var approvedError))
+                // Look for shortcut files (.lnk) that match the entry
+                var possibleFiles = Directory.GetFiles(startupFolderPath, "*.lnk")
+                    .Concat(Directory.GetFiles(startupFolderPath, "*.url"))
+                    .ToArray();
+
+                // Try to find the matching file by name
+                originalFilePath = possibleFiles.FirstOrDefault(f =>
+                    Path.GetFileNameWithoutExtension(f).Equals(entryName, StringComparison.OrdinalIgnoreCase) ||
+                    Path.GetFileName(f).Equals(entryName, StringComparison.OrdinalIgnoreCase));
+
+                // If not found by exact name, try matching by executable path in the shortcut
+                if (originalFilePath is null && !string.IsNullOrWhiteSpace(item.ExecutablePath))
                 {
-                    return new StartupToggleResult(false, item, null, approvedError);
+                    var exeName = Path.GetFileNameWithoutExtension(item.ExecutablePath);
+                    originalFilePath = possibleFiles.FirstOrDefault(f =>
+                        Path.GetFileNameWithoutExtension(f).Contains(exeName, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            // Move the file to backup location if found
+            if (!string.IsNullOrWhiteSpace(originalFilePath) && File.Exists(originalFilePath))
+            {
+                var backupFolder = Path.Combine(_backupStore.BackupDirectory, "StartupFiles");
+                Directory.CreateDirectory(backupFolder);
+
+                var safeFileName = SanitizeFileName(Path.GetFileName(originalFilePath));
+                backupFilePath = Path.Combine(backupFolder, $"{item.Id.GetHashCode():X8}_{safeFileName}");
+
+                // Ensure unique filename if collision
+                var counter = 1;
+                var basePath = backupFilePath;
+                while (File.Exists(backupFilePath))
+                {
+                    backupFilePath = $"{basePath}_{counter++}";
+                }
+
+                File.Move(originalFilePath, backupFilePath);
+            }
+            else
+            {
+                // Fallback: use StartupApproved registry if we can't find/move the file
+                if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
+                {
+                    if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: false, out var approvedError))
+                    {
+                        return new StartupToggleResult(false, item, null, approvedError);
+                    }
                 }
             }
 
@@ -373,8 +423,8 @@ public sealed class StartupControlService
                 RegistrySubKey: item.EntryLocation,
                 RegistryValueName: entryName,
                 RegistryValueData: null,
-                FileOriginalPath: item.ExecutablePath,
-                FileBackupPath: null,
+                FileOriginalPath: originalFilePath ?? item.ExecutablePath,
+                FileBackupPath: backupFilePath,
                 TaskPath: null,
                 TaskEnabled: null,
                 ServiceName: null,
@@ -391,6 +441,24 @@ public sealed class StartupControlService
         }
     }
 
+    private static string? ResolveStartupFolderPath(string? entryLocation)
+    {
+        if (string.IsNullOrWhiteSpace(entryLocation))
+        {
+            return null;
+        }
+
+        // Common startup folder paths
+        if (entryLocation.Contains("Common Startup", StringComparison.OrdinalIgnoreCase) ||
+            entryLocation.Contains("ProgramData", StringComparison.OrdinalIgnoreCase))
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup);
+        }
+
+        // User startup folder
+        return Environment.GetFolderPath(Environment.SpecialFolder.Startup);
+    }
+
     private StartupToggleResult EnableStartupFile(StartupItem item)
     {
         var backup = _backupStore.Get(item.Id);
@@ -399,11 +467,55 @@ public sealed class StartupControlService
         {
             var entryName = Path.GetFileName(item.ExecutablePath ?? backup?.FileOriginalPath);
             var root = ResolveStartupFolderRoot(item.EntryLocation ?? backup?.RegistrySubKey);
-            if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
+            var fileWasRestored = false;
+            var fileAlreadyExists = false;
+
+            // Try to restore the file from backup location
+            if (backup is not null && !string.IsNullOrWhiteSpace(backup.FileBackupPath) && File.Exists(backup.FileBackupPath))
             {
-                if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: true, out var approvedError))
+                var originalPath = backup.FileOriginalPath;
+                if (!string.IsNullOrWhiteSpace(originalPath))
                 {
-                    return new StartupToggleResult(false, item, backup, approvedError);
+                    // Check if file already exists at destination (app re-created the shortcut)
+                    if (File.Exists(originalPath))
+                    {
+                        // File already exists - the application has re-created its startup entry
+                        // Delete our obsolete backup file and clean up
+                        fileAlreadyExists = true;
+                        try
+                        {
+                            File.Delete(backup.FileBackupPath);
+                        }
+                        catch
+                        {
+                            // Non-fatal: backup file cleanup failed
+                        }
+                    }
+                    else
+                    {
+                        // Ensure the destination directory exists
+                        var destDir = Path.GetDirectoryName(originalPath);
+                        if (!string.IsNullOrWhiteSpace(destDir))
+                        {
+                            Directory.CreateDirectory(destDir);
+                        }
+
+                        // Move the file back to its original location
+                        File.Move(backup.FileBackupPath, originalPath, overwrite: false);
+                        fileWasRestored = true;
+                    }
+                }
+            }
+
+            // If file wasn't restored (no backup file), try StartupApproved as fallback
+            if (!fileWasRestored && !fileAlreadyExists)
+            {
+                if (!string.IsNullOrWhiteSpace(entryName) && root is not null)
+                {
+                    if (!TrySetStartupApprovedState(root, "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\StartupApproved\\StartupFolder", entryName, enabled: true, out var approvedError))
+                    {
+                        return new StartupToggleResult(false, item, backup, approvedError);
+                    }
                 }
             }
 

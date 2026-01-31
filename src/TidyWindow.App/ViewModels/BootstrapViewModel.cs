@@ -55,7 +55,16 @@ public sealed partial class BootstrapViewModel : ViewModelBase
     [ObservableProperty]
     private string _copyCommandFeedback = string.Empty;
 
-    public string PowerShellInstallCommandText => PowerShellInstallCommand;
+    /// <summary>
+    /// Gets the PowerShell install command text for display in the UI.
+    /// The setter is intentionally a no-op to satisfy WPF binding requirements.
+    /// </summary>
+    public string PowerShellInstallCommandText
+    {
+        get => PowerShellInstallCommand;
+        // ReSharper disable once ValueParameterNotUsed
+        set { } // No-op setter to prevent TwoWay binding exceptions in WPF.
+    }
 
     public ObservableCollection<PackageManagerEntryViewModel> Managers { get; } = new();
 

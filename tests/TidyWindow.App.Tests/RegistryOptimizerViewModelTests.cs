@@ -56,6 +56,9 @@ public sealed class RegistryOptimizerViewModelTests
             using var scope = new RegistryOptimizerTestScope(getTotalRamGb: () => 8);
             scope.RestoreGuard.EnqueueResult(new SystemRestoreGuardCheckResult(true, DateTimeOffset.UtcNow, null));
 
+            // Clear preset selection to avoid preset replay adding other tweaks
+            scope.ViewModel.SelectedPreset = null;
+
             var pagingTweak = scope.ViewModel.Tweaks.Single(t => string.Equals(t.Id, "disable-paging-executive", StringComparison.OrdinalIgnoreCase));
             pagingTweak.IsSelected = true;
 

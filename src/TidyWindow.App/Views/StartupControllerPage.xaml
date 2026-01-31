@@ -449,6 +449,21 @@
                                           IsChecked="True"
                                           Checked="OnFilterChanged"
                                           Unchecked="OnFilterChanged" />
+                            <ToggleButton x:Name="BackupFilter"
+                                          Style="{StaticResource FilterToggleStyle}"
+                                          Checked="OnFilterChanged"
+                                          Unchecked="OnFilterChanged"
+                                          ToolTip="Show startup items from backup that are no longer detected in the system. Use this to restore items that disappeared after being disabled.">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Backup only" />
+                                    <TextBlock Text=" ("
+                                               Foreground="#94A3B8" />
+                                    <TextBlock Text="{Binding BackupOnlyCount}"
+                                               Foreground="#F59E0B" />
+                                    <TextBlock Text=")"
+                                               Foreground="#94A3B8" />
+                                </StackPanel>
+                            </ToggleButton>
                         </WrapPanel>
                     </StackPanel>
                 </Border>
@@ -557,7 +572,8 @@
                                     </StackPanel>
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <Border Style="{StaticResource StartupStatusBadgeStyle}" HorizontalAlignment="Right">
+                                        <Border Style="{StaticResource StartupStatusBadgeStyle}" HorizontalAlignment="Right"
+                                                Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                 <Ellipse Width="8" Height="8" Fill="#34D399" VerticalAlignment="Center"
                                                          Visibility="{Binding IsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
@@ -575,17 +591,48 @@
                                                            Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                                             </StackPanel>
                                         </Border>
+                                        <Border HorizontalAlignment="Right"
+                                                Background="#451A03"
+                                                BorderBrush="#78350F"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="10,6"
+                                                Visibility="{Binding IsBackupOnly, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="8" Height="8" Fill="#F59E0B" VerticalAlignment="Center" />
+                                                <TextBlock Text="Backup only"
+                                                           Margin="6,0,0,0"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="#FDE68A"
+                                                           ToolTip="This entry no longer exists in the system. It can only be restored from backup." />
+                                            </StackPanel>
+                                        </Border>
 
                                         <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Right">
+                                            <Button Content="Restore from backup"
+                                                    Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding DataContext.RestoreFromBackupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    ToolTip="Recreate this startup entry from the saved backup" />
+                                            <Button Content="Delete backup"
+                                                    Margin="8,0,0,0"
+                                                    Style="{StaticResource DangerButtonStyle}"
+                                                    Command="{Binding DataContext.DeleteBackupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                    ToolTip="Permanently delete this backup. This cannot be undone." />
                                             <Button Content="Enable"
                                                     Style="{StaticResource PrimaryButtonStyle}"
                                                     Command="{Binding DataContext.EnableCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                    CommandParameter="{Binding}" />
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                                             <Button Content="Disable"
                                                     Margin="8,0,0,0"
                                                     Style="{StaticResource DangerButtonStyle}"
                                                     Command="{Binding DataContext.DisableCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                    CommandParameter="{Binding}" />
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
                                         </StackPanel>
 
                                         <ToggleButton Content="Auto-keep disabled"

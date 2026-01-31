@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -37,6 +38,9 @@ public sealed class StartupGuardBackgroundService : IDisposable
 
     // Registry watchers for real-time detection
     private readonly List<RegistryMonitor> _registryMonitors = new();
+
+    // FileSystem watchers for StartupFolder instant detection
+    private readonly List<FileSystemWatcher> _folderWatchers = new();
 
     public StartupGuardBackgroundService(
         StartupInventoryService inventory,
@@ -92,6 +96,7 @@ public sealed class StartupGuardBackgroundService : IDisposable
 
         _disposed = true;
         WeakEventManager<UserPreferencesService, UserPreferencesChangedEventArgs>.RemoveHandler(_preferences, nameof(UserPreferencesService.PreferencesChanged), OnPreferencesChanged);
+        StopFolderWatchers();
         StopRegistryMonitors();
         StopLoop();
     }
@@ -112,9 +117,11 @@ public sealed class StartupGuardBackgroundService : IDisposable
         {
             StartLoop();
             StartRegistryMonitors();
+            StartFolderWatchers();
         }
         else
         {
+            StopFolderWatchers();
             StopRegistryMonitors();
             StopLoop();
         }
@@ -231,9 +238,91 @@ public sealed class StartupGuardBackgroundService : IDisposable
         }
     }
 
-    private void OnRegistryChanged(object? sender, EventArgs e)
+    private void StartFolderWatchers()
     {
-        // Registry changed - trigger immediate scan if not already in flight
+        lock (_gate)
+        {
+            if (_folderWatchers.Count > 0)
+            {
+                return; // Already running
+            }
+
+            // Monitor StartupFolder locations for .lnk file changes
+            var startupFolders = new[]
+            {
+                Environment.GetFolderPath(Environment.SpecialFolder.Startup), // User startup
+                Environment.GetFolderPath(Environment.SpecialFolder.CommonStartup) // All Users startup
+            };
+
+            foreach (var folder in startupFolders)
+            {
+                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var watcher = new FileSystemWatcher(folder)
+                    {
+                        NotifyFilter = NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.CreationTime,
+                        Filter = "*.lnk",
+                        EnableRaisingEvents = true,
+                        IncludeSubdirectories = false
+                    };
+
+                    watcher.Created += OnStartupFolderChanged;
+                    watcher.Changed += OnStartupFolderChanged;
+                    watcher.Renamed += OnStartupFolderRenamed;
+
+                    _folderWatchers.Add(watcher);
+                }
+                catch
+                {
+                    // Non-fatal: fall back to polling only
+                }
+            }
+        }
+    }
+
+    private void StopFolderWatchers()
+    {
+        lock (_gate)
+        {
+            foreach (var watcher in _folderWatchers)
+            {
+                try
+                {
+                    watcher.EnableRaisingEvents = false;
+                    watcher.Created -= OnStartupFolderChanged;
+                    watcher.Changed -= OnStartupFolderChanged;
+                    watcher.Renamed -= OnStartupFolderRenamed;
+                    watcher.Dispose();
+                }
+                catch
+                {
+                    // Suppress disposal exceptions
+                }
+            }
+
+            _folderWatchers.Clear();
+        }
+    }
+
+    private void OnStartupFolderChanged(object sender, FileSystemEventArgs e)
+    {
+        // Startup folder changed - trigger immediate scan
+        TriggerImmediateScan();
+    }
+
+    private void OnStartupFolderRenamed(object sender, RenamedEventArgs e)
+    {
+        // Startup folder item renamed - trigger immediate scan
+        TriggerImmediateScan();
+    }
+
+    private void TriggerImmediateScan()
+    {
         if (_cts is null || _cts.Token.IsCancellationRequested)
         {
             return;
@@ -256,6 +345,12 @@ public sealed class StartupGuardBackgroundService : IDisposable
                 // Suppress
             }
         });
+    }
+
+    private void OnRegistryChanged(object? sender, EventArgs e)
+    {
+        // Registry changed - trigger immediate scan if not already in flight
+        TriggerImmediateScan();
     }
 
     private async Task RunLoopAsync(CancellationToken cancellationToken)
