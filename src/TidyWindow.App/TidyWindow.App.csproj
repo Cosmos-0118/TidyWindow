@@ -16,6 +16,7 @@
     <AssemblyName>TidyWindow</AssemblyName>
     <RootNamespace>TidyWindow.App</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">

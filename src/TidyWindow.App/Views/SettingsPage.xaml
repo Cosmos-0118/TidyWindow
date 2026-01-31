@@ -6,7 +6,13 @@
       xmlns:controls="clr-namespace:TidyWindow.App.Views"
       mc:Ignorable="d"
       Background="Transparent"
-      Title="Settings">
+      Title="Settings"
+      UseLayoutRounding="True"
+      SnapsToDevicePixels="True"
+      TextOptions.TextFormattingMode="Display"
+      TextOptions.TextRenderingMode="ClearType"
+      TextOptions.TextHintingMode="Fixed"
+      RenderOptions.BitmapScalingMode="HighQuality">
 
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>

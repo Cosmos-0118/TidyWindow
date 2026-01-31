@@ -199,7 +199,8 @@ public sealed class ThreatWatchDetectionServiceTests
                 StartupEntryLocation.RunKey,
                 arguments: null,
                 source: "HKCU\\Run",
-                description: "Temp autorun");
+                description: "Temp autorun",
+                isUnsigned: true);
             var request = new ThreatWatchDetectionRequest(Array.Empty<RunningProcessSnapshot>(), new[] { startup }, threatIntelMode: ThreatIntelMode.Disabled);
 
             var result = await service.RunScanAsync(request);

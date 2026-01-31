@@ -254,7 +254,12 @@ iphlpsvc
             ["usage.searchindexing"] = "no",
             ["usage.deliveryoptimization"] = "no",
             ["usage.helloface"] = "no",
-            ["usage.scheduledtasks"] = "no"
+            ["usage.scheduledtasks"] = "no",
+            ["usage.ai"] = "no",
+            ["usage.cortana"] = "no",
+            ["usage.widgets"] = "no",
+            ["usage.accessibility"] = "no",
+            ["usage.mediastreaming"] = "no"
         };
     }
 
