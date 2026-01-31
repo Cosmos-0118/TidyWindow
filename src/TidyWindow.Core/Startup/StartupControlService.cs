@@ -53,6 +53,18 @@ public sealed class StartupControlService
             StartupItemSourceKind.ExplorerRun => DisableExplorerRun(item),
             StartupItemSourceKind.AppInitDll => DisableAppInitDll(item),
             StartupItemSourceKind.ImageFileExecutionOptions => DisableIfeoDebugger(item),
+            StartupItemSourceKind.ShellExtension => DisableShellExtension(item),
+            StartupItemSourceKind.BrowserHelperObject => DisableBrowserHelperObject(item),
+            StartupItemSourceKind.ProtocolFilter => DisableProtocolFilter(item),
+            StartupItemSourceKind.PrintMonitor => DisablePrintMonitor(item),
+            StartupItemSourceKind.ShellFolder => DisableShellFolder(item),
+            // Dangerous system components - warn user
+            StartupItemSourceKind.BootExecute => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Boot Execute entries are essential for system startup. Modifying them may prevent Windows from booting. This operation is blocked for safety."),
+            StartupItemSourceKind.LsaProvider => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: LSA Security Providers handle authentication and security. Disabling them may lock you out of Windows or cause security failures. This operation is blocked for safety."),
+            StartupItemSourceKind.KnownDll => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Known DLLs are core Windows libraries loaded by all processes. Modifying them will cause system instability or crashes. This operation is blocked for safety."),
+            StartupItemSourceKind.WinsockProvider => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Winsock Providers handle all network communication. Disabling them will break internet connectivity and may require recovery mode to fix. This operation is blocked for safety."),
+            StartupItemSourceKind.ScmExtension => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Security Configuration Manager extensions are required for Windows security policies. Modifying them may break Group Policy and security features. This operation is blocked for safety."),
+            StartupItemSourceKind.FontDriver => new StartupToggleResult(false, item, null, "⚠️ WARNING: Font Drivers run at kernel level. Disabling them incorrectly may cause display issues or blue screens. This operation is blocked for safety."),
             _ => new StartupToggleResult(false, item, null, "Unsupported startup source.")
         };
 
@@ -80,6 +92,18 @@ public sealed class StartupControlService
             StartupItemSourceKind.ExplorerRun => EnableExplorerRun(item),
             StartupItemSourceKind.AppInitDll => EnableAppInitDll(item),
             StartupItemSourceKind.ImageFileExecutionOptions => EnableIfeoDebugger(item),
+            StartupItemSourceKind.ShellExtension => EnableShellExtension(item),
+            StartupItemSourceKind.BrowserHelperObject => EnableBrowserHelperObject(item),
+            StartupItemSourceKind.ProtocolFilter => EnableProtocolFilter(item),
+            StartupItemSourceKind.PrintMonitor => EnablePrintMonitor(item),
+            StartupItemSourceKind.ShellFolder => EnableShellFolder(item),
+            // Dangerous system components - warn user
+            StartupItemSourceKind.BootExecute => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Boot Execute entries cannot be modified through this interface for safety reasons."),
+            StartupItemSourceKind.LsaProvider => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: LSA Security Providers cannot be modified through this interface for safety reasons."),
+            StartupItemSourceKind.KnownDll => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Known DLLs cannot be modified through this interface for safety reasons."),
+            StartupItemSourceKind.WinsockProvider => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Winsock Providers cannot be modified through this interface for safety reasons."),
+            StartupItemSourceKind.ScmExtension => new StartupToggleResult(false, item, null, "⚠️ CRITICAL: Security Configuration Manager extensions cannot be modified through this interface for safety reasons."),
+            StartupItemSourceKind.FontDriver => new StartupToggleResult(false, item, null, "⚠️ WARNING: Font Drivers cannot be modified through this interface for safety reasons."),
             _ => new StartupToggleResult(false, item, null, "Unsupported startup source.")
         });
     }
@@ -1491,6 +1515,540 @@ public sealed class StartupControlService
         {
             return new StartupToggleResult(false, item, backup, ex.Message);
         }
+    }
+
+    #endregion
+
+    #region Shell Extension Control
+
+    private StartupToggleResult DisableShellExtension(StartupItem item)
+    {
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, null, "Invalid Shell Extension registry location.");
+        }
+
+        // The CLSID is stored in RawCommand for shell extensions
+        var clsid = item.RawCommand;
+        if (string.IsNullOrWhiteSpace(clsid))
+        {
+            return new StartupToggleResult(false, item, null, "Shell Extension CLSID missing.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, null, "Shell Extension registry key not found.");
+            }
+
+            // Get the current display name value before removing
+            var currentValue = key.GetValue(clsid)?.ToString();
+            if (currentValue is null)
+            {
+                // Already removed
+                return new StartupToggleResult(true, item with { IsEnabled = false }, null, null);
+            }
+
+            var backup = new StartupEntryBackup(
+                item.Id,
+                item.SourceKind,
+                GetRootName(root),
+                subKey,
+                clsid,
+                currentValue,
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+
+            // Remove the CLSID from the Approved list to disable the shell extension
+            key.DeleteValue(clsid, throwOnMissingValue: false);
+            _backupStore.Save(backup);
+
+            return new StartupToggleResult(true, item with { IsEnabled = false }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, null, ex.Message);
+        }
+    }
+
+    private StartupToggleResult EnableShellExtension(StartupItem item)
+    {
+        var backup = _backupStore.Get(item.Id);
+
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, backup, "Invalid Shell Extension registry location.");
+        }
+
+        // The CLSID is stored in RawCommand for shell extensions
+        var clsid = item.RawCommand;
+        if (string.IsNullOrWhiteSpace(clsid))
+        {
+            clsid = backup?.RegistryValueName;
+        }
+
+        if (string.IsNullOrWhiteSpace(clsid))
+        {
+            return new StartupToggleResult(false, item, backup, "Shell Extension CLSID missing.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true) ?? root.CreateSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, backup, "Failed to open Shell Extension registry key.");
+            }
+
+            // Check if already enabled
+            if (key.GetValue(clsid) is not null)
+            {
+                if (backup is not null)
+                {
+                    _backupStore.Remove(item.Id);
+                }
+                return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
+            }
+
+            // Restore the CLSID to the Approved list
+            var displayName = backup?.RegistryValueData ?? item.Name ?? clsid;
+            key.SetValue(clsid, displayName, RegistryValueKind.String);
+
+            if (backup is not null)
+            {
+                _backupStore.Remove(item.Id);
+            }
+
+            return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, backup, ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region Browser Helper Object Control
+
+    private StartupToggleResult DisableBrowserHelperObject(StartupItem item)
+    {
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, null, "Invalid BHO registry location.");
+        }
+
+        try
+        {
+            // BHO entries are subkeys, so we need to delete the entire subkey
+            using var parentKey = root.OpenSubKey(Path.GetDirectoryName(subKey)?.Replace('\\', '/').Replace('/', '\\') ?? subKey, writable: true);
+            if (parentKey is null)
+            {
+                return new StartupToggleResult(false, item, null, "BHO parent registry key not found.");
+            }
+
+            var clsid = item.RawCommand ?? Path.GetFileName(subKey);
+            if (string.IsNullOrWhiteSpace(clsid))
+            {
+                return new StartupToggleResult(false, item, null, "BHO CLSID missing.");
+            }
+
+            // Check if the subkey exists
+            using var bhoKey = parentKey.OpenSubKey(clsid, writable: false);
+            if (bhoKey is null)
+            {
+                return new StartupToggleResult(true, item with { IsEnabled = false }, null, null);
+            }
+
+            var backup = new StartupEntryBackup(
+                item.Id,
+                item.SourceKind,
+                GetRootName(root),
+                subKey,
+                clsid,
+                item.Name,
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+
+            parentKey.DeleteSubKeyTree(clsid, throwOnMissingSubKey: false);
+            _backupStore.Save(backup);
+
+            return new StartupToggleResult(true, item with { IsEnabled = false }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, null, ex.Message);
+        }
+    }
+
+    private StartupToggleResult EnableBrowserHelperObject(StartupItem item)
+    {
+        var backup = _backupStore.Get(item.Id);
+
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, backup, "Invalid BHO registry location.");
+        }
+
+        var clsid = item.RawCommand ?? backup?.RegistryValueName;
+        if (string.IsNullOrWhiteSpace(clsid))
+        {
+            return new StartupToggleResult(false, item, backup, "BHO CLSID missing.");
+        }
+
+        try
+        {
+            var parentPath = Path.GetDirectoryName(subKey)?.Replace('/', '\\');
+            if (string.IsNullOrWhiteSpace(parentPath))
+            {
+                return new StartupToggleResult(false, item, backup, "Invalid BHO registry path.");
+            }
+
+            using var parentKey = root.OpenSubKey(parentPath, writable: true) ?? root.CreateSubKey(parentPath, writable: true);
+            if (parentKey is null)
+            {
+                return new StartupToggleResult(false, item, backup, "Failed to open BHO registry key.");
+            }
+
+            // Check if already exists
+            using var existingKey = parentKey.OpenSubKey(clsid, writable: false);
+            if (existingKey is not null)
+            {
+                if (backup is not null)
+                {
+                    _backupStore.Remove(item.Id);
+                }
+                return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
+            }
+
+            // Re-create the BHO subkey
+            using var newKey = parentKey.CreateSubKey(clsid, writable: true);
+            if (newKey is null)
+            {
+                return new StartupToggleResult(false, item, backup, "Failed to create BHO registry key.");
+            }
+
+            if (backup is not null)
+            {
+                _backupStore.Remove(item.Id);
+            }
+
+            return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, backup, ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region Protocol Filter Control
+
+    private StartupToggleResult DisableProtocolFilter(StartupItem item)
+    {
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, null, "Invalid Protocol Filter registry location.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, null, "Protocol Filter registry key not found.");
+            }
+
+            var clsid = key.GetValue("CLSID")?.ToString();
+            if (string.IsNullOrWhiteSpace(clsid))
+            {
+                clsid = item.RawCommand;
+            }
+
+            var backup = new StartupEntryBackup(
+                item.Id,
+                item.SourceKind,
+                GetRootName(root),
+                subKey,
+                "CLSID",
+                clsid,
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+
+            // Delete the CLSID value to disable the filter
+            key.DeleteValue("CLSID", throwOnMissingValue: false);
+            _backupStore.Save(backup);
+
+            return new StartupToggleResult(true, item with { IsEnabled = false }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, null, ex.Message);
+        }
+    }
+
+    private StartupToggleResult EnableProtocolFilter(StartupItem item)
+    {
+        var backup = _backupStore.Get(item.Id);
+        if (backup is null || string.IsNullOrWhiteSpace(backup.RegistryValueData))
+        {
+            return new StartupToggleResult(false, item, null, "No backup available to restore Protocol Filter.");
+        }
+
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, backup, "Invalid Protocol Filter registry location.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true) ?? root.CreateSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, backup, "Failed to open Protocol Filter registry key.");
+            }
+
+            key.SetValue("CLSID", backup.RegistryValueData, RegistryValueKind.String);
+            _backupStore.Remove(item.Id);
+
+            return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, backup, ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region Print Monitor Control
+
+    private StartupToggleResult DisablePrintMonitor(StartupItem item)
+    {
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, null, "Invalid Print Monitor registry location.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, null, "Print Monitor registry key not found.");
+            }
+
+            var driver = key.GetValue("Driver")?.ToString();
+            if (string.IsNullOrWhiteSpace(driver))
+            {
+                driver = item.RawCommand;
+            }
+
+            var backup = new StartupEntryBackup(
+                item.Id,
+                item.SourceKind,
+                GetRootName(root),
+                subKey,
+                "Driver",
+                driver,
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+
+            // Delete the Driver value to disable the print monitor
+            key.DeleteValue("Driver", throwOnMissingValue: false);
+            _backupStore.Save(backup);
+
+            return new StartupToggleResult(true, item with { IsEnabled = false }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, null, ex.Message);
+        }
+    }
+
+    private StartupToggleResult EnablePrintMonitor(StartupItem item)
+    {
+        var backup = _backupStore.Get(item.Id);
+        if (backup is null || string.IsNullOrWhiteSpace(backup.RegistryValueData))
+        {
+            return new StartupToggleResult(false, item, null, "No backup available to restore Print Monitor.");
+        }
+
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, backup, "Invalid Print Monitor registry location.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, backup, "Print Monitor registry key not found.");
+            }
+
+            key.SetValue("Driver", backup.RegistryValueData, RegistryValueKind.String);
+            _backupStore.Remove(item.Id);
+
+            return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, backup, ex.Message);
+        }
+    }
+
+    #endregion
+
+    #region Shell Folder Control
+
+    private StartupToggleResult DisableShellFolder(StartupItem item)
+    {
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, null, "Invalid Shell Folder registry location.");
+        }
+
+        // Parse the value name from the item ID (format: shellfolder:path:valueName)
+        var valueName = ExtractShellFolderValueName(item.Id);
+        if (string.IsNullOrWhiteSpace(valueName))
+        {
+            return new StartupToggleResult(false, item, null, "Shell Folder value name missing.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, null, "Shell Folder registry key not found.");
+            }
+
+            var currentValue = key.GetValue(valueName)?.ToString();
+            if (string.IsNullOrWhiteSpace(currentValue))
+            {
+                return new StartupToggleResult(true, item with { IsEnabled = false }, null, null);
+            }
+
+            // Get the default value for this shell folder
+            var defaultPath = GetDefaultShellFolderPath(valueName);
+
+            var backup = new StartupEntryBackup(
+                item.Id,
+                item.SourceKind,
+                GetRootName(root),
+                subKey,
+                valueName,
+                currentValue,
+                FileOriginalPath: null,
+                FileBackupPath: null,
+                TaskPath: null,
+                TaskEnabled: null,
+                ServiceName: null,
+                ServiceStartValue: null,
+                ServiceDelayedAutoStart: null,
+                CreatedAtUtc: DateTimeOffset.UtcNow);
+
+            // Restore to default path (or delete if no default)
+            if (!string.IsNullOrWhiteSpace(defaultPath))
+            {
+                key.SetValue(valueName, defaultPath, RegistryValueKind.ExpandString);
+            }
+            else
+            {
+                key.DeleteValue(valueName, throwOnMissingValue: false);
+            }
+
+            _backupStore.Save(backup);
+
+            return new StartupToggleResult(true, item with { IsEnabled = false }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, null, ex.Message);
+        }
+    }
+
+    private StartupToggleResult EnableShellFolder(StartupItem item)
+    {
+        var backup = _backupStore.Get(item.Id);
+        if (backup is null || string.IsNullOrWhiteSpace(backup.RegistryValueData))
+        {
+            return new StartupToggleResult(false, item, null, "No backup available to restore Shell Folder.");
+        }
+
+        if (!TryParseRegistryLocation(item.EntryLocation, out var root, out var subKey))
+        {
+            return new StartupToggleResult(false, item, backup, "Invalid Shell Folder registry location.");
+        }
+
+        var valueName = backup.RegistryValueName;
+        if (string.IsNullOrWhiteSpace(valueName))
+        {
+            return new StartupToggleResult(false, item, backup, "Shell Folder value name missing.");
+        }
+
+        try
+        {
+            using var key = root.OpenSubKey(subKey, writable: true);
+            if (key is null)
+            {
+                return new StartupToggleResult(false, item, backup, "Shell Folder registry key not found.");
+            }
+
+            key.SetValue(valueName, backup.RegistryValueData, RegistryValueKind.ExpandString);
+            _backupStore.Remove(item.Id);
+
+            return new StartupToggleResult(true, item with { IsEnabled = true }, backup, null);
+        }
+        catch (Exception ex)
+        {
+            return new StartupToggleResult(false, item, backup, ex.Message);
+        }
+    }
+
+    private static string? ExtractShellFolderValueName(string id)
+    {
+        // ID format: shellfolder:path:valueName
+        var parts = id.Split(':');
+        return parts.Length >= 3 ? parts[^1] : null;
+    }
+
+    private static string? GetDefaultShellFolderPath(string valueName)
+    {
+        return valueName switch
+        {
+            "Startup" => @"%USERPROFILE%\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup",
+            "Common Startup" => @"%ProgramData%\Microsoft\Windows\Start Menu\Programs\Startup",
+            _ => null
+        };
     }
 
     #endregion
