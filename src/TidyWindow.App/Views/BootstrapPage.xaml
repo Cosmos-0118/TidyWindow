@@ -373,92 +373,86 @@
                                 <DropShadowEffect Color="#38BDF8" BlurRadius="20" Opacity="0.15" ShadowDepth="0"/>
                             </Border.Effect>
 
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <StackPanel VerticalAlignment="Center">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Border CornerRadius="6" Padding="12,6">
-                                            <Border.Background>
-                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                                                    <GradientStop Color="#38BDF8" Offset="0"/>
-                                                    <GradientStop Color="#22C55E" Offset="1"/>
-                                                </LinearGradientBrush>
-                                            </Border.Background>
-                                            <TextBlock Text="⚡ FIRST-TIME SETUP"
-                                                       FontSize="11"
-                                                       FontWeight="Bold"
-                                                       Foreground="#0F172A"/>
-                                        </Border>
-                                        <TextBlock Text="PowerShell 7+ Required"
-                                                   Margin="14,0,0,0"
-                                                   FontSize="16"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="#38BDF8"
-                                                   VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                    <TextBlock Text="Install PowerShell 7 or newer system-wide before running bootstrap tasks. Already on PS7+? You're all set—detection uses it automatically."
-                                               Margin="0,12,0,0"
-                                               TextWrapping="Wrap"
-                                               Foreground="#94A3B8"
-                                               FontSize="13"
-                                               MaxWidth="480"/>
+                            <StackPanel>
+                                <!-- Text Content at Top -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                                    <Border CornerRadius="6" Padding="12,6">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#38BDF8" Offset="0"/>
+                                                <GradientStop Color="#22C55E" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <TextBlock Text="⚡ FIRST-TIME SETUP"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#0F172A"/>
+                                    </Border>
+                                    <TextBlock Text="PowerShell 7+ Required"
+                                               Margin="14,0,0,0"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#38BDF8"
+                                               VerticalAlignment="Center"/>
                                 </StackPanel>
+                                <TextBlock Text="Install PowerShell 7 or newer system-wide before running bootstrap tasks. Already on PS7+? You're all set—detection uses it automatically."
+                                           Margin="0,12,0,0"
+                                           TextWrapping="Wrap"
+                                           Foreground="#94A3B8"
+                                           FontSize="13"/>
 
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="28,0,0,0">
-                                    <Border Background="#0C1829"
-                                            CornerRadius="10"
-                                            BorderBrush="#1A2D47"
-                                            BorderThickness="1"
-                                            Padding="16,14">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBox Text="{Binding PowerShellInstallCommandText, Mode=OneWay}"
-                                                     IsReadOnly="True"
-                                                     BorderThickness="0"
-                                                     Background="Transparent"
-                                                     Foreground="#94A3B8"
-                                                     FontFamily="Consolas"
-                                                     FontSize="12"
-                                                     VerticalAlignment="Center"
-                                                     MinWidth="280"
-                                                     Margin="0,0,16,0"/>
-                                            <Button Grid.Column="1"
-                                                    Content="📋 Copy"
+                                <!-- Copy Command Section at Bottom -->
+                                <Border Background="#0C1829"
+                                        CornerRadius="10"
+                                        BorderBrush="#1A2D47"
+                                        BorderThickness="1"
+                                        Padding="16,14"
+                                        Margin="0,16,0,0">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <TextBox Grid.Row="0"
+                                                 Text="{Binding PowerShellInstallCommandText, Mode=OneWay}"
+                                                 IsReadOnly="True"
+                                                 BorderThickness="0"
+                                                 Background="Transparent"
+                                                 Foreground="#94A3B8"
+                                                 FontFamily="Consolas"
+                                                 FontSize="12"
+                                                 TextWrapping="Wrap"
+                                                 VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0" HorizontalAlignment="Right">
+                                            <Button Content="📋 Copy"
                                                     Command="{Binding CopyPowerShellCommandCommand}"
                                                     Style="{StaticResource AccentButton}"
                                                     Padding="18,10"
                                                     FontSize="12"/>
-                                        </Grid>
-                                    </Border>
-                                    <TextBlock Margin="0,10,0,0"
-                                               FontSize="12"
-                                               Foreground="#22C55E"
-                                               FontWeight="SemiBold"
-                                               Text="{Binding CopyCommandFeedback}"
-                                               HorizontalAlignment="Right">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="Copied">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="Copied!">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-                            </Grid>
+                                            <TextBlock Margin="12,0,0,0"
+                                                       FontSize="12"
+                                                       Foreground="#22C55E"
+                                                       FontWeight="SemiBold"
+                                                       Text="{Binding CopyCommandFeedback}"
+                                                       VerticalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="Copied">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding CopyCommandFeedback}" Value="Copied!">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </Border>

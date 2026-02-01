@@ -3,10 +3,10 @@
       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
       xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
       xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:controls="clr-namespace:TidyWindow.App.Views"
-    xmlns:converters="clr-namespace:TidyWindow.App.Converters"
-    xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
-    xmlns:ux="clr-namespace:TidyWindow.App.Controls"
+      xmlns:controls="clr-namespace:TidyWindow.App.Views"
+      xmlns:converters="clr-namespace:TidyWindow.App.Converters"
+      xmlns:vm="clr-namespace:TidyWindow.App.ViewModels"
+      xmlns:ux="clr-namespace:TidyWindow.App.Controls"
       Title="PathPilot"
       mc:Ignorable="d"
       Background="Transparent"
@@ -21,224 +21,335 @@
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:PathPilotStatusSeverityToBrushConverter x:Key="SeverityBrush" />
 
-        <SolidColorBrush x:Key="CardBackground" Color="#0C1729" />
-        <SolidColorBrush x:Key="CardBorder" Color="#1E2A3D" />
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- APP THEME COLORS - Unified with other pages                    -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <SolidColorBrush x:Key="PageBg" Color="#0B1120"/>
+        <SolidColorBrush x:Key="CardBg" Color="#0C1829"/>
+        <SolidColorBrush x:Key="CardBgAlt" Color="#151F32"/>
+        <SolidColorBrush x:Key="CardBorder" Color="#1A2D47"/>
+        <SolidColorBrush x:Key="CardBorderHover" Color="#2563EB"/>
+        <SolidColorBrush x:Key="TextPrimary" Color="#F1F5F9"/>
+        <SolidColorBrush x:Key="TextSecondary" Color="#94A3B8"/>
+        <SolidColorBrush x:Key="TextMuted" Color="#64748B"/>
+        <SolidColorBrush x:Key="AccentBlue" Color="#38BDF8"/>
+        <SolidColorBrush x:Key="AccentPurple" Color="#A78BFA"/>
+        <SolidColorBrush x:Key="SuccessGreen" Color="#22C55E"/>
+        <SolidColorBrush x:Key="WarningAmber" Color="#FBBF24"/>
+        <SolidColorBrush x:Key="DangerRed" Color="#EF4444"/>
         <SolidColorBrush x:Key="BadgeForeground" Color="#F8FAFC" />
 
+        <!-- Hero Gradient -->
+        <LinearGradientBrush x:Key="HeroGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#0A1628" Offset="0"/>
+            <GradientStop Color="#0F2847" Offset="0.5"/>
+            <GradientStop Color="#0D3355" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Accent Gradient - Cyan to Purple -->
+        <LinearGradientBrush x:Key="AccentGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#38BDF8" Offset="0"/>
+            <GradientStop Color="#A78BFA" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- Success Gradient -->
+        <LinearGradientBrush x:Key="SuccessGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#34D399" Offset="0"/>
+            <GradientStop Color="#22C55E" Offset="1"/>
+        </LinearGradientBrush>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- MODERN BUTTON STYLES                                           -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        
+        <!-- Primary Accent Button with Gradient -->
+        <Style x:Key="PrimaryButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#0F172A"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#38BDF8" Offset="0"/>
+                                    <GradientStop Color="#22C55E" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.Effect>
+                                <DropShadowEffect Color="#22C55E" BlurRadius="12" Opacity="0.25" ShadowDepth="0"/>
+                            </Border.Effect>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#7DD3FC" Offset="0"/>
+                                            <GradientStop Color="#4ADE80" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="Root" Property="Effect">
+                                    <Setter.Value>
+                                        <DropShadowEffect Color="#4ADE80" BlurRadius="16" Opacity="0.35" ShadowDepth="0"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Root" Property="Background">
+                                    <Setter.Value>
+                                        <SolidColorBrush Color="#16A34A"/>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary/Ghost Button -->
+        <Style x:Key="SecondaryButton" TargetType="Button">
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Root" Background="#151F32" BorderBrush="#1A2D47" BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1A2D47"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Secondary Toggle Button -->
+        <Style x:Key="SecondaryToggleButton" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="#94A3B8"/>
+            <Setter Property="FontWeight" Value="Medium"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Root" Background="#151F32" BorderBrush="#1A2D47" BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1A2D47"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="#1A2D47"/>
+                                <Setter TargetName="Root" Property="BorderBrush" Value="#A78BFA"/>
+                                <Setter Property="Foreground" Value="#F1F5F9"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Root" Property="Opacity" Value="0.4"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- CARD STYLES                                                    -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        
         <Style x:Key="CardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource CardBackground}" />
-            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Padding" Value="16" />
-            <Setter Property="Margin" Value="0" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="UseLayoutRounding" Value="True" />
+            <Setter Property="Background" Value="#0C1829"/>
+            <Setter Property="BorderBrush" Value="#1A2D47"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="16"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="#3A6FA8" />
+                    <Setter Property="BorderBrush" Value="#2563EB"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="PrimaryButton" TargetType="Button">
-            <Setter Property="Foreground" Value="#0B1220" />
-            <Setter Property="Background" Value="#34D399" />
-            <Setter Property="Padding" Value="14,8" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.9" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SecondaryButton" TargetType="Button">
-            <Setter Property="Foreground" Value="#E2E8F0" />
-            <Setter Property="Background" Value="#142033" />
-            <Setter Property="BorderBrush" Value="#26344D" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="12,8" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1B2C48" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="SecondaryToggleButton" TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="#E2E8F0" />
-            <Setter Property="Background" Value="#142033" />
-            <Setter Property="BorderBrush" Value="#26344D" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="12,8" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1B2C48" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1B2C48" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
         <Style x:Key="BadgeStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="8,4" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-            <Setter Property="Background" Value="#0F172A" />
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="10,5"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="Background" Value="#0F172A"/>
         </Style>
 
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- RUNTIME CARD TEMPLATE                                          -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
         <DataTemplate x:Key="RuntimeCardTemplate" DataType="{x:Type vm:PathPilotRuntimeCardViewModel}">
-            <Border Style="{StaticResource CardStyle}" MinWidth="440" MaxWidth="760" Padding="22">
+            <Border MinWidth="440" MaxWidth="780" Padding="24" CornerRadius="18">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0C1829" Offset="0"/>
+                        <GradientStop Color="#0F1F35" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush Color="#1A2D47"/>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="BorderBrush">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#38BDF8" Offset="0"/>
+                                            <GradientStop Color="#A78BFA" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <StackPanel>
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,12" />
-                        </Style>
-                    </StackPanel.Resources>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                        <StackPanel.Resources>
-                            <Style TargetType="FrameworkElement">
-                                <Setter Property="Margin" Value="0,0,12,0" />
-                            </Style>
-                        </StackPanel.Resources>
+                    <!-- Header: Name + Status Badges -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                         <TextBlock Text="{Binding FriendlyName}"
                                    FontSize="18"
                                    FontWeight="SemiBold"
                                    Foreground="#F8FAFC"
                                    TextTrimming="CharacterEllipsis"
-                                   MaxWidth="340" />
-                        <ItemsControl ItemsSource="{Binding StatusBadges}" Margin="10,0,0,0">
+                                   MaxWidth="300"
+                                   VerticalAlignment="Center"/>
+                        <ItemsControl ItemsSource="{Binding StatusBadges}" Margin="14,0,0,0" VerticalAlignment="Center">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <StackPanel Orientation="Horizontal" />
+                                    <StackPanel Orientation="Horizontal"/>
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Style="{StaticResource BadgeStyle}"
+                                    <Border CornerRadius="8" Padding="10,5" Margin="0,0,6,0"
                                             Background="{Binding Severity, Converter={StaticResource SeverityBrush}}">
                                         <TextBlock Text="{Binding Label}"
-                                                   Foreground="{StaticResource BadgeForeground}"
+                                                   Foreground="#F8FAFC"
                                                    FontSize="11"
-                                                   FontWeight="SemiBold" />
+                                                   FontWeight="SemiBold"/>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
 
-                    <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
-                        <StackPanel.Resources>
-                            <Style TargetType="FrameworkElement">
-                                <Setter Property="Margin" Value="0,0,12,0" />
-                            </Style>
-                        </StackPanel.Resources>
-                        <Border Style="{StaticResource BadgeStyle}" Background="#0B2538">
-                            <TextBlock Text="{Binding VersionChipLabel}" Foreground="#7DD3FC" FontSize="12" FontWeight="SemiBold" />
+                    <!-- Version Badge -->
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <Border CornerRadius="8" Padding="12,6">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#0B2538" Offset="0"/>
+                                    <GradientStop Color="#0F2D45" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="{Binding VersionChipLabel}" Foreground="#7DD3FC" FontSize="12" FontWeight="SemiBold"/>
                         </Border>
                     </StackPanel>
 
-                    <Border Background="#0F172A" BorderBrush="#1F2E46" BorderThickness="1" CornerRadius="12" Padding="14" Margin="0,0,0,10">
+                    <!-- Info Card -->
+                    <Border CornerRadius="14" Padding="16" Margin="0,0,0,16">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#0F172A" Offset="0"/>
+                                <GradientStop Color="#151F32" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#1E293B"/>
+                        </Border.BorderBrush>
+                        <Border.BorderThickness>1</Border.BorderThickness>
                         <StackPanel>
                             <TextBlock Text="Current version"
-                                       Foreground="#9CA3AF"
+                                       Foreground="#64748B"
                                        FontWeight="SemiBold"
-                                       FontSize="12" />
-                            <TextBlock Text="{Binding VersionChipLabel}" Foreground="#E2E8F0" TextWrapping="Wrap" />
+                                       FontSize="11"
+                                       Margin="0,0,0,6"/>
+                            <TextBlock Text="{Binding VersionChipLabel}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13"/>
                         </StackPanel>
                     </Border>
 
-                    <Grid Margin="0,12,0,0">
+                    <!-- Action Buttons -->
+                    <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Button Content="Switch" Style="{StaticResource PrimaryButton}" MinWidth="96" HorizontalAlignment="Stretch" Margin="0,0,10,0"
+                        <Button Content="Switch" Style="{StaticResource PrimaryButton}" MinWidth="90" HorizontalAlignment="Stretch" Margin="0,0,8,0"
                                 Command="{Binding DataContext.ShowInstallationsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                CommandParameter="{Binding}" IsEnabled="{Binding HasInstallations}" />
-                        <Button Grid.Column="1" Content="Details" Style="{StaticResource SecondaryButton}" MinWidth="96" HorizontalAlignment="Stretch" Margin="0,0,10,0"
+                                CommandParameter="{Binding}" IsEnabled="{Binding HasInstallations}"/>
+                        <Button Grid.Column="1" Content="Details" Style="{StaticResource SecondaryButton}" MinWidth="90" HorizontalAlignment="Stretch" Margin="0,0,8,0"
                                 Command="{Binding DataContext.ShowDetailsCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                CommandParameter="{Binding}" />
-                        <Button Grid.Column="2" Content="Order" Style="{StaticResource SecondaryButton}" MinWidth="96" HorizontalAlignment="Stretch"
+                                CommandParameter="{Binding}"/>
+                        <Button Grid.Column="2" Content="Order" Style="{StaticResource SecondaryButton}" MinWidth="90" HorizontalAlignment="Stretch"
                                 Command="{Binding DataContext.ShowResolutionOrderCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                CommandParameter="{Binding}" IsEnabled="{Binding HasResolutionOrder}" />
+                                CommandParameter="{Binding}" IsEnabled="{Binding HasResolutionOrder}"/>
                     </Grid>
                 </StackPanel>
             </Border>
         </DataTemplate>
 
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- INSTALLATION TEMPLATE                                          -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
         <DataTemplate x:Key="InstallationTemplate" DataType="{x:Type vm:PathPilotInstallationViewModel}">
-            <Border Padding="18,16" CornerRadius="12" BorderThickness="1">
+            <Border Padding="20,18" CornerRadius="14" BorderThickness="1">
                 <Border.Style>
                     <Style TargetType="Border">
-                        <Setter Property="Background" Value="#1E293B" />
-                        <Setter Property="BorderBrush" Value="#334155" />
+                        <Setter Property="Background">
+                            <Setter.Value>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#151F32" Offset="0"/>
+                                    <GradientStop Color="#1A2744" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Setter.Value>
+                        </Setter>
+                        <Setter Property="BorderBrush" Value="#1E293B"/>
                         <Style.Triggers>
                             <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                <Setter Property="Background" Value="#0F2318" />
-                                <Setter Property="BorderBrush" Value="#166534" />
+                                <Setter Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#0A1F18" Offset="0"/>
+                                            <GradientStop Color="#0F2920" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter Property="BorderBrush" Value="#166534"/>
                             </DataTrigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="BorderBrush" Value="#475569" />
+                                <Setter Property="BorderBrush" Value="#38BDF8"/>
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -246,104 +357,123 @@
 
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <StackPanel VerticalAlignment="Center">
                         <!-- Header row: Version + Active badge -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                            <TextBlock Text="{Binding VersionDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" VerticalAlignment="Center" />
-                            <Border Background="#14532D" CornerRadius="6" Padding="8,4" Margin="12,0,0,0" VerticalAlignment="Center"
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="{Binding VersionDisplay}" FontSize="15" FontWeight="SemiBold" Foreground="#F1F5F9" VerticalAlignment="Center"/>
+                            <Border CornerRadius="8" Padding="10,5" Margin="14,0,0,0" VerticalAlignment="Center"
                                     Visibility="{Binding IsActive, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock Text="Active" Foreground="#4ADE80" FontSize="11" FontWeight="SemiBold" />
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#14532D" Offset="0"/>
+                                        <GradientStop Color="#166534" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock Text="✓ Active" Foreground="#4ADE80" FontSize="11" FontWeight="SemiBold"/>
                             </Border>
                         </StackPanel>
 
                         <!-- Directory path -->
-                        <TextBlock Text="{Binding Directory}" Foreground="#64748B" FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,0,0,10" />
+                        <TextBlock Text="{Binding Directory}" Foreground="#64748B" FontSize="12" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Margin="0,0,0,12"/>
 
                         <!-- Badges row -->
                         <StackPanel Orientation="Horizontal">
-                            <Border Background="#1E3A5F" CornerRadius="6" Padding="8,4" Margin="0,0,8,0">
-                                <TextBlock Text="{Binding Source}" Foreground="#7DD3FC" FontSize="11" />
+                            <Border CornerRadius="8" Padding="10,5" Margin="0,0,8,0">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#0B2538" Offset="0"/>
+                                        <GradientStop Color="#0F3555" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock Text="{Binding Source}" Foreground="#7DD3FC" FontSize="11" FontWeight="Medium"/>
                             </Border>
-                            <Border Background="#2E1065" CornerRadius="6" Padding="8,4">
-                                <TextBlock Text="{Binding Architecture}" Foreground="#C4B5FD" FontSize="11" />
+                            <Border CornerRadius="8" Padding="10,5">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                        <GradientStop Color="#1E1065" Offset="0"/>
+                                        <GradientStop Color="#2E1085" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
+                                <TextBlock Text="{Binding Architecture}" Foreground="#C4B5FD" FontSize="11" FontWeight="Medium"/>
                             </Border>
                         </StackPanel>
 
                         <!-- Notes (if any) -->
-                        <Border Background="#1C1917" BorderBrush="#44403C" BorderThickness="1" CornerRadius="8" Padding="10,8" Margin="0,12,0,0"
+                        <Border CornerRadius="10" Padding="12,10" Margin="0,14,0,0"
                                 Visibility="{Binding HasNotes, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="{Binding NotesDisplay}" Foreground="#FCD34D" FontSize="11" TextWrapping="Wrap" />
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#1C1917" Offset="0"/>
+                                    <GradientStop Color="#27211C" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush Color="#44403C"/>
+                            </Border.BorderBrush>
+                            <Border.BorderThickness>1</Border.BorderThickness>
+                            <TextBlock Text="{Binding NotesDisplay}" Foreground="#FCD34D" FontSize="11" TextWrapping="Wrap"/>
                         </Border>
                     </StackPanel>
 
                     <!-- Action button -->
-                    <Button Grid.Column="1" Content="Make active" Style="{StaticResource SecondaryButton}" 
-                            Padding="16,10" MinWidth="120" VerticalAlignment="Center" Margin="20,0,0,0"
+                    <Button Grid.Column="1" Content="Make active" Style="{StaticResource PrimaryButton}" 
+                            Padding="18,10" MinWidth="120" VerticalAlignment="Center" Margin="20,0,0,0"
                             Command="{Binding DataContext.SwitchRuntimeCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                            CommandParameter="{Binding SwitchRequest}" IsEnabled="{Binding CanSwitch}" />
+                            CommandParameter="{Binding SwitchRequest}" IsEnabled="{Binding CanSwitch}"/>
                 </Grid>
             </Border>
         </DataTemplate>
     </Page.Resources>
 
     <Grid>
-          <Grid x:Name="PageContentGrid"
+        <Grid x:Name="PageContentGrid"
               MinWidth="0"
               MaxWidth="1520"
               HorizontalAlignment="Center"
               Margin="40">
             <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
 
             <ScrollViewer Grid.RowSpan="2" VerticalScrollBarVisibility="Auto" Padding="4,0,4,24">
                 <StackPanel Orientation="Vertical">
                     <controls:PageTitleBar
-                                   Title="PathPilot"
-                                   Subtitle="Runtime PATH switchboard"
-                                   IconGlyph="🛰️"
-                                   BadgeText="{Binding LastRefreshedDisplay}"
-                                   Margin="0,0,0,18">
+                        Title="PathPilot"
+                        Subtitle="Runtime PATH switchboard"
+                        IconGlyph="🛰️"
+                        BadgeText="{Binding LastRefreshedDisplay}"
+                        Margin="0,0,0,18">
                         <controls:PageTitleBar.TrailingContent>
                             <StackPanel Orientation="Horizontal" Margin="0,0,10,0">
-                                <Button Content="Refresh" Style="{StaticResource PrimaryButton}" Command="{Binding RefreshCommand}" Margin="0,0,20,0" />
-                                <Button Content="Export JSON" Style="{StaticResource SecondaryButton}" Command="{Binding ExportJsonCommand}" Margin="0,0,20,0" />
-                                <Button Content="Export Markdown" Style="{StaticResource SecondaryButton}" Command="{Binding ExportMarkdownCommand}" />
+                                <Button Content="Refresh" Style="{StaticResource PrimaryButton}" Command="{Binding RefreshCommand}" Margin="0,0,14,0"/>
+                                <Button Content="Export JSON" Style="{StaticResource SecondaryButton}" Command="{Binding ExportJsonCommand}" Margin="0,0,10,0"/>
+                                <Button Content="Export Markdown" Style="{StaticResource SecondaryButton}" Command="{Binding ExportMarkdownCommand}"/>
                             </StackPanel>
                         </controls:PageTitleBar.TrailingContent>
                         <controls:PageTitleBar.BodyContent>
-                            <Border Style="{StaticResource CardStyle}" Padding="20" Background="#0F1F35">
+                            <Border Style="{StaticResource CardStyle}" Padding="22">
+                                <Border.Background>
+                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                        <GradientStop Color="#0C1829" Offset="0"/>
+                                        <GradientStop Color="#0F2540" Offset="1"/>
+                                    </LinearGradientBrush>
+                                </Border.Background>
                                 <StackPanel>
-                                    <StackPanel.Resources>
-                                        <Style TargetType="FrameworkElement">
-                                            <Setter Property="Margin" Value="0,0,0,8" />
-                                        </Style>
-                                    </StackPanel.Resources>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                        <StackPanel.Resources>
-                                            <Style TargetType="FrameworkElement">
-                                                <Setter Property="Margin" Value="0,0,10,0" />
-                                            </Style>
-                                        </StackPanel.Resources>
-                                        <TextBlock Text="PathPilot" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                                        <Button Content="Details" Style="{StaticResource SecondaryButton}" Padding="12,6" Margin="8,0,0,0" VerticalAlignment="Center"
-                                                Command="{Binding ShowPageInfoCommand}" />
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <TextBlock Text="PathPilot" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC"/>
+                                        <Button Content="Details" Style="{StaticResource SecondaryButton}" Padding="14,6" Margin="14,0,0,0" VerticalAlignment="Center"
+                                                Command="{Binding ShowPageInfoCommand}"/>
                                     </StackPanel>
                                     <TextBlock Text="Switch runtimes that own PATH without the clutter."
-                                               Foreground="#CBD5E1" Margin="0,6,0,0" />
+                                               Foreground="#94A3B8" FontSize="13" Margin="0,0,0,8"/>
                                     <StackPanel Visibility="{Binding ShowPathPilotHero, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <StackPanel.Resources>
-                                            <Style TargetType="FrameworkElement">
-                                                <Setter Property="Margin" Value="0,0,0,4" />
-                                            </Style>
-                                        </StackPanel.Resources>
-                                        <TextBlock Text="PathPilot updates HKLM + machine PATH, affecting all accounts." Foreground="#E2E8F0" FontSize="12" />
-                                        <TextBlock Text="Snapshot is taken before edits; confirm destinations before switching." Foreground="#A5B4FC" FontSize="11" />
+                                        <TextBlock Text="PathPilot updates HKLM + machine PATH, affecting all accounts." Foreground="#CBD5E1" FontSize="12" Margin="0,4,0,0"/>
+                                        <TextBlock Text="Snapshot is taken before edits; confirm destinations before switching." Foreground="#A5B4FC" FontSize="11" Margin="0,4,0,0"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -351,293 +481,501 @@
                     </controls:PageTitleBar>
 
                     <StackPanel x:Name="MainLayoutHost" Margin="0,0,0,8" Orientation="Vertical">
-                    <StackPanel.Resources>
-                        <Style TargetType="FrameworkElement">
-                            <Setter Property="Margin" Value="0,0,0,20" />
-                        </Style>
-                    </StackPanel.Resources>
-                    <Border Style="{StaticResource CardStyle}" Background="#102038" Padding="22" Margin="0,0,0,6">
-                        <StackPanel>
-                            <StackPanel.Resources>
-                                <Style TargetType="FrameworkElement">
-                                    <Setter Property="Margin" Value="0,0,0,8" />
+                        <!-- Info Banner -->
+                        <Border CornerRadius="16" Padding="22" Margin="0,0,0,24">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0C1F38" Offset="0"/>
+                                    <GradientStop Color="#102540" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#1A2D47" Offset="0"/>
+                                    <GradientStop Color="#2563EB" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.BorderBrush>
+                            <Border.BorderThickness>1</Border.BorderThickness>
+                            <StackPanel>
+                                <TextBlock Text="Switch without surprises" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                                <TextBlock Text="Review a runtime, then switch. Click Details for the deeper view." Foreground="#94A3B8" FontSize="13"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Runtimes List -->
+                        <ListBox x:Name="RuntimesList"
+                                 ItemsSource="{Binding PagedRuntimes}"
+                                 Loaded="OnRuntimesLoaded"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 Foreground="#F8FAFC"
+                                 ItemTemplate="{StaticResource RuntimeCardTemplate}"
+                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 SelectionMode="Single"
+                                 Margin="0,0,0,20">
+                            <ListBox.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="440" MaxColumnWidth="780" MinColumns="1" MaxColumns="3" ColumnSpacing="24" RowSpacing="20"/>
+                                </ItemsPanelTemplate>
+                            </ListBox.ItemsPanel>
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Margin" Value="0"/>
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Focusable" Value="False"/>
                                 </Style>
-                            </StackPanel.Resources>
-                            <TextBlock Text="Switch without surprises" FontSize="15" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                            <TextBlock Text="Review a runtime, then switch. Click Details for the deeper view." Foreground="#A5B4FC" FontSize="12" />
-                        </StackPanel>
-                    </Border>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
 
-                    <ListBox x:Name="RuntimesList"
-                             ItemsSource="{Binding PagedRuntimes}"
-                             Loaded="OnRuntimesLoaded"
-                             Background="Transparent"
-                             BorderThickness="0"
-                             Foreground="#F8FAFC"
-                             ItemTemplate="{StaticResource RuntimeCardTemplate}"
-                             ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                             ScrollViewer.CanContentScroll="True"
-                             VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling"
-                             SelectionMode="Single">
-                        <ListBox.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <ux:VirtualizingAdaptiveTilePanel MinColumnWidth="440" MaxColumnWidth="780" MinColumns="1" MaxColumns="3" ColumnSpacing="28" RowSpacing="24" />
-                            </ItemsPanelTemplate>
-                        </ListBox.ItemsPanel>
-                        <ListBox.ItemContainerStyle>
-                            <Style TargetType="ListBoxItem">
-                                <Setter Property="Padding" Value="0" />
-                                <Setter Property="Margin" Value="0" />
-                                <Setter Property="HorizontalContentAlignment" Value="Stretch" />
-                                <Setter Property="VerticalContentAlignment" Value="Stretch" />
-                                <Setter Property="Background" Value="Transparent" />
-                                <Setter Property="BorderThickness" Value="0" />
-                                <Setter Property="Focusable" Value="False" />
-                            </Style>
-                        </ListBox.ItemContainerStyle>
-                    </ListBox>
-
-                    <Border>
-                        <Border.Style>
-                            <Style TargetType="Border" BasedOn="{StaticResource CardStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasRuntimeData}" Value="False">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <StackPanel>
-                            <StackPanel.Resources>
-                                <Style TargetType="FrameworkElement">
-                                    <Setter Property="Margin" Value="0,0,0,6" />
+                        <!-- Empty State -->
+                        <Border CornerRadius="16" Padding="28">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0C1829" Offset="0"/>
+                                    <GradientStop Color="#0F1F35" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <Border.BorderBrush>
+                                <SolidColorBrush Color="#1A2D47"/>
+                            </Border.BorderBrush>
+                            <Border.BorderThickness>1</Border.BorderThickness>
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasRuntimeData}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
                                 </Style>
-                            </StackPanel.Resources>
-                            <TextBlock Text="No runtime inventory yet" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" />
-                            <TextBlock Text="Run a scan to capture Python, JDK, Node, and .NET footprints before switching." Foreground="#94A3B8" FontSize="12" TextWrapping="Wrap" />
-                            <Button Content="Scan runtimes" Style="{StaticResource PrimaryButton}" Width="150" Command="{Binding RefreshCommand}" />
-                        </StackPanel>
-                    </Border>
+                            </Border.Style>
+                            <StackPanel HorizontalAlignment="Center">
+                                <TextBlock Text="🔍" FontSize="32" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                                <TextBlock Text="No runtime inventory yet" FontSize="16" FontWeight="SemiBold" Foreground="#F8FAFC" HorizontalAlignment="Center" Margin="0,0,0,8"/>
+                                <TextBlock Text="Run a scan to capture Python, JDK, Node, and .NET footprints before switching." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" MaxWidth="400" Margin="0,0,0,20"/>
+                                <Button Content="Scan runtimes" Style="{StaticResource PrimaryButton}" Padding="24,12" Command="{Binding RefreshCommand}" HorizontalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
 
-                    <Border Style="{StaticResource CardStyle}" Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel>
-                            <TextBlock Text="Warnings" FontSize="14" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,14" />
-                            <ItemsControl ItemsSource="{Binding Warnings}">
-                                <ItemsControl.ItemContainerStyle>
-                                    <Style TargetType="ContentPresenter">
-                                        <Setter Property="Margin" Value="0,0,0,10" />
-                                    </Style>
-                                </ItemsControl.ItemContainerStyle>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Background="#1C1212" BorderBrush="#7F1D1D" BorderThickness="1" CornerRadius="10" Padding="14,12">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
-                                                    <ColumnDefinition Width="*" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Text="⚠" Foreground="#F87171" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0" />
-                                                <TextBlock Grid.Column="1" Text="{Binding}" Foreground="#FCA5A5" TextWrapping="Wrap" FontSize="13" LineHeight="20" />
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                        </StackPanel>
-                    </Border>
+                        <!-- Warnings -->
+                        <Border Style="{StaticResource CardStyle}" Visibility="{Binding HasWarnings, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,20,0,0">
+                            <StackPanel>
+                                <TextBlock Text="⚠ Warnings" FontSize="15" FontWeight="SemiBold" Foreground="#FBBF24" Margin="0,0,0,16"/>
+                                <ItemsControl ItemsSource="{Binding Warnings}">
+                                    <ItemsControl.ItemContainerStyle>
+                                        <Style TargetType="ContentPresenter">
+                                            <Setter Property="Margin" Value="0,0,0,10"/>
+                                        </Style>
+                                    </ItemsControl.ItemContainerStyle>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border CornerRadius="12" Padding="16,14">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                        <GradientStop Color="#1C1212" Offset="0"/>
+                                                        <GradientStop Color="#2A1515" Offset="1"/>
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <Border.BorderBrush>
+                                                    <SolidColorBrush Color="#7F1D1D"/>
+                                                </Border.BorderBrush>
+                                                <Border.BorderThickness>1</Border.BorderThickness>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="⚠" Foreground="#F87171" FontSize="14" VerticalAlignment="Top" Margin="0,2,12,0"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding}" Foreground="#FCA5A5" TextWrapping="Wrap" FontSize="13" LineHeight="20"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                                Visibility="{Binding HasMultiplePages, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel.Resources>
-                            <Style TargetType="FrameworkElement">
-                                <Setter Property="Margin" Value="0,0,10,0" />
-                            </Style>
-                        </StackPanel.Resources>
-                        <TextBlock Text="{Binding PageDisplay}" Foreground="#C6D4EE" FontSize="12" VerticalAlignment="Center" />
-                        <Button Content="Prev" Style="{StaticResource SecondaryButton}" Command="{Binding GoToPreviousPageCommand}" IsEnabled="{Binding CanGoToPreviousPage}" />
-                        <Button Content="Next" Style="{StaticResource SecondaryButton}" Command="{Binding GoToNextPageCommand}" IsEnabled="{Binding CanGoToNextPage}" />
+                        <!-- Pagination -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0"
+                                    Visibility="{Binding HasMultiplePages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <TextBlock Text="{Binding PageDisplay}" Foreground="#94A3B8" FontSize="13" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                            <Button Content="← Prev" Style="{StaticResource SecondaryButton}" Command="{Binding GoToPreviousPageCommand}" IsEnabled="{Binding CanGoToPreviousPage}" Margin="0,0,10,0"/>
+                            <Button Content="Next →" Style="{StaticResource SecondaryButton}" Command="{Binding GoToNextPageCommand}" IsEnabled="{Binding CanGoToNextPage}"/>
+                        </StackPanel>
                     </StackPanel>
-                </StackPanel>
                 </StackPanel>
             </ScrollViewer>
         </Grid>
 
-        <Grid Background="#880B172A" Visibility="{Binding IsInventoryLoading, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="10">
-            <Border Background="#0F172A" Padding="28,24" CornerRadius="14" BorderBrush="#334155" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- LOADING OVERLAY - Inventory                                    -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsInventoryLoading, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="10">
+            <Grid.Background>
+                <SolidColorBrush Color="#0B1120" Opacity="0.85"/>
+            </Grid.Background>
+            <Border Padding="36,32" CornerRadius="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0F172A" Offset="0"/>
+                        <GradientStop Color="#1A2744" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#38BDF8" Offset="0"/>
+                        <GradientStop Color="#A78BFA" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect Color="#38BDF8" BlurRadius="40" Opacity="0.15" ShadowDepth="0"/>
+                </Border.Effect>
                 <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="Collecting runtime inventory..." Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,14" />
-                    <ProgressBar IsIndeterminate="True" Height="5" Width="200" />
+                    <TextBlock Text="🔍" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                    <TextBlock Text="Collecting runtime inventory..." Foreground="#F1F5F9" FontWeight="SemiBold" FontSize="15" HorizontalAlignment="Center" Margin="0,0,0,18"/>
+                    <ProgressBar IsIndeterminate="True" Height="4" Width="220" Foreground="#38BDF8"/>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <Grid Background="#880B172A" Visibility="{Binding IsSwitchingPath, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="16">
-            <Border Background="#0F172A" Padding="28,24" CornerRadius="14" BorderBrush="#334155" BorderThickness="1" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- LOADING OVERLAY - Switching                                    -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsSwitchingPath, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="16">
+            <Grid.Background>
+                <SolidColorBrush Color="#0B1120" Opacity="0.88"/>
+            </Grid.Background>
+            <Border Padding="36,32" CornerRadius="20" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0F172A" Offset="0"/>
+                        <GradientStop Color="#1A2744" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#22C55E" Offset="0"/>
+                        <GradientStop Color="#38BDF8" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect Color="#22C55E" BlurRadius="40" Opacity="0.2" ShadowDepth="0"/>
+                </Border.Effect>
                 <StackPanel HorizontalAlignment="Center">
-                    <TextBlock Text="Switching PATH winner..." Foreground="#E2E8F0" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,14" />
-                    <ProgressBar IsIndeterminate="True" Height="5" Width="180" />
+                    <TextBlock Text="⚡" FontSize="28" HorizontalAlignment="Center" Margin="0,0,0,16"/>
+                    <TextBlock Text="Switching PATH winner..." Foreground="#F1F5F9" FontWeight="SemiBold" FontSize="15" HorizontalAlignment="Center" Margin="0,0,0,18"/>
+                    <ProgressBar IsIndeterminate="True" Height="4" Width="200" Foreground="#22C55E"/>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <Grid Background="#B30B172A" Visibility="{Binding IsMachineScopeWarningOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="14">
-            <Border Background="#0D1A2F" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DIALOG - Machine Scope Warning                                 -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsMachineScopeWarningOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="14">
+            <Grid.Background>
+                <SolidColorBrush Color="#0B1120" Opacity="0.9"/>
+            </Grid.Background>
+            <Border Padding="32,28" CornerRadius="20" MaxWidth="520" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0D1A2F" Offset="0"/>
+                        <GradientStop Color="#152238" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#FBBF24" Offset="0"/>
+                        <GradientStop Color="#F59E0B" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect Color="#FBBF24" BlurRadius="32" Opacity="0.15" ShadowDepth="0"/>
+                </Border.Effect>
                 <StackPanel>
-                    <Grid Margin="0,0,0,18">
+                    <Grid Margin="0,0,0,20">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
-                            <TextBlock Text="⚙" FontSize="20" Foreground="#FBBF24" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border CornerRadius="14" Width="52" Height="52" VerticalAlignment="Top">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#422006" Offset="0"/>
+                                    <GradientStop Color="#78350F" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="⚙" FontSize="24" Foreground="#FBBF24" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
-                            <TextBlock Text="Machine-wide change" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                            <TextBlock Text="This will update HKLM and the system PATH, affecting all Windows accounts on this machine." Foreground="#94A3B8" TextWrapping="Wrap" FontSize="13" LineHeight="20" />
+                        <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                            <TextBlock Text="Machine-wide change" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                            <TextBlock Text="This will update HKLM and the system PATH, affecting all Windows accounts on this machine." Foreground="#94A3B8" TextWrapping="Wrap" FontSize="13" LineHeight="20"/>
                         </StackPanel>
                     </Grid>
-                    <Border Background="#1E1B4B" BorderBrush="#3730A3" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,22">
+                    <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,24">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#1E1B4B" Offset="0"/>
+                                <GradientStop Color="#2E2668" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#4338CA"/>
+                        </Border.BorderBrush>
+                        <Border.BorderThickness>1</Border.BorderThickness>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="ℹ" Foreground="#A5B4FC" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0" />
-                            <TextBlock Grid.Column="1" Text="Proceed only if you trust the destination you're promoting." Foreground="#C7D2FE" TextWrapping="Wrap" FontSize="13" />
+                            <TextBlock Text="ℹ" Foreground="#A5B4FC" FontSize="16" VerticalAlignment="Top" Margin="0,0,12,0"/>
+                            <TextBlock Grid.Column="1" Text="Proceed only if you trust the destination you're promoting." Foreground="#C7D2FE" TextWrapping="Wrap" FontSize="13"/>
                         </Grid>
                     </Border>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="1" Content="Cancel" Style="{StaticResource SecondaryButton}" Command="{Binding CancelMachineScopeWarningCommand}" MinWidth="100" Margin="0,0,12,0" />
-                        <Button Grid.Column="2" Content="Switch now" Style="{StaticResource PrimaryButton}" Command="{Binding DismissMachineScopeWarningCommand}" MinWidth="120" />
+                        <Button Grid.Column="1" Content="Cancel" Style="{StaticResource SecondaryButton}" Command="{Binding CancelMachineScopeWarningCommand}" MinWidth="100" Margin="0,0,12,0"/>
+                        <Button Grid.Column="2" Content="Switch now" Style="{StaticResource PrimaryButton}" Command="{Binding DismissMachineScopeWarningCommand}" MinWidth="120"/>
                     </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <Grid Background="#880B172A" Visibility="{Binding IsInstallationsDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
-            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="720" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DIALOG - Installations                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsInstallationsDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
+            <Grid.Background>
+                <SolidColorBrush Color="#0B1120" Opacity="0.88"/>
+            </Grid.Background>
+            <Border Padding="32,28" CornerRadius="20" MaxWidth="720" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0F172A" Offset="0"/>
+                        <GradientStop Color="#1A2744" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#38BDF8" Offset="0"/>
+                        <GradientStop Color="#22C55E" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect Color="#38BDF8" BlurRadius="40" Opacity="0.15" ShadowDepth="0"/>
+                </Border.Effect>
                 <StackPanel>
-                    <Grid Margin="0,0,0,20">
+                    <Grid Margin="0,0,0,22">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
-                            <TextBlock Text="⇄" FontSize="18" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border CornerRadius="14" Width="52" Height="52" VerticalAlignment="Top">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0C2D48" Offset="0"/>
+                                    <GradientStop Color="#0F3555" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="⇄" FontSize="22" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
-                            <TextBlock Text="Available PATH targets" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                            <TextBlock Text="Pick the installation to promote. PathPilot will back up the current PATH entry." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                            <TextBlock Text="Available PATH targets" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                            <TextBlock Text="Pick the installation to promote. PathPilot will back up the current PATH entry." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
-                    <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto" Margin="0,0,0,20">
+                    <ScrollViewer MaxHeight="400" VerticalScrollBarVisibility="Auto" Margin="0,0,0,22">
                         <ItemsControl ItemsSource="{Binding InstallationsDialogRuntime.Installations}" ItemTemplate="{StaticResource InstallationTemplate}">
                             <ItemsControl.ItemContainerStyle>
                                 <Style TargetType="ContentPresenter">
-                                    <Setter Property="Margin" Value="0,0,0,10" />
+                                    <Setter Property="Margin" Value="0,0,0,10"/>
                                 </Style>
                             </ItemsControl.ItemContainerStyle>
                         </ItemsControl>
                     </ScrollViewer>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseInstallationsCommand}" MinWidth="100" />
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseInstallationsCommand}" MinWidth="100"/>
                     </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <Grid Background="#880B172A" Visibility="{Binding IsDetailsDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
-            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="720" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <StackPanel>
-                    <Grid Margin="0,0,0,18">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
-                            <TextBlock Text="📋" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
-                            <TextBlock Text="Runtime details" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                            <TextBlock Text="{Binding DetailsDialogRuntime.Summary}" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Grid>
-                    <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="12" Padding="16,14" Margin="0,0,0,18">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Active executable" FontWeight="SemiBold" Foreground="#64748B" FontSize="12" Margin="0,0,20,8" />
-                            <TextBlock Grid.Column="1" Text="{Binding DetailsDialogRuntime.ActiveExecutablePath}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13" Margin="0,0,0,8" />
-                            <TextBlock Grid.Row="1" Text="PATH entry" FontWeight="SemiBold" Foreground="#64748B" FontSize="12" Margin="0,0,20,0" />
-                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetailsDialogRuntime.PathEntry}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13" />
-                        </Grid>
-                    </Border>
-                    <TextBlock Text="Installations" FontWeight="SemiBold" Foreground="#94A3B8" FontSize="13" Margin="0,0,0,12" />
-                    <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto" Margin="0,0,0,18">
-                        <ItemsControl ItemsSource="{Binding DetailsDialogRuntime.Installations}" ItemTemplate="{StaticResource InstallationTemplate}">
-                            <ItemsControl.ItemContainerStyle>
-                                <Style TargetType="ContentPresenter">
-                                    <Setter Property="Margin" Value="0,0,0,10" />
-                                </Style>
-                            </ItemsControl.ItemContainerStyle>
-                        </ItemsControl>
-                    </ScrollViewer>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseDetailsCommand}" MinWidth="100" />
-                    </Grid>
-                </StackPanel>
-            </Border>
-        </Grid>
-
-        <Grid Background="#880B172A" Visibility="{Binding IsResolutionDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
-            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="600" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DIALOG - Details                                               -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsDetailsDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
+            <Grid.Background>
+                <SolidColorBrush Color="#0B1120" Opacity="0.88"/>
+            </Grid.Background>
+            <Border Padding="32,28" CornerRadius="20" MaxWidth="720" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0F172A" Offset="0"/>
+                        <GradientStop Color="#1A2744" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#A78BFA" Offset="0"/>
+                        <GradientStop Color="#38BDF8" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect Color="#A78BFA" BlurRadius="40" Opacity="0.15" ShadowDepth="0"/>
+                </Border.Effect>
                 <StackPanel>
                     <Grid Margin="0,0,0,20">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
-                            <TextBlock Text="≡" FontSize="22" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border CornerRadius="14" Width="52" Height="52" VerticalAlignment="Top">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#2E1065" Offset="0"/>
+                                    <GradientStop Color="#3B1A8C" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="📋" FontSize="22" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
-                            <TextBlock Text="PATH resolution order" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                            <TextBlock Text="How Windows resolves executables from PATH entries." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" />
+                        <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                            <TextBlock Text="Runtime details" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                            <TextBlock Text="{Binding DetailsDialogRuntime.Summary}" Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
-                    <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,0,0,20">
+                    <Border CornerRadius="14" Padding="18,16" Margin="0,0,0,20">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                <GradientStop Color="#151F32" Offset="0"/>
+                                <GradientStop Color="#1A2744" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#1E293B"/>
+                        </Border.BorderBrush>
+                        <Border.BorderThickness>1</Border.BorderThickness>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Active executable" FontWeight="SemiBold" Foreground="#64748B" FontSize="12" Margin="0,0,24,10"/>
+                            <TextBlock Grid.Column="1" Text="{Binding DetailsDialogRuntime.ActiveExecutablePath}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13" Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="1" Text="PATH entry" FontWeight="SemiBold" Foreground="#64748B" FontSize="12" Margin="0,0,24,0"/>
+                            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DetailsDialogRuntime.PathEntry}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13"/>
+                        </Grid>
+                    </Border>
+                    <TextBlock Text="Installations" FontWeight="SemiBold" Foreground="#94A3B8" FontSize="13" Margin="0,0,0,14"/>
+                    <ScrollViewer MaxHeight="280" VerticalScrollBarVisibility="Auto" Margin="0,0,0,20">
+                        <ItemsControl ItemsSource="{Binding DetailsDialogRuntime.Installations}" ItemTemplate="{StaticResource InstallationTemplate}">
+                            <ItemsControl.ItemContainerStyle>
+                                <Style TargetType="ContentPresenter">
+                                    <Setter Property="Margin" Value="0,0,0,10"/>
+                                </Style>
+                            </ItemsControl.ItemContainerStyle>
+                        </ItemsControl>
+                    </ScrollViewer>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseDetailsCommand}" MinWidth="100"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DIALOG - Resolution Order                                      -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsResolutionDialogOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="12">
+            <Grid.Background>
+                <SolidColorBrush Color="#0B1120" Opacity="0.88"/>
+            </Grid.Background>
+            <Border Padding="32,28" CornerRadius="20" MaxWidth="600" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0F172A" Offset="0"/>
+                        <GradientStop Color="#1A2744" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#A78BFA" Offset="0"/>
+                        <GradientStop Color="#C4B5FD" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect Color="#A78BFA" BlurRadius="40" Opacity="0.15" ShadowDepth="0"/>
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Margin="0,0,0,22">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Border CornerRadius="14" Width="52" Height="52" VerticalAlignment="Top">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#2E1065" Offset="0"/>
+                                    <GradientStop Color="#3B1A8C" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="≡" FontSize="26" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                            <TextBlock Text="PATH resolution order" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                            <TextBlock Text="How Windows resolves executables from PATH entries." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Grid>
+                    <ScrollViewer MaxHeight="320" VerticalScrollBarVisibility="Auto" Margin="0,0,0,22">
                         <ItemsControl ItemsSource="{Binding ResolutionDialogRuntime.ResolutionOrder}">
                             <ItemsControl.ItemContainerStyle>
                                 <Style TargetType="ContentPresenter">
-                                    <Setter Property="Margin" Value="0,0,0,8" />
+                                    <Setter Property="Margin" Value="0,0,0,8"/>
                                 </Style>
                             </ItemsControl.ItemContainerStyle>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="#1E293B" BorderBrush="#334155" BorderThickness="1" CornerRadius="10" Padding="14,12">
-                                        <TextBlock Text="{Binding}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13" />
+                                    <Border CornerRadius="12" Padding="16,14">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                                <GradientStop Color="#151F32" Offset="0"/>
+                                                <GradientStop Color="#1A2744" Offset="1"/>
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <Border.BorderBrush>
+                                            <SolidColorBrush Color="#1E293B"/>
+                                        </Border.BorderBrush>
+                                        <Border.BorderThickness>1</Border.BorderThickness>
+                                        <TextBlock Text="{Binding}" Foreground="#E2E8F0" TextWrapping="Wrap" FontSize="13"/>
                                     </Border>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
@@ -645,101 +983,187 @@
                     </ScrollViewer>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseResolutionOrderCommand}" MinWidth="100" />
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding CloseResolutionOrderCommand}" MinWidth="100"/>
                     </Grid>
                 </StackPanel>
             </Border>
         </Grid>
 
-        <Grid Background="#880B172A" Visibility="{Binding IsPageInfoOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="13">
-            <Border Background="#0F172A" Padding="32,28" CornerRadius="16" BorderBrush="#334155" BorderThickness="1" MaxWidth="580" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- DIALOG - About PathPilot                                       -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsPageInfoOpen, Converter={StaticResource BooleanToVisibilityConverter}}" Panel.ZIndex="13">
+            <Grid.Background>
+                <SolidColorBrush Color="#0B1120" Opacity="0.9"/>
+            </Grid.Background>
+            <Border Padding="32,28" CornerRadius="20" MaxWidth="580" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0F172A" Offset="0"/>
+                        <GradientStop Color="#1A2744" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                        <GradientStop Color="#38BDF8" Offset="0"/>
+                        <GradientStop Color="#A78BFA" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect Color="#38BDF8" BlurRadius="40" Opacity="0.15" ShadowDepth="0"/>
+                </Border.Effect>
                 <StackPanel>
-                    <Grid Margin="0,0,0,20">
+                    <Grid Margin="0,0,0,22">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <Border Background="#1E293B" CornerRadius="10" Width="44" Height="44" VerticalAlignment="Top">
-                            <TextBlock Text="ℹ" FontSize="20" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        <Border CornerRadius="14" Width="52" Height="52" VerticalAlignment="Top">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#0C2D48" Offset="0"/>
+                                    <GradientStop Color="#0F3555" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <TextBlock Text="ℹ" FontSize="24" Foreground="#38BDF8" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
-                        <StackPanel Grid.Column="1" Margin="16,0,0,0">
-                            <TextBlock Text="About PathPilot" FontSize="17" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,6" />
-                            <TextBlock Text="Promotes one runtime to the machine PATH so every user session resolves that toolchain consistently." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" LineHeight="20" />
+                        <StackPanel Grid.Column="1" Margin="18,0,0,0">
+                            <TextBlock Text="About PathPilot" FontSize="18" FontWeight="SemiBold" Foreground="#F8FAFC" Margin="0,0,0,8"/>
+                            <TextBlock Text="Promotes one runtime to the machine PATH so every user session resolves that toolchain consistently." Foreground="#94A3B8" FontSize="13" TextWrapping="Wrap" LineHeight="20"/>
                         </StackPanel>
                     </Grid>
-                    <TextBlock Text="How it works" FontWeight="SemiBold" Foreground="#94A3B8" FontSize="13" Margin="0,0,0,14" />
-                    <StackPanel Margin="0,0,0,18">
-                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12" Margin="0,0,0,8">
+                    <TextBlock Text="How it works" FontWeight="SemiBold" Foreground="#94A3B8" FontSize="13" Margin="0,0,0,16"/>
+                    <StackPanel Margin="0,0,0,20">
+                        <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,10">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#151F32" Offset="0"/>
+                                    <GradientStop Color="#1A2744" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
-                                    <TextBlock Text="1" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Border CornerRadius="8" Width="28" Height="28" VerticalAlignment="Top">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#38BDF8" Offset="0"/>
+                                            <GradientStop Color="#22C55E" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock Text="1" Foreground="#0F172A" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="Inventory finds installed runtimes (Python, .NET, Node, JDK, etc.)." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                                <TextBlock Grid.Column="1" Text="Inventory finds installed runtimes (Python, .NET, Node, JDK, etc.)." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="14,4,0,0"/>
                             </Grid>
                         </Border>
-                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12" Margin="0,0,0,8">
+                        <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,10">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#151F32" Offset="0"/>
+                                    <GradientStop Color="#1A2744" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
-                                    <TextBlock Text="2" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Border CornerRadius="8" Width="28" Height="28" VerticalAlignment="Top">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#38BDF8" Offset="0"/>
+                                            <GradientStop Color="#22C55E" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock Text="2" Foreground="#0F172A" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="Switch lets you pick an installation to promote; PathPilot backs up the prior PATH entry." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                                <TextBlock Grid.Column="1" Text="Switch lets you pick an installation to promote; PathPilot backs up the prior PATH entry." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="14,4,0,0"/>
                             </Grid>
                         </Border>
-                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12" Margin="0,0,0,8">
+                        <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,10">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#151F32" Offset="0"/>
+                                    <GradientStop Color="#1A2744" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
-                                    <TextBlock Text="3" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Border CornerRadius="8" Width="28" Height="28" VerticalAlignment="Top">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#38BDF8" Offset="0"/>
+                                            <GradientStop Color="#22C55E" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock Text="3" Foreground="#0F172A" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="Details shows active executables, PATH entries, and installation sources." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                                <TextBlock Grid.Column="1" Text="Details shows active executables, PATH entries, and installation sources." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="14,4,0,0"/>
                             </Grid>
                         </Border>
-                        <Border Background="#1E293B" CornerRadius="10" Padding="14,12">
+                        <Border CornerRadius="12" Padding="16,14">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#151F32" Offset="0"/>
+                                    <GradientStop Color="#1A2744" Offset="1"/>
+                                </LinearGradientBrush>
+                            </Border.Background>
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" />
-                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
-                                <Border Background="#334155" CornerRadius="6" Width="24" Height="24" VerticalAlignment="Top">
-                                    <TextBlock Text="4" Foreground="#E2E8F0" FontSize="12" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Border CornerRadius="8" Width="28" Height="28" VerticalAlignment="Top">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#38BDF8" Offset="0"/>
+                                            <GradientStop Color="#22C55E" Offset="1"/>
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock Text="4" Foreground="#0F172A" FontSize="13" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                 </Border>
-                                <TextBlock Grid.Column="1" Text="Resolution order lists how PATH will resolve if multiple installs exist." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="12,2,0,0" />
+                                <TextBlock Grid.Column="1" Text="Resolution order lists how PATH will resolve if multiple installs exist." Foreground="#CBD5E1" FontSize="13" TextWrapping="Wrap" Margin="14,4,0,0"/>
                             </Grid>
                         </Border>
                     </StackPanel>
-                    <Border Background="#1E1B4B" BorderBrush="#3730A3" BorderThickness="1" CornerRadius="10" Padding="14,12" Margin="0,0,0,20">
+                    <Border CornerRadius="12" Padding="16,14" Margin="0,0,0,22">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                <GradientStop Color="#1E1B4B" Offset="0"/>
+                                <GradientStop Color="#2E2668" Offset="1"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                        <Border.BorderBrush>
+                            <SolidColorBrush Color="#4338CA"/>
+                        </Border.BorderBrush>
+                        <Border.BorderThickness>1</Border.BorderThickness>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Text="🛡" FontSize="14" VerticalAlignment="Top" Margin="0,1,10,0" />
+                            <TextBlock Text="🛡" FontSize="16" VerticalAlignment="Top" Margin="0,0,12,0"/>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Safety" FontWeight="SemiBold" Foreground="#C7D2FE" FontSize="13" Margin="0,0,0,4" />
-                                <TextBlock Text="Changes are machine-wide (HKLM + system PATH). A snapshot is taken before switching; you can revert via activity log guidance." Foreground="#A5B4FC" FontSize="12" TextWrapping="Wrap" LineHeight="18" />
+                                <TextBlock Text="Safety" FontWeight="SemiBold" Foreground="#C7D2FE" FontSize="13" Margin="0,0,0,6"/>
+                                <TextBlock Text="Changes are machine-wide (HKLM + system PATH). A snapshot is taken before switching; you can revert via activity log guidance." Foreground="#A5B4FC" FontSize="12" TextWrapping="Wrap" LineHeight="18"/>
                             </StackPanel>
                         </Grid>
                     </Border>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding ClosePageInfoCommand}" MinWidth="100" />
+                        <Button Grid.Column="1" Content="Close" Style="{StaticResource SecondaryButton}" Command="{Binding ClosePageInfoCommand}" MinWidth="100"/>
                     </Grid>
                 </StackPanel>
             </Border>
