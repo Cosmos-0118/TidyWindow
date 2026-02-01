@@ -109,8 +109,29 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isPresetDialogVisible;
 
+    [ObservableProperty]
+    private bool _isRestorePointsDialogVisible;
+
+    [ObservableProperty]
+    private bool _isTweakDetailsDialogVisible;
+
+    [ObservableProperty]
+    private RegistryTweakCardViewModel? _selectedTweakForDetails;
+
+    public ObservableCollection<RestorePointDisplayViewModel> RestorePoints { get; } = new();
+
     partial void OnSelectedPresetChanged(RegistryPresetViewModel? oldValue, RegistryPresetViewModel? newValue)
     {
+        // Update IsSelected on presets for UI binding
+        if (oldValue is not null)
+        {
+            oldValue.IsSelected = false;
+        }
+        if (newValue is not null)
+        {
+            newValue.IsSelected = true;
+        }
+
         if (newValue is null)
         {
             _registryPreferenceService.SetSelectedPresetId(null);
@@ -338,6 +359,11 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     [RelayCommand]
     private void ShowPresetsDialog()
     {
+        // Ensure IsSelected is synced when opening dialog
+        foreach (var preset in Presets)
+        {
+            preset.IsSelected = ReferenceEquals(preset, SelectedPreset);
+        }
         IsPresetDialogVisible = true;
     }
 
@@ -345,6 +371,99 @@ public sealed partial class RegistryOptimizerViewModel : ViewModelBase
     private void ClosePresetsDialog()
     {
         IsPresetDialogVisible = false;
+    }
+
+    [RelayCommand]
+    private void SelectPreset(RegistryPresetViewModel? preset)
+    {
+        if (preset is not null)
+        {
+            SelectedPreset = preset;
+        }
+    }
+
+    [RelayCommand]
+    private void ShowRestorePointsDialog()
+    {
+        RefreshRestorePointsList();
+        IsRestorePointsDialogVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseRestorePointsDialog()
+    {
+        IsRestorePointsDialogVisible = false;
+    }
+
+    [RelayCommand]
+    private void ShowTweakDetails(RegistryTweakCardViewModel? tweak)
+    {
+        if (tweak is null)
+        {
+            return;
+        }
+
+        SelectedTweakForDetails = tweak;
+        IsTweakDetailsDialogVisible = true;
+    }
+
+    [RelayCommand]
+    private void CloseTweakDetails()
+    {
+        IsTweakDetailsDialogVisible = false;
+        SelectedTweakForDetails = null;
+    }
+
+    [RelayCommand]
+    private async Task RestoreSelectedPointAsync(RestorePointDisplayViewModel? point)
+    {
+        if (point?.RestorePoint is null)
+        {
+            return;
+        }
+
+        IsRestorePointsDialogVisible = false;
+        await RevertRestorePointAsync(point.RestorePoint, false);
+        RefreshRestorePointsList();
+    }
+
+    [RelayCommand]
+    private void DeleteRestorePoint(RestorePointDisplayViewModel? point)
+    {
+        if (point?.RestorePoint is null)
+        {
+            return;
+        }
+
+        _registryService.DeleteRestorePoint(point.RestorePoint);
+        RefreshRestorePointsList();
+        UpdateRestorePointState(_registryService.TryGetLatestRestorePoint());
+        _mainViewModel.SetStatusMessage("Restore point deleted.");
+    }
+
+    private void RefreshRestorePointsList()
+    {
+        RestorePoints.Clear();
+        var allPoints = _registryService.GetAllRestorePoints();
+        foreach (var point in allPoints)
+        {
+            var tweakNames = point.Selections
+                .Select(s => Tweaks.FirstOrDefault(t => string.Equals(t.Id, s.TweakId, StringComparison.OrdinalIgnoreCase))?.Title ?? s.TweakId)
+                .Take(3)
+                .ToList();
+
+            var summary = tweakNames.Count switch
+            {
+                0 => "No tweaks recorded",
+                1 => tweakNames[0],
+                2 => $"{tweakNames[0]}, {tweakNames[1]}",
+                _ => $"{tweakNames[0]}, {tweakNames[1]} +{point.Selections.Length - 2} more"
+            };
+
+            RestorePoints.Add(new RestorePointDisplayViewModel(point, summary));
+        }
+
+        HasRestorePoint = RestorePoints.Count > 0;
     }
 
     [RelayCommand(CanExecute = nameof(CanRevertChanges))]
@@ -1562,7 +1681,7 @@ public sealed partial class RegistryTweakCardViewModel : ObservableObject
 
 public sealed record RegistrySnapshotDisplay(string Path, string Display);
 
-public sealed class RegistryPresetViewModel
+public sealed partial class RegistryPresetViewModel : ObservableObject
 {
     private readonly RegistryPresetDefinition _definition;
 
@@ -1583,6 +1702,9 @@ public sealed class RegistryPresetViewModel
 
     public IReadOnlyDictionary<string, bool> States => _definition.States;
 
+    [ObservableProperty]
+    private bool _isSelected;
+
     public bool TryGetState(string tweakId, out bool value) => _definition.TryGetState(tweakId, out value);
 }
 
@@ -1594,4 +1716,27 @@ public sealed class RegistryRestorePointCreatedEventArgs : EventArgs
     }
 
     public RegistryRestorePoint RestorePoint { get; }
+}
+
+public sealed class RestorePointDisplayViewModel
+{
+    public RestorePointDisplayViewModel(RegistryRestorePoint restorePoint, string summary)
+    {
+        RestorePoint = restorePoint ?? throw new ArgumentNullException(nameof(restorePoint));
+        Summary = summary ?? string.Empty;
+    }
+
+    public RegistryRestorePoint RestorePoint { get; }
+
+    public string Summary { get; }
+
+    public Guid Id => RestorePoint.Id;
+
+    public DateTimeOffset CreatedLocal => RestorePoint.CreatedUtc.ToLocalTime();
+
+    public string DisplayName => $"Backup from {CreatedLocal:MMM dd, yyyy 'at' h:mm tt}";
+
+    public int TweakCount => RestorePoint.Selections.Length;
+
+    public string TweakCountLabel => TweakCount == 1 ? "1 tweak" : $"{TweakCount} tweaks";
 }

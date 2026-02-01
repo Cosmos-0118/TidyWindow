@@ -23,6 +23,8 @@ public interface IRegistryOptimizerService
 
     RegistryRestorePoint? TryGetLatestRestorePoint();
 
+    IReadOnlyList<RegistryRestorePoint> GetAllRestorePoints();
+
     Task<RegistryOperationResult> ApplyRestorePointAsync(RegistryRestorePoint restorePoint, CancellationToken cancellationToken = default);
 
     void DeleteRestorePoint(RegistryRestorePoint restorePoint);

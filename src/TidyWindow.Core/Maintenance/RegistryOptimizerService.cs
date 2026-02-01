@@ -189,11 +189,19 @@ public sealed class RegistryOptimizerService : IRegistryOptimizerService
 
     public RegistryRestorePoint? TryGetLatestRestorePoint()
     {
+        var allPoints = GetAllRestorePoints();
+        return allPoints.Count > 0 ? allPoints[0] : null;
+    }
+
+    public IReadOnlyList<RegistryRestorePoint> GetAllRestorePoints()
+    {
+        var results = new List<RegistryRestorePoint>();
+
         try
         {
             if (!Directory.Exists(RestorePointRoot))
             {
-                return null;
+                return results;
             }
 
             var directory = new DirectoryInfo(RestorePointRoot);
@@ -206,16 +214,16 @@ public sealed class RegistryOptimizerService : IRegistryOptimizerService
                 var restorePoint = LoadRestorePoint(file.FullName);
                 if (restorePoint is not null)
                 {
-                    return restorePoint;
+                    results.Add(restorePoint);
                 }
             }
         }
         catch
         {
-            // Ignore discovery failures and surface no restore point.
+            // Ignore discovery failures and surface empty list.
         }
 
-        return null;
+        return results;
     }
 
     public Task<RegistryOperationResult> ApplyRestorePointAsync(RegistryRestorePoint restorePoint, CancellationToken cancellationToken = default)

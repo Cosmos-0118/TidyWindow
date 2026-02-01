@@ -98,22 +98,12 @@ public partial class PackageMaintenancePage : Page, INavigationAware
             return;
         }
 
-        _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
-        _viewModel.ConfirmElevation = null;
-        _viewModel.PageChanged -= OnPageChanged;
-        if (_navigationService is not null)
-        {
-            _navigationService.Navigated -= OnNavigated;
-        }
+        // For cached pages, only clear the title bar but keep event subscriptions
+        // This allows the page to restore properly when navigating back
         _shellViewModel?.SetTitleBarContent(null);
-        DetachScrollHandlers();
-        if (_packagesListView is not null)
-        {
-            _packagesListView.Loaded -= PackagesListView_Loaded;
-        }
-        // Do not dispose the viewmodel to preserve state between navigations
-        Unloaded -= OnPageUnloaded;
-        _disposed = true;
+
+        // Keep event subscriptions and scroll handlers for cached pages
+        // They will be restored via OnNavigatedTo/RestoreViewModelBindings
     }
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -147,7 +137,8 @@ public partial class PackageMaintenancePage : Page, INavigationAware
 
     private void AttachTitleBar()
     {
-        _shellViewModel ??= WpfApplication.Current?.MainWindow?.DataContext as MainViewModel;
+        // Always refresh the shell view model reference to ensure we have the current one
+        _shellViewModel = WpfApplication.Current?.MainWindow?.DataContext as MainViewModel;
         _shellViewModel?.SetTitleBarContent(_titleBar);
 
         _navigationService ??= WpfNavigationService.GetNavigationService(this);

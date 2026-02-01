@@ -5,7 +5,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Navigation;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using TidyWindow.App.Services;
@@ -18,38 +17,11 @@ namespace TidyWindow.App.Views;
 public partial class RegistryOptimizerPage : Page, INavigationAware
 {
     private readonly RegistryOptimizerViewModel _viewModel;
-    private bool _isStackedLayout;
     private bool _disposed;
     private bool _scrollHandlersAttached;
     private bool _rollbackPromptOpen;
     private bool _rootScrollWheelAttached;
     private double _scrollAnimationTarget = double.NaN;
-
-    private const double CompactPrimaryMinWidth = 300d;
-    private const double CompactSecondaryMinWidth = 260d;
-    private const double WideLayoutBreakpoint = 1320d;
-    private const double CompactLayoutBreakpoint = 1280d;
-    private const double StackedLayoutBreakpoint = 960d;
-    private const double MarginTighteningBuffer = 130d;
-    private const double ScreenMaxWidthRatio = 0.9d;
-    private const double ColumnShareBias = 0.55d;
-    private const double CompactCardPrimaryWidthThreshold = 640d;
-
-    private Thickness _secondaryColumnDefaultMargin;
-    private readonly Thickness _secondaryColumnStackedMargin = new(0, 24, 0, 0);
-    private Thickness _scrollViewerDefaultMargin;
-    private readonly Thickness _scrollViewerCompactMargin = new(24);
-    private readonly Thickness _scrollViewerStackedMargin = new(16, 24, 16, 24);
-    private double _primaryColumnDefaultMinWidth;
-    private double _secondaryColumnDefaultMinWidth;
-    private readonly double _columnSpacing;
-    private readonly double _pageContentDefaultMaxWidth;
-
-    public static readonly DependencyProperty IsCompactCardsProperty = DependencyProperty.Register(
-        nameof(IsCompactCards),
-        typeof(bool),
-        typeof(RegistryOptimizerPage),
-        new PropertyMetadata(false));
 
     private static readonly DependencyProperty AnimatedVerticalOffsetProperty = DependencyProperty.Register(
         nameof(AnimatedVerticalOffset),
@@ -64,26 +36,9 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
         DataContext = viewModel;
         viewModel.RestorePointCreated += OnRestorePointCreated;
 
-        _secondaryColumnDefaultMargin = SecondaryColumnHost.Margin;
-        _scrollViewerDefaultMargin = ContentScrollViewer.Margin;
-        _primaryColumnDefaultMinWidth = PrimaryColumnDefinition.MinWidth;
-        _secondaryColumnDefaultMinWidth = SecondaryColumnDefinition.MinWidth;
-        _columnSpacing = PrimaryColumnHost.Margin.Right <= 0 ? 24d : PrimaryColumnHost.Margin.Right;
-        _pageContentDefaultMaxWidth = double.IsNaN(PageContentGrid.MaxWidth) || PageContentGrid.MaxWidth <= 0
-            ? double.PositiveInfinity
-            : PageContentGrid.MaxWidth;
-
         Loaded += OnPageLoaded;
         Unloaded += OnPageUnloaded;
         IsVisibleChanged += OnIsVisibleChanged;
-        ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
-        ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
-    }
-
-    public bool IsCompactCards
-    {
-        get => (bool)GetValue(IsCompactCardsProperty);
-        set => SetValue(IsCompactCardsProperty, value);
     }
 
     private double AnimatedVerticalOffset
@@ -96,7 +51,6 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
     {
         Loaded -= OnPageLoaded;
         EnsureScrollHandlers();
-        UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
     }
 
     private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -108,11 +62,7 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
                 _viewModel.RestorePointCreated += OnRestorePointCreated;
                 _disposed = false;
             }
-
-            ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
-            ContentScrollViewer.SizeChanged += ContentScrollViewer_SizeChanged;
             EnsureScrollHandlers();
-            UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
         }
     }
 
@@ -125,205 +75,44 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
 
         _viewModel.RestorePointCreated -= OnRestorePointCreated;
         _viewModel.IsPresetDialogVisible = false;
-        ContentScrollViewer.SizeChanged -= ContentScrollViewer_SizeChanged;
+        _viewModel.IsRestorePointsDialogVisible = false;
+        _viewModel.IsTweakDetailsDialogVisible = false;
+
         if (_rootScrollWheelAttached)
         {
             ContentScrollViewer.PreviewMouseWheel -= OnContentScrollViewerPreviewMouseWheel;
             _rootScrollWheelAttached = false;
         }
+
         BeginAnimation(AnimatedVerticalOffsetProperty, null);
         _scrollAnimationTarget = double.NaN;
         DetachScrollHandlers();
         _disposed = true;
     }
 
-    private void OnPresetsOverlayMouseDown(object sender, MouseButtonEventArgs e)
+    private void OnDialogOverlayClick(object sender, MouseButtonEventArgs e)
     {
-        if (!ReferenceEquals(e.OriginalSource, PresetsOverlay))
+        if (e.OriginalSource is Grid grid && grid.Background != null)
         {
-            return;
+            _viewModel.IsPresetDialogVisible = false;
+            _viewModel.IsRestorePointsDialogVisible = false;
+            _viewModel.IsTweakDetailsDialogVisible = false;
+            e.Handled = true;
         }
+    }
 
-        _viewModel.IsPresetDialogVisible = false;
+    private void OnRestorePointBannerClick(object sender, MouseButtonEventArgs e)
+    {
+        _viewModel.ShowRestorePointsDialogCommand.Execute(null);
         e.Handled = true;
     }
 
-    private void ContentScrollViewer_SizeChanged(object sender, SizeChangedEventArgs e)
+    private void OnPresetItemClick(object sender, MouseButtonEventArgs e)
     {
-        if (e.WidthChanged)
+        if (sender is FrameworkElement element && element.DataContext is RegistryPresetViewModel preset)
         {
-            UpdateResponsiveLayout(e.NewSize.Width);
-        }
-    }
-
-    private void UpdateResponsiveLayout(double viewportWidth)
-    {
-        if (double.IsNaN(viewportWidth) || viewportWidth <= 0)
-        {
-            return;
-        }
-
-        var screenWidth = SystemParameters.WorkArea.Width;
-        if (double.IsNaN(screenWidth) || screenWidth <= 0)
-        {
-            screenWidth = viewportWidth;
-        }
-
-        var defaultMaxWidth = double.IsPositiveInfinity(_pageContentDefaultMaxWidth)
-            ? screenWidth * ScreenMaxWidthRatio
-            : Math.Min(_pageContentDefaultMaxWidth, screenWidth * ScreenMaxWidthRatio);
-
-        var targetWidth = Math.Min(viewportWidth, defaultMaxWidth);
-        if (targetWidth <= 0)
-        {
-            targetWidth = viewportWidth;
-        }
-
-        var compactColumns = viewportWidth < WideLayoutBreakpoint
-                              || targetWidth < (_primaryColumnDefaultMinWidth + _secondaryColumnDefaultMinWidth + _columnSpacing + MarginTighteningBuffer);
-
-        var desiredPrimaryMin = compactColumns
-            ? Math.Min(_primaryColumnDefaultMinWidth, CompactPrimaryMinWidth)
-            : _primaryColumnDefaultMinWidth;
-        var desiredSecondaryMin = compactColumns
-            ? Math.Min(_secondaryColumnDefaultMinWidth, CompactSecondaryMinWidth)
-            : _secondaryColumnDefaultMinWidth;
-
-        var totalMinimum = desiredPrimaryMin + desiredSecondaryMin + _columnSpacing;
-        var stackLayout = viewportWidth < StackedLayoutBreakpoint || targetWidth < totalMinimum;
-
-        var tightMargins = stackLayout
-                            || viewportWidth < CompactLayoutBreakpoint
-                            || targetWidth < totalMinimum + MarginTighteningBuffer;
-        var desiredMargin = stackLayout
-            ? _scrollViewerStackedMargin
-            : tightMargins
-                ? _scrollViewerCompactMargin
-                : _scrollViewerDefaultMargin;
-
-        if (!ContentScrollViewer.Margin.Equals(desiredMargin))
-        {
-            ContentScrollViewer.Margin = desiredMargin;
-        }
-
-        if (stackLayout)
-        {
-            if (!_isStackedLayout)
-            {
-                Grid.SetRow(SecondaryColumnHost, 1);
-                Grid.SetColumn(SecondaryColumnHost, 0);
-                SecondaryColumnHost.Margin = _secondaryColumnStackedMargin;
-                PrimaryColumnDefinition.MinWidth = 0d;
-                SecondaryColumnDefinition.MinWidth = 0d;
-                _isStackedLayout = true;
-            }
-
-            SecondaryColumnDefinition.Width = new GridLength(0d, GridUnitType.Pixel);
-            PrimaryColumnDefinition.Width = new GridLength(1d, GridUnitType.Star);
-
-            PageContentGrid.Width = double.IsNaN(targetWidth) ? double.NaN : targetWidth;
-            PageContentGrid.MaxWidth = Math.Max(totalMinimum, defaultMaxWidth);
-            if (!IsCompactCards)
-            {
-                IsCompactCards = true;
-            }
-            return;
-        }
-        else
-        {
-            if (_isStackedLayout)
-            {
-                Grid.SetRow(SecondaryColumnHost, 0);
-                Grid.SetColumn(SecondaryColumnHost, 1);
-                SecondaryColumnHost.Margin = _secondaryColumnDefaultMargin;
-                _isStackedLayout = false;
-            }
-        }
-
-        if (!PrimaryColumnDefinition.MinWidth.Equals(desiredPrimaryMin))
-        {
-            PrimaryColumnDefinition.MinWidth = desiredPrimaryMin;
-        }
-
-        if (!SecondaryColumnDefinition.MinWidth.Equals(desiredSecondaryMin))
-        {
-            SecondaryColumnDefinition.MinWidth = desiredSecondaryMin;
-        }
-
-        var frameWidth = Math.Max(targetWidth, totalMinimum);
-        PageContentGrid.Width = frameWidth;
-        PageContentGrid.MaxWidth = Math.Max(totalMinimum, defaultMaxWidth);
-
-        var availableForColumns = frameWidth - _columnSpacing;
-        if (availableForColumns <= 0)
-        {
-            availableForColumns = totalMinimum - _columnSpacing;
-        }
-
-        // Measure child columns so we can scale based on their desired width instead of fixed breakpoints.
-        PrimaryColumnHost.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-        SecondaryColumnHost.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
-
-        var desiredPrimary = Math.Max(desiredPrimaryMin, PrimaryColumnHost.DesiredSize.Width);
-        var desiredSecondary = Math.Max(desiredSecondaryMin, SecondaryColumnHost.DesiredSize.Width);
-        var desiredTotal = desiredPrimary + desiredSecondary;
-
-        double primaryWidth;
-        double secondaryWidth;
-
-        if (desiredTotal <= availableForColumns)
-        {
-            primaryWidth = desiredPrimary;
-            secondaryWidth = desiredSecondary;
-        }
-        else
-        {
-            var scale = availableForColumns / desiredTotal;
-            primaryWidth = Math.Max(desiredPrimaryMin, desiredPrimary * scale);
-            secondaryWidth = Math.Max(desiredSecondaryMin, availableForColumns - primaryWidth);
-
-            if (primaryWidth + secondaryWidth > availableForColumns)
-            {
-                var overflow = primaryWidth + secondaryWidth - availableForColumns;
-                var maxPrimaryReduction = Math.Max(0d, primaryWidth - desiredPrimaryMin);
-                var primaryReduction = Math.Min(overflow * ColumnShareBias, maxPrimaryReduction);
-                primaryWidth -= primaryReduction;
-                overflow -= primaryReduction;
-
-                if (overflow > 0)
-                {
-                    var maxSecondaryReduction = Math.Max(0d, secondaryWidth - desiredSecondaryMin);
-                    var secondaryReduction = Math.Min(overflow, maxSecondaryReduction);
-                    secondaryWidth -= secondaryReduction;
-                    overflow -= secondaryReduction;
-
-                    if (overflow > 0)
-                    {
-                        primaryWidth = Math.Max(desiredPrimaryMin, primaryWidth - overflow);
-                    }
-                }
-            }
-        }
-
-        var remaining = availableForColumns - (primaryWidth + secondaryWidth);
-        if (remaining > 0)
-        {
-            primaryWidth += remaining * ColumnShareBias;
-            secondaryWidth += remaining * (1d - ColumnShareBias);
-        }
-
-        primaryWidth = Math.Max(desiredPrimaryMin, primaryWidth);
-        secondaryWidth = Math.Max(desiredSecondaryMin, secondaryWidth);
-
-        PrimaryColumnDefinition.Width = new GridLength(primaryWidth, GridUnitType.Pixel);
-        SecondaryColumnDefinition.Width = new GridLength(secondaryWidth, GridUnitType.Pixel);
-
-        var shouldCompactCards = stackLayout
-                                  || tightMargins
-                                  || primaryWidth < CompactCardPrimaryWidthThreshold;
-        if (IsCompactCards != shouldCompactCards)
-        {
-            IsCompactCards = shouldCompactCards;
+            _viewModel.SelectPresetCommand.Execute(preset);
+            e.Handled = true;
         }
     }
 
@@ -398,7 +187,6 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
         }
 
         e.Handled = true;
-
         var targetOffset = ContentScrollViewer.VerticalOffset + CalculateWheelStep(e.Delta, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
         BeginSmoothScroll(targetOffset);
     }
@@ -579,44 +367,6 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
         return null;
     }
 
-    private void DocumentationLink_RequestNavigate(object sender, RequestNavigateEventArgs e)
-    {
-        e.Handled = true;
-
-        var target = e.Uri?.ToString();
-        if (string.IsNullOrWhiteSpace(target))
-        {
-            return;
-        }
-
-        try
-        {
-            var resolved = target;
-            if (!Uri.IsWellFormedUriString(target, UriKind.Absolute))
-            {
-                var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
-                var relativePath = target.Replace('/', Path.DirectorySeparatorChar);
-                var candidate = Path.GetFullPath(Path.Combine(baseDirectory, relativePath));
-
-                if (File.Exists(candidate))
-                {
-                    resolved = candidate;
-                }
-            }
-
-            var startInfo = new ProcessStartInfo(resolved)
-            {
-                UseShellExecute = true
-            };
-
-            Process.Start(startInfo);
-        }
-        catch
-        {
-            // Navigation failures are non-fatal; leave silently for now.
-        }
-    }
-
     private async void OnRestorePointCreated(object? sender, RegistryRestorePointCreatedEventArgs e)
     {
         if (e is null)
@@ -652,7 +402,6 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
             }
 
             dialog.Topmost = true;
-
             dialog.ShowDialog();
 
             if (dialog.ShouldRevert)
@@ -669,7 +418,6 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
     /// <inheritdoc />
     public void OnNavigatedTo()
     {
-        // Re-subscribe to events and ensure scroll handlers are attached
         if (_disposed)
         {
             _viewModel.RestorePointCreated += OnRestorePointCreated;
@@ -677,14 +425,15 @@ public partial class RegistryOptimizerPage : Page, INavigationAware
         }
 
         EnsureScrollHandlers();
-        UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
+        ContentScrollViewer.ScrollToTop();
     }
 
     /// <inheritdoc />
     public void OnNavigatingFrom()
     {
-        // Hide any open dialogs when navigating away
         _viewModel.IsPresetDialogVisible = false;
+        _viewModel.IsRestorePointsDialogVisible = false;
+        _viewModel.IsTweakDetailsDialogVisible = false;
         DetachScrollHandlers();
     }
 }

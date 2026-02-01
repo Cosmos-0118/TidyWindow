@@ -50,7 +50,8 @@ public partial class InstallHubPage : Page, INavigationAware
 
     private void AttachTitleBar()
     {
-        _shellViewModel ??= System.Windows.Application.Current?.MainWindow?.DataContext as MainViewModel;
+        // Always refresh the shell view model reference to ensure we have the current one
+        _shellViewModel = System.Windows.Application.Current?.MainWindow?.DataContext as MainViewModel;
         _shellViewModel?.SetTitleBarContent(_titleBar);
 
         _navigationService ??= WpfNavigationService.GetNavigationService(this);
@@ -83,15 +84,19 @@ public partial class InstallHubPage : Page, INavigationAware
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
+        // Don't detach navigation service for cached pages - we need it when navigating back
+        // Only clear title bar and dispose if this page shouldn't be cached
+        if (_disposed || !_shouldDisposeOnUnload)
+        {
+            // For cached pages, just clear the title bar but keep event subscriptions
+            _shellViewModel?.SetTitleBarContent(null);
+            return;
+        }
+
+        // Full cleanup for non-cached pages
         if (_navigationService is not null)
         {
             _navigationService.Navigated -= OnNavigated;
-        }
-
-        if (_disposed || !_shouldDisposeOnUnload)
-        {
-            _shellViewModel?.SetTitleBarContent(null);
-            return;
         }
 
         IsVisibleChanged -= OnIsVisibleChanged;

@@ -55,17 +55,15 @@ public partial class KnownProcessesPage : Page, INavigationAware
 
     private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        if (_navigationService is not null)
-        {
-            _navigationService.Navigated -= OnNavigated;
-        }
-
+        // Don't detach navigation service - we need it when navigating back to cached page
+        // Just clear the title bar
         _shellViewModel?.SetTitleBarContent(null);
     }
 
     private void AttachTitleBar()
     {
-        _shellViewModel ??= System.Windows.Application.Current?.MainWindow?.DataContext as MainViewModel;
+        // Always refresh the shell view model reference to ensure we have the current one
+        _shellViewModel = System.Windows.Application.Current?.MainWindow?.DataContext as MainViewModel;
         _shellViewModel?.SetTitleBarContent(_titleBar);
 
         _navigationService ??= WpfNavigationService.GetNavigationService(this);

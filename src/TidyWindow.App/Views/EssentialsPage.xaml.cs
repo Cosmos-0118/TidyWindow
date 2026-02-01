@@ -43,7 +43,8 @@ public partial class EssentialsPage : Page, INavigationAware
 
     private void AttachTitleBar()
     {
-        _shellViewModel ??= System.Windows.Application.Current?.MainWindow?.DataContext as MainViewModel;
+        // Always refresh the shell view model reference to ensure we have the current one
+        _shellViewModel = System.Windows.Application.Current?.MainWindow?.DataContext as MainViewModel;
         _shellViewModel?.SetTitleBarContent(_titleBar);
 
         _navigationService ??= System.Windows.Navigation.NavigationService.GetNavigationService(this);
@@ -68,15 +69,17 @@ public partial class EssentialsPage : Page, INavigationAware
 
     private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
-        if (_navigationService is not null)
-        {
-            _navigationService.Navigated -= OnNavigated;
-        }
-
+        // Don't detach navigation service for cached pages
         if (_disposed || !_shouldDisposeOnUnload)
         {
             _shellViewModel?.SetTitleBarContent(null);
             return;
+        }
+
+        // Full cleanup for non-cached pages
+        if (_navigationService is not null)
+        {
+            _navigationService.Navigated -= OnNavigated;
         }
 
         IsVisibleChanged -= OnIsVisibleChanged;

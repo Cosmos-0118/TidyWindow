@@ -214,6 +214,8 @@ public sealed class RegistryOptimizerViewModelTests
 
         public RegistryRestorePoint? TryGetLatestRestorePoint() => null;
 
+        public IReadOnlyList<RegistryRestorePoint> GetAllRestorePoints() => Array.Empty<RegistryRestorePoint>();
+
         public Task<RegistryOperationResult> ApplyRestorePointAsync(RegistryRestorePoint restorePoint, CancellationToken cancellationToken = default)
         {
             throw new NotImplementedException();
