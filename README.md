@@ -4,7 +4,7 @@ Windows maintenance companion for builders who prioritize safety, repeatability,
 
 ## At a Glance
 
-- Latest stable: **4.5.0** ([data/catalog/latest-release.json](data/catalog/latest-release.json))
+- Latest stable: **4.6.1** ([data/catalog/latest-release.json](data/catalog/latest-release.json))
 - Docs: [docs/](docs)
 - Roadmap: [roadmap.md](roadmap.md)
 - Press: [Press-and-Reviews.md](Press-and-Reviews.md)
@@ -50,7 +50,7 @@ dotnet build src/TidyWindow.sln -c Debug
 dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj
 ```
 
-See [docs/getting-started.md](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest installer: **4.5.0** (stable). Inside the app, open Settings ▸ Updates to read the hosted manifest and jump to the newest release notes without a manual download.
+See [docs/getting-started.md](docs/getting-started.md) for optional dependencies, troubleshooting, and installer usage. Latest installer: **4.6.1** (stable). Inside the app, open Settings ▸ Updates to read the hosted manifest and jump to the newest release notes without a manual download.
 
 ## Test Suite
 
