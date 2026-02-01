@@ -14,84 +14,90 @@
       TextOptions.TextFormattingMode="Display"
       TextOptions.TextRenderingMode="ClearType"
       TextOptions.TextHintingMode="Fixed"
-      RenderOptions.BitmapScalingMode="HighQuality">
+      RenderOptions.BitmapScalingMode="NearestNeighbor"
+      RenderOptions.ClearTypeHint="Enabled">
+
     <Page.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" />
-        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
+        <converters:InverseBooleanConverter x:Key="InverseBool" />
 
-        <LinearGradientBrush x:Key="StartupHeroBrush" StartPoint="0,0" EndPoint="1,1">
-            <GradientStop Color="#0A1F36" Offset="0" />
-            <GradientStop Color="#0F2F4A" Offset="0.5" />
-            <GradientStop Color="#0B3B4D" Offset="1" />
-        </LinearGradientBrush>
+        <!-- Icon Font -->
+        <FontFamily x:Key="FluentIcons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-        <SolidColorBrush x:Key="StartupHeroTitleBrush" Color="#F5F7FF" />
-        <SolidColorBrush x:Key="StartupHeroBodyBrush" Color="#C6D4EE" />
-        <SolidColorBrush x:Key="StartupMutedBrush" Color="#9CA3AF" />
-        <SolidColorBrush x:Key="StartupCardBrush" Color="#0C1424" />
-        <SolidColorBrush x:Key="StartupCardBorderBrush" Color="#1B2538" />
-        <SolidColorBrush x:Key="StartupBadgeBrush" Color="#103347" />
-        <SolidColorBrush x:Key="StartupBadgeForegroundBrush" Color="#7DD3FC" />
-        <SolidColorBrush x:Key="StartupWarningBadgeBrush" Color="#3B1D22" />
-        <SolidColorBrush x:Key="StartupWarningForegroundBrush" Color="#FBBF24" />
-        <SolidColorBrush x:Key="StartupSafeBrush" Color="#10B981" />
-        <SolidColorBrush x:Key="StartupDangerBrush" Color="#EF4444" />
+        <!-- Color Palette -->
+        <SolidColorBrush x:Key="PageBg" Color="#050B14" />
+        <SolidColorBrush x:Key="CardBg" Color="#0C1829" />
+        <SolidColorBrush x:Key="CardBorder" Color="#1A2D47" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#F8FAFC" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#CBD5E1" />
+        <SolidColorBrush x:Key="TextMuted" Color="#64748B" />
+        <SolidColorBrush x:Key="AccentCyan" Color="#22D3EE" />
+        <SolidColorBrush x:Key="AccentGreen" Color="#4ADE80" />
+        <SolidColorBrush x:Key="AccentRed" Color="#F87171" />
+        <SolidColorBrush x:Key="AccentAmber" Color="#FBBF24" />
+        <SolidColorBrush x:Key="AccentPurple" Color="#A78BFA" />
 
-        <Style x:Key="HeroTitleTextStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="20" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Foreground" Value="{StaticResource StartupHeroTitleBrush}" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        <!-- Modern Card -->
+        <Style x:Key="ModernCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="14" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="SnapsToDevicePixels" Value="True" />
         </Style>
 
-        <Style x:Key="HeroBodyTextStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="{StaticResource StartupHeroBodyBrush}" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
+        <!-- Entry Card -->
+        <Style x:Key="EntryCard" TargetType="Border" BasedOn="{StaticResource ModernCard}">
+            <Setter Property="Margin" Value="0,0,0,14" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentCyan}" />
+                    <Setter Property="Background" Value="#0E1D32" />
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
-        <Style x:Key="PrimaryChipStyle" TargetType="Border">
+        <!-- Chip Badge -->
+        <Style x:Key="ChipBadge" TargetType="Border">
             <Setter Property="Background" Value="#0E1D33" />
             <Setter Property="BorderBrush" Value="#1D3B58" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="12,8" />
-            <Setter Property="Margin" Value="0,0,10,0" />
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="8,4" />
+            <Setter Property="Margin" Value="0,0,6,0" />
         </Style>
 
-        <Style x:Key="FilterToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="#DDE7FF" />
-            <Setter Property="Background" Value="#0F1C2F" />
-            <Setter Property="BorderBrush" Value="#1F2E46" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="12,8" />
-            <Setter Property="Margin" Value="0,0,10,10" />
-            <Setter Property="FontWeight" Value="SemiBold" />
+        <!-- Filter Toggle - Source Type (Cyan accent) -->
+        <Style x:Key="FilterToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Padding" Value="14,8" />
+            <Setter Property="Margin" Value="0,0,8,8" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
+                        <Border x:Name="Bd" CornerRadius="20" Padding="{TemplateBinding Padding}"
+                                Background="#0A1422" BorderBrush="#1E293B" BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#134E4A" />
-                                <Setter Property="Foreground" Value="#ECFDF3" />
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#22C55E" />
+                                <Setter TargetName="Bd" Property="Background" Value="#164E63" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#22D3EE" />
+                                <Setter Property="Foreground" Value="#CFFAFE" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8" />
+                                <Setter TargetName="Bd" Property="Background" Value="#0F172A" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#38BDF8" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.5" />
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.5" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -99,21 +105,99 @@
             </Setter>
         </Style>
 
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#07111D" />
-            <Setter Property="Padding" Value="16,9" />
+        <!-- Filter Toggle - Attribute Type (Purple accent) -->
+        <Style x:Key="FilterToggleAttr" TargetType="ToggleButton" BasedOn="{StaticResource FilterToggle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="20" Padding="{TemplateBinding Padding}"
+                                Background="#0A1422" BorderBrush="#1E293B" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#3B1D6B" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#A78BFA" />
+                                <Setter Property="Foreground" Value="#E9D5FF" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#0F172A" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#A78BFA" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Filter Toggle - Status Type (Green/Red accent) -->
+        <Style x:Key="FilterToggleStatus" TargetType="ToggleButton" BasedOn="{StaticResource FilterToggle}">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="20" Padding="{TemplateBinding Padding}"
+                                Background="#0A1422" BorderBrush="#1E293B" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#14532D" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#4ADE80" />
+                                <Setter Property="Foreground" Value="#DCFCE7" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#0F172A" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#4ADE80" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Action Toggle (for Keep Disabled) -->
+        <Style x:Key="ActionToggle" TargetType="ToggleButton">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="Bd" CornerRadius="8" Padding="{TemplateBinding Padding}"
+                                Background="#0F172A" BorderBrush="#334155" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#7F1D1D" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#F87171" />
+                                <Setter Property="Foreground" Value="#FEE2E2" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#F87171" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Primary Button -->
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="Foreground" Value="#052E16" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="14,8" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="12"
-                                Padding="{TemplateBinding Padding}">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}">
                             <Border.Background>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Color="#34D399" Offset="0" />
+                                    <GradientStop Color="#4ADE80" Offset="0" />
                                     <GradientStop Color="#22C55E" Offset="1" />
                                 </LinearGradientBrush>
                             </Border.Background>
@@ -121,14 +205,17 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="RenderTransform">
+                                <Setter TargetName="Bd" Property="Background">
                                     <Setter.Value>
-                                        <ScaleTransform ScaleX="1.01" ScaleY="1.01" />
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#86EFAC" Offset="0" />
+                                            <GradientStop Color="#4ADE80" Offset="1" />
+                                        </LinearGradientBrush>
                                     </Setter.Value>
                                 </Setter>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -136,68 +223,26 @@
             </Setter>
         </Style>
 
-        <Style x:Key="DangerButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#0F0A0A" />
-            <Setter Property="Padding" Value="16,9" />
+        <!-- Danger Button -->
+        <Style x:Key="BtnDanger" TargetType="Button">
+            <Setter Property="Foreground" Value="#FEE2E2" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                CornerRadius="12"
-                                Padding="{TemplateBinding Padding}">
-                            <Border.Background>
-                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                    <GradientStop Color="#F87171" Offset="0" />
-                                    <GradientStop Color="#EF4444" Offset="1" />
-                                </LinearGradientBrush>
-                            </Border.Background>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="RenderTransform">
-                                    <Setter.Value>
-                                        <ScaleTransform ScaleX="1.01" ScaleY="1.01" />
-                                    </Setter.Value>
-                                </Setter>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="OutlineButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#E2E8F0" />
-            <Setter Property="Background" Value="#0E1A2C" />
-            <Setter Property="BorderBrush" Value="#1F2E46" />
-            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="FontSize" Value="12" />
             <Setter Property="Padding" Value="14,8" />
-            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}"
+                                Background="#7F1D1D" BorderBrush="#F87171" BorderThickness="1">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8" />
+                                <Setter TargetName="Bd" Property="Background" Value="#991B1B" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.55" />
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -205,54 +250,46 @@
             </Setter>
         </Style>
 
-        <Style x:Key="StartupStatusBadgeStyle" TargetType="Border">
-            <Setter Property="Background" Value="#0F1C2F" />
-            <Setter Property="BorderBrush" Value="#1F2E46" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Style.Triggers>
-                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
-                    <Setter Property="Background" Value="#0F2F25" />
-                    <Setter Property="BorderBrush" Value="#22C55E" />
-                </DataTrigger>
-                <DataTrigger Binding="{Binding IsEnabled}" Value="False">
-                    <Setter Property="Background" Value="#2C1A1A" />
-                    <Setter Property="BorderBrush" Value="#F87171" />
-                </DataTrigger>
-            </Style.Triggers>
-        </Style>
-
-        <Style x:Key="StartupCardStyle" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource StartupCardBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource StartupCardBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="14" />
-            <Setter Property="Padding" Value="16" />
-            <Setter Property="Margin" Value="0,0,0,12" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="UseLayoutRounding" Value="True" />
-            <Setter Property="MinHeight" Value="170" />
+        <!-- Secondary Button -->
+        <Style x:Key="BtnSecondary" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="FontWeight" Value="Medium" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="14,8" />
             <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="CacheMode">
+            <Setter Property="Template">
                 <Setter.Value>
-                    <BitmapCache RenderAtScale="1" EnableClearType="True"/>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}"
+                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#334155" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource AccentCyan}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
                 </Setter.Value>
             </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="BorderBrush" Value="#38BDF8" />
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
-        <CollectionViewSource x:Key="StartupEntriesView"
-                              Source="{Binding Entries}"
-                              Filter="OnEntriesFilter" />
+        <!-- Status Badge -->
+        <Style x:Key="StatusBadge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <CollectionViewSource x:Key="StartupEntriesView" Source="{Binding Entries}" Filter="OnEntriesFilter" />
     </Page.Resources>
 
     <Grid>
+        <!-- Main Content -->
         <Grid x:Name="ContentHost">
             <Grid.Style>
                 <Style TargetType="Grid">
@@ -260,274 +297,306 @@
                     <Setter Property="IsHitTestVisible" Value="True" />
                     <Style.Triggers>
                         <DataTrigger Binding="{Binding IsBusy}" Value="True">
-                            <Setter Property="Opacity" Value="0.45" />
+                            <Setter Property="Opacity" Value="0.4" />
                             <Setter Property="IsHitTestVisible" Value="False" />
                         </DataTrigger>
                     </Style.Triggers>
                 </Style>
             </Grid.Style>
 
-            <Grid Margin="24"
-                HorizontalAlignment="Stretch">
+            <Grid Margin="24">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
-                <Border Grid.Row="0"
-                    Background="{StaticResource StartupHeroBrush}"
-                    Padding="20"
-                    CornerRadius="16"
-                    BorderThickness="1"
-                    BorderBrush="#12314A"
-                    Visibility="{Binding ShowStartupHero, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <!-- Hero Header -->
+                <Border Grid.Row="0" Style="{StaticResource ModernCard}" Padding="20"
+                        Visibility="{Binding ShowStartupHero, Converter={StaticResource BoolToVis}}">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#0A1628" Offset="0" />
+                            <GradientStop Color="#0F2847" Offset="0.5" />
+                            <GradientStop Color="#0D3355" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition />
+                            <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
+
                         <StackPanel>
-                            <TextBlock Text="Startup controller" Style="{StaticResource HeroTitleTextStyle}" />
-                            <TextBlock Margin="0,6,0,0" Text="Review everything that launches at logon and toggle entries with safety nets and backups." Style="{StaticResource HeroBodyTextStyle}" />
-                            <WrapPanel Margin="0,4,0,0">
-                                <Border Style="{StaticResource PrimaryChipStyle}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="44" Height="44" CornerRadius="12" Margin="0,0,14,0">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#0891B2" Offset="0" />
+                                            <GradientStop Color="#0E7490" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock Text="&#xE7B8;" FontFamily="{StaticResource FluentIcons}" FontSize="20" Foreground="#22D3EE" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Startup Controller" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                    <TextBlock Text="Review and control what launches at logon" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0,2,0,0" />
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Stats Chips -->
+                            <WrapPanel Margin="0,16,0,0">
+                                <Border Style="{StaticResource ChipBadge}">
                                     <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE8BC;" FontFamily="{StaticResource FluentIcons}" FontSize="12" Foreground="#A5F3FC" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <TextBlock Text="Visible" Foreground="#A5F3FC" FontWeight="SemiBold" />
-                                        <TextBlock Margin="6,0,0,0" Text="entries" Foreground="#A5F3FC" />
-                                        <TextBlock Margin="6,0,0,0" Text="•" Foreground="#334155" />
-                                        <TextBlock Margin="6,0,0,0" Text="{Binding VisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                        <TextBlock Margin="6,0,0,0" Text="{Binding VisibleCount}" Foreground="{StaticResource TextPrimary}" FontWeight="Bold" />
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource PrimaryChipStyle}">
+                                <Border Style="{StaticResource ChipBadge}">
                                     <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE711;" FontFamily="{StaticResource FluentIcons}" FontSize="12" Foreground="#FACC15" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <TextBlock Text="Disabled" Foreground="#FACC15" FontWeight="SemiBold" />
-                                        <TextBlock Margin="6,0,0,0" Text="{Binding DisabledVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
-                                        <TextBlock Margin="6,0,0,0" Text="/" Foreground="#334155" />
-                                        <TextBlock Margin="6,0,0,0" Text="{Binding BaselineDisabledCount}" Foreground="#C7D2FE" />
+                                        <TextBlock Margin="6,0,0,0" Text="{Binding DisabledVisibleCount}" Foreground="{StaticResource TextPrimary}" />
+                                        <TextBlock Margin="4,0" Text="/" Foreground="#334155" />
+                                        <TextBlock Text="{Binding BaselineDisabledCount}" Foreground="#C7D2FE" />
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource PrimaryChipStyle}">
+                                <Border Style="{StaticResource ChipBadge}">
                                     <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource FluentIcons}" FontSize="12" Foreground="#34D399" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <TextBlock Text="Enabled" Foreground="#34D399" FontWeight="SemiBold" />
-                                        <TextBlock Margin="6,0,0,0" Text="{Binding EnabledVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                        <TextBlock Margin="6,0,0,0" Text="{Binding EnabledVisibleCount}" Foreground="{StaticResource TextPrimary}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource PrimaryChipStyle}">
+                                <Border Style="{StaticResource ChipBadge}">
                                     <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE8D7;" FontFamily="{StaticResource FluentIcons}" FontSize="12" Foreground="#F97316" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <TextBlock Text="Unsigned" Foreground="#F97316" FontWeight="SemiBold" />
-                                        <TextBlock Margin="6,0,0,0" Text="{Binding UnsignedVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                        <TextBlock Margin="6,0,0,0" Text="{Binding UnsignedVisibleCount}" Foreground="{StaticResource TextPrimary}" />
                                     </StackPanel>
                                 </Border>
-                                <Border Style="{StaticResource PrimaryChipStyle}">
+                                <Border Style="{StaticResource ChipBadge}">
                                     <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE945;" FontFamily="{StaticResource FluentIcons}" FontSize="12" Foreground="#FACC15" VerticalAlignment="Center" Margin="0,0,6,0" />
                                         <TextBlock Text="High impact" Foreground="#FACC15" FontWeight="SemiBold" />
-                                        <TextBlock Margin="6,0,0,0" Text="{Binding HighImpactVisibleCount}" Foreground="{StaticResource StartupHeroTitleBrush}" />
+                                        <TextBlock Margin="6,0,0,0" Text="{Binding HighImpactVisibleCount}" Foreground="{StaticResource TextPrimary}" />
                                     </StackPanel>
                                 </Border>
                             </WrapPanel>
                         </StackPanel>
-                        <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" Orientation="Horizontal">
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" Margin="0,0,10,0">
-                                <ProgressBar Width="90" Height="8" IsIndeterminate="True" Foreground="#38BDF8" Background="#0E1C30" BorderBrush="#1F2E46" />
-                                <TextBlock Text="Working..." Margin="8,0,0,0" Foreground="#E5E7EB" FontSize="12" VerticalAlignment="Center" />
+
+                        <!-- Right Actions -->
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center"
+                                        Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" Margin="0,0,12,0">
+                                <ProgressBar Width="80" Height="6" IsIndeterminate="True" Foreground="{StaticResource AccentCyan}" Background="#0E1C30" />
+                                <TextBlock Text="Working..." Margin="8,0,0,0" Foreground="{StaticResource TextMuted}" FontSize="11" VerticalAlignment="Center" />
                             </StackPanel>
-                            <ToggleButton Content="Background auto-disable"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          Margin="0,0,10,0"
+                            <ToggleButton Style="{StaticResource FilterToggle}" Margin="0,0,10,0"
                                           IsChecked="{Binding StartupGuardEnabled, Mode=TwoWay}"
-                                          ToolTip="Keeps guarded startup apps disabled automatically in the background (respects Run in background setting)." />
-                            <Button Content="Refresh"
-                                    Style="{StaticResource OutlineButtonStyle}"
-                                    Command="{Binding RefreshCommand}"
-                                    Margin="0,0,10,0"
-                                    ToolTip="Re-run the inventory; toggles apply immediately." />
-                            <TextBlock Text="Toggles apply instantly"
-                                       Foreground="#C6D4EE"
-                                       FontSize="12"
-                                       VerticalAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,0" />
+                                          ToolTip="Auto-disable guarded startup apps in background">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE83D;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Auto-disable" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </ToggleButton>
+                            <Button Style="{StaticResource BtnSecondary}" Command="{Binding RefreshCommand}" ToolTip="Refresh startup entries">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE72C;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                    <TextBlock Text="Refresh" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Button>
                         </StackPanel>
                     </Grid>
                 </Border>
 
-                <!-- Re-enabled startup entries alert bar -->
-                <Border Grid.Row="0"
-                        Background="#3B1D22"
-                        BorderBrush="#7F1D1D"
-                        BorderThickness="1"
-                        CornerRadius="10"
-                        Padding="14,10"
-                        Margin="0,12,0,0"
-                        Visibility="{Binding ShowReenabledAlert, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <!-- Re-enabled Alert -->
+                <Border Grid.Row="0" Margin="0,12,0,0" CornerRadius="10" Padding="14,10"
+                        Background="#3B1D22" BorderBrush="#7F1D1D" BorderThickness="1"
+                        Visibility="{Binding ShowReenabledAlert, Converter={StaticResource BoolToVis}}">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0"
-                                   Text="⚠️"
-                                   FontSize="16"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,10,0" />
-                        <TextBlock Grid.Column="1"
-                                   Text="{Binding ReenabledAlertMessage}"
-                                   Foreground="#FBBF24"
-                                   FontSize="13"
-                                   TextWrapping="Wrap"
-                                   VerticalAlignment="Center" />
-                        <Button Grid.Column="2"
-                                Content="Dismiss"
-                                Command="{Binding DismissReenabledAlertCommand}"
-                                Padding="10,5"
-                                Margin="12,0,0,0"
-                                FontSize="12"
-                                Foreground="#FBBF24"
-                                Background="#4C1D1D"
-                                BorderBrush="#7F1D1D"
-                                BorderThickness="1"
-                                Cursor="Hand">
-                            <Button.Template>
-                                <ControlTemplate TargetType="Button">
-                                    <Border x:Name="Root"
-                                            Background="{TemplateBinding Background}"
-                                            BorderBrush="{TemplateBinding BorderBrush}"
-                                            BorderThickness="{TemplateBinding BorderThickness}"
-                                            CornerRadius="6"
-                                            Padding="{TemplateBinding Padding}">
-                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                    </Border>
-                                    <ControlTemplate.Triggers>
-                                        <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Root" Property="Background" Value="#5C2D2D" />
-                                        </Trigger>
-                                    </ControlTemplate.Triggers>
-                                </ControlTemplate>
-                            </Button.Template>
-                        </Button>
+                        <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource FluentIcons}" FontSize="16" Foreground="{StaticResource AccentAmber}" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBlock Grid.Column="1" Text="{Binding ReenabledAlertMessage}" Foreground="{StaticResource AccentAmber}" FontSize="13" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <Button Grid.Column="2" Content="Dismiss" Style="{StaticResource BtnSecondary}" Padding="10,5" Margin="12,0,0,0" Command="{Binding DismissReenabledAlertCommand}" />
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="1"
-                        Background="#0E1A2C"
-                        BorderBrush="#1B2538"
-                        BorderThickness="1"
-                        CornerRadius="12"
-                        Padding="14"
-                        Margin="0,16,0,12">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal"
-                                    HorizontalAlignment="Right"
-                                    Margin="0,0,0,8">
-                            <ToggleButton Content="Show overview"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          IsChecked="{Binding ShowStartupHero, Mode=TwoWay}"
-                                          ToolTip="Hide the title and counters panel to reclaim space on smaller screens." />
-                        </StackPanel>
+                <!-- Filters Bar (Compact) -->
+                <Border Grid.Row="1" Style="{StaticResource ModernCard}" Margin="0,16,0,16" Padding="12,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
 
-                        <TextBox x:Name="SearchBox"
-                                 Margin="0,0,0,6"
-                                 MinWidth="240"
-                                 Padding="12,8"
-                                 Background="#0E1C30"
-                                 BorderBrush="#1F2E46"
-                                 BorderThickness="1"
-                                 Foreground="#E5E7EB"
-                                 CaretBrush="#38BDF8"
-                                 TextChanged="OnSearchTextChanged"
-                                 ToolTip="Search name, publisher, or path" />
-                        <WrapPanel Margin="0,12,0,0">
-                            <ToggleButton x:Name="RunFilter"
-                                          Content="Run keys"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          IsChecked="True"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="StartupFilter"
-                                          Content="Startup folder"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          IsChecked="True"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="TasksFilter"
-                                          Content="Logon tasks"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          IsChecked="True"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="ServicesFilter"
-                                          Content="Services"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          IsChecked="True"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="SafeFilter"
-                                          Content="Safe to disable"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="SystemFilter"
-                                          Content="System-critical"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged"
-                                          ToolTip="Show only items classified as system-critical (core OS/driver/security)" />
-                            <ToggleButton x:Name="UnsignedFilter"
-                                          Content="Unsigned"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="HighImpactFilter"
-                                          Content="High impact"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="ShowEnabledFilter"
-                                          Content="Show enabled"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          IsChecked="True"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="ShowDisabledFilter"
-                                          Content="Show disabled"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          IsChecked="True"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged" />
-                            <ToggleButton x:Name="BackupFilter"
-                                          Style="{StaticResource FilterToggleStyle}"
-                                          Checked="OnFilterChanged"
-                                          Unchecked="OnFilterChanged"
-                                          ToolTip="Show startup items from backup that are no longer detected in the system. Use this to restore items that disappeared after being disabled.">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Backup only" />
-                                    <TextBlock Text=" ("
-                                               Foreground="#94A3B8" />
-                                    <TextBlock Text="{Binding BackupOnlyCount}"
-                                               Foreground="#F59E0B" />
-                                    <TextBlock Text=")"
-                                               Foreground="#94A3B8" />
+                        <!-- Search Box -->
+                        <Border CornerRadius="10" Background="#0A1422" BorderBrush="#1E293B" BorderThickness="1" Padding="2">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="&#xE721;" FontFamily="{StaticResource FluentIcons}" FontSize="14" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" Margin="12,0,8,0" />
+                                <TextBox x:Name="SearchBox" Grid.Column="1" Padding="8,10" Background="Transparent" BorderThickness="0"
+                                         Foreground="{StaticResource TextPrimary}" CaretBrush="{StaticResource AccentCyan}"
+                                         TextChanged="OnSearchTextChanged" ToolTip="Search name, publisher, or path" />
+                            </Grid>
+                        </Border>
+
+                        <!-- Filters Button with Popup -->
+                        <ToggleButton x:Name="FilterPopupButton" Grid.Column="1" Style="{StaticResource FilterToggle}" Margin="12,0,0,0"
+                                      ToolTip="Show filter options">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE71C;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="Filters" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+
+                        <!-- Filters Popup -->
+                        <Popup x:Name="FilterPopup" 
+                               PlacementTarget="{Binding ElementName=FilterPopupButton}" 
+                               Placement="Bottom"
+                               IsOpen="{Binding IsChecked, ElementName=FilterPopupButton, Mode=TwoWay}"
+                               StaysOpen="False"
+                               AllowsTransparency="True"
+                               PopupAnimation="Fade"
+                               HorizontalOffset="-180">
+                            <Border Margin="8" Padding="18" CornerRadius="14"
+                                    Background="#0C1829" BorderBrush="#1A2D47" BorderThickness="1"
+                                    UseLayoutRounding="True" SnapsToDevicePixels="True"
+                                    TextOptions.TextFormattingMode="Display"
+                                    TextOptions.TextRenderingMode="ClearType"
+                                    TextOptions.TextHintingMode="Fixed">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="24" ShadowDepth="4" Opacity="0.5" Color="#000000" />
+                                </Border.Effect>
+                                <StackPanel Width="320">
+                                    <!-- Popup Header -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                                        <TextBlock Text="&#xE71C;" FontFamily="{StaticResource FluentIcons}" FontSize="14" Foreground="{StaticResource AccentCyan}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="Filter Options" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                                    </StackPanel>
+
+                                    <!-- Source Type Filters -->
+                                    <StackPanel Margin="0,0,0,14">
+                                        <TextBlock Text="SOURCE TYPE" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" Margin="0,0,0,8" />
+                                        <WrapPanel>
+                                            <ToggleButton x:Name="RunFilter" Style="{StaticResource FilterToggle}" IsChecked="True" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE756;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Run keys" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="StartupFilter" Style="{StaticResource FilterToggle}" IsChecked="True" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE838;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Startup folder" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="TasksFilter" Style="{StaticResource FilterToggle}" IsChecked="True" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE823;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Logon tasks" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="ServicesFilter" Style="{StaticResource FilterToggle}" IsChecked="True" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE770;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Services" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                        </WrapPanel>
+                                    </StackPanel>
+
+                                    <!-- Attribute Filters -->
+                                    <StackPanel Margin="0,0,0,14">
+                                        <TextBlock Text="ATTRIBUTES" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" Margin="0,0,0,8" />
+                                        <WrapPanel>
+                                            <ToggleButton x:Name="SafeFilter" Style="{StaticResource FilterToggleAttr}" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Safe to disable" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="SystemFilter" Style="{StaticResource FilterToggleAttr}" Checked="OnFilterChanged" Unchecked="OnFilterChanged" ToolTip="Show only system-critical items">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="System-critical" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="UnsignedFilter" Style="{StaticResource FilterToggleAttr}" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE8D7;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Unsigned" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="HighImpactFilter" Style="{StaticResource FilterToggleAttr}" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE945;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="High impact" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                        </WrapPanel>
+                                    </StackPanel>
+
+                                    <!-- Status Filters -->
+                                    <StackPanel>
+                                        <TextBlock Text="SHOW STATUS" FontSize="10" FontWeight="SemiBold" Foreground="{StaticResource TextMuted}" Margin="0,0,0,8" />
+                                        <WrapPanel>
+                                            <ToggleButton x:Name="ShowEnabledFilter" Style="{StaticResource FilterToggleStatus}" IsChecked="True" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE73E;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Enabled" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="ShowDisabledFilter" Style="{StaticResource FilterToggleStatus}" IsChecked="True" Checked="OnFilterChanged" Unchecked="OnFilterChanged">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE711;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Disabled" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                            <ToggleButton x:Name="BackupFilter" Style="{StaticResource FilterToggleAttr}" Checked="OnFilterChanged" Unchecked="OnFilterChanged" ToolTip="Show backup-only entries">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE81C;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Backup" VerticalAlignment="Center" />
+                                                    <TextBlock Text=" (" Foreground="{StaticResource TextMuted}" />
+                                                    <TextBlock Text="{Binding BackupOnlyCount}" Foreground="#F59E0B" FontWeight="SemiBold" />
+                                                    <TextBlock Text=")" Foreground="{StaticResource TextMuted}" />
+                                                </StackPanel>
+                                            </ToggleButton>
+                                        </WrapPanel>
+                                    </StackPanel>
                                 </StackPanel>
-                            </ToggleButton>
-                        </WrapPanel>
-                    </StackPanel>
+                            </Border>
+                        </Popup>
+
+                        <!-- Overview Toggle -->
+                        <ToggleButton Grid.Column="2" Style="{StaticResource FilterToggle}" Margin="8,0,0,0"
+                                      IsChecked="{Binding ShowStartupHero, Mode=TwoWay}" ToolTip="Toggle overview panel">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE89F;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                <TextBlock Text="Overview" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </ToggleButton>
+                    </Grid>
                 </Border>
 
-                <ListView Grid.Row="2"
-                          x:Name="EntriesItemsControl"
+                <!-- Entries List -->
+                <ListView Grid.Row="2" x:Name="EntriesItemsControl"
                           ItemsSource="{Binding PagedEntries}"
                           Loaded="OnEntriesLoaded"
-                          Background="Transparent"
-                          BorderThickness="0"
-                          Padding="0,0,16,0"
+                          Background="Transparent" BorderThickness="0" Padding="0,0,16,0"
                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                           ScrollViewer.CanContentScroll="True"
-                          ScrollViewer.IsDeferredScrollingEnabled="False"
                           VirtualizingPanel.IsVirtualizing="True"
-                          VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                           VirtualizingPanel.VirtualizationMode="Recycling"
                           VirtualizingPanel.ScrollUnit="Pixel"
                           VirtualizingPanel.CacheLength="4"
@@ -540,222 +609,263 @@
                     <ListView.ItemContainerStyle>
                         <Style TargetType="ListViewItem">
                             <Setter Property="Padding" Value="0" />
-                            <Setter Property="Margin" Value="0,0,0,12" />
+                            <Setter Property="Margin" Value="0" />
                             <Setter Property="BorderThickness" Value="0" />
                             <Setter Property="Background" Value="Transparent" />
                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                             <Setter Property="Focusable" Value="False" />
-                            <Setter Property="MinHeight" Value="170" />
                         </Style>
                     </ListView.ItemContainerStyle>
                     <ListView.ItemTemplate>
                         <DataTemplate DataType="{x:Type viewModels:StartupEntryItemViewModel}">
-                            <Border Style="{StaticResource StartupCardStyle}">
+                            <Border Style="{StaticResource EntryCard}">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition />
+                                        <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <StackPanel>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="#E5E7EB" TextWrapping="Wrap" TextTrimming="None" />
-                                            <Border Margin="8,0,0,0"
-                                                    Background="{StaticResource StartupBadgeBrush}"
-                                                    BorderBrush="#1F3B55"
-                                                    BorderThickness="1"
-                                                    CornerRadius="8"
-                                                    Padding="8,4">
-                                                <TextBlock Text="{Binding Source}" Foreground="{StaticResource StartupBadgeForegroundBrush}" FontSize="11" FontWeight="SemiBold" TextWrapping="Wrap" TextTrimming="None" />
+
+                                    <StackPanel Margin="0,0,24,0">
+                                        <!-- Header Row -->
+                                        <WrapPanel VerticalAlignment="Center" Margin="0,0,0,4">
+                                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" VerticalAlignment="Center" />
+                                            <Border Style="{StaticResource ChipBadge}" Margin="10,0,0,0">
+                                                <TextBlock Text="{Binding Source}" Foreground="#7DD3FC" FontSize="11" FontWeight="Medium" />
                                             </Border>
-                                            <Border Margin="8,0,0,0"
-                                                    Background="{StaticResource StartupBadgeBrush}"
-                                                    BorderBrush="#1F3B55"
-                                                    BorderThickness="1"
-                                                    CornerRadius="8"
-                                                    Padding="8,4">
-                                                <TextBlock Text="{Binding UserContext}" Foreground="#C7D2FE" FontSize="11" TextWrapping="Wrap" TextTrimming="None" />
+                                            <Border Style="{StaticResource ChipBadge}" Margin="0">
+                                                <TextBlock Text="{Binding UserContext}" Foreground="#C7D2FE" FontSize="11" />
                                             </Border>
-                                            <Border Margin="8,0,0,0"
-                                                    Background="{StaticResource StartupWarningBadgeBrush}"
-                                                    BorderBrush="#7C2D12"
-                                                    BorderThickness="1"
-                                                    CornerRadius="8"
-                                                    Padding="8,4"
-                                                    Visibility="{Binding IsSystemCritical, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Border Margin="0" Padding="8,4" CornerRadius="8" Background="#3B1D22" BorderBrush="#7C2D12" BorderThickness="1"
+                                                    Visibility="{Binding IsSystemCritical, Converter={StaticResource BoolToVis}}">
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="" FontFamily="Segoe MDL2 Assets" Foreground="{StaticResource StartupWarningForegroundBrush}" FontSize="11" Margin="0,0,4,0" />
-                                                    <TextBlock Text="System" Foreground="{StaticResource StartupWarningForegroundBrush}" FontSize="11" FontWeight="SemiBold" />
+                                                    <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource FluentIcons}" FontSize="11" Foreground="{StaticResource AccentAmber}" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                                    <TextBlock Text="System Critical" Foreground="{StaticResource AccentAmber}" FontSize="11" FontWeight="SemiBold" />
                                                 </StackPanel>
                                             </Border>
-                                        </StackPanel>
-                                        <TextBlock Margin="0,6,0,0"
-                                                   Text="{Binding Publisher}"
-                                                   Foreground="#C7D2FE"
-                                                   FontSize="12"
-                                                   TextWrapping="Wrap"
-                                                   TextTrimming="None" />
-                                        <TextBlock Margin="0,4,0,0"
-                                                   Text="{Binding Item.ExecutablePath}"
-                                                   Foreground="{StaticResource StartupMutedBrush}"
-                                                   FontSize="11"
-                                                   TextWrapping="Wrap"
-                                                   TextTrimming="None" />
-                                        <TextBlock Margin="0,4,0,0"
-                                                   Text="{Binding LastModifiedDisplay}"
-                                                   Foreground="#94A3B8"
-                                                   FontSize="11" />
+                                        </WrapPanel>
 
-                                        <WrapPanel Margin="0,8,0,0">
-                                            <Border Margin="0,0,6,6" Background="#102A43" Padding="8,4" CornerRadius="8" BorderBrush="#1E3A5F" BorderThickness="1">
+                                        <!-- Publisher & Path -->
+                                        <TextBlock Margin="0,4,0,0" Text="{Binding Publisher}" Foreground="#C7D2FE" FontSize="13" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,6,0,0" Text="{Binding Item.ExecutablePath}" Foreground="{StaticResource TextMuted}" FontSize="11" TextWrapping="Wrap" />
+                                        <TextBlock Margin="0,6,0,0" Text="{Binding LastModifiedDisplay}" Foreground="#94A3B8" FontSize="11" />
+
+                                        <!-- Tags -->
+                                        <WrapPanel Margin="0,12,0,0">
+                                            <Border Margin="0,0,6,0" Background="#102A43" Padding="8,4" CornerRadius="6" BorderBrush="#1E3A5F" BorderThickness="1">
                                                 <TextBlock Text="{Binding Item.SignatureStatus}" Foreground="#7DD3FC" FontSize="11" />
                                             </Border>
-                                            <Border Margin="0,0,6,6" Background="#13233A" Padding="8,4" CornerRadius="8" BorderBrush="#233553" BorderThickness="1">
-                                                <TextBlock Text="{Binding Impact}" Foreground="#C084FC" FontSize="11" />
+                                            <Border Margin="0,0,6,0" Background="#13233A" Padding="8,4" CornerRadius="6" BorderBrush="#233553" BorderThickness="1">
+                                                <TextBlock Text="{Binding Impact}" Foreground="{StaticResource AccentPurple}" FontSize="11" />
                                             </Border>
-                                            <Border Margin="0,0,6,6" Background="#10243A" Padding="8,4" CornerRadius="8" BorderBrush="#1E3A5F" BorderThickness="1">
+                                            <Border Background="#10243A" Padding="8,4" CornerRadius="6" BorderBrush="#1E3A5F" BorderThickness="1">
                                                 <TextBlock Text="{Binding Item.EntryLocation}" Foreground="#E0F2FE" FontSize="11" TextWrapping="Wrap" />
                                             </Border>
                                         </WrapPanel>
                                     </StackPanel>
 
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <Border Style="{StaticResource StartupStatusBadgeStyle}" HorizontalAlignment="Right"
-                                                Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Ellipse Width="8" Height="8" Fill="#34D399" VerticalAlignment="Center"
-                                                         Visibility="{Binding IsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                <Ellipse Width="8" Height="8" Fill="#F87171" VerticalAlignment="Center"
-                                                         Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                                <TextBlock Text="Enabled"
-                                                           Margin="6,0,0,0"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#DCFCE7"
-                                                           Visibility="{Binding IsEnabled, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                                <TextBlock Text="Disabled"
-                                                           Margin="6,0,0,0"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#FEE2E2"
-                                                           Visibility="{Binding IsEnabled, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                            </StackPanel>
-                                        </Border>
-                                        <Border HorizontalAlignment="Right"
-                                                Background="#451A03"
-                                                BorderBrush="#78350F"
-                                                BorderThickness="1"
-                                                CornerRadius="8"
-                                                Padding="10,6"
-                                                Visibility="{Binding IsBackupOnly, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Ellipse Width="8" Height="8" Fill="#F59E0B" VerticalAlignment="Center" />
-                                                <TextBlock Text="Backup only"
-                                                           Margin="6,0,0,0"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#FDE68A"
-                                                           ToolTip="This entry no longer exists in the system. It can only be restored from backup." />
+                                    <!-- Right Column: Status & Actions -->
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right" MinWidth="200">
+                                        <!-- Large Status Indicator -->
+                                        <Border HorizontalAlignment="Right" Padding="14,10" CornerRadius="12"
+                                                Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBoolToVis}}">
+                                            <Border.Style>
+                                                <Style TargetType="Border">
+                                                    <Setter Property="Background" Value="#2C1A1A" />
+                                                    <Setter Property="BorderBrush" Value="#F87171" />
+                                                    <Setter Property="BorderThickness" Value="2" />
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                            <Setter Property="Background" Value="#052E16" />
+                                                            <Setter Property="BorderBrush" Value="#22C55E" />
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Border.Style>
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock HorizontalAlignment="Center" FontFamily="{StaticResource FluentIcons}" FontSize="20">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="&#xE711;" />
+                                                            <Setter Property="Foreground" Value="#F87171" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                                    <Setter Property="Text" Value="&#xE73E;" />
+                                                                    <Setter Property="Foreground" Value="#4ADE80" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock HorizontalAlignment="Center" FontWeight="Bold" FontSize="13" Margin="0,4,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Text" Value="Not Running" />
+                                                            <Setter Property="Foreground" Value="#FEE2E2" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsEnabled}" Value="True">
+                                                                    <Setter Property="Text" Value="Runs at Startup" />
+                                                                    <Setter Property="Foreground" Value="#DCFCE7" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </StackPanel>
                                         </Border>
 
-                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Right">
-                                            <Button Content="Restore from backup"
-                                                    Style="{StaticResource PrimaryButtonStyle}"
-                                                    Command="{Binding DataContext.RestoreFromBackupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                    CommandParameter="{Binding}"
-                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    ToolTip="Recreate this startup entry from the saved backup" />
-                                            <Button Content="Delete backup"
-                                                    Margin="8,0,0,0"
-                                                    Style="{StaticResource DangerButtonStyle}"
-                                                    Command="{Binding DataContext.DeleteBackupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                    CommandParameter="{Binding}"
-                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    ToolTip="Permanently delete this backup. This cannot be undone." />
-                                            <Button Content="Enable"
-                                                    Style="{StaticResource PrimaryButtonStyle}"
+                                        <!-- Backup Only Badge -->
+                                        <Border HorizontalAlignment="Right" Background="#451A03" BorderBrush="#78350F" BorderThickness="2" CornerRadius="12" Padding="14,10"
+                                                Visibility="{Binding IsBackupOnly, Converter={StaticResource BoolToVis}}">
+                                            <StackPanel HorizontalAlignment="Center">
+                                                <TextBlock Text="&#xE81C;" FontFamily="{StaticResource FluentIcons}" FontSize="20" Foreground="#F59E0B" HorizontalAlignment="Center" />
+                                                <TextBlock Text="Backup Only" FontWeight="Bold" FontSize="13" Foreground="#FDE68A" Margin="0,4,0,0"
+                                                           ToolTip="Entry no longer exists in system" HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Primary Action Button - Context Aware -->
+                                        <StackPanel Margin="0,14,0,0" HorizontalAlignment="Right">
+                                            <!-- If Enabled: Show Turn Off buttons -->
+                                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsEnabled, Converter={StaticResource BoolToVis}}">
+                                                <Button Style="{StaticResource BtnDanger}" Padding="16,10" Margin="0,0,8,0"
+                                                        Command="{Binding DataContext.DisableCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Prevent this app from starting at logon">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE71A;" FontFamily="{StaticResource FluentIcons}" FontSize="14" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <TextBlock Text="Turn Off" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource BtnSecondary}" Padding="12,10"
+                                                        Command="{Binding DataContext.DisableAndStopCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Turn off AND terminate any running instances now">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE711;" FontFamily="{StaticResource FluentIcons}" FontSize="12" Foreground="#F87171" VerticalAlignment="Center" Margin="0,0,5,0" />
+                                                        <TextBlock Text="+ Stop Now" FontSize="11" FontWeight="Medium" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
+
+                                            <!-- If Disabled: Show Turn On button -->
+                                            <Button Style="{StaticResource BtnPrimary}" Padding="18,10"
                                                     Command="{Binding DataContext.EnableCommand, RelativeSource={RelativeSource AncestorType=Page}}"
                                                     CommandParameter="{Binding}"
-                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
-                                            <Button Content="Disable"
-                                                    Margin="8,0,0,0"
-                                                    Style="{StaticResource DangerButtonStyle}"
-                                                    Command="{Binding DataContext.DisableCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                    CommandParameter="{Binding}"
-                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBooleanToVisibilityConverter}}" />
+                                                    Visibility="{Binding IsEnabled, Converter={StaticResource InverseBoolToVis}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE768;" FontFamily="{StaticResource FluentIcons}" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                                    <TextBlock Text="Turn On" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+
+                                            <!-- Backup-only actions -->
+                                            <StackPanel Orientation="Horizontal" Visibility="{Binding IsBackupOnly, Converter={StaticResource BoolToVis}}">
+                                                <Button Style="{StaticResource BtnPrimary}" Margin="0,0,8,0" Padding="14,10"
+                                                        Command="{Binding DataContext.RestoreFromBackupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Restore this startup entry">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE777;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <TextBlock Text="Restore" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <Button Style="{StaticResource BtnDanger}" Padding="14,10"
+                                                        Command="{Binding DataContext.DeleteBackupCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Delete backup permanently">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="&#xE74D;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                        <TextBlock Text="Delete" VerticalAlignment="Center" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </StackPanel>
                                         </StackPanel>
 
-                                        <ToggleButton Content="Auto-keep disabled"
-                                                  Margin="0,10,0,0"
-                                                  Style="{StaticResource FilterToggleStyle}"
-                                                  IsChecked="{Binding IsAutoGuardEnabled, Mode=TwoWay}"
-                                                  Checked="OnGuardToggled"
-                                                  Unchecked="OnGuardToggled"
-                                                  ToolTip="If the app re-enables itself, TidyWindow will disable it again on refresh." />
+                                        <!-- Secondary Actions Row -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,10,0,0" HorizontalAlignment="Right"
+                                                    Visibility="{Binding IsBackupOnly, Converter={StaticResource InverseBoolToVis}}">
+                                            <!-- Keep Disabled Toggle (replaces Guard) -->
+                                            <ToggleButton Style="{StaticResource ActionToggle}" Margin="0,0,8,0"
+                                                          IsChecked="{Binding IsAutoGuardEnabled, Mode=TwoWay}"
+                                                          Checked="OnGuardToggled" Unchecked="OnGuardToggled"
+                                                          ToolTip="If this app re-enables itself, TidyWindow will automatically disable it again">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE72E;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Keep Disabled" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </ToggleButton>
 
-                                        <Button Content="Delay 45s"
-                                                Margin="0,12,0,0"
-                                                Style="{StaticResource OutlineButtonStyle}"
-                                                Command="{Binding DataContext.DelayCommand, RelativeSource={RelativeSource AncestorType=Page}}"
-                                                CommandParameter="{Binding}"
-                                                ToolTip="Defers this user-scope entry to a delayed logon task"
-                                                IsEnabled="{Binding CanDelay}" />
-                                        <ProgressBar Height="6"
-                                                     Width="160"
-                                                     IsIndeterminate="True"
-                                                     Margin="0,10,0,0"
-                                                     Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <!-- Delay Button -->
+                                            <Button Style="{StaticResource BtnSecondary}" Padding="12,6"
+                                                    Command="{Binding DataContext.DelayCommand, RelativeSource={RelativeSource AncestorType=Page}}"
+                                                    CommandParameter="{Binding}"
+                                                    IsEnabled="{Binding CanDelay}"
+                                                    ToolTip="Delay startup by 45 seconds to speed up boot time">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="&#xE823;" FontFamily="{StaticResource FluentIcons}" FontSize="11" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                    <TextBlock Text="Delay Start" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                        </StackPanel>
+
+                                        <!-- Busy Indicator -->
+                                        <ProgressBar Height="4" Width="140" IsIndeterminate="True" Margin="0,12,0,0"
+                                                     Foreground="{StaticResource AccentCyan}" Background="#1E293B"
+                                                     Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-
             </Grid>
         </Grid>
 
-                <Grid Background="#E60B1629"
-                            Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                            Panel.ZIndex="10">
-                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <ProgressBar Width="160" Height="10" IsIndeterminate="True" Foreground="#38BDF8" Background="#0E1C30" BorderBrush="#1F2E46" />
-                                <TextBlock Text="Loading startup apps..."
-                                                     Margin="0,10,0,0"
-                                                     Foreground="#E5E7EB"
-                                                     FontSize="13"
-                                                     HorizontalAlignment="Center" />
-                        </StackPanel>
-                </Grid>
+        <!-- Loading Overlay -->
+        <Grid Background="#E6050B14" Visibility="{Binding IsBusy, Converter={StaticResource BoolToVis}}" Panel.ZIndex="10">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32" CornerRadius="20">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0C1829" Offset="0" />
+                        <GradientStop Color="#1E293B" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#22D3EE" Offset="0" />
+                        <GradientStop Color="#7C3AED" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <StackPanel HorizontalAlignment="Center">
+                    <ProgressBar Width="160" Height="6" IsIndeterminate="True" Foreground="{StaticResource AccentCyan}" Background="#1E293B" />
+                    <TextBlock Margin="0,14,0,0" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center">
+                        <Run Text="&#xE7B8;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Loading startup apps..." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+        </Grid>
 
-        <!-- Pager control with border highlight -->
-        <Border HorizontalAlignment="Right"
-            VerticalAlignment="Bottom"
-            Margin="24"
-            Padding="10,8"
-            Background="Transparent"
-            BorderBrush="{StaticResource StartupCardBorderBrush}"
-            BorderThickness="1"
-            CornerRadius="10"
-            Panel.ZIndex="6"
-            Visibility="{Binding HasMultiplePages, Converter={StaticResource BooleanToVisibilityConverter}}">
-            <StackPanel Orientation="Horizontal"
-                VerticalAlignment="Center">
-            <TextBlock Text="{Binding PageDisplay}"
-                   Foreground="#C6D4EE"
-                   FontSize="12"
-                   VerticalAlignment="Center" />
-            <StackPanel Orientation="Horizontal"
-                    Margin="12,0,0,0">
-                <Button Content="Previous"
-                    Command="{Binding GoToPreviousPageCommand}"
-                    Style="{StaticResource OutlineButtonStyle}"
-                    Padding="12,6"
-                    Margin="0,0,8,0"
-                    IsEnabled="{Binding CanGoToPreviousPage}" />
-                <Button Content="Next"
-                    Command="{Binding GoToNextPageCommand}"
-                    Style="{StaticResource PrimaryButtonStyle}"
-                    Padding="12,6"
-                    IsEnabled="{Binding CanGoToNextPage}" />
-            </StackPanel>
+        <!-- Pager -->
+        <Border HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="24" Padding="12,10"
+                Background="{StaticResource CardBg}" BorderBrush="{StaticResource CardBorder}" BorderThickness="1" CornerRadius="12"
+                Panel.ZIndex="6" Visibility="{Binding HasMultiplePages, Converter={StaticResource BoolToVis}}">
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="{Binding PageDisplay}" Foreground="{StaticResource TextSecondary}" FontSize="12" VerticalAlignment="Center" />
+                <Button Style="{StaticResource BtnSecondary}" Margin="12,0,8,0" Padding="12,6"
+                        Command="{Binding GoToPreviousPageCommand}" IsEnabled="{Binding CanGoToPreviousPage}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE76B;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,4,0" />
+                        <TextBlock Text="Prev" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource BtnPrimary}" Padding="12,6"
+                        Command="{Binding GoToNextPageCommand}" IsEnabled="{Binding CanGoToNextPage}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="Next" VerticalAlignment="Center" />
+                        <TextBlock Text="&#xE76C;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="4,0,0,0" />
+                    </StackPanel>
+                </Button>
             </StackPanel>
         </Border>
     </Grid>

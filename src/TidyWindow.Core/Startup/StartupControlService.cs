@@ -812,10 +812,103 @@ public sealed class StartupControlService
 
     private static void RestoreServiceRecoveryOptions(string serviceName, string backupData)
     {
-        // Note: Full recovery restoration would require parsing the backup data
-        // and calling sc.exe with the original settings. This is left as a stub
-        // since most users won't need full restoration of complex recovery options.
-        // The backup data is stored for manual restoration if needed.
+        if (string.IsNullOrWhiteSpace(backupData))
+        {
+            return;
+        }
+
+        try
+        {
+            // Decode the base64 backup data
+            var decoded = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(backupData));
+            if (string.IsNullOrWhiteSpace(decoded))
+            {
+                return;
+            }
+
+            // Parse the sc qfailure output to extract recovery actions
+            // Format: RESET_PERIOD (in seconds), FAILURE_ACTIONS
+            var resetPeriod = 0;
+            var actions = new List<string>();
+
+            foreach (var line in decoded.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                var trimmed = line.Trim();
+
+                // Parse RESET_PERIOD
+                if (trimmed.StartsWith("RESET_PERIOD", StringComparison.OrdinalIgnoreCase))
+                {
+                    var parts = trimmed.Split(':');
+                    if (parts.Length >= 2)
+                    {
+                        var valueStr = parts[1].Trim().Split(' ')[0];
+                        int.TryParse(valueStr, out resetPeriod);
+                    }
+                }
+
+                // Parse FAILURE_ACTIONS entries (e.g., "RESTART -- Delay = 60000 milliseconds")
+                if (trimmed.Contains("--", StringComparison.Ordinal) && trimmed.Contains("Delay", StringComparison.OrdinalIgnoreCase))
+                {
+                    var actionType = "";
+                    var delay = 0;
+
+                    if (trimmed.StartsWith("RESTART", StringComparison.OrdinalIgnoreCase))
+                    {
+                        actionType = "restart";
+                    }
+                    else if (trimmed.StartsWith("RUN PROCESS", StringComparison.OrdinalIgnoreCase))
+                    {
+                        actionType = "run";
+                    }
+                    else if (trimmed.StartsWith("REBOOT", StringComparison.OrdinalIgnoreCase))
+                    {
+                        actionType = "reboot";
+                    }
+                    else
+                    {
+                        continue; // Skip "NONE" or unknown actions
+                    }
+
+                    // Extract delay value
+                    var delayMatch = System.Text.RegularExpressions.Regex.Match(trimmed, @"Delay\s*=\s*(\d+)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (delayMatch.Success)
+                    {
+                        int.TryParse(delayMatch.Groups[1].Value, out delay);
+                    }
+
+                    actions.Add($"{actionType}/{delay}");
+                }
+            }
+
+            if (actions.Count == 0)
+            {
+                return; // No actions to restore
+            }
+
+            // Build the sc failure command
+            // Format: sc failure servicename reset= <period> actions= <action1>/<delay1>/<action2>/<delay2>/...
+            var actionsArg = string.Join("/", actions);
+            var arguments = $"failure \"{serviceName}\" reset= {resetPeriod} actions= {actionsArg}";
+
+            using var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "sc.exe",
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }
+            };
+            process.Start();
+            process.WaitForExit(5000);
+        }
+        catch
+        {
+            // Non-fatal: recovery restoration failed, but service is still enabled
+        }
     }
 
     private static bool TryParseRegistryLocation(string? location, out RegistryKey root, out string subKey)

@@ -241,6 +241,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         ToggleCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(ToggleAsync, CanToggle);
         EnableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(EnableAsync, CanEnable);
         DisableCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DisableAsync, CanDisable);
+        DisableAndStopCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DisableAndStopAsync, CanDisable);
         DelayCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DelayAsync, CanDelay);
         RestoreFromBackupCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(RestoreFromBackupAsync, CanRestoreFromBackup);
         DeleteBackupCommand = new AsyncRelayCommand<StartupEntryItemViewModel>(DeleteBackupAsync, CanDeleteBackup);
@@ -278,6 +279,8 @@ public sealed partial class StartupControllerViewModel : ObservableObject
     public IAsyncRelayCommand<StartupEntryItemViewModel> EnableCommand { get; }
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> DisableCommand { get; }
+
+    public IAsyncRelayCommand<StartupEntryItemViewModel> DisableAndStopCommand { get; }
 
     public IAsyncRelayCommand<StartupEntryItemViewModel> DelayCommand { get; }
 
@@ -330,6 +333,7 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         ToggleCommand.NotifyCanExecuteChanged();
         EnableCommand.NotifyCanExecuteChanged();
         DisableCommand.NotifyCanExecuteChanged();
+        DisableAndStopCommand.NotifyCanExecuteChanged();
         DelayCommand.NotifyCanExecuteChanged();
         RestoreFromBackupCommand.NotifyCanExecuteChanged();
         DeleteBackupCommand.NotifyCanExecuteChanged();
@@ -723,6 +727,16 @@ public sealed partial class StartupControllerViewModel : ObservableObject
 
     private async Task DisableAsync(StartupEntryItemViewModel? item)
     {
+        await DisableCoreAsync(item, terminateRunningProcesses: false).ConfigureAwait(true);
+    }
+
+    private async Task DisableAndStopAsync(StartupEntryItemViewModel? item)
+    {
+        await DisableCoreAsync(item, terminateRunningProcesses: true).ConfigureAwait(true);
+    }
+
+    private async Task DisableCoreAsync(StartupEntryItemViewModel? item, bool terminateRunningProcesses)
+    {
         if (item is null || !item.IsEnabled)
         {
             return;
@@ -736,13 +750,14 @@ public sealed partial class StartupControllerViewModel : ObservableObject
         item.IsBusy = true;
         try
         {
-            var result = await Task.Run(async () => await _control.DisableAsync(item.Item).ConfigureAwait(false)).ConfigureAwait(true);
+            var result = await Task.Run(async () => await _control.DisableAsync(item.Item, terminateRunningProcesses).ConfigureAwait(false)).ConfigureAwait(true);
             if (result.Succeeded)
             {
                 item.UpdateFrom(result.Item);
+                var action = terminateRunningProcesses ? "Disabled and stopped" : "Disabled";
                 _activityLog.LogSuccess(
                     "StartupController",
-                    BuildActionMessage(result.Item, "Disabled"),
+                    BuildActionMessage(result.Item, action),
                     BuildUserFacingDetails(result));
                 RefreshAfterStateChange();
             }

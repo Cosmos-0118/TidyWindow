@@ -11,316 +11,181 @@
     xmlns:viewModels="clr-namespace:TidyWindow.App.ViewModels"
     mc:Ignorable="d"
     Title="Known Processes"
-    Background="{DynamicResource SystemControlBackgroundBaseLowBrush}"
+    Background="Transparent"
     UseLayoutRounding="True"
     SnapsToDevicePixels="True"
     TextOptions.TextFormattingMode="Display"
     TextOptions.TextRenderingMode="ClearType"
     TextOptions.TextHintingMode="Fixed"
-    RenderOptions.BitmapScalingMode="HighQuality"
+    RenderOptions.BitmapScalingMode="NearestNeighbor"
+    RenderOptions.ClearTypeHint="Enabled"
     behaviors:ScrollBubbleBehavior.IsEnabled="True">
+
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:EnumEqualsConverter x:Key="EnumEqualsConverter" />
         <converters:SuspicionLevelToBrushConverter x:Key="SuspicionBrush" />
+        <converters:InverseBooleanConverter x:Key="InverseBooleanConverter" />
 
-        <SolidColorBrush x:Key="ProcessHeadlineBrush" Color="#FDFEFE" />
-        <SolidColorBrush x:Key="ProcessBodyBrush" Color="#D5E0FF" />
-        <SolidColorBrush x:Key="ProcessMutedBrush" Color="#A9B8D4" />
-        <SolidColorBrush x:Key="ProcessStatusLabelBrush" Color="#34D399" />
-                <Style x:Key="ProcessHeroTitleTextStyle" TargetType="TextBlock">
-                    <Setter Property="FontSize" Value="20" />
-                    <Setter Property="FontWeight" Value="SemiBold" />
-                    <Setter Property="Foreground" Value="{StaticResource ProcessHeadlineBrush}" />
-                    <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-                    <Setter Property="SnapsToDevicePixels" Value="True" />
-                </Style>
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- VIBRANT COLOR PALETTE                                          -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <SolidColorBrush x:Key="PageBg" Color="#050B14" />
+        <SolidColorBrush x:Key="CardBg" Color="#0C1829" />
+        <SolidColorBrush x:Key="CardBgHover" Color="#0E1D32" />
+        <SolidColorBrush x:Key="CardBorder" Color="#1A2D47" />
+        <SolidColorBrush x:Key="TextPrimary" Color="#F8FAFC" />
+        <SolidColorBrush x:Key="TextSecondary" Color="#CBD5E1" />
+        <SolidColorBrush x:Key="TextMuted" Color="#64748B" />
 
-                <Style x:Key="ProcessHeroBodyTextStyle" TargetType="TextBlock">
-                    <Setter Property="FontSize" Value="13" />
-                    <Setter Property="Foreground" Value="{StaticResource ProcessBodyBrush}" />
-                    <Setter Property="TextWrapping" Value="Wrap" />
-                    <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-                    <Setter Property="SnapsToDevicePixels" Value="True" />
-                </Style>
-        <SolidColorBrush x:Key="ProcessSourceBadgeBrush" Color="#10253E" />
-        <SolidColorBrush x:Key="ProcessSourceBadgeForegroundBrush" Color="#7DD3FC" />
-        <SolidColorBrush x:Key="ProcessDangerActionHoverBrush" Color="#EF4444" />
-        <SolidColorBrush x:Key="ThreatWatchCardBaseBrush" Color="#0F172A" />
-        <SolidColorBrush x:Key="ThreatWatchCriticalBrush" Color="#2B0D16" />
-        <SolidColorBrush x:Key="ThreatWatchElevatedBrush" Color="#1F1724" />
-        <SolidColorBrush x:Key="ThreatWatchWatchBrush" Color="#101E2B" />
-        <SolidColorBrush x:Key="ThreatWatchCardBorderBrush" Color="#1F2A44" />
+        <!-- Vibrant Accent Colors -->
+        <SolidColorBrush x:Key="AccentCyan" Color="#22D3EE" />
+        <SolidColorBrush x:Key="AccentBlue" Color="#3B82F6" />
+        <SolidColorBrush x:Key="AccentPurple" Color="#A855F7" />
+        <SolidColorBrush x:Key="AccentPink" Color="#EC4899" />
+        <SolidColorBrush x:Key="AccentTeal" Color="#2DD4BF" />
+        <SolidColorBrush x:Key="SuccessGreen" Color="#4ADE80" />
+        <SolidColorBrush x:Key="WarningAmber" Color="#FBBF24" />
+        <SolidColorBrush x:Key="DangerRed" Color="#F87171" />
 
-        <DropShadowEffect x:Key="ProcessGlowShadowEffect"
-                          Color="#030712"
-                          BlurRadius="18"
-                          ShadowDepth="0"
-                          Opacity="0.35" />
-        <DropShadowEffect x:Key="ProcessCardShadowEffect"
-                          Color="#01060C"
-                          BlurRadius="26"
-                          ShadowDepth="0"
-                          Opacity="0.6" />
+        <!-- Icon Font -->
+        <FontFamily x:Key="FluentIcons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 
-        <Style x:Key="ProcessPrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#F8FAFC" />
-            <Setter Property="Padding" Value="16,8" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="BorderThickness" Value="0" />
-            <Setter Property="Background">
-                <Setter.Value>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                        <GradientStop Color="#7C3AED" Offset="0" />
-                        <GradientStop Color="#2563EB" Offset="1" />
-                    </LinearGradientBrush>
-                </Setter.Value>
-            </Setter>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}"
-                                Effect="{StaticResource ProcessGlowShadowEffect}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.45" />
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.92" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+        <!-- Gradient Brushes -->
+        <LinearGradientBrush x:Key="HeroGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#0A1628" Offset="0" />
+            <GradientStop Color="#0F2847" Offset="0.5" />
+            <GradientStop Color="#0D3355" Offset="1" />
+        </LinearGradientBrush>
 
-        <Style x:Key="ProcessSecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#E2E8F0" />
-            <Setter Property="Background" Value="#142033" />
-            <Setter Property="BorderBrush" Value="#253453" />
+        <LinearGradientBrush x:Key="CyanGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#22D3EE" Offset="0" />
+            <GradientStop Color="#06B6D4" Offset="1" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="PurpleGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#A855F7" Offset="0" />
+            <GradientStop Color="#7C3AED" Offset="1" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="GreenGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#4ADE80" Offset="0" />
+            <GradientStop Color="#22C55E" Offset="1" />
+        </LinearGradientBrush>
+
+        <LinearGradientBrush x:Key="BlueGradient" StartPoint="0,0" EndPoint="1,1">
+            <GradientStop Color="#38BDF8" Offset="0" />
+            <GradientStop Color="#2563EB" Offset="1" />
+        </LinearGradientBrush>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- MODERN CARD STYLES                                              -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Style x:Key="ModernCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource CardBg}" />
+            <Setter Property="BorderBrush" Value="{StaticResource CardBorder}" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="16,8" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.45" />
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1C2D4A" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ProcessDangerButtonStyle" TargetType="Button" BasedOn="{StaticResource ProcessPrimaryButtonStyle}">
-            <Setter Property="Background" Value="#DC2626" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="10"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.4" />
-                            </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource ProcessDangerActionHoverBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ProcessNavToggleStyle" TargetType="ToggleButton">
-            <Setter Property="Foreground" Value="#CBD5E1" />
-            <Setter Property="Background" Value="#0F1C30" />
-            <Setter Property="BorderBrush" Value="#1F2E46" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Padding" Value="18,11" />
-            <Setter Property="Margin" Value="0,0,8,0" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ToggleButton">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="12"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#38BDF8" />
-                                <Setter TargetName="Root" Property="Background" Value="#13294A" />
-                                <Setter Property="Foreground" Value="#F8FAFC" />
-                            </Trigger>
-                            <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Root" Property="Background">
-                                    <Setter.Value>
-                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                            <GradientStop Color="#2563EB" Offset="0" />
-                                            <GradientStop Color="#1D4ED8" Offset="1" />
-                                        </LinearGradientBrush>
-                                    </Setter.Value>
-                                </Setter>
-                                <Setter TargetName="Root" Property="BorderBrush" Value="#60A5FA" />
-                                <Setter Property="Foreground" Value="#F8FAFC" />
-                                <Setter TargetName="Root" Property="Effect">
-                                    <Setter.Value>
-                                        <DropShadowEffect BlurRadius="12" ShadowDepth="0" Opacity="0.25" Color="#60A5FA" />
-                                    </Setter.Value>
-                                </Setter>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style x:Key="ProcessCardStyle" TargetType="Border">
             <Setter Property="CornerRadius" Value="16" />
             <Setter Property="Padding" Value="20" />
-            <Setter Property="Background" Value="#0B1120" />
-            <Setter Property="BorderBrush" Value="#1D2A44" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Margin" Value="0,0,16,16" />
-            <Setter Property="Effect" Value="{StaticResource ProcessCardShadowEffect}" />
             <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="UseLayoutRounding" Value="True" />
-            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
-            <Setter Property="CacheMode">
-                <Setter.Value>
-                    <BitmapCache EnableClearType="True" />
-                </Setter.Value>
-            </Setter>
         </Style>
 
-        <Style x:Key="ProcessSettingsCardStyle" TargetType="Border" BasedOn="{StaticResource ProcessCardStyle}">
-            <Setter Property="Margin" Value="0" />
-            <Setter Property="Padding" Value="18" />
-            <Setter Property="Background" Value="#0F172A" />
-        </Style>
-
-        <Style x:Key="ProcessInfoChipStyle" TargetType="Border">
-            <Setter Property="Background" Value="#122544" />
-            <Setter Property="BorderBrush" Value="#1F3560" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="Margin" Value="0,0,10,10" />
-        </Style>
-
-        <Style x:Key="HitCardStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="16" />
-            <Setter Property="Background" Value="#0F172A" />
-            <Setter Property="BorderBrush" Value="#1E293B" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Margin" Value="0,0,0,12" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="UseLayoutRounding" Value="True" />
-            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
-        </Style>
-
-        <Style x:Key="RuleBadgeStyle" TargetType="Border">
-            <Setter Property="Background" Value="#1D4ED8" />
-            <Setter Property="CornerRadius" Value="8" />
-            <Setter Property="Padding" Value="6,2" />
-            <Setter Property="Margin" Value="0,4,8,0" />
-        </Style>
-
-        <Style x:Key="ThreatWatchCardStyle" TargetType="Border">
-            <Setter Property="CornerRadius" Value="18" />
-            <Setter Property="Padding" Value="20" />
-            <Setter Property="Background" Value="{StaticResource ThreatWatchCardBaseBrush}" />
-            <Setter Property="BorderBrush" Value="{StaticResource ThreatWatchCardBorderBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
+        <Style x:Key="ProcessCard" TargetType="Border" BasedOn="{StaticResource ModernCard}">
             <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="Effect" Value="{StaticResource ProcessCardShadowEffect}" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-            <Setter Property="UseLayoutRounding" Value="True" />
-            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality" />
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderBrush" Value="#38BDF8" />
+                    <Setter Property="Background" Value="#0E1D32" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="ThreatCard" TargetType="Border" BasedOn="{StaticResource ModernCard}">
+            <Setter Property="Margin" Value="0,0,0,16" />
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Level}" Value="{x:Static core:SuspicionLevel.Red}">
-                    <Setter Property="Background" Value="{StaticResource ThreatWatchCriticalBrush}" />
+                    <Setter Property="Background" Value="#1C0A0F" />
+                    <Setter Property="BorderBrush" Value="#F87171" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Level}" Value="{x:Static core:SuspicionLevel.Orange}">
-                    <Setter Property="Background" Value="{StaticResource ThreatWatchElevatedBrush}" />
+                    <Setter Property="Background" Value="#1A150B" />
+                    <Setter Property="BorderBrush" Value="#FB923C" />
                 </DataTrigger>
                 <DataTrigger Binding="{Binding Level}" Value="{x:Static core:SuspicionLevel.Yellow}">
-                    <Setter Property="Background" Value="{StaticResource ThreatWatchWatchBrush}" />
+                    <Setter Property="Background" Value="#1A1A0B" />
+                    <Setter Property="BorderBrush" Value="#FBBF24" />
                 </DataTrigger>
             </Style.Triggers>
         </Style>
 
-        <Style x:Key="ThreatWatchInfoChipStyle" TargetType="Border">
-            <Setter Property="Background" Value="#132740" />
-            <Setter Property="BorderBrush" Value="#1F3B63" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="12" />
-            <Setter Property="Padding" Value="10,6" />
-            <Setter Property="Margin" Value="0,0,10,10" />
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- VIBRANT BADGE STYLES                                           -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Style x:Key="StatusBadge" TargetType="Border">
+            <Setter Property="CornerRadius" Value="8" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="VerticalAlignment" Value="Center" />
         </Style>
 
-        <Style x:Key="ThreatWatchActionButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#F8FAFC" />
+        <Style x:Key="AutoStopBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+            <Setter Property="Background" Value="#052E16" />
+            <Setter Property="BorderBrush" Value="#4ADE80" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="KeepBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+            <Setter Property="Background" Value="#172554" />
+            <Setter Property="BorderBrush" Value="#60A5FA" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="CautionBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+            <Setter Property="Background" Value="#422006" />
+            <Setter Property="BorderBrush" Value="#FBBF24" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+
+        <Style x:Key="SourceBadge" TargetType="Border" BasedOn="{StaticResource StatusBadge}">
+            <Setter Property="Background" Value="#1E1B4B" />
+            <Setter Property="BorderBrush" Value="#A78BFA" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8,4" />
+        </Style>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- MODERN BUTTON STYLES                                            -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Style x:Key="BtnPrimary" TargetType="Button">
+            <Setter Property="Foreground" Value="#0F172A" />
             <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="Padding" Value="20,12" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="MinHeight" Value="44" />
-            <Setter Property="MinWidth" Value="110" />
-            <Setter Property="Background" Value="#1D4ED8" />
-            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="16,10" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
-                        <Border x:Name="Root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="10">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              Margin="2,0,2,0" />
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#22D3EE" Offset="0" />
+                                    <GradientStop Color="#06B6D4" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#2563EB" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="#1E40AF" />
+                                <Setter TargetName="Bd" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#67E8F9" Offset="0" />
+                                            <GradientStop Color="#22D3EE" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Root" Property="Opacity" Value="0.4" />
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -328,67 +193,170 @@
             </Setter>
         </Style>
 
-        <Style x:Key="ThreatWatchDangerButtonStyle"
-               TargetType="Button"
-               BasedOn="{StaticResource ProcessDangerButtonStyle}">
-            <Setter Property="Padding" Value="20,12" />
-            <Setter Property="FontSize" Value="14" />
-            <Setter Property="MinHeight" Value="44" />
-            <Setter Property="MinWidth" Value="110" />
-        </Style>
-
-        <Style x:Key="SettingsSectionHeaderTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#F8FAFC" />
-            <Setter Property="FontSize" Value="18" />
-            <Setter Property="FontWeight" Value="SemiBold" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
-        </Style>
-
-        <Style x:Key="SettingsSectionSubtitleTextStyle" TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#94A3B8" />
+        <Style x:Key="BtnSecondary" TargetType="Button">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="FontWeight" Value="Medium" />
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="TextWrapping" Value="Wrap" />
-            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
-            <Setter Property="SnapsToDevicePixels" Value="True" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}"
+                                Background="#1E293B" BorderBrush="#334155" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#334155" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="#22D3EE" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
 
-        <Style x:Key="SettingsToggleSwitchStyle" TargetType="ToggleButton">
-            <Setter Property="Width" Value="52" />
-            <Setter Property="Height" Value="28" />
-            <Setter Property="Background" Value="#1F2937" />
-            <Setter Property="BorderBrush" Value="#1F2937" />
-            <Setter Property="BorderThickness" Value="0" />
+        <Style x:Key="BtnDanger" TargetType="Button">
+            <Setter Property="Foreground" Value="#FEE2E2" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}"
+                                Background="#7F1D1D" BorderBrush="#F87171" BorderThickness="1">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="#991B1B" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BtnSuccess" TargetType="Button">
+            <Setter Property="Foreground" Value="#052E16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#4ADE80" Offset="0" />
+                                    <GradientStop Color="#22C55E" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#86EFAC" Offset="0" />
+                                            <GradientStop Color="#4ADE80" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="BtnPurple" TargetType="Button">
+            <Setter Property="Foreground" Value="#FFFFFF" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="10" Padding="{TemplateBinding Padding}">
+                            <Border.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                    <GradientStop Color="#A855F7" Offset="0" />
+                                    <GradientStop Color="#7C3AED" Offset="1" />
+                                </LinearGradientBrush>
+                            </Border.Background>
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#C084FC" Offset="0" />
+                                            <GradientStop Color="#A855F7" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.4" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- TOGGLE SWITCH                                                   -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Style x:Key="ToggleSwitch" TargetType="ToggleButton">
+            <Setter Property="Width" Value="48" />
+            <Setter Property="Height" Value="26" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="Focusable" Value="False" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ToggleButton">
                         <Grid>
-                            <Border x:Name="Track"
-                                    Background="{TemplateBinding Background}"
-                                    BorderBrush="#334155"
-                                    BorderThickness="1"
-                                    CornerRadius="14" />
-                            <Ellipse x:Name="Thumb"
-                                     Width="22"
-                                     Height="22"
-                                     Fill="#F8FAFC"
-                                     Margin="4,3,26,3" />
+                            <Border x:Name="Track" CornerRadius="13" Background="#1E293B" BorderBrush="#475569" BorderThickness="1" />
+                            <Ellipse x:Name="Thumb" Width="20" Height="20" Fill="#94A3B8" HorizontalAlignment="Left" Margin="2,0,0,0" />
                         </Grid>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter TargetName="Track" Property="Background" Value="#7C3AED" />
-                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED" />
-                                <Setter TargetName="Thumb" Property="Margin" Value="26,3,4,3" />
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Track" Property="Background" Value="#1F2937" />
-                                <Setter TargetName="Track" Property="BorderBrush" Value="#1F2937" />
-                                <Setter TargetName="Thumb" Property="Fill" Value="#475569" />
+                                <Setter TargetName="Track" Property="Background">
+                                    <Setter.Value>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#22D3EE" Offset="0" />
+                                            <GradientStop Color="#06B6D4" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Setter.Value>
+                                </Setter>
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#67E8F9" />
+                                <Setter TargetName="Thumb" Property="Fill" Value="#FFFFFF" />
+                                <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                                <Setter TargetName="Thumb" Property="Margin" Value="0,0,2,0" />
                             </Trigger>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Track" Property="BorderBrush" Value="#7C3AED" />
+                                <Setter TargetName="Track" Property="BorderBrush" Value="#22D3EE" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Track" Property="Opacity" Value="0.4" />
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -398,977 +366,895 @@
     </Page.Resources>
 
     <Grid>
-    <ScrollViewer x:Name="PageScrollViewer"
-                  Margin="24"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  CanContentScroll="False">
-        <Grid behaviors:ScrollBubbleBehavior.IsEnabled="True">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
+        <ScrollViewer x:Name="PageScrollViewer"
+                      Margin="24"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      CanContentScroll="False">
+            <Grid behaviors:ScrollBubbleBehavior.IsEnabled="True">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-        <controls:PageTitleBar Grid.Row="0"
-                               Title="Known processes"
-                               Subtitle="Auto-stop recommendations cockpit"
-                               IconGlyph="🧠"
-                               BadgeText="{Binding Categories.Count, StringFormat={}{0} groups}"
-                               Margin="0,0,0,16">
-            <controls:PageTitleBar.TrailingContent>
-                <Button Padding="16,8"
-                        Style="{StaticResource ProcessSecondaryButtonStyle}"
-                        Command="{Binding RefreshCommand}">
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                HorizontalAlignment="Center">
-                        <Grid Width="18"
-                              Height="18"
-                              Margin="0,0,8,0"
-                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                              RenderTransformOrigin="0.5,0.5">
-                            <Grid.RenderTransform>
-                                <RotateTransform />
-                            </Grid.RenderTransform>
-                            <Ellipse Width="16"
-                                     Height="16"
-                                     Stroke="#5EEAD4"
-                                     StrokeThickness="2"
-                                     StrokeDashArray="12 6"
-                                     StrokeStartLineCap="Round"
-                                     StrokeEndLineCap="Round"
-                                     Opacity="0.9" />
-                            <Grid.Triggers>
-                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                                    <BeginStoryboard>
-                                        <Storyboard RepeatBehavior="Forever">
-                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                             From="0"
-                                                             To="360"
-                                                             Duration="0:0:1.1" />
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </EventTrigger>
-                            </Grid.Triggers>
-                        </Grid>
-                        <Grid>
-                            <TextBlock Text="Refresh"
-                                       Foreground="#F8FAFC"
-                                       Visibility="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
-                            <TextBlock Text="Refreshing..."
-                                       Foreground="#F8FAFC"
-                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                        </Grid>
-                    </StackPanel>
-                </Button>
-            </controls:PageTitleBar.TrailingContent>
-            <controls:PageTitleBar.BodyContent>
-                <Border Background="#0D1930"
-                        BorderBrush="#1D2F52"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        Padding="20"
-                        Margin="0,6,0,0">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="Keep Windows services tidy by applying questionnaire-driven auto-stop recommendations."
-                                       Style="{StaticResource ProcessHeroBodyTextStyle}" />
-                            <TextBlock Text="Lean on curated cues to keep Xbox, Game Bar, and background helpers quiet when you do not need them."
-                                       Margin="0,6,0,0"
-                                       Style="{StaticResource ProcessHeroBodyTextStyle}"
-                                       Foreground="{StaticResource ProcessMutedBrush}" />
-                        </StackPanel>
-                        <WrapPanel Grid.Column="1"
-                                   HorizontalAlignment="Right"
-                                   VerticalAlignment="Center"
-                                   Margin="16,0,0,0">
-                            <Border Background="#102C4A"
-                                    BorderBrush="#1E3A5F"
-                                    BorderThickness="1"
-                                    CornerRadius="12"
-                                    Padding="12,4"
-                                    Margin="0,0,8,0">
-                                <TextBlock Text="{Binding Summary}"
-                                           Foreground="{StaticResource ProcessHeadlineBrush}"
-                                           FontWeight="SemiBold" />
-                            </Border>
-                            <Border Background="#102C4A"
-                                    BorderBrush="#1E3A5F"
-                                    BorderThickness="1"
-                                    CornerRadius="12"
-                                    Padding="12,4">
-                                    <TextBlock Text="{Binding Categories.Count, StringFormat={}{0} process groups}"
-                                           Foreground="{StaticResource ProcessBodyBrush}" />
-                            </Border>
-                        </WrapPanel>
-                    </Grid>
-                </Border>
-            </controls:PageTitleBar.BodyContent>
-        </controls:PageTitleBar>
+                <!-- ═══════════════════════════════════════════════════════════════ -->
+                <!-- HERO HEADER                                                     -->
+                <!-- ═══════════════════════════════════════════════════════════════ -->
+                <controls:PageTitleBar Grid.Row="0"
+                                       Title="Known Processes"
+                                       Subtitle="Auto-stop recommendations cockpit"
+                                       IconGlyph="&#xE9F5;"
+                                       BadgeText="{Binding Categories.Count, StringFormat={}{0} groups}"
+                                       Margin="0,0,0,20">
+                    <controls:PageTitleBar.TrailingContent>
+                        <Button Style="{StaticResource BtnPrimary}"
+                                Command="{Binding RefreshCommand}"
+                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE72C;" FontFamily="{StaticResource FluentIcons}" FontSize="14" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Refresh" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+                    </controls:PageTitleBar.TrailingContent>
+                    <controls:PageTitleBar.BodyContent>
+                        <Border Style="{StaticResource ModernCard}" Padding="20" Margin="0,8,0,0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Keep Windows services tidy with questionnaire-driven auto-stop recommendations."
+                                               FontSize="14" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" />
+                                    <TextBlock Text="Lean on curated cues to quiet Xbox, Game Bar, and background helpers when idle."
+                                               FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,8,0,0" TextWrapping="Wrap" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="20,0,0,0">
+                                    <Border Style="{StaticResource AutoStopBadge}" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding Summary}" FontSize="12" FontWeight="SemiBold" Foreground="#4ADE80" />
+                                    </Border>
+                                    <Border Style="{StaticResource SourceBadge}">
+                                        <TextBlock Text="{Binding Categories.Count, StringFormat={}{0} groups}" FontSize="12" Foreground="#A78BFA" />
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </controls:PageTitleBar.BodyContent>
+                </controls:PageTitleBar>
 
-        <Border Grid.Row="1"
-                CornerRadius="8"
-                BorderBrush="{DynamicResource SystemControlForegroundChromeDisabledLowBrush}"
-                BorderThickness="1"
-                Padding="12"
-                Margin="0,0,0,16"
-                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
-            <Border.Style>
-                <Style TargetType="Border">
-                    <Setter Property="Visibility" Value="Collapsed" />
-                    <Style.Triggers>
-                        <MultiDataTrigger>
-                            <MultiDataTrigger.Conditions>
-                                <Condition Binding="{Binding IsBusy}" Value="True" />
-                                <Condition Binding="{Binding ActiveSection}" Value="{x:Static viewModels:KnownProcessViewSection.Catalog}" />
-                            </MultiDataTrigger.Conditions>
-                            <Setter Property="Visibility" Value="Visible" />
-                        </MultiDataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Border.Style>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <ProgressBar Width="160" IsIndeterminate="True" Height="6" />
-                <TextBlock Text="Loading known processes..."
-                           Margin="12,0,0,0"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
-            </StackPanel>
-        </Border>
-
-        <Grid Grid.Row="2">
-            <Grid>
-                <Grid.Style>
-                    <Style TargetType="Grid">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding ActiveSection}" Value="{x:Static viewModels:KnownProcessViewSection.Catalog}">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </Grid.Style>
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              CanContentScroll="False">
-                    <ScrollViewer.Style>
-                        <Style TargetType="ScrollViewer">
-                            <Setter Property="Visibility" Value="Visible" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding HasProcesses}" Value="False">
-                                    <Setter Property="Visibility" Value="Collapsed" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </ScrollViewer.Style>
-                    <ItemsControl ItemsSource="{Binding Categories}"
-                                  VirtualizingPanel.IsVirtualizing="True"
-                                  VirtualizingPanel.VirtualizationMode="Recycling"
-                                  VirtualizingPanel.ScrollUnit="Pixel">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <VirtualizingStackPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Expander IsExpanded="{Binding IsExpanded}" Margin="0,0,0,24">
-                                    <Expander.Header>
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Name}"
-                                                           FontSize="20"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{StaticResource ProcessHeadlineBrush}" />
-                                                <Border Background="#33F97316"
-                                                        Padding="8,2"
-                                                        Margin="12,0,0,0"
-                                                        CornerRadius="12"
-                                                        Visibility="{Binding IsCaution, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="Caution"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="#F97316" />
-                                                </Border>
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding Description}"
-                                                       Foreground="{StaticResource ProcessMutedBrush}" />
-                                            <TextBlock Text="{Binding Processes.Count, StringFormat={}{0} entries}"
-                                                       Foreground="{StaticResource ProcessBodyBrush}" />
-                                        </StackPanel>
-                                    </Expander.Header>
-                                    <ItemsControl ItemsSource="{Binding Processes}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <ux:AdaptiveTilePanel MinColumnWidth="420"
-                                                                      MaxColumnWidth="720"
-                                                                      MinColumns="1"
-                                                                      MaxColumns="3"
-                                                                      ColumnSpacing="24"
-                                                                      RowSpacing="20"
-                                                                      Padding="0" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Style="{StaticResource ProcessCardStyle}"
-                                                    MinWidth="420"
-                                                    MaxWidth="700">
-                                                    <StackPanel TextOptions.TextFormattingMode="Display">
-                                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                            <TextBlock Text="{Binding DisplayName, StringFormat=Process • {0}}"
-                                                                       FontWeight="SemiBold"
-                                                                       FontSize="17"
-                                                                       Foreground="{StaticResource ProcessHeadlineBrush}" />
-                                                            <Border Background="#33FACC15"
-                                                                    Padding="8,2"
-                                                                    Margin="8,0,0,0"
-                                                                    CornerRadius="10"
-                                                                    Visibility="{Binding IsCaution, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <TextBlock Text="Caution"
-                                                                           FontSize="12"
-                                                                           Foreground="#FACC15"
-                                                                           FontWeight="SemiBold" />
-                                                            </Border>
-                                                        </StackPanel>
-                                                        <TextBlock Text="{Binding RecommendationLabel}"
-                                                                   Foreground="{StaticResource ProcessMutedBrush}"
-                                                                   Margin="0,6,0,0" />
-                                                        <TextBlock Text="{Binding Rationale}"
-                                                                   TextWrapping="Wrap"
-                                                                   Foreground="{StaticResource ProcessBodyBrush}"
-                                                                   Margin="0,8,0,0" />
-                                                        <Grid Margin="0,12,0,0"
-                                                              VerticalAlignment="Center">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Text="Status"
-                                                                       Foreground="{StaticResource ProcessMutedBrush}"
-                                                                       FontWeight="SemiBold" />
-                                                            <TextBlock Grid.Column="1"
-                                                                       Margin="8,0,0,0"
-                                                                       Text="{Binding ActionLabel}"
-                                                                       Foreground="{StaticResource ProcessStatusLabelBrush}"
-                                                                       FontWeight="SemiBold" />
-                                                            <Border Grid.Column="2"
-                                                                    Margin="12,0,0,0"
-                                                                    HorizontalAlignment="Right"
-                                                                    Background="{StaticResource ProcessSourceBadgeBrush}"
-                                                                    Padding="10,2"
-                                                                    CornerRadius="10">
-                                                                <TextBlock Text="{Binding SourceLabel}"
-                                                                           Foreground="{StaticResource ProcessSourceBadgeForegroundBrush}"
-                                                                           FontSize="12"
-                                                                           FontWeight="SemiBold" />
-                                                            </Border>
-                                                        </Grid>
-                                                        <WrapPanel Margin="0,12,0,0">
-                                                            <Button Content="{Binding ToggleActionLabel}"
-                                                                Margin="0,0,12,12"
-                                                                Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                                                Command="{Binding ToggleActionCommand}" />
-                                                            <Button Content="Stop"
-                                                                Margin="0,0,12,12"
-                                                                Style="{StaticResource ProcessDangerButtonStyle}"
-                                                                Command="{Binding StopCommand}"
-                                                                IsEnabled="{Binding CanControl}" />
-                                                            <Button Content="Restart"
-                                                                Margin="0,0,12,12"
-                                                                Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                                                Command="{Binding RestartCommand}"
-                                                                IsEnabled="{Binding CanControl}" />
-                                                            <Button Content="Learn more"
-                                                                Margin="0,0,12,12"
-                                                                Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                                                Command="{Binding LearnMoreCommand}" />
-                                                        </WrapPanel>
-                                                        <TextBlock Text="{Binding LastActionMessage}"
-                                                                   Foreground="{StaticResource ProcessMutedBrush}"
-                                                                   TextWrapping="Wrap"
-                                                                   Margin="0,10,0,0" />
-                                                    </StackPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Expander>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-                <StackPanel HorizontalAlignment="Center"
-                            VerticalAlignment="Center">
-                    <StackPanel.Style>
-                        <Style TargetType="StackPanel">
+                <!-- Loading Indicator -->
+                <Border Grid.Row="1" Padding="16" Margin="0,0,0,16">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource ModernCard}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <MultiDataTrigger>
                                     <MultiDataTrigger.Conditions>
-                                        <Condition Binding="{Binding HasProcesses}" Value="False" />
-                                        <Condition Binding="{Binding IsBusy}" Value="False" />
+                                        <Condition Binding="{Binding IsBusy}" Value="True" />
+                                        <Condition Binding="{Binding ActiveSection}" Value="{x:Static viewModels:KnownProcessViewSection.Catalog}" />
                                     </MultiDataTrigger.Conditions>
                                     <Setter Property="Visibility" Value="Visible" />
                                 </MultiDataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </StackPanel.Style>
-                    <TextBlock Text="No known processes yet."
-                               FontSize="20"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource ProcessHeadlineBrush}"
-                               HorizontalAlignment="Center" />
-                    <TextBlock Text="Run the questionnaire or refresh the known process list to populate this tab."
-                               Margin="0,8,0,0"
-                               HorizontalAlignment="Center"
-                               Foreground="{StaticResource ProcessMutedBrush}" />
-                </StackPanel>
-            </Grid>
-
-            <ScrollViewer Grid.Row="0"
-                          VerticalScrollBarVisibility="Auto"
-                          DataContext="{Binding Preferences}">
-                <ScrollViewer.Style>
-                    <Style TargetType="ScrollViewer">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding DataContext.ActiveSection, RelativeSource={RelativeSource AncestorType=Grid}}"
-                                         Value="{x:Static viewModels:KnownProcessViewSection.Settings}">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ScrollViewer.Style>
-                <StackPanel>
-                    <Border Background="#0B1120"
-                            Padding="24"
-                            CornerRadius="16"
-                            BorderBrush="#1D2A44"
-                            BorderThickness="1"
-                            Margin="0,0,0,24">
-                        <StackPanel>
-                            <TextBlock Text="Process automation controls"
-                                       Style="{StaticResource SettingsSectionHeaderTextStyle}" />
-                            <TextBlock Text="Keep questionnaire guidance handy and jump to the most important adjustments without scrolling through every process card."
-                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                       Margin="0,6,0,16" />
-                            <StackPanel>
-                                <TextBlock Text="{Binding ProcessSummary}"
-                                           Foreground="#60A5FA"
-                                           FontWeight="SemiBold" />
-                                <TextBlock Text="{Binding AutoStopSummary}"
-                                           Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                           Margin="0,4,0,0" />
-                                <TextBlock Text="{Binding QuestionnaireSummary}"
-                                           Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                           Margin="0,4,0,0" />
-                            </StackPanel>
-                            <WrapPanel Margin="0,16,0,0" HorizontalAlignment="Left">
-                                <Button Content="Refresh processes"
-                                        Margin="0,0,12,12"
-                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding RefreshProcessPreferencesCommand}" />
-                                <Button Content="Rerun questionnaire"
-                                        Margin="0,0,12,12"
-                                        Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                        Command="{Binding RerunQuestionnaireCommand}" />
-                                <Button Content="Reset to recommended"
-                                        Margin="0,0,12,12"
-                                        Style="{StaticResource ProcessDangerButtonStyle}"
-                                        Command="{Binding ResetProcessPreferencesCommand}" />
-                                <Button Content="Manage allow &amp; quarantine"
-                                        Margin="0,0,0,12"
-                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding ShowThreatWatchHoldingsCommand}" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Background="#0B1120"
-                            Padding="24"
-                            CornerRadius="16"
-                            BorderBrush="#1D2A44"
-                            BorderThickness="1"
-                            Margin="0,0,0,24">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="Background auto-stop enforcement"
-                                           Style="{StaticResource SettingsSectionHeaderTextStyle}" />
-                                <ToggleButton Margin="12,0,0,0"
-                                              VerticalAlignment="Center"
-                                              Style="{StaticResource SettingsToggleSwitchStyle}"
-                                              IsChecked="{Binding IsAutoStopAutomationEnabled, Mode=TwoWay}" />
-                            </StackPanel>
-                            <TextBlock Text="TidyWindow can periodically re-stop services you have marked for auto-stop to keep telemetry and helpers quiet."
-                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                       Margin="0,6,0,16" />
-                            <StackPanel Orientation="Horizontal"
-                                        VerticalAlignment="Center"
-                                        Margin="0,0,0,12">
-                                <TextBlock Text="Interval"
-                                           Width="80"
-                                           Foreground="#94A3B8" />
-                                <ComboBox Width="180"
-                                          ItemsSource="{Binding AutoStopIntervalOptions}"
-                                          SelectedItem="{Binding AutoStopIntervalMinutes, Mode=TwoWay}"
-                                          HorizontalAlignment="Left">
-                                    <ComboBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <TextBlock Text="{Binding StringFormat={}{0} min}" />
-                                        </DataTemplate>
-                                    </ComboBox.ItemTemplate>
-                                </ComboBox>
-                            </StackPanel>
-                            <TextBlock Text="{Binding AutoStopStatusMessage}"
-                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                       Margin="0,0,0,12" />
-                            <Border Background="#2F1F4D"
-                                    CornerRadius="8"
-                                    Padding="10,4"
-                                    Margin="0,0,0,16"
-                                    Visibility="{Binding HasAutomationChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <TextBlock Text="Pending changes will apply when you press the button."
-                                           Foreground="#C084FC"
-                                           FontWeight="SemiBold" />
-                            </Border>
-                            <WrapPanel>
-                                <Button Content="Apply &amp; enforce now"
-                                        Margin="0,0,12,12"
-                                        Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                        Command="{Binding ApplyAutoStopAutomationCommand}" />
-                                <Button Content="Run now"
-                                        Margin="0,0,0,12"
-                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding RunAutoStopNowCommand}"
-                                        IsEnabled="{Binding IsAutoStopAutomationEnabled}" />
-                            </WrapPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <Border Background="#111827"
-                            BorderBrush="#1D2A44"
-                            BorderThickness="1"
-                            CornerRadius="10"
-                            Padding="12"
-                            Margin="0,0,0,24"
-                            Visibility="{Binding IsProcessSettingsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <ProgressBar Width="160"
-                                         Height="6"
-                                         IsIndeterminate="True" />
-                            <TextBlock Text="Loading preferences..."
-                                       Margin="12,0,0,0"
-                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}" />
-                        </StackPanel>
-                    </Border>
-
-                    <Border Background="#0B1120"
-                            Padding="24"
-                            CornerRadius="16"
-                            BorderBrush="#1D2A44"
-                            BorderThickness="1"
-                            Margin="0,0,0,24">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <TextBlock Text="Segment quick toggles"
-                                           Style="{StaticResource SettingsSectionHeaderTextStyle}" />
-                                <Border Background="#2F1F4D"
-                                        Padding="10,2"
-                                        CornerRadius="10"
-                                        Margin="12,0,0,0">
-                                    <TextBlock Text="{Binding Segments.Count, StringFormat={}{0} segments}" Foreground="#C084FC" FontWeight="SemiBold" />
-                                </Border>
-                            </StackPanel>
-                            <TextBlock Text="{Binding SegmentSummary}"
-                                       Style="{StaticResource SettingsSectionSubtitleTextStyle}"
-                                       Margin="0,6,0,16" />
-                            <ItemsControl ItemsSource="{Binding Segments}">
-                                <ItemsControl.ItemsPanel>
-                                    <ItemsPanelTemplate>
-                                        <ux:AdaptiveTilePanel MinColumnWidth="360"
-                                                              MaxColumnWidth="520"
-                                                              MinColumns="1"
-                                                              MaxColumns="3"
-                                                              ColumnSpacing="16"
-                                                              RowSpacing="16" />
-                                    </ItemsPanelTemplate>
-                                </ItemsControl.ItemsPanel>
-                                <ItemsControl.ItemContainerStyle>
-                                    <Style TargetType="ContentPresenter">
-                                        <Setter Property="Margin" Value="0" />
-                                    </Style>
-                                </ItemsControl.ItemContainerStyle>
-                                <ItemsControl.ItemTemplate>
-                                    <DataTemplate DataType="{x:Type viewModels:ProcessPreferenceSegmentViewModel}">
-                                        <Border Style="{StaticResource ProcessSettingsCardStyle}" Margin="0">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel>
-                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding Title}"
-                                                                   FontSize="17"
-                                                                   FontWeight="SemiBold"
-                                                                   Foreground="{StaticResource ProcessHeadlineBrush}" />
-                                                        <Border Background="#33FACC15"
-                                                                Padding="8,2"
-                                                                CornerRadius="8"
-                                                                Margin="8,0,0,0"
-                                                                Visibility="{Binding IsCaution, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                            <TextBlock Text="Caution"
-                                                                       Foreground="#FACC15"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold" />
-                                                        </Border>
-                                                    </StackPanel>
-                                                    <TextBlock Text="{Binding Description}"
-                                                               Foreground="{StaticResource ProcessMutedBrush}"
-                                                               Margin="0,6,0,0"
-                                                               TextWrapping="Wrap">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Description}" Value="">
-                                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <TextBlock Text="{Binding Summary}"
-                                                               Foreground="{StaticResource ProcessBodyBrush}"
-                                                               Margin="0,8,0,0" />
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="1"
-                                                            HorizontalAlignment="Right"
-                                                            VerticalAlignment="Center">
-                                                    <ToggleButton Width="52"
-                                                                  Height="28"
-                                                                  Margin="0,0,0,6"
-                                                                  Style="{StaticResource SettingsToggleSwitchStyle}"
-                                                                  IsChecked="{Binding SegmentToggleValue, Mode=TwoWay}"
-                                                                  IsEnabled="{Binding HasProcesses}" />
-                                                    <TextBlock Text="{Binding StateLabel}"
-                                                               Foreground="{StaticResource ProcessMutedBrush}"
-                                                               FontSize="12"
-                                                               HorizontalAlignment="Right" />
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ItemsControl.ItemTemplate>
-                            </ItemsControl>
-                            <TextBlock Text="Process segments will appear as soon as the known processes load."
-                                       Margin="0,12,0,0">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource SettingsSectionSubtitleTextStyle}">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding HasSegments}" Value="False">
-                                                <Setter Property="Visibility" Value="Visible" />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-            </ScrollViewer>
-
-            <ScrollViewer Grid.Row="0"
-                          VerticalScrollBarVisibility="Auto"
-                          DataContext="{Binding ThreatWatch}">
-                <ScrollViewer.Style>
-                    <Style TargetType="ScrollViewer">
-                        <Setter Property="Visibility" Value="Collapsed" />
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding DataContext.ActiveSection, RelativeSource={RelativeSource AncestorType=Grid}}"
-                                         Value="{x:Static viewModels:KnownProcessViewSection.ThreatWatch}">
-                                <Setter Property="Visibility" Value="Visible" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </ScrollViewer.Style>
-                <StackPanel>
-                    <controls:PageTitleBar Title="Threat Watch"
-                                           Subtitle="Surface and quarantine suspicious activity before it spreads."
-                                           IconGlyph="🛡️"
-                                           Margin="0,0,0,24" />
-
-                    <Border Background="#0B1120"
-                            Padding="24"
-                            CornerRadius="16"
-                            BorderBrush="#1D2A44"
-                            BorderThickness="1"
-                            Margin="0,0,0,24">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="Status"
-                                           Foreground="#94A3B8"
-                                           FontSize="12"
-                                           TextWrapping="Wrap" />
-                                <TextBlock Text="{Binding Summary}"
-                                           Foreground="#F8FAFC"
-                                           FontSize="20"
-                                           FontWeight="SemiBold"
-                                           Margin="0,4,0,0" />
-                                <TextBlock Text="{Binding LastScanSummary}"
-                                           Foreground="#94A3B8"
-                                           Margin="0,6,0,0" />
-                            </StackPanel>
-                            <StackPanel Grid.Column="1"
-                                        Orientation="Horizontal"
-                                        HorizontalAlignment="Right"
-                                        VerticalAlignment="Center">
-                                <Button Width="120"
-                                        IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}"
-                                        Margin="0,0,12,0"
-                                        Style="{StaticResource ProcessPrimaryButtonStyle}"
-                                        Command="{Binding RefreshCommand}">
-                                    <StackPanel Orientation="Horizontal"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center">
-                                        <Grid Width="18"
-                                              Height="18"
-                                              Margin="0,0,8,0"
-                                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                              RenderTransformOrigin="0.5,0.5">
-                                            <Grid.RenderTransform>
-                                                <RotateTransform />
-                                            </Grid.RenderTransform>
-                                            <Ellipse Width="16"
-                                                     Height="16"
-                                                     Stroke="#5EEAD4"
-                                                     StrokeThickness="2"
-                                                     StrokeDashArray="12 6"
-                                                     StrokeStartLineCap="Round"
-                                                     StrokeEndLineCap="Round"
-                                                     Opacity="0.9" />
-                                            <Grid.Triggers>
-                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                                                    <BeginStoryboard>
-                                                        <Storyboard RepeatBehavior="Forever">
-                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                                             From="0"
-                                                                             To="360"
-                                                                             Duration="0:0:1.1" />
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </EventTrigger>
-                                            </Grid.Triggers>
-                                        </Grid>
-                                        <Grid>
-                                            <TextBlock Text="Scan now"
-                                                       Foreground="#F8FAFC"
-                                                       Visibility="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
-                                            <TextBlock Text="Scanning..."
-                                                       Foreground="#F8FAFC"
-                                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        </Grid>
-                                    </StackPanel>
-                                </Button>
-                                <Button Margin="0,0,0,0"
-                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding RefreshCommand}">
-                                    <StackPanel Orientation="Horizontal"
-                                                HorizontalAlignment="Center"
-                                                VerticalAlignment="Center">
-                                        <Grid Width="18"
-                                              Height="18"
-                                              Margin="0,0,8,0"
-                                              Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                              RenderTransformOrigin="0.5,0.5">
-                                            <Grid.RenderTransform>
-                                                <RotateTransform />
-                                            </Grid.RenderTransform>
-                                            <Ellipse Width="16"
-                                                     Height="16"
-                                                     Stroke="#5EEAD4"
-                                                     StrokeThickness="2"
-                                                     StrokeDashArray="12 6"
-                                                     StrokeStartLineCap="Round"
-                                                     StrokeEndLineCap="Round"
-                                                     Opacity="0.9" />
-                                            <Grid.Triggers>
-                                                <EventTrigger RoutedEvent="FrameworkElement.Loaded">
-                                                    <BeginStoryboard>
-                                                        <Storyboard RepeatBehavior="Forever">
-                                                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(RotateTransform.Angle)"
-                                                                             From="0"
-                                                                             To="360"
-                                                                             Duration="0:0:1.1" />
-                                                        </Storyboard>
-                                                    </BeginStoryboard>
-                                                </EventTrigger>
-                                            </Grid.Triggers>
-                                        </Grid>
-                                        <Grid>
-                                            <TextBlock Text="Refresh"
-                                                       Foreground="#F8FAFC"
-                                                       Visibility="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}" />
-                                            <TextBlock Text="Refreshing..."
-                                                       Foreground="#F8FAFC"
-                                                       Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        </Grid>
-                                    </StackPanel>
-                                </Button>
-                            </StackPanel>
-                        </Grid>
-                    </Border>
-
-                    <StackPanel Margin="0,0,0,16">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel Orientation="Horizontal">
-                                <TextBox Width="280"
-                                         Margin="0,0,12,0"
-                                         Style="{StaticResource App.TextBoxStyle}"
-                                         Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
-                                <ComboBox Width="200"
-                                          Style="{StaticResource App.ComboBoxStyle}"
-                                          SelectedValue="{Binding FilterLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                          SelectedValuePath="Tag">
-                                    <ComboBoxItem Content="All severities" Tag="{x:Null}" />
-                                    <ComboBoxItem Content="Critical"
-                                                  Tag="{x:Static core:SuspicionLevel.Red}" />
-                                    <ComboBoxItem Content="Elevated"
-                                                  Tag="{x:Static core:SuspicionLevel.Orange}" />
-                                    <ComboBoxItem Content="Watch"
-                                                  Tag="{x:Static core:SuspicionLevel.Yellow}" />
-                                </ComboBox>
-                            </StackPanel>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
-                                <Button Content="Clear filters"
-                                        Style="{StaticResource ProcessSecondaryButtonStyle}"
-                                        Command="{Binding ClearFiltersCommand}" />
-                            </StackPanel>
-                        </Grid>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal">
+                        <ProgressBar Width="160" Height="6" IsIndeterminate="True" Foreground="#22D3EE" Background="#1E293B" />
+                        <TextBlock Margin="16,0,0,0" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center">
+                            <Run Text="&#xE721;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Loading known processes..." />
+                        </TextBlock>
                     </StackPanel>
+                </Border>
 
-                    <ItemsControl ItemsSource="{Binding HitsView}">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <StackPanel />
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Border Style="{StaticResource ThreatWatchCardStyle}">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <StackPanel>
-                                            <StackPanel Orientation="Horizontal"
-                                                        VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding ProcessName}"
-                                                           FontSize="20"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="#F8FAFC" />
-                                                <Border Background="{Binding Level, Converter={StaticResource SuspicionBrush}}"
-                                                        CornerRadius="12"
-                                                        Padding="10,4"
-                                                        Margin="12,0,0,0">
-                                                    <TextBlock Text="{Binding SeverityLabel}"
-                                                               Foreground="#0F172A"
-                                                               FontWeight="SemiBold"
-                                                               FontSize="12" />
-                                                </Border>
-                                                <TextBlock Text="{Binding ObservedAt, StringFormat={}· {0}}"
-                                                           Foreground="#CBD5F5"
-                                                           Margin="12,2,0,0" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding FilePath}"
-                                                       Foreground="#CBD5F5"
-                                                       Margin="0,10,0,0"
-                                                       TextWrapping="Wrap" />
-                                            <WrapPanel Margin="0,12,0,0">
-                                                <Border Style="{StaticResource ThreatWatchInfoChipStyle}">
-                                                    <StackPanel>
-                                                        <TextBlock Text="Source"
-                                                                   Foreground="#94A3B8"
-                                                                   FontSize="11"
-                                                                   FontWeight="SemiBold" />
-                                                        <TextBlock Text="{Binding Source}"
-                                                                   Foreground="#F8FAFC" />
-                                                    </StackPanel>
-                                                </Border>
-                                            </WrapPanel>
-                                            <ItemsControl ItemsSource="{Binding MatchedRules}"
-                                                          Visibility="{Binding HasRules, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                          Margin="0,12,0,0">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <WrapPanel />
-                                                    </ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Border Style="{StaticResource RuleBadgeStyle}">
-                                                            <TextBlock Text="{Binding}"
-                                                                       Foreground="White"
-                                                                       FontSize="11"
-                                                                       FontWeight="SemiBold" />
-                                                        </Border>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                            <TextBlock Text="No rule signatures flagged for this process."
-                                                       Foreground="#E2E8F0"
-                                                       FontStyle="Italic"
-                                                       Margin="0,8,0,0">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding HasRules}" Value="False">
-                                                                <Setter Property="Visibility" Value="Visible" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </StackPanel>
-                                        <StackPanel Grid.Row="1" Margin="0,18,0,0">
-                                            <StackPanel Orientation="Horizontal"
-                                                        HorizontalAlignment="Right">
-                                                <Button Content="Whitelist"
-                                                        Margin="0,0,12,0"
-                                                        Background="#2563EB"
-                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
-                                                        Command="{Binding WhitelistCommand}" />
-                                                <Button Content="Scan file"
-                                                        Margin="0,0,12,0"
-                                                        Background="#7C3AED"
-                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
-                                                        Command="{Binding ScanFileCommand}" />
-                                                <Button Content="Open location"
-                                                        Margin="0,0,12,0"
-                                                        Background="#0EA5E9"
-                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
-                                                        Command="{Binding OpenLocationCommand}" />
-                                                <Button Content="Ignore"
-                                                        Margin="0,0,12,0"
-                                                        Background="#334155"
-                                                        Style="{StaticResource ThreatWatchActionButtonStyle}"
-                                                        Command="{Binding IgnoreCommand}" />
-                                                <Button Content="Quarantine"
-                                                    Style="{StaticResource ThreatWatchDangerButtonStyle}"
-                                                        Command="{Binding QuarantineCommand}" />
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding LastActionMessage}"
-                                                       Foreground="#FACC15"
-                                                       Margin="0,8,0,0"
-                                                       TextWrapping="Wrap">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Visible" />
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding LastActionMessage}" Value="">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                            <DataTrigger Binding="{Binding LastActionMessage}" Value="{x:Null}">
-                                                                <Setter Property="Visibility" Value="Collapsed" />
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
+                <!-- ═══════════════════════════════════════════════════════════════ -->
+                <!-- MAIN CONTENT AREA                                               -->
+                <!-- ═══════════════════════════════════════════════════════════════ -->
+                <Grid Grid.Row="2">
 
-                    <Border Background="#0B1120"
-                            BorderBrush="#1D2A44"
-                            BorderThickness="1"
-                            CornerRadius="12"
-                            Padding="20"
-                            HorizontalAlignment="Stretch"
-                            Visibility="Collapsed">
-                        <Border.Style>
-                            <Style TargetType="Border">
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <!-- CATALOG VIEW                                                -->
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <Grid>
+                        <Grid.Style>
+                            <Style TargetType="Grid">
                                 <Setter Property="Visibility" Value="Collapsed" />
                                 <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HitsView.IsEmpty}" Value="True">
+                                    <DataTrigger Binding="{Binding ActiveSection}" Value="{x:Static viewModels:KnownProcessViewSection.Catalog}">
                                         <Setter Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                 </Style.Triggers>
                             </Style>
-                        </Border.Style>
-                        <StackPanel HorizontalAlignment="Center">
-                            <TextBlock Text="No suspicious processes match the current filters."
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       Foreground="#F8FAFC"
-                                       HorizontalAlignment="Center" />
-                            <TextBlock Text="Adjust the search or rerun the scan to refresh this list."
-                                       Foreground="#94A3B8"
-                                       Margin="0,6,0,0"
-                                       HorizontalAlignment="Center" />
+                        </Grid.Style>
+
+                        <!-- Process Cards List -->
+                        <ItemsControl ItemsSource="{Binding Categories}"
+                                      VirtualizingPanel.IsVirtualizing="True"
+                                      VirtualizingPanel.VirtualizationMode="Recycling"
+                                      VirtualizingPanel.ScrollUnit="Pixel">
+                            <ItemsControl.Style>
+                                <Style TargetType="ItemsControl">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasProcesses}" Value="False">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ItemsControl.Style>
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <VirtualizingStackPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <!-- Category Section -->
+                                    <Border Style="{StaticResource ModernCard}" Margin="0,0,0,20">
+                                        <StackPanel>
+                                            <!-- Category Header -->
+                                            <Grid Margin="0,0,0,16">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Category Icon -->
+                                                <Border Width="44" Height="44" CornerRadius="12" Margin="0,0,16,0">
+                                                    <Border.Background>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                            <GradientStop Color="#1E3A8A" Offset="0" />
+                                                            <GradientStop Color="#3730A3" Offset="1" />
+                                                        </LinearGradientBrush>
+                                                    </Border.Background>
+                                                    <TextBlock Text="&#xE74C;" FontFamily="{StaticResource FluentIcons}" FontSize="18" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                </Border>
+
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                                        <Border Style="{StaticResource CautionBadge}" Margin="12,0,0,0"
+                                                                Visibility="{Binding IsCaution, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource FluentIcons}" FontSize="11" Foreground="#FBBF24" VerticalAlignment="Center" />
+                                                                <TextBlock Text=" Caution" FontSize="11" FontWeight="SemiBold" Foreground="#FBBF24" VerticalAlignment="Center" />
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock Text="{Binding Description}" FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" TextWrapping="Wrap" />
+                                                </StackPanel>
+
+                                                <Border Grid.Column="2" Style="{StaticResource SourceBadge}">
+                                                    <TextBlock Text="{Binding Processes.Count, StringFormat={}{0} items}" FontSize="12" Foreground="#A78BFA" />
+                                                </Border>
+                                            </Grid>
+
+                                            <!-- Process Items Grid -->
+                                            <ItemsControl ItemsSource="{Binding Processes}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <ux:AdaptiveTilePanel MinColumnWidth="340" MaxColumnWidth="560"
+                                                                              MinColumns="1" MaxColumns="3"
+                                                                              ColumnSpacing="16" RowSpacing="16" />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border Style="{StaticResource ProcessCard}" Margin="0">
+                                                            <StackPanel>
+                                                                <!-- Process Header -->
+                                                                <Grid Margin="0,0,0,12">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                    </Grid.ColumnDefinitions>
+
+                                                                    <!-- Status Icon -->
+                                                                    <Border Width="36" Height="36" CornerRadius="10" Margin="0,0,12,0">
+                                                                        <Border.Style>
+                                                                            <Style TargetType="Border">
+                                                                                <Setter Property="Background">
+                                                                                    <Setter.Value>
+                                                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                                            <GradientStop Color="#172554" Offset="0" />
+                                                                                            <GradientStop Color="#1E3A8A" Offset="1" />
+                                                                                        </LinearGradientBrush>
+                                                                                    </Setter.Value>
+                                                                                </Setter>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsAutoStop}" Value="True">
+                                                                                        <Setter Property="Background">
+                                                                                            <Setter.Value>
+                                                                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                                                    <GradientStop Color="#052E16" Offset="0" />
+                                                                                                    <GradientStop Color="#14532D" Offset="1" />
+                                                                                                </LinearGradientBrush>
+                                                                                            </Setter.Value>
+                                                                                        </Setter>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Border.Style>
+                                                                        <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontFamily="{StaticResource FluentIcons}" FontSize="16">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Text" Value="&#xEA3A;" />
+                                                                                    <Setter Property="Foreground" Value="#60A5FA" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsAutoStop}" Value="True">
+                                                                                            <Setter Property="Text" Value="&#xE73E;" />
+                                                                                            <Setter Property="Foreground" Value="#4ADE80" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                    </Border>
+
+                                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="{Binding DisplayName}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                                                            <Border Style="{StaticResource CautionBadge}" Padding="6,2" Margin="8,0,0,0"
+                                                                                    Visibility="{Binding IsCaution, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                                <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource FluentIcons}" FontSize="10" Foreground="#FBBF24" />
+                                                                            </Border>
+                                                                        </StackPanel>
+                                                                        <TextBlock Text="{Binding RecommendationLabel}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,2,0,0" />
+                                                                    </StackPanel>
+
+                                                                    <Border Grid.Column="2" Style="{StaticResource SourceBadge}">
+                                                                        <TextBlock Text="{Binding SourceLabel}" FontSize="10" Foreground="#C4B5FD" />
+                                                                    </Border>
+                                                                </Grid>
+
+                                                                <!-- Rationale -->
+                                                                <TextBlock Text="{Binding Rationale}" FontSize="13" Foreground="{StaticResource TextSecondary}"
+                                                                           TextWrapping="Wrap" Margin="0,0,0,12" LineHeight="20" />
+
+                                                                <!-- Status Row -->
+                                                                <Grid Margin="0,0,0,14">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto" />
+                                                                        <ColumnDefinition Width="*" />
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <StackPanel Orientation="Horizontal">
+                                                                        <TextBlock Text="Status:" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center" />
+                                                                        <Border Margin="8,0,0,0" CornerRadius="6" Padding="8,4">
+                                                                            <Border.Style>
+                                                                                <Style TargetType="Border">
+                                                                                    <Setter Property="Background" Value="#172554" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsAutoStop}" Value="True">
+                                                                                            <Setter Property="Background" Value="#052E16" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Border.Style>
+                                                                            <TextBlock Text="{Binding ActionLabel}" FontSize="12" FontWeight="SemiBold">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Foreground" Value="#60A5FA" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding IsAutoStop}" Value="True">
+                                                                                                <Setter Property="Foreground" Value="#4ADE80" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                        </Border>
+                                                                    </StackPanel>
+                                                                </Grid>
+
+                                                                <!-- Action Buttons -->
+                                                                <WrapPanel>
+                                                                    <Button Style="{StaticResource BtnSuccess}" Margin="0,0,8,8" Command="{Binding ToggleActionCommand}">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="&#xE8AB;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                            <TextBlock Text="{Binding ToggleActionLabel}" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                    <Button Style="{StaticResource BtnDanger}" Margin="0,0,8,8" Command="{Binding StopCommand}" IsEnabled="{Binding CanControl}">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="&#xE71A;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                            <TextBlock Text="Stop" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                    <Button Style="{StaticResource BtnSecondary}" Margin="0,0,8,8" Command="{Binding RestartCommand}" IsEnabled="{Binding CanControl}">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="&#xE72C;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                            <TextBlock Text="Restart" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                    <Button Style="{StaticResource BtnSecondary}" Margin="0,0,0,8" Command="{Binding LearnMoreCommand}">
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBlock Text="&#xE736;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                                            <TextBlock Text="Learn" VerticalAlignment="Center" />
+                                                                        </StackPanel>
+                                                                    </Button>
+                                                                </WrapPanel>
+
+                                                                <!-- Feedback Message -->
+                                                                <TextBlock Text="{Binding LastActionMessage}" FontSize="12" Foreground="#FBBF24" Margin="0,4,0,0" TextWrapping="Wrap">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding LastActionMessage}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding LastActionMessage}" Value="">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- Empty State -->
+                        <Border Padding="40" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Border.Style>
+                                <Style TargetType="Border" BasedOn="{StaticResource ModernCard}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers>
+                                        <MultiDataTrigger>
+                                            <MultiDataTrigger.Conditions>
+                                                <Condition Binding="{Binding HasProcesses}" Value="False" />
+                                                <Condition Binding="{Binding IsBusy}" Value="False" />
+                                            </MultiDataTrigger.Conditions>
+                                            <Setter Property="Visibility" Value="Visible" />
+                                        </MultiDataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel HorizontalAlignment="Center">
+                                <Border Width="80" Height="80" CornerRadius="20" HorizontalAlignment="Center" Margin="0,0,0,20">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#1E3A8A" Offset="0" />
+                                            <GradientStop Color="#3730A3" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource FluentIcons}" FontSize="36" Foreground="#A78BFA" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="No known processes yet" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" />
+                                <TextBlock Text="Run the questionnaire or refresh to populate this tab." FontSize="14" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <!-- SETTINGS VIEW                                               -->
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding Preferences}">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.ActiveSection, RelativeSource={RelativeSource AncestorType=Grid}}"
+                                                 Value="{x:Static viewModels:KnownProcessViewSection.Settings}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                        <StackPanel>
+                            <!-- Automation Controls Card -->
+                            <Border Style="{StaticResource ModernCard}" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                                        <Border Width="44" Height="44" CornerRadius="12" Margin="0,0,16,0">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#7C3AED" Offset="0" />
+                                                    <GradientStop Color="#5B21B6" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="&#xE713;" FontFamily="{StaticResource FluentIcons}" FontSize="18" Foreground="#C4B5FD" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="Process Automation Controls" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                            <TextBlock Text="Quick access to questionnaire guidance and key adjustments." FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Border Background="#0F172A" CornerRadius="12" Padding="16" Margin="0,0,0,16">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding ProcessSummary}" FontSize="14" FontWeight="SemiBold" Foreground="#22D3EE" />
+                                            <TextBlock Text="{Binding AutoStopSummary}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,6,0,0" />
+                                            <TextBlock Text="{Binding QuestionnaireSummary}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <WrapPanel>
+                                        <Button Style="{StaticResource BtnSecondary}" Margin="0,0,10,10" Command="{Binding RefreshProcessPreferencesCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE72C;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Refresh" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource BtnPrimary}" Margin="0,0,10,10" Command="{Binding RerunQuestionnaireCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE762;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Rerun Questionnaire" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource BtnDanger}" Margin="0,0,10,10" Command="{Binding ResetProcessPreferencesCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE777;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Reset to Recommended" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource BtnPurple}" Margin="0,0,0,10" Command="{Binding ShowThreatWatchHoldingsCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE83D;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Manage Allow &amp; Quarantine" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Auto-stop Enforcement Card -->
+                            <Border Style="{StaticResource ModernCard}" Margin="0,0,0,20">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="44" Height="44" CornerRadius="12" Margin="0,0,16,0">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#059669" Offset="0" />
+                                                    <GradientStop Color="#047857" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="&#xE9D5;" FontFamily="{StaticResource FluentIcons}" FontSize="18" Foreground="#4ADE80" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Background Auto-stop Enforcement" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                            <TextBlock Text="Periodically re-stop services to keep telemetry quiet." FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                        <ToggleButton Grid.Column="2" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsAutoStopAutomationEnabled, Mode=TwoWay}" VerticalAlignment="Center" />
+                                    </Grid>
+
+                                    <Border Background="#0F172A" CornerRadius="12" Padding="16" Margin="0,0,0,16">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                                <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondary}">
+                                                    <Run Text="&#xE916;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Interval:" />
+                                                </TextBlock>
+                                                <ComboBox Width="130" Margin="12,0,0,0"
+                                                          ItemsSource="{Binding AutoStopIntervalOptions}"
+                                                          SelectedItem="{Binding AutoStopIntervalMinutes, Mode=TwoWay}">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding StringFormat={}{0} min}" />
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding AutoStopStatusMessage}" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Style="{StaticResource CautionBadge}" HorizontalAlignment="Left" Margin="0,0,0,16"
+                                            Visibility="{Binding HasAutomationChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock FontSize="12" Foreground="#FBBF24">
+                                            <Run Text="&#xE945;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Pending changes — apply to activate" />
+                                        </TextBlock>
+                                    </Border>
+
+                                    <WrapPanel>
+                                        <Button Style="{StaticResource BtnSuccess}" Margin="0,0,10,0" Command="{Binding ApplyAutoStopAutomationCommand}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE73E;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Apply &amp; Enforce" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource BtnSecondary}" Command="{Binding RunAutoStopNowCommand}" IsEnabled="{Binding IsAutoStopAutomationEnabled}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE768;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Run Now" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Loading Preferences -->
+                            <Border Padding="16" Margin="0,0,0,20" Visibility="{Binding IsProcessSettingsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource ModernCard}" />
+                                </Border.Style>
+                                <StackPanel Orientation="Horizontal">
+                                    <ProgressBar Width="140" Height="6" IsIndeterminate="True" Foreground="#22D3EE" Background="#1E293B" />
+                                    <TextBlock Text="Loading preferences..." FontSize="13" Foreground="{StaticResource TextMuted}" Margin="16,0,0,0" VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Segment Quick Toggles Card -->
+                            <Border Style="{StaticResource ModernCard}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,16">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="44" Height="44" CornerRadius="12" Margin="0,0,16,0">
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#0891B2" Offset="0" />
+                                                    <GradientStop Color="#0E7490" Offset="1" />
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                            <TextBlock Text="&#xE9E9;" FontFamily="{StaticResource FluentIcons}" FontSize="18" Foreground="#22D3EE" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </Border>
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <TextBlock Text="Segment Quick Toggles" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                            <TextBlock Text="{Binding SegmentSummary}" FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
+                                        </StackPanel>
+                                        <Border Grid.Column="2" Style="{StaticResource SourceBadge}">
+                                            <TextBlock Text="{Binding Segments.Count, StringFormat={}{0} segments}" FontSize="12" Foreground="#A78BFA" />
+                                        </Border>
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding Segments}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <ux:AdaptiveTilePanel MinColumnWidth="280" MaxColumnWidth="440"
+                                                                      MinColumns="1" MaxColumns="3"
+                                                                      ColumnSpacing="16" RowSpacing="16" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="{x:Type viewModels:ProcessPreferenceSegmentViewModel}">
+                                                <Border Style="{StaticResource ProcessCard}" Margin="0" Padding="16">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <StackPanel>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                                                <Border Style="{StaticResource CautionBadge}" Padding="6,2" Margin="8,0,0,0"
+                                                                        Visibility="{Binding IsCaution, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                    <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource FluentIcons}" FontSize="10" Foreground="#FBBF24" />
+                                                                </Border>
+                                                            </StackPanel>
+                                                            <TextBlock Text="{Binding Description}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" TextWrapping="Wrap">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Description}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                            <DataTrigger Binding="{Binding Description}" Value="">
+                                                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <TextBlock Text="{Binding Summary}" FontSize="13" Foreground="{StaticResource TextSecondary}" Margin="0,8,0,0" />
+                                                        </StackPanel>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                                            <ToggleButton Style="{StaticResource ToggleSwitch}"
+                                                                          IsChecked="{Binding SegmentToggleValue, Mode=TwoWay}"
+                                                                          IsEnabled="{Binding HasProcesses}" />
+                                                            <TextBlock Text="{Binding StateLabel}" FontSize="11" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Right" Margin="0,6,0,0" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+
+                                    <TextBlock Text="Process segments appear when known processes load." FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,16,0,0">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding HasSegments}" Value="False">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
-                    </Border>
+                    </ScrollViewer>
+
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <!-- THREAT WATCH VIEW                                           -->
+                    <!-- ═══════════════════════════════════════════════════════════ -->
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" DataContext="{Binding ThreatWatch}">
+                        <ScrollViewer.Style>
+                            <Style TargetType="ScrollViewer">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding DataContext.ActiveSection, RelativeSource={RelativeSource AncestorType=Grid}}"
+                                                 Value="{x:Static viewModels:KnownProcessViewSection.ThreatWatch}">
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ScrollViewer.Style>
+                        <StackPanel>
+                            <!-- Threat Watch Title -->
+                            <controls:PageTitleBar Title="Threat Watch"
+                                                   Subtitle="Surface and quarantine suspicious activity"
+                                                   IconGlyph="&#xE83D;"
+                                                   Margin="0,0,0,20" />
+
+                            <!-- Status Card -->
+                            <Border Style="{StaticResource ModernCard}" Margin="0,0,0,20">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="56" Height="56" CornerRadius="14" Margin="0,0,20,0">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#DC2626" Offset="0" />
+                                                <GradientStop Color="#B91C1C" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <TextBlock Text="&#xE83D;" FontFamily="{StaticResource FluentIcons}" FontSize="24" Foreground="#FEE2E2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="Status" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                        <TextBlock Text="{Binding Summary}" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" Margin="0,4,0,0" />
+                                        <TextBlock Text="{Binding LastScanSummary}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <Button Style="{StaticResource BtnPrimary}" Margin="0,0,10,0" Command="{Binding RefreshCommand}"
+                                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE721;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Scan Now" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Style="{StaticResource BtnSecondary}" Command="{Binding RefreshCommand}"
+                                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBooleanConverter}}">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="&#xE72C;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                <TextBlock Text="Refresh" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                        </Button>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+
+                            <!-- Filters -->
+                            <Grid Margin="0,0,0,20">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBox Width="260" Margin="0,0,12,0" Style="{StaticResource App.TextBoxStyle}"
+                                             Text="{Binding FilterText, UpdateSourceTrigger=PropertyChanged}" />
+                                    <ComboBox Width="180" Style="{StaticResource App.ComboBoxStyle}"
+                                              SelectedValue="{Binding FilterLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              SelectedValuePath="Tag">
+                                        <ComboBoxItem Content="All severities" Tag="{x:Null}" />
+                                        <ComboBoxItem Content="Critical" Tag="{x:Static core:SuspicionLevel.Red}" />
+                                        <ComboBoxItem Content="Elevated" Tag="{x:Static core:SuspicionLevel.Orange}" />
+                                        <ComboBoxItem Content="Watch" Tag="{x:Static core:SuspicionLevel.Yellow}" />
+                                    </ComboBox>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Clear Filters" Style="{StaticResource BtnSecondary}" Command="{Binding ClearFiltersCommand}" />
+                            </Grid>
+
+                            <!-- Hits List -->
+                            <ItemsControl ItemsSource="{Binding HitsView}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Style="{StaticResource ThreatCard}">
+                                            <StackPanel>
+                                                <!-- Header -->
+                                                <Grid Margin="0,0,0,12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock Text="{Binding ProcessName}" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                                        <Border CornerRadius="8" Padding="10,4" Margin="12,0,0,0"
+                                                                Background="{Binding Level, Converter={StaticResource SuspicionBrush}}">
+                                                            <TextBlock Text="{Binding SeverityLabel}" FontSize="11" FontWeight="Bold" Foreground="#0F172A" />
+                                                        </Border>
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="1" FontSize="12" Foreground="{StaticResource TextMuted}" VerticalAlignment="Center">
+                                                        <Run Text="&#xE823;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" " /><Run Text="{Binding ObservedAt}" />
+                                                    </TextBlock>
+                                                </Grid>
+
+                                                <!-- Path -->
+                                                <TextBlock Text="{Binding FilePath}" FontSize="13" Foreground="{StaticResource TextSecondary}" TextWrapping="Wrap" Margin="0,0,0,12" />
+
+                                                <!-- Source -->
+                                                <Border Style="{StaticResource SourceBadge}" HorizontalAlignment="Left" Margin="0,0,0,12">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <TextBlock FontSize="11" Foreground="{StaticResource TextMuted}">
+                                                            <Run Text="&#xE707;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Source:" />
+                                                        </TextBlock>
+                                                        <TextBlock Text="{Binding Source}" FontSize="12" Foreground="{StaticResource TextPrimary}" Margin="6,0,0,0" />
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- Rules -->
+                                                <ItemsControl ItemsSource="{Binding MatchedRules}" Margin="0,0,0,12"
+                                                              Visibility="{Binding HasRules, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <WrapPanel />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border CornerRadius="6" Padding="8,4" Margin="0,0,8,6">
+                                                                <Border.Background>
+                                                                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                                        <GradientStop Color="#1E3A8A" Offset="0" />
+                                                                        <GradientStop Color="#3730A3" Offset="1" />
+                                                                    </LinearGradientBrush>
+                                                                </Border.Background>
+                                                                <TextBlock Text="{Binding}" FontSize="11" FontWeight="SemiBold" Foreground="#C4B5FD" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <TextBlock Text="No rule signatures flagged." FontStyle="Italic" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,0,0,12">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasRules}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <!-- Actions -->
+                                                <WrapPanel HorizontalAlignment="Right">
+                                                    <Button Style="{StaticResource BtnSuccess}" Margin="0,0,8,0" Command="{Binding WhitelistCommand}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE73E;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Whitelist" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Style="{StaticResource BtnPurple}" Margin="0,0,8,0" Command="{Binding ScanFileCommand}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE721;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Scan File" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Style="{StaticResource BtnPrimary}" Margin="0,0,8,0" Command="{Binding OpenLocationCommand}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE838;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Open Location" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                    <Button Style="{StaticResource BtnSecondary}" Margin="0,0,8,0" Command="{Binding IgnoreCommand}">
+                                                        <TextBlock Text="Ignore" VerticalAlignment="Center" />
+                                                    </Button>
+                                                    <Button Style="{StaticResource BtnDanger}" Command="{Binding QuarantineCommand}">
+                                                        <StackPanel Orientation="Horizontal">
+                                                            <TextBlock Text="&#xE8F8;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
+                                                            <TextBlock Text="Quarantine" VerticalAlignment="Center" />
+                                                        </StackPanel>
+                                                    </Button>
+                                                </WrapPanel>
+
+                                                <!-- Feedback -->
+                                                <TextBlock Text="{Binding LastActionMessage}" FontSize="12" Foreground="#FBBF24" Margin="0,10,0,0" TextWrapping="Wrap">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding LastActionMessage}" Value="">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding LastActionMessage}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- Empty State -->
+                            <Border Padding="40" HorizontalAlignment="Stretch">
+                                <Border.Style>
+                                    <Style TargetType="Border" BasedOn="{StaticResource ModernCard}">
+                                        <Setter Property="Visibility" Value="Collapsed" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HitsView.IsEmpty}" Value="True">
+                                                <Setter Property="Visibility" Value="Visible" />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Border.Style>
+                                <StackPanel HorizontalAlignment="Center">
+                                    <Border Width="80" Height="80" CornerRadius="20" HorizontalAlignment="Center" Margin="0,0,0,20">
+                                        <Border.Background>
+                                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                <GradientStop Color="#052E16" Offset="0" />
+                                                <GradientStop Color="#14532D" Offset="1" />
+                                            </LinearGradientBrush>
+                                        </Border.Background>
+                                        <TextBlock Text="&#xE73E;" FontFamily="{StaticResource FluentIcons}" FontSize="36" Foreground="#4ADE80" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="All Clear!" FontSize="20" FontWeight="SemiBold" Foreground="{StaticResource SuccessGreen}" HorizontalAlignment="Center" />
+                                    <TextBlock Text="No suspicious processes match current filters." FontSize="14" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" Margin="0,8,0,0" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!-- GLOBAL BUSY OVERLAY                                             -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
+              Background="#E6050B14" Panel.ZIndex="20">
+            <Border HorizontalAlignment="Center" VerticalAlignment="Center" Padding="32" CornerRadius="20">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#0C1829" Offset="0" />
+                        <GradientStop Color="#1E293B" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#22D3EE" Offset="0" />
+                        <GradientStop Color="#7C3AED" Offset="1" />
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.BorderThickness>1</Border.BorderThickness>
+                <StackPanel HorizontalAlignment="Center">
+                    <ProgressBar Width="200" Height="8" IsIndeterminate="True" Foreground="#22D3EE" Background="#1E293B" />
+                    <TextBlock FontSize="15" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" HorizontalAlignment="Center" Margin="0,16,0,0">
+                        <Run Text="&#xE713;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Working on processes..." />
+                    </TextBlock>
+                    <TextBlock Text="Actions are briefly paused" FontSize="12" Foreground="{StaticResource TextMuted}" HorizontalAlignment="Center" Margin="0,6,0,0" />
                 </StackPanel>
-            </ScrollViewer>
-
+            </Border>
         </Grid>
-
-    </Grid>
-    </ScrollViewer>
-
-    <Grid Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}"
-          Background="#B30B1629"
-          Panel.ZIndex="20">
-        <Border HorizontalAlignment="Center"
-                VerticalAlignment="Center"
-                Background="#0E1D33"
-                Padding="24"
-                CornerRadius="14"
-                BorderBrush="#1F2E46"
-                BorderThickness="1">
-            <StackPanel HorizontalAlignment="Center"
-                        VerticalAlignment="Center">
-                <ProgressBar Width="200"
-                             Height="10"
-                             IsIndeterminate="True"
-                             Foreground="#38BDF8"
-                             Background="#102A43"
-                             BorderBrush="#1F2E46" />
-                <TextBlock Margin="0,10,0,0"
-                           Text="Working on processes..."
-                           Foreground="#E5E7EB"
-                           FontSize="13"
-                           FontWeight="SemiBold"
-                           HorizontalAlignment="Center" />
-                <TextBlock Margin="0,4,0,0"
-                           Text="Switching sections and actions are briefly paused"
-                           Foreground="#9CA3AF"
-                           FontSize="11"
-                           HorizontalAlignment="Center" />
-            </StackPanel>
-        </Border>
-    </Grid>
     </Grid>
 </Page>
