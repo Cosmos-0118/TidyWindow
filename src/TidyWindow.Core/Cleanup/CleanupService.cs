@@ -129,20 +129,25 @@ public sealed class CleanupService
 
             if (!fileExists && !isDirectory)
             {
-                entries.Add(new CleanupDeletionEntry(normalizedPath, Math.Max(item.SizeBytes, 0), item.IsDirectory, CleanupDeletionDisposition.Skipped, "Item not found"));
+                // Item no longer exists - report as skipped with zero size (it's already gone, no space to reclaim)
+                entries.Add(new CleanupDeletionEntry(normalizedPath, 0, item.IsDirectory, CleanupDeletionDisposition.Skipped, "Item not found"));
                 continue;
             }
+
+            // Get the actual current size of the item (not the stale preview size)
+            // This ensures accurate reporting of freed space
+            var actualSizeBytes = GetActualSize(normalizedPath, isDirectory);
 
             var attributes = TryGetAttributes(normalizedPath);
             if (options.SkipHiddenItems && (item.IsHidden || attributes is not null && attributes.Value.HasFlag(FileAttributes.Hidden)))
             {
-                entries.Add(new CleanupDeletionEntry(normalizedPath, Math.Max(item.SizeBytes, 0), isDirectory, CleanupDeletionDisposition.Skipped, "Hidden item skipped"));
+                entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Skipped, "Hidden item skipped"));
                 continue;
             }
 
             if (options.SkipSystemItems && (item.IsSystem || attributes is not null && attributes.Value.HasFlag(FileAttributes.System)))
             {
-                entries.Add(new CleanupDeletionEntry(normalizedPath, Math.Max(item.SizeBytes, 0), isDirectory, CleanupDeletionDisposition.Skipped, "System item skipped"));
+                entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Skipped, "System item skipped"));
                 continue;
             }
 
@@ -159,15 +164,18 @@ public sealed class CleanupService
                     var age = DateTime.UtcNow - lastModified;
                     if (age < TimeSpan.Zero || age <= options.RecentItemThreshold)
                     {
-                        entries.Add(new CleanupDeletionEntry(normalizedPath, Math.Max(item.SizeBytes, 0), isDirectory, CleanupDeletionDisposition.Skipped, "Recently modified item skipped"));
+                        entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Skipped, "Recently modified item skipped"));
                         continue;
                     }
                 }
             }
 
+            // Attempt standard deletion
             if (TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out var failure))
             {
-                entries.Add(new CleanupDeletionEntry(normalizedPath, Math.Max(item.SizeBytes, 0), isDirectory, CleanupDeletionDisposition.Deleted));
+                // CRITICAL: Verify the item was actually deleted before counting the size
+                var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
+                entries.Add(new CleanupDeletionEntry(normalizedPath, verifiedSize, isDirectory, CleanupDeletionDisposition.Deleted));
                 continue;
             }
 
@@ -177,20 +185,23 @@ public sealed class CleanupService
                 repairedPermissions = TryRepairPermissions(normalizedPath, isDirectory);
                 if (repairedPermissions && TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out failure))
                 {
+                    var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
                     entries.Add(new CleanupDeletionEntry(
                         normalizedPath,
-                        Math.Max(item.SizeBytes, 0),
+                        verifiedSize,
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
                         "Deleted after preparing for force delete."));
                     continue;
                 }
 
-                if (repairedPermissions && TryForceDelete(normalizedPath, isDirectory, cancellationToken, out failure))
+                // Try force delete with aggressive cleanup (no reboot fallback yet)
+                if (repairedPermissions && TryForceDeleteWithoutReboot(normalizedPath, isDirectory, cancellationToken, out failure))
                 {
+                    var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
                     entries.Add(new CleanupDeletionEntry(
                         normalizedPath,
-                        Math.Max(item.SizeBytes, 0),
+                        verifiedSize,
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
                         "Deleted using force cleanup."));
@@ -200,11 +211,13 @@ public sealed class CleanupService
 
             if (IsInUseError(failure))
             {
-                if (options.TakeOwnershipOnAccessDenied && TryForceDelete(normalizedPath, isDirectory, cancellationToken, out failure))
+                // Try force delete without reboot fallback first
+                if (options.TakeOwnershipOnAccessDenied && TryForceDeleteWithoutReboot(normalizedPath, isDirectory, cancellationToken, out failure))
                 {
+                    var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
                     entries.Add(new CleanupDeletionEntry(
                         normalizedPath,
-                        Math.Max(item.SizeBytes, 0),
+                        verifiedSize,
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
                         "Deleted after releasing locks."));
@@ -213,20 +226,21 @@ public sealed class CleanupService
 
                 if (!options.SkipLockedItems)
                 {
+                    // Only schedule for reboot as last resort - mark as PendingReboot, NOT Deleted
                     if ((options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied) && TryScheduleDeleteOnReboot(normalizedPath))
                     {
                         entries.Add(new CleanupDeletionEntry(
                             normalizedPath,
-                            Math.Max(item.SizeBytes, 0),
+                            actualSizeBytes,
                             isDirectory,
-                            CleanupDeletionDisposition.Deleted,
+                            CleanupDeletionDisposition.PendingReboot,
                             BuildDeleteOnRebootMessage(options.TakeOwnershipOnAccessDenied)));
                         continue;
                     }
 
                     entries.Add(new CleanupDeletionEntry(
                         normalizedPath,
-                        Math.Max(item.SizeBytes, 0),
+                        actualSizeBytes,
                         isDirectory,
                         CleanupDeletionDisposition.Failed,
                         "Deletion blocked because another process is using the item.",
@@ -236,7 +250,7 @@ public sealed class CleanupService
 
                 entries.Add(new CleanupDeletionEntry(
                     normalizedPath,
-                    Math.Max(item.SizeBytes, 0),
+                    actualSizeBytes,
                     isDirectory,
                     CleanupDeletionDisposition.Skipped,
                     "Skipped because another process is using the item.",
@@ -250,21 +264,188 @@ public sealed class CleanupService
                 reason = "Permission repair failed — delete still blocked.";
             }
 
+            // Last resort: schedule for reboot - mark as PendingReboot, NOT Deleted
             if ((options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied) && TryScheduleDeleteOnReboot(normalizedPath))
             {
                 entries.Add(new CleanupDeletionEntry(
                     normalizedPath,
-                    Math.Max(item.SizeBytes, 0),
+                    actualSizeBytes,
                     isDirectory,
-                    CleanupDeletionDisposition.Deleted,
+                    CleanupDeletionDisposition.PendingReboot,
                     BuildDeleteOnRebootMessage(options.TakeOwnershipOnAccessDenied)));
                 continue;
             }
 
-            entries.Add(new CleanupDeletionEntry(normalizedPath, Math.Max(item.SizeBytes, 0), isDirectory, CleanupDeletionDisposition.Failed, reason, failure));
+            entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Failed, reason, failure));
         }
 
         return new CleanupDeletionResult(entries);
+    }
+
+    /// <summary>
+    /// Gets the actual current size of a file or directory.
+    /// </summary>
+    private static long GetActualSize(string path, bool isDirectory)
+    {
+        try
+        {
+            if (isDirectory)
+            {
+                return GetDirectorySize(path);
+            }
+
+            var fileInfo = new FileInfo(path);
+            return fileInfo.Exists ? fileInfo.Length : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Gets the total size of all files in a directory recursively.
+    /// </summary>
+    private static long GetDirectorySize(string path)
+    {
+        if (!Directory.Exists(path))
+        {
+            return 0;
+        }
+
+        long totalSize = 0;
+        try
+        {
+            foreach (var file in Directory.EnumerateFiles(path, "*", new EnumerationOptions
+            {
+                RecurseSubdirectories = true,
+                IgnoreInaccessible = true,
+                AttributesToSkip = FileAttributes.ReparsePoint | FileAttributes.Offline
+            }))
+            {
+                try
+                {
+                    var info = new FileInfo(file);
+                    if (info.Exists)
+                    {
+                        totalSize += info.Length;
+                    }
+                }
+                catch
+                {
+                    // Skip inaccessible files
+                }
+            }
+        }
+        catch
+        {
+            // Return whatever we accumulated
+        }
+
+        return totalSize;
+    }
+
+    /// <summary>
+    /// Verifies that a file or directory was actually deleted and returns the size that was freed.
+    /// Returns 0 if the item still exists (deletion didn't actually work).
+    /// </summary>
+    private static long VerifyDeletionAndGetSize(string path, bool isDirectory, long expectedSize)
+    {
+        try
+        {
+            // Give the filesystem a moment to sync
+            Thread.Sleep(5);
+
+            if (isDirectory)
+            {
+                if (Directory.Exists(path))
+                {
+                    // Directory still exists - check if it's empty or partial deletion
+                    var remainingSize = GetDirectorySize(path);
+                    // Return only the portion that was actually deleted
+                    return Math.Max(0, expectedSize - remainingSize);
+                }
+            }
+            else
+            {
+                if (File.Exists(path))
+                {
+                    // File still exists - no space was freed
+                    return 0;
+                }
+            }
+
+            // Item no longer exists, return the full size
+            return Math.Max(expectedSize, 0);
+        }
+        catch
+        {
+            // If we can't verify, assume the expected size was freed
+            return Math.Max(expectedSize, 0);
+        }
+    }
+
+    /// <summary>
+    /// Attempts force delete using all available methods EXCEPT scheduling for reboot.
+    /// This ensures we only use reboot scheduling as an absolute last resort.
+    /// Uses the most aggressive deletion strategies available on Windows.
+    /// </summary>
+    private static bool TryForceDeleteWithoutReboot(string path, bool isDirectory, CancellationToken cancellationToken, out Exception? failure)
+    {
+        failure = null;
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return true;
+        }
+
+        // On Windows, use the full aggressive deletion helper which includes:
+        // 1. Clearing all restrictive attributes (readonly, hidden, system)
+        // 2. Taking ownership and granting full control permissions
+        // 3. Using Restart Manager to close processes holding file handles
+        // 4. Renaming to tombstone to bypass filename locks
+        // 5. Depth-first aggressive directory purge
+        if (OperatingSystem.IsWindows())
+        {
+            return ForceDeleteHelper.TryAggressiveDelete(path, isDirectory, cancellationToken, out failure);
+        }
+
+        // Fallback for non-Windows: basic force delete
+        TryClearAttributes(path);
+        if (TryDeletePath(path, isDirectory, out failure))
+        {
+            return true;
+        }
+
+        // For directories, try aggressive recursive cleanup
+        if (isDirectory && Directory.Exists(path))
+        {
+            TryAggressiveDirectoryCleanup(path, cancellationToken);
+            if (TryDeletePath(path, isDirectory, out failure))
+            {
+                return true;
+            }
+        }
+
+        // Try renaming to tombstone and deleting
+        var tombstone = TryRenameToTombstone(path, isDirectory, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(tombstone))
+        {
+            if (TryDeletePath(tombstone!, isDirectory, out failure))
+            {
+                return true;
+            }
+            return !PathExists(path, isDirectory);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a path exists as a file or directory.
+    /// </summary>
+    private static bool PathExists(string path, bool isDirectory)
+    {
+        return isDirectory ? Directory.Exists(path) : File.Exists(path);
     }
 
     private static bool TryDeletePath(string path, bool isDirectory, CleanupDeletionOptions options, CancellationToken cancellationToken, out Exception? failure)
@@ -370,51 +551,15 @@ public sealed class CleanupService
 
     private static bool IsUnauthorizedAccessError(Exception? exception) => exception is UnauthorizedAccessException;
 
+    /// <summary>
+    /// Legacy force delete method - now delegates to the non-reboot version.
+    /// Kept for backwards compatibility but no longer schedules reboot internally.
+    /// </summary>
     private static bool TryForceDelete(string path, bool isDirectory, CancellationToken cancellationToken, out Exception? failure)
     {
-        failure = null;
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return true;
-        }
-
-        TryClearAttributes(path);
-        if (TryDeletePath(path, isDirectory, out failure))
-        {
-            return true;
-        }
-
-        if (isDirectory && Directory.Exists(path))
-        {
-            TryAggressiveDirectoryCleanup(path, cancellationToken);
-            if (TryDeletePath(path, isDirectory, out failure))
-            {
-                return true;
-            }
-        }
-
-        var tombstone = TryRenameToTombstone(path, isDirectory, cancellationToken);
-        if (!string.IsNullOrWhiteSpace(tombstone))
-        {
-            if (TryDeletePath(tombstone!, isDirectory, out failure))
-            {
-                return true;
-            }
-
-            if (OperatingSystem.IsWindows() && TryScheduleDeleteOnReboot(tombstone!))
-            {
-                failure = null;
-                return true;
-            }
-        }
-
-        if (OperatingSystem.IsWindows() && TryScheduleDeleteOnReboot(path))
-        {
-            failure = null;
-            return true;
-        }
-
-        return false;
+        // Delegate to the non-reboot version - reboot scheduling is now handled separately
+        // by the caller with proper PendingReboot disposition tracking
+        return TryForceDeleteWithoutReboot(path, isDirectory, cancellationToken, out failure);
     }
 
     private static bool TryDeletePath(string path, bool isDirectory, out Exception? failure)

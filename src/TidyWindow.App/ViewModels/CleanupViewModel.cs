@@ -463,6 +463,12 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
     private int _celebrationItemsFailed;
 
     [ObservableProperty]
+    private int _celebrationItemsPendingReboot;
+
+    [ObservableProperty]
+    private double _celebrationPendingRebootMegabytes;
+
+    [ObservableProperty]
     private int _celebrationCategoryCount;
 
     [ObservableProperty]
@@ -2024,6 +2030,16 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
                             categoriesTouched.Add(tuple.group.Category);
                         }
                         break;
+
+                    case CleanupDeletionDisposition.PendingReboot:
+                        // Items scheduled for reboot deletion should be removed from UI
+                        // but users need to restart for space to be actually freed
+                        removalCandidates.Add(tuple);
+                        if (!string.IsNullOrWhiteSpace(tuple.group.Category))
+                        {
+                            categoriesTouched.Add(tuple.group.Category);
+                        }
+                        break;
                 }
             }
 
@@ -2680,20 +2696,20 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         string deletionSummary)
     {
         var reclaimedMegabytes = deletionResult.TotalBytesDeleted / 1_048_576d;
+        var pendingRebootMegabytes = deletionResult.TotalBytesPendingReboot / 1_048_576d;
         CelebrationItemsDeleted = deletionResult.DeletedCount;
         CelebrationItemsSkipped = deletionResult.SkippedCount;
         CelebrationItemsFailed = deletionResult.FailedCount;
+        CelebrationItemsPendingReboot = deletionResult.PendingRebootCount;
+        CelebrationPendingRebootMegabytes = pendingRebootMegabytes;
         CelebrationReclaimedMegabytes = reclaimedMegabytes;
         var normalizedCategories = NormalizeDistinctCategories(categoriesTouched);
         CelebrationCategoryCount = normalizedCategories.Count;
         UpdateCategoryCollection(_celebrationCategories, normalizedCategories);
         CelebrationCategoryList = BuildCategoryListText(normalizedCategories);
 
-        CelebrationHeadline = reclaimedMegabytes > 0
-            ? $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed"
-            : deletionResult.DeletedCount > 0
-                ? "Cleanup complete"
-                : "No items removed";
+        // Build headline that accurately reflects what was actually freed
+        CelebrationHeadline = BuildCelebrationHeadline(reclaimedMegabytes, pendingRebootMegabytes, deletionResult.DeletedCount, deletionResult.PendingRebootCount);
 
         CelebrationDetails = BuildCelebrationDetails(deletionResult, CelebrationCategoryCount, reclaimedMegabytes);
         CelebrationDurationDisplay = FormatDuration(executionDuration);
@@ -2877,6 +2893,41 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Builds an accurate headline that distinguishes between immediately freed space and pending reboot space.
+    /// </summary>
+    private static string BuildCelebrationHeadline(double reclaimedMegabytes, double pendingRebootMegabytes, int deletedCount, int pendingRebootCount)
+    {
+        var hasImmediateReclaim = reclaimedMegabytes > 0.01;
+        var hasPendingReclaim = pendingRebootMegabytes > 0.01 && pendingRebootCount > 0;
+
+        if (hasImmediateReclaim && hasPendingReclaim)
+        {
+            // Both immediate and pending reclaim
+            return $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed ({FormatSize(pendingRebootMegabytes)} after restart)";
+        }
+
+        if (hasImmediateReclaim)
+        {
+            // Only immediate reclaim
+            return $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed";
+        }
+
+        if (hasPendingReclaim)
+        {
+            // Only pending reclaim - space will be freed after restart
+            return $"Cleanup complete — {FormatSize(pendingRebootMegabytes)} will free after restart";
+        }
+
+        if (deletedCount > 0 || pendingRebootCount > 0)
+        {
+            // Items processed but minimal size
+            return "Cleanup complete";
+        }
+
+        return "No items removed";
+    }
+
     private static string BuildCelebrationDetails(CleanupDeletionResult result, int categoryCount, double reclaimedMegabytes)
     {
         var parts = new List<string>();
@@ -2884,6 +2935,20 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         if (result.DeletedCount > 0)
         {
             parts.Add($"{result.DeletedCount:N0} item(s) removed");
+        }
+
+        // Show pending reboot items separately
+        if (result.PendingRebootCount > 0)
+        {
+            var pendingMb = result.TotalBytesPendingReboot / 1_048_576d;
+            if (pendingMb > 0.01)
+            {
+                parts.Add($"{result.PendingRebootCount:N0} item(s) pending restart ({FormatSize(pendingMb)})");
+            }
+            else
+            {
+                parts.Add($"{result.PendingRebootCount:N0} item(s) pending restart");
+            }
         }
 
         if (categoryCount > 0)
@@ -2921,6 +2986,14 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         builder.AppendLine(headline);
         builder.AppendLine($"Items removed: {result.DeletedCount:N0}");
         builder.AppendLine($"Space reclaimed: {FormatSize(result.TotalBytesDeleted / 1_048_576d)}");
+
+        // Include pending reboot info if applicable
+        if (result.PendingRebootCount > 0)
+        {
+            var pendingMb = result.TotalBytesPendingReboot / 1_048_576d;
+            builder.AppendLine($"Pending restart: {result.PendingRebootCount:N0} item(s) ({FormatSize(pendingMb)})");
+        }
+
         if (categoryCount > 0 && !string.IsNullOrWhiteSpace(categoriesDisplay) && categoriesDisplay != "—")
         {
             builder.AppendLine($"Categories touched: {categoriesDisplay}");

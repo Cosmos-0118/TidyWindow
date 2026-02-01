@@ -3415,18 +3415,12 @@
                                    FontWeight="Bold"
                                    Foreground="#34D399"
                                    HorizontalAlignment="Center"
-                                   Margin="0,0,0,12">
-                            <TextBlock.Text>
-                                <MultiBinding StringFormat="{}{0:N0}%">
-                                    <Binding Path="DeletionProgressCurrent"/>
-                                    <Binding Path="DeletionProgressTotal"/>
-                                </MultiBinding>
-                            </TextBlock.Text>
+                                   Margin="0,0,0,12"
+                                   Text="{Binding ActiveOperationPercentDisplay}">
                             <TextBlock.Style>
                                 <Style TargetType="TextBlock">
-                                    <Setter Property="Text" Value="0%"/>
                                     <Style.Triggers>
-                                        <DataTrigger Binding="{Binding DeletionProgressTotal}" Value="0">
+                                        <DataTrigger Binding="{Binding HasActiveOperationPercent}" Value="False">
                                             <Setter Property="Visibility" Value="Collapsed"/>
                                         </DataTrigger>
                                     </Style.Triggers>
@@ -3703,6 +3697,8 @@
                                 <Run Text="{Binding CelebrationItemsSkipped, StringFormat={}{0:N0}}" Foreground="{StaticResource CleanupSoftTextBrush}" FontWeight="SemiBold"/>
                                 <Run Text="  •  Failed: "/>
                                 <Run Text="{Binding CelebrationItemsFailed, StringFormat={}{0:N0}}" Foreground="{StaticResource CleanupSoftTextBrush}" FontWeight="SemiBold"/>
+                                <Run Text="  •  Pending reboot: "/>
+                                <Run Text="{Binding CelebrationItemsPendingReboot, StringFormat={}{0:N0}}" Foreground="#F59E0B" FontWeight="SemiBold"/>
                             </TextBlock>
                         </StackPanel>
                     </Border>

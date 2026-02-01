@@ -9,27 +9,59 @@ namespace TidyWindow.Core.Cleanup;
 /// <summary>
 /// Centralized, conservative classification for system-critical paths used by cleanup flows.
 /// Only blocks locations whose removal is likely to break Windows, drivers, or boot.
+/// Explicitly allows known-safe cleanup locations even if they live under protected parent folders.
 /// </summary>
 public static class CleanupSystemPathSafety
 {
     private static readonly Lazy<HashSet<string>> CriticalRoots = new(() => BuildCriticalRoots(), isThreadSafe: true);
+    private static readonly Lazy<HashSet<string>> SafeCleanupPaths = new(() => BuildSafeCleanupPaths(), isThreadSafe: true);
     private static readonly ConcurrentDictionary<string, byte> AdditionalRoots = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Critical boot and system files that should NEVER be deleted regardless of location.
+    /// </summary>
     private static readonly HashSet<string> CriticalFiles = new(StringComparer.OrdinalIgnoreCase)
     {
+        // Boot files
         "bootmgr",
+        "bootmgr.efi",
         "bootnxt",
         "bcd",
+        "bcd.log",
+        "bcd.log1",
+        "bcd.log2",
+        
+        // Hibernation and paging
         "hiberfil.sys",
         "pagefile.sys",
         "swapfile.sys",
+        
+        // Windows boot loaders
         "winresume.exe",
         "winresume.efi",
         "winload.exe",
-        "winload.efi"
+        "winload.efi",
+        
+        // Kernel and HAL
+        "ntoskrnl.exe",
+        "hal.dll",
+        "ntdll.dll",
+        "kernel32.dll",
+        "kernelbase.dll",
+        
+        // Registry hives
+        "sam",
+        "security",
+        "software",
+        "system",
+        "default",
+        "ntuser.dat",
+        "usrclass.dat"
     };
 
     /// <summary>
     /// Returns true when the path points to a Windows- or boot-critical file or directory tree.
+    /// Returns false for known-safe cleanup locations even if under a protected parent.
     /// </summary>
     public static bool IsSystemCriticalPath(string? path)
     {
@@ -69,22 +101,22 @@ public static class CleanupSystemPathSafety
             return false;
         }
 
+        // Always protect critical files regardless of location
         if (IsCriticalFile(normalized))
         {
             return true;
         }
 
-        // Explicitly allow Windows Temp as non-critical even though it lives under %WINDIR%.
-        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
-        if (!string.IsNullOrWhiteSpace(windows))
+        // FIRST: Check if this is a known-safe cleanup path - these are ALWAYS allowed
+        foreach (var safePath in SafeCleanupPaths.Value)
         {
-            var windowsTemp = NormalizeAsDirectory(Path.Combine(windows, "Temp"), ensureTrailingSeparator: true);
-            if (IsSameOrSubPath(normalized, windowsTemp))
+            if (IsSameOrSubPath(normalized, safePath))
             {
-                return false;
+                return false; // Explicitly safe to clean
             }
         }
 
+        // THEN: Check if it's under a critical root
         foreach (var root in CriticalRoots.Value)
         {
             if (IsSameOrSubPath(normalized, root))
@@ -135,44 +167,129 @@ public static class CleanupSystemPathSafety
             return false;
         }
 
-        if (CriticalFiles.Contains(fileName))
+        return CriticalFiles.Contains(fileName);
+    }
+
+    /// <summary>
+    /// Builds the set of known-safe cleanup locations that should NEVER be blocked,
+    /// even if they are under a protected parent folder like C:\Windows.
+    /// </summary>
+    private static HashSet<string> BuildSafeCleanupPaths()
+    {
+        var safe = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void AddSafe(string? candidate)
         {
-            return true;
+            var normalized = Normalize(candidate, ensureTrailingSeparator: true);
+            if (normalized.Length > 0)
+            {
+                safe.Add(normalized);
+            }
         }
 
-        // Guard BCD store wherever it lives (Boot\BCD typically) even if filename casing varies.
-        return fileName.Equals("bcd", StringComparison.OrdinalIgnoreCase);
+        var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+        if (!string.IsNullOrWhiteSpace(windows))
+        {
+            // Windows Temp - always safe
+            AddSafe(Path.Combine(windows, "Temp"));
+
+            // Windows Prefetch - safe, regenerated automatically
+            AddSafe(Path.Combine(windows, "Prefetch"));
+
+            // Windows Update downloads - safe to clean
+            AddSafe(Path.Combine(windows, "SoftwareDistribution", "Download"));
+            AddSafe(Path.Combine(windows, "SoftwareDistribution", "DeliveryOptimization"));
+
+            // Windows logs - safe to clean (but not critical CBS logs during servicing)
+            AddSafe(Path.Combine(windows, "Logs", "WindowsUpdate"));
+            AddSafe(Path.Combine(windows, "Logs", "CBS"));
+            AddSafe(Path.Combine(windows, "Logs", "DISM"));
+            AddSafe(Path.Combine(windows, "Logs", "MoSetup"));
+            AddSafe(Path.Combine(windows, "Logs", "DPX"));
+            AddSafe(Path.Combine(windows, "Logs", "SIH"));
+
+            // Windows Installer patch cache - safe to clean
+            AddSafe(Path.Combine(windows, "Installer", "$PatchCache$"));
+            AddSafe(Path.Combine(windows, "Installer", "Config.Msi"));
+
+            // Panther setup logs - safe
+            AddSafe(Path.Combine(windows, "Panther"));
+
+            // Minidump crash files - safe
+            AddSafe(Path.Combine(windows, "Minidump"));
+            AddSafe(Path.Combine(windows, "LiveKernelReports"));
+
+            // Font cache - safe, regenerates
+            AddSafe(Path.Combine(windows, "ServiceProfiles", "LocalService", "AppData", "Local", "FontCache"));
+
+            // Downloaded Program Files (legacy ActiveX) - safe
+            AddSafe(Path.Combine(windows, "Downloaded Program Files"));
+
+            // Debug files - safe
+            AddSafe(Path.Combine(windows, "Debug"));
+
+            // Memory dumps - safe  
+            AddSafe(Path.Combine(windows, "memory.dmp"));
+
+            // AppCompat cache - safe
+            AddSafe(Path.Combine(windows, "appcompat", "Programs", "Install"));
+
+            // Defender scan results and temp (not the program itself)
+            AddSafe(Path.Combine(windows, "Temp", "MpCmdRun.log"));
+        }
+
+        var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
+        if (!string.IsNullOrWhiteSpace(programData))
+        {
+            // Windows Error Reporting - safe
+            AddSafe(Path.Combine(programData, "Microsoft", "Windows", "WER"));
+
+            // USO Update Store - safe
+            AddSafe(Path.Combine(programData, "USOPrivate", "UpdateStore"));
+            AddSafe(Path.Combine(programData, "USOShared", "Logs"));
+
+            // Package cache - safe (installer caches)
+            AddSafe(Path.Combine(programData, "Package Cache"));
+
+            // Microsoft Crypto (only the Keys folder is critical, logs are safe)
+            AddSafe(Path.Combine(programData, "Microsoft", "Crypto", "RSA", "MachineKeys")); // Temp cert files
+
+            // Windows Defender - scans and temp files are safe, but not the program
+            AddSafe(Path.Combine(programData, "Microsoft", "Windows Defender", "Scans", "History"));
+            AddSafe(Path.Combine(programData, "Microsoft", "Windows Defender", "Support"));
+
+            // Network cache
+            AddSafe(Path.Combine(programData, "Microsoft", "Network", "Downloader"));
+
+            // Search index - can be rebuilt
+            AddSafe(Path.Combine(programData, "Microsoft", "Search", "Data"));
+        }
+
+        return safe;
     }
 
     private static HashSet<string> BuildCriticalRoots()
     {
         var roots = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-        void Add(string? candidate, bool protectSubtree = true)
+        void Add(string? candidate)
         {
-            var normalized = Normalize(candidate);
+            var normalized = Normalize(candidate, ensureTrailingSeparator: true);
             if (normalized.Length == 0)
             {
                 return;
             }
 
-            // Prefer the most protective stance if duplicates appear.
-            if (roots.TryGetValue(normalized, out _))
-            {
-                return;
-            }
-
-            roots.Add(NormalizeAsDirectory(normalized, protectSubtree));
+            roots.Add(normalized);
         }
 
         var windows = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
         if (!string.IsNullOrWhiteSpace(windows))
         {
-            Add(windows);
-
-            // Core OS subtrees.
+            // Core OS binaries and components - CRITICAL
             Add(Path.Combine(windows, "System32"));
             Add(Path.Combine(windows, "SysWOW64"));
+            Add(Path.Combine(windows, "SysArm32"));
             Add(Path.Combine(windows, "WinSxS"));
             Add(Path.Combine(windows, "SystemApps"));
             Add(Path.Combine(windows, "SystemResources"));
@@ -180,13 +297,39 @@ public static class CleanupSystemPathSafety
             Add(Path.Combine(windows, "assembly"));
             Add(Path.Combine(windows, "Fonts"));
             Add(Path.Combine(windows, "INF"));
-            Add(Path.Combine(windows, "System32", "drivers"));
-            Add(Path.Combine(windows, "System32", "DriverStore"));
-            Add(Path.Combine(windows, "System32", "catroot"));
-            Add(Path.Combine(windows, "System32", "catroot2"));
+            Add(Path.Combine(windows, "Globalization"));
+            Add(Path.Combine(windows, "Boot"));
+            Add(Path.Combine(windows, "Branding"));
+            Add(Path.Combine(windows, "diagnostics"));
+            Add(Path.Combine(windows, "Help"));
+            Add(Path.Combine(windows, "ImmersiveControlPanel"));
+            Add(Path.Combine(windows, "InputMethod"));
+            Add(Path.Combine(windows, "L2Schemas"));
+            Add(Path.Combine(windows, "Cursors"));
+            Add(Path.Combine(windows, "Media"));
+            Add(Path.Combine(windows, "Migration"));
+            Add(Path.Combine(windows, "PolicyDefinitions"));
+            Add(Path.Combine(windows, "PrintDialog"));
+            Add(Path.Combine(windows, "rescache"));
+            Add(Path.Combine(windows, "Resources"));
+            Add(Path.Combine(windows, "schemas"));
+            Add(Path.Combine(windows, "Security"));
+            Add(Path.Combine(windows, "ShellComponents"));
+            Add(Path.Combine(windows, "ShellExperiences"));
+            Add(Path.Combine(windows, "SKB"));
+            Add(Path.Combine(windows, "Speech"));
+            Add(Path.Combine(windows, "Speech_OneCore"));
+            Add(Path.Combine(windows, "System"));
+            Add(Path.Combine(windows, "TextInput"));
+            Add(Path.Combine(windows, "tracing"));
+            Add(Path.Combine(windows, "Web"));
+            Add(Path.Combine(windows, "WaaS"));
+
+            // Note: We intentionally do NOT add C:\Windows itself or C:\Windows\Installer
+            // because safe cleanup paths within them are explicitly allowed
         }
 
-        // Boot and recovery.
+        // Boot and recovery partitions - CRITICAL
         var systemDrive = !string.IsNullOrWhiteSpace(windows) ? Path.GetPathRoot(windows) : Path.GetPathRoot(Environment.SystemDirectory);
         if (!string.IsNullOrWhiteSpace(systemDrive))
         {
@@ -194,35 +337,68 @@ public static class CleanupSystemPathSafety
             Add(Path.Combine(systemDrive, "EFI"));
             Add(Path.Combine(systemDrive, "Recovery"));
             Add(Path.Combine(systemDrive, "System Volume Information"));
+            Add(Path.Combine(systemDrive, "bootmgr"));
         }
 
-        // OS-owned areas under Program Files (avoid blocking third-party apps by being surgical).
+        // Windows Apps (MSIX/UWP core)
         var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
         if (!string.IsNullOrWhiteSpace(programFiles))
         {
             Add(Path.Combine(programFiles, "WindowsApps"));
             Add(Path.Combine(programFiles, "Windows Defender"));
             Add(Path.Combine(programFiles, "Windows Security"));
-            Add(Path.Combine(programFiles, "Common Files", "Microsoft Shared"));
+            Add(Path.Combine(programFiles, "Windows NT"));
+            Add(Path.Combine(programFiles, "Windows Photo Viewer"));
+            Add(Path.Combine(programFiles, "Windows Portable Devices"));
+            Add(Path.Combine(programFiles, "Windows Sidebar"));
+            Add(Path.Combine(programFiles, "Windows Mail"));
+            Add(Path.Combine(programFiles, "Windows Media Player"));
+            Add(Path.Combine(programFiles, "Reference Assemblies", "Microsoft"));
         }
 
         var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        if (!string.IsNullOrWhiteSpace(programFilesX86))
+        if (!string.IsNullOrWhiteSpace(programFilesX86) && !programFilesX86.Equals(programFiles, StringComparison.OrdinalIgnoreCase))
         {
             Add(Path.Combine(programFilesX86, "WindowsApps"));
             Add(Path.Combine(programFilesX86, "Windows Defender"));
             Add(Path.Combine(programFilesX86, "Windows Security"));
-            Add(Path.Combine(programFilesX86, "Common Files", "Microsoft Shared"));
+            Add(Path.Combine(programFilesX86, "Windows NT"));
+            Add(Path.Combine(programFilesX86, "Windows Photo Viewer"));
+            Add(Path.Combine(programFilesX86, "Windows Portable Devices"));
+            Add(Path.Combine(programFilesX86, "Windows Sidebar"));
+            Add(Path.Combine(programFilesX86, "Windows Mail"));
+            Add(Path.Combine(programFilesX86, "Windows Media Player"));
+            Add(Path.Combine(programFilesX86, "Reference Assemblies", "Microsoft"));
         }
 
-        // Core OS data under ProgramData.
+        // Core system data - CRITICAL (but NOT the entire ProgramData\Microsoft\Windows folder)
         var programData = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData);
         if (!string.IsNullOrWhiteSpace(programData))
         {
-            Add(Path.Combine(programData, "Microsoft", "Windows"));
+            // Crypto and protection stores - CRITICAL
             Add(Path.Combine(programData, "Microsoft", "Crypto"));
             Add(Path.Combine(programData, "Microsoft", "Protect"));
-            Add(Path.Combine(programData, "Microsoft", "Windows Defender"));
+
+            // Windows Defender program data (not logs/scans)
+            Add(Path.Combine(programData, "Microsoft", "Windows Defender", "Definition Updates"));
+            Add(Path.Combine(programData, "Microsoft", "Windows Defender", "Platform"));
+
+            // Group Policy - CRITICAL
+            Add(Path.Combine(programData, "Microsoft", "Group Policy"));
+
+            // Device drivers
+            Add(Path.Combine(programData, "Microsoft", "Windows", "DeviceSetupManager"));
+
+            // ClickToRun
+            Add(Path.Combine(programData, "Microsoft", "ClickToRun"));
+        }
+
+        // User profile folders that should never be bulk-deleted
+        var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            // NTUSER.DAT location
+            Add(Path.Combine(userProfile, "NTUSER.DAT"));
         }
 
         return roots;

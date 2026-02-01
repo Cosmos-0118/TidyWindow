@@ -10,9 +10,26 @@ namespace TidyWindow.Core.Cleanup;
 /// </summary>
 public enum CleanupDeletionDisposition
 {
+    /// <summary>
+    /// The item was successfully deleted and the space is now freed.
+    /// </summary>
     Deleted,
+
+    /// <summary>
+    /// The item was skipped due to policy or filter settings.
+    /// </summary>
     Skipped,
-    Failed
+
+    /// <summary>
+    /// The deletion failed and the item still exists on disk.
+    /// </summary>
+    Failed,
+
+    /// <summary>
+    /// The item could not be deleted immediately and has been scheduled for removal on next reboot.
+    /// The space is NOT freed until after a restart.
+    /// </summary>
+    PendingReboot
 }
 
 /// <summary>
@@ -26,12 +43,19 @@ public sealed record CleanupDeletionEntry(
     string? Reason = null,
     Exception? Exception = null)
 {
+    /// <summary>
+    /// Gets the actual bytes that were freed by this deletion.
+    /// For <see cref="CleanupDeletionDisposition.PendingReboot"/>, this is 0 because the space isn't freed until reboot.
+    /// </summary>
+    public long ActualBytesFreed => Disposition == CleanupDeletionDisposition.Deleted ? Math.Max(SizeBytes, 0) : 0;
+
     public string EffectiveReason => string.IsNullOrWhiteSpace(Reason)
         ? Disposition switch
         {
             CleanupDeletionDisposition.Deleted => "Deleted successfully",
             CleanupDeletionDisposition.Skipped => "Skipped by policy",
             CleanupDeletionDisposition.Failed => Exception?.Message ?? "Deletion failed",
+            CleanupDeletionDisposition.PendingReboot => "Scheduled for removal after restart",
             _ => string.Empty
         }
         : Reason!;
@@ -55,12 +79,17 @@ public sealed class CleanupDeletionResult
         DeletedCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.Deleted);
         SkippedCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.Skipped);
         FailedCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.Failed);
+        PendingRebootCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.PendingReboot);
 
+        // Only count bytes that were ACTUALLY freed (verified deleted items only)
         TotalBytesDeleted = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Deleted)
-            .Sum(static entry => Math.Max(entry.SizeBytes, 0));
+            .Sum(static entry => entry.ActualBytesFreed);
         TotalBytesSkipped = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Skipped)
             .Sum(static entry => Math.Max(entry.SizeBytes, 0));
         TotalBytesFailed = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Failed)
+            .Sum(static entry => Math.Max(entry.SizeBytes, 0));
+        // PendingReboot items haven't freed any space yet - they still consume disk space until reboot
+        TotalBytesPendingReboot = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.PendingReboot)
             .Sum(static entry => Math.Max(entry.SizeBytes, 0));
 
         Errors = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Failed)
@@ -78,11 +107,24 @@ public sealed class CleanupDeletionResult
 
     public int FailedCount { get; }
 
+    /// <summary>
+    /// Number of items scheduled for deletion on next reboot.
+    /// </summary>
+    public int PendingRebootCount { get; }
+
+    /// <summary>
+    /// Bytes that were actually freed immediately. Does not include pending reboot items.
+    /// </summary>
     public long TotalBytesDeleted { get; }
 
     public long TotalBytesSkipped { get; }
 
     public long TotalBytesFailed { get; }
+
+    /// <summary>
+    /// Bytes that will be freed after the next reboot. Not included in <see cref="TotalBytesDeleted"/>.
+    /// </summary>
+    public long TotalBytesPendingReboot { get; }
 
     public IReadOnlyList<string> Errors { get; }
 
@@ -100,6 +142,18 @@ public sealed class CleanupDeletionResult
         }
 
         parts.Add(deletedSummary);
+
+        // Show pending reboot items separately so users know space isn't freed yet
+        if (PendingRebootCount > 0)
+        {
+            var pendingLabel = PendingRebootCount == 1 ? "item" : "items";
+            var pendingSummary = $"{PendingRebootCount:N0} {pendingLabel} pending reboot";
+            if (TotalBytesPendingReboot > 0)
+            {
+                pendingSummary += $" ({FormatMegabytes(TotalBytesPendingReboot):F2} MB)";
+            }
+            parts.Add(pendingSummary);
+        }
 
         if (SkippedCount > 0)
         {

@@ -447,6 +447,12 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 return (true, null);
             }
 
+            // PendingReboot items are technically successful - they'll be deleted on restart
+            if (entry.Disposition == CleanupDeletionDisposition.PendingReboot)
+            {
+                return (true, "Scheduled for removal after restart.");
+            }
+
             var reason = string.IsNullOrWhiteSpace(entry.Reason) ? entry.EffectiveReason : entry.Reason;
             return (false, reason);
         }
@@ -990,37 +996,51 @@ public sealed partial class DeepScanViewModel : ViewModelBase
                 return (false, "System path protection is enabled. Toggle 'Allow system deletion' to proceed.");
             }
 
-            if (item.IsDirectory)
+            // Use CleanupService for consistent deletion behavior (but without force options)
+            var (isHidden, isSystem) = GetAttributeFlags(targetPath);
+            var previewItem = new CleanupPreviewItem(
+                item.Name,
+                targetPath,
+                item.Finding.SizeBytes,
+                item.Finding.ModifiedUtc.UtcDateTime,
+                item.IsDirectory,
+                item.Extension,
+                isHidden,
+                isSystem);
+
+            var options = new CleanupDeletionOptions
             {
-                if (!Directory.Exists(targetPath))
-                {
-                    return (true, null);
-                }
+                PreferRecycleBin = false,
+                AllowPermanentDeleteFallback = true,
+                SkipLockedItems = true, // Normal delete skips locked items
+                TakeOwnershipOnAccessDenied = false, // No force delete for normal mode
+                AllowDeleteOnReboot = false,
+                MaxRetryCount = 2,
+                RetryDelay = TimeSpan.FromMilliseconds(100),
+                AllowProtectedSystemPaths = AllowSystemDeletion
+            };
 
-                ClearDirectoryReadOnlyFlags(targetPath);
-                Directory.Delete(targetPath, recursive: true);
-            }
-            else
+            var result = _cleanupService.DeleteAsync(new[] { previewItem }, progress: null, options: options)
+                .GetAwaiter().GetResult();
+            var entry = result.Entries.FirstOrDefault();
+
+            if (entry is null)
             {
-                if (!File.Exists(targetPath))
-                {
-                    return (true, null);
-                }
-
-                ClearFileReadOnlyFlag(targetPath);
-                File.Delete(targetPath);
+                return (false, "Delete did not return a result.");
             }
 
-            return (true, null);
-        }
-        catch (Exception ex) when (ex is IOException
-            or UnauthorizedAccessException
-            or DirectoryNotFoundException
-            or FileNotFoundException
-            or NotSupportedException
-            or System.Security.SecurityException)
-        {
-            return (false, ex.Message);
+            if (entry.Disposition == CleanupDeletionDisposition.Deleted)
+            {
+                return (true, null);
+            }
+
+            if (entry.Disposition == CleanupDeletionDisposition.PendingReboot)
+            {
+                return (true, "Scheduled for removal after restart.");
+            }
+
+            var reason = string.IsNullOrWhiteSpace(entry.Reason) ? entry.EffectiveReason : entry.Reason;
+            return (false, reason);
         }
         catch (Exception ex)
         {

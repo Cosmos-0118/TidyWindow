@@ -70,6 +70,39 @@ internal sealed class CleanupDefinitionProvider
         definitions.AddRange(GetCloudStorageTargets());
         definitions.AddRange(GetVirtualizationTargets());
         definitions.AddRange(GetMiscellaneousAppTargets());
+        definitions.AddRange(GetWindowsDefenderTargets());
+        definitions.AddRange(GetPrinterAndScannerTargets());
+        definitions.AddRange(GetDotNetAndRuntimeTargets());
+        definitions.AddRange(GetWindowsEventLogTargets());
+        definitions.AddRange(GetSystemRestoreMetadataTargets());
+        definitions.AddRange(GetRemoteDesktopTargets());
+        definitions.AddRange(GetDeliveryOptimizationTargets());
+        definitions.AddRange(GetWindowsUpdateResidualTargets());
+        definitions.AddRange(GetOtherBrowserTargets());
+        definitions.AddRange(GetArchiveToolTargets());
+        definitions.AddRange(GetDatabaseToolTargets());
+        definitions.AddRange(GetMusicProductionTargets());
+        definitions.AddRange(GetVideoEditingTargets());
+        definitions.AddRange(GetGraphicsDesignTargets());
+        definitions.AddRange(Get3DModelingTargets());
+        definitions.AddRange(GetEmailClientTargets());
+        definitions.AddRange(GetPasswordManagerTargets());
+        definitions.AddRange(GetVpnClientTargets());
+        definitions.AddRange(GetAntivirusTargets());
+        definitions.AddRange(GetSystemToolTargets());
+        definitions.AddRange(GetWindowsServiceCacheTargets());
+        definitions.AddRange(GetMsixAndAppxTargets());
+        definitions.AddRange(GetNetworkCacheTargets());
+        definitions.AddRange(GetOtherTempLocations());
+        definitions.AddRange(GetPackageManagerCacheTargets());
+        definitions.AddRange(GetAdditionalGameLauncherTargets());
+        definitions.AddRange(GetRemoteAccessToolTargets());
+        definitions.AddRange(GetStreamingAppTargets());
+        definitions.AddRange(GetNoteTakingAppTargets());
+        definitions.AddRange(GetScreenshotToolTargets());
+        definitions.AddRange(GetWebView2Targets());
+        definitions.AddRange(GetPowerShellTargets());
+        definitions.AddRange(GetWindowsSubsystemTargets());
 
         definitions.AddRange(new[]
         {
@@ -1063,6 +1096,540 @@ internal sealed class CleanupDefinitionProvider
         return targets;
     }
 
+    private static IEnumerable<CleanupTargetDefinition> GetWindowsDefenderTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        AddDirectoryTarget(targets, "Cache", "Windows Defender scans", Combine(ProgramData, "Microsoft", "Windows Defender", "Scans"), "Windows Defender scan history and results.");
+        AddDirectoryTarget(targets, "Cache", "Windows Defender quarantine", Combine(ProgramData, "Microsoft", "Windows Defender", "Quarantine"), "Quarantined files. Warning: Contains potentially malicious files.");
+        AddDirectoryTarget(targets, "Logs", "Windows Defender logs", Combine(ProgramData, "Microsoft", "Windows Defender", "Support"), "Windows Defender diagnostic logs.");
+        AddDirectoryTarget(targets, "Cache", "MpCmdRun logs", Combine(WindowsDirectory, "Temp", "MpCmdRun.log"), "Microsoft Defender command-line tool logs.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetPrinterAndScannerTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        AddDirectoryTarget(targets, "Cache", "Print spooler", Combine(WindowsDirectory, "System32", "spool", "PRINTERS"), "Print spooler queue files. Clear if print jobs are stuck.");
+        AddDirectoryTarget(targets, "Logs", "Print spooler logs", Combine(WindowsDirectory, "System32", "spool", "drivers", "color"), "Printer color profiles (usually safe).");
+        AddDirectoryTarget(targets, "Cache", "Scan cache", Combine(LocalAppData, "Microsoft", "Windows", "WinX"), "Windows scanning cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetDotNetAndRuntimeTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            // .NET CLI
+            AddDirectoryTarget(targets, "Cache", ".NET CLI temp", Path.Combine(userProfile, ".dotnet", "temp"), ".NET CLI temporary files.");
+            AddDirectoryTarget(targets, "Cache", ".NET CLI tools cache", Path.Combine(userProfile, ".dotnet", "tools", ".store"), ".NET tool store (can be large).");
+
+            // Node.js
+            AddDirectoryTarget(targets, "Cache", "Node.js temp", Path.Combine(userProfile, ".node_repl_history"), "Node.js REPL history.");
+
+            // Python
+            AddDirectoryTarget(targets, "Cache", "Python cache", Path.Combine(userProfile, ".python_history"), "Python REPL history.");
+            AddDirectoryTarget(targets, "Cache", "PyPI cache", Path.Combine(userProfile, "pip"), "Legacy pip cache location.");
+
+            // Ruby
+            AddDirectoryTarget(targets, "Cache", "Ruby gems cache", Path.Combine(userProfile, ".gem"), "Ruby gems cache.");
+            AddDirectoryTarget(targets, "Cache", "Bundler cache", Path.Combine(userProfile, ".bundle", "cache"), "Ruby Bundler cache.");
+        }
+
+        // Windows .NET temp
+        AddDirectoryTarget(targets, "Cache", ".NET Framework temp", Combine(WindowsDirectory, "Microsoft.NET", "Framework", "v4.0.30319", "Temporary ASP.NET Files"), "ASP.NET compilation temp files.");
+        AddDirectoryTarget(targets, "Cache", ".NET Framework64 temp", Combine(WindowsDirectory, "Microsoft.NET", "Framework64", "v4.0.30319", "Temporary ASP.NET Files"), "ASP.NET 64-bit compilation temp.");
+
+        // Runtime caches
+        AddDirectoryTarget(targets, "Cache", "Assembly cache", Combine(WindowsDirectory, "assembly", "temp"), "Global Assembly Cache temp.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetWindowsEventLogTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Event logs can be cleared but we'll target archived/backup logs
+        AddDirectoryTarget(targets, "Logs", "Archived event logs", Combine(WindowsDirectory, "System32", "winevt", "Logs"), "Windows Event Logs. Warning: Contains important system history.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetSystemRestoreMetadataTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // System Volume Information is heavily protected, but we can note it
+        var systemDrive = GetSystemDrive();
+        AddDirectoryTarget(targets, "Orphaned", "System restore points", Path.Combine(systemDrive, "System Volume Information"), "System restore points and VSS snapshots. Use Disk Cleanup to manage.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetRemoteDesktopTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        AddDirectoryTarget(targets, "Cache", "RDP bitmap cache", Combine(LocalAppData, "Microsoft", "Terminal Server Client", "Cache"), "Remote Desktop connection bitmap cache.");
+        AddFileTarget(targets, "History", "RDP connection history", Combine(Environment.GetEnvironmentVariable("USERPROFILE"), "Documents", "Default.rdp"), "Default RDP connection file.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetDeliveryOptimizationTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        AddDirectoryTarget(targets, "Cache", "Delivery Optimization files", Combine(WindowsDirectory, "SoftwareDistribution", "DeliveryOptimization"), "Windows Update delivery optimization cache.");
+        AddDirectoryTarget(targets, "Cache", "DO uploads", Combine(ProgramData, "Microsoft", "Windows", "DeliveryOptimization", "Cache"), "Delivery Optimization peer-to-peer cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetWindowsUpdateResidualTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        AddDirectoryTarget(targets, "Cache", "WU Download", Combine(WindowsDirectory, "SoftwareDistribution", "Download"), "Downloaded Windows Update files.");
+        AddDirectoryTarget(targets, "Cache", "WU DataStore", Combine(WindowsDirectory, "SoftwareDistribution", "DataStore"), "Windows Update database cache.");
+        AddDirectoryTarget(targets, "Cache", "Catroot2", Combine(WindowsDirectory, "System32", "catroot2"), "Cryptographic catalog database. Clears signature cache.");
+        AddDirectoryTarget(targets, "Logs", "CBS Persist", Combine(WindowsDirectory, "Logs", "CBS", "Persist"), "Persistent CBS log files.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetOtherBrowserTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Waterfox
+        AddDirectoryTarget(targets, "Cache", "Waterfox cache", Combine(RoamingAppData, "Waterfox", "Profiles"), "Waterfox browser profiles cache.");
+
+        // Tor Browser
+        AddDirectoryTarget(targets, "Cache", "Tor Browser cache", Combine(Environment.GetEnvironmentVariable("USERPROFILE"), "Desktop", "Tor Browser", "Browser", "TorBrowser", "Data", "Browser", "profile.default", "cache2"), "Tor Browser cache.");
+
+        // Pale Moon
+        AddDirectoryTarget(targets, "Cache", "Pale Moon cache", Combine(RoamingAppData, "Moonchild Productions", "Pale Moon", "Profiles"), "Pale Moon browser profiles.");
+
+        // Chromium
+        AddDirectoryTarget(targets, "Cache", "Chromium cache", Combine(LocalAppData, "Chromium", "User Data"), "Chromium browser cache.");
+
+        // Arc Browser
+        AddDirectoryTarget(targets, "Cache", "Arc Browser cache", Combine(LocalAppData, "Arc", "User Data"), "Arc browser cache.");
+
+        // Floorp
+        AddDirectoryTarget(targets, "Cache", "Floorp cache", Combine(RoamingAppData, "Floorp", "Profiles"), "Floorp browser cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetArchiveToolTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // PeaZip
+        AddDirectoryTarget(targets, "Cache", "PeaZip temp", Combine(LocalAppData, "PeaZip"), "PeaZip archive tool temp files.");
+
+        // Bandizip
+        AddDirectoryTarget(targets, "Cache", "Bandizip temp", Combine(LocalAppData, "Bandizip"), "Bandizip archive tool cache.");
+
+        // NanaZip
+        AddDirectoryTarget(targets, "Cache", "NanaZip cache", Combine(LocalAppData, "Packages", "40174MouriNaruto.NanaZip_gnj4mf6z9tkrc", "LocalCache"), "NanaZip archive cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetDatabaseToolTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // SQL Server Management Studio
+        AddDirectoryTarget(targets, "Cache", "SSMS cache", Combine(LocalAppData, "Microsoft", "SQL Server Management Studio"), "SQL Server Management Studio cache.");
+        AddDirectoryTarget(targets, "Logs", "SSMS logs", Combine(RoamingAppData, "Microsoft", "SQL Server Management Studio"), "SSMS roaming data and logs.");
+
+        // Azure Data Studio
+        AddDirectoryTarget(targets, "Cache", "Azure Data Studio cache", Combine(RoamingAppData, "azuredatastudio", "Cache"), "Azure Data Studio cache.");
+        AddDirectoryTarget(targets, "Cache", "Azure Data Studio CachedData", Combine(RoamingAppData, "azuredatastudio", "CachedData"), "Azure Data Studio cached extensions.");
+
+        // DBeaver
+        AddDirectoryTarget(targets, "Cache", "DBeaver cache", Combine(RoamingAppData, "DBeaverData", "workspace6", ".metadata"), "DBeaver workspace metadata.");
+
+        // MongoDB Compass
+        AddDirectoryTarget(targets, "Cache", "MongoDB Compass cache", Combine(RoamingAppData, "MongoDB Compass", "Cache"), "MongoDB Compass cache.");
+
+        // Redis Insight
+        AddDirectoryTarget(targets, "Cache", "Redis Insight cache", Combine(RoamingAppData, "RedisInsight", "Cache"), "Redis Insight cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetMusicProductionTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // FL Studio
+        AddDirectoryTarget(targets, "Cache", "FL Studio backup", Combine(Environment.GetEnvironmentVariable("USERPROFILE"), "Documents", "Image-Line", "FL Studio", "Projects", "Backup"), "FL Studio project backups.");
+
+        // Ableton Live
+        AddDirectoryTarget(targets, "Cache", "Ableton cache", Combine(RoamingAppData, "Ableton"), "Ableton Live cache and preferences.");
+
+        // Audacity
+        AddDirectoryTarget(targets, "Cache", "Audacity temp", Combine(LocalAppData, "Audacity", "SessionData"), "Audacity session temporary files.");
+
+        // Reaper
+        AddDirectoryTarget(targets, "Cache", "Reaper peaks", Combine(RoamingAppData, "REAPER", "Peaks"), "REAPER audio peaks cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetVideoEditingTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // DaVinci Resolve
+        AddDirectoryTarget(targets, "Cache", "DaVinci Resolve cache", Combine(RoamingAppData, "Blackmagic Design", "DaVinci Resolve", "Support", "CacheClip"), "DaVinci Resolve cache clips.");
+        AddDirectoryTarget(targets, "Cache", "DaVinci Resolve Gallery", Combine(RoamingAppData, "Blackmagic Design", "DaVinci Resolve", "Support", "Gallery"), "DaVinci Resolve gallery stills.");
+
+        // Premiere Pro
+        AddDirectoryTarget(targets, "Cache", "Premiere Pro cache", Combine(LocalAppData, "Adobe", "Common", "Media Cache Files"), "Adobe Premiere Pro media cache.");
+        AddDirectoryTarget(targets, "Cache", "After Effects cache", Combine(LocalAppData, "Adobe", "Common", "Media Cache"), "Adobe After Effects cache.");
+
+        // OBS Studio
+        AddDirectoryTarget(targets, "Logs", "OBS Studio logs", Combine(RoamingAppData, "obs-studio", "logs"), "OBS Studio recording logs.");
+        AddDirectoryTarget(targets, "Cache", "OBS Studio crash reports", Combine(RoamingAppData, "obs-studio", "crashes"), "OBS Studio crash dumps.");
+
+        // Handbrake
+        AddDirectoryTarget(targets, "Logs", "Handbrake logs", Combine(RoamingAppData, "HandBrake", "logs"), "Handbrake encoding logs.");
+
+        // Kdenlive
+        AddDirectoryTarget(targets, "Cache", "Kdenlive cache", Combine(LocalAppData, "kdenlive"), "Kdenlive video editor cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetGraphicsDesignTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // GIMP
+        AddDirectoryTarget(targets, "Cache", "GIMP cache", Combine(RoamingAppData, "GIMP", "2.10", "tmp"), "GIMP temporary files.");
+
+        // Inkscape
+        AddDirectoryTarget(targets, "Cache", "Inkscape cache", Combine(RoamingAppData, "inkscape"), "Inkscape cache and temp files.");
+
+        // Paint.NET
+        AddDirectoryTarget(targets, "Cache", "Paint.NET cache", Combine(LocalAppData, "paint.net"), "Paint.NET cache.");
+
+        // Affinity Suite
+        AddDirectoryTarget(targets, "Cache", "Affinity cache", Combine(RoamingAppData, "Affinity"), "Affinity Photo/Designer cache.");
+
+        // Figma
+        AddDirectoryTarget(targets, "Cache", "Figma cache", Combine(RoamingAppData, "Figma", "Cache"), "Figma desktop app cache.");
+        AddDirectoryTarget(targets, "Cache", "Figma Code Cache", Combine(RoamingAppData, "Figma", "Code Cache"), "Figma JavaScript cache.");
+
+        // Canva
+        AddDirectoryTarget(targets, "Cache", "Canva cache", Combine(RoamingAppData, "Canva", "Cache"), "Canva desktop app cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> Get3DModelingTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Blender
+        AddDirectoryTarget(targets, "Cache", "Blender temp", Combine(LocalAppData, "Temp", "blender_*"), "Blender temporary render files.");
+        AddDirectoryTarget(targets, "Cache", "Blender cache", Combine(RoamingAppData, "Blender Foundation", "Blender"), "Blender cache and config.");
+
+        // Unity
+        AddDirectoryTarget(targets, "Cache", "Unity cache", Combine(LocalAppData, "Unity", "cache"), "Unity game engine cache.");
+        AddDirectoryTarget(targets, "Logs", "Unity logs", Combine(LocalAppData, "Unity", "Editor"), "Unity Editor logs.");
+
+        // Unreal Engine
+        AddDirectoryTarget(targets, "Cache", "Unreal Engine cache", Combine(LocalAppData, "UnrealEngine"), "Unreal Engine local cache.");
+
+        // AutoCAD
+        AddDirectoryTarget(targets, "Cache", "AutoCAD cache", Combine(LocalAppData, "Autodesk"), "AutoCAD local cache.");
+
+        // SketchUp
+        AddDirectoryTarget(targets, "Cache", "SketchUp cache", Combine(LocalAppData, "SketchUp"), "SketchUp local cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetEmailClientTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Outlook
+        AddDirectoryTarget(targets, "Cache", "Outlook temp attachments", Combine(LocalAppData, "Microsoft", "Windows", "INetCache", "Content.Outlook"), "Outlook temporary attachment cache.");
+        AddDirectoryTarget(targets, "Cache", "Outlook AutoComplete", Combine(RoamingAppData, "Microsoft", "Outlook", "RoamCache"), "Outlook roaming cache.");
+
+        // Thunderbird
+        AddDirectoryTarget(targets, "Cache", "Thunderbird cache", Combine(LocalAppData, "Thunderbird", "Profiles"), "Thunderbird profile caches.");
+
+        // Mailspring
+        AddDirectoryTarget(targets, "Cache", "Mailspring cache", Combine(RoamingAppData, "Mailspring", "Cache"), "Mailspring email client cache.");
+
+        // eM Client
+        AddDirectoryTarget(targets, "Cache", "eM Client cache", Combine(RoamingAppData, "eM Client"), "eM Client email cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetPasswordManagerTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Note: We should NOT delete password manager data, only logs and temp files
+        AddDirectoryTarget(targets, "Logs", "1Password logs", Combine(LocalAppData, "1Password", "logs"), "1Password diagnostic logs (not passwords).");
+        AddDirectoryTarget(targets, "Logs", "Bitwarden logs", Combine(RoamingAppData, "Bitwarden", "logs"), "Bitwarden diagnostic logs.");
+        AddDirectoryTarget(targets, "Cache", "KeePassXC cache", Combine(RoamingAppData, "KeePassXC", "cache"), "KeePassXC cache (not passwords).");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetVpnClientTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // NordVPN
+        AddDirectoryTarget(targets, "Logs", "NordVPN logs", Combine(LocalAppData, "NordVPN", "Logs"), "NordVPN connection logs.");
+
+        // ExpressVPN
+        AddDirectoryTarget(targets, "Logs", "ExpressVPN logs", Combine(LocalAppData, "ExpressVPN", "Logs"), "ExpressVPN diagnostic logs.");
+
+        // Surfshark
+        AddDirectoryTarget(targets, "Logs", "Surfshark logs", Combine(LocalAppData, "Surfshark"), "Surfshark VPN logs.");
+
+        // ProtonVPN
+        AddDirectoryTarget(targets, "Logs", "ProtonVPN logs", Combine(LocalAppData, "ProtonVPN", "Logs"), "ProtonVPN connection logs.");
+
+        // OpenVPN
+        AddDirectoryTarget(targets, "Logs", "OpenVPN logs", Combine(Environment.GetEnvironmentVariable("USERPROFILE"), "OpenVPN", "log"), "OpenVPN connection logs.");
+
+        // WireGuard
+        AddDirectoryTarget(targets, "Logs", "WireGuard logs", Combine(ProgramData, "WireGuard", "log"), "WireGuard logs.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetAntivirusTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Malwarebytes
+        AddDirectoryTarget(targets, "Logs", "Malwarebytes logs", Combine(ProgramData, "Malwarebytes", "Malwarebytes Anti-Malware", "Logs"), "Malwarebytes scan logs.");
+
+        // Avast
+        AddDirectoryTarget(targets, "Cache", "Avast cache", Combine(ProgramData, "AVAST Software", "Avast", "chest"), "Avast virus chest (quarantine).");
+        AddDirectoryTarget(targets, "Logs", "Avast logs", Combine(ProgramData, "AVAST Software", "Avast", "log"), "Avast diagnostic logs.");
+
+        // AVG
+        AddDirectoryTarget(targets, "Logs", "AVG logs", Combine(ProgramData, "AVG", "Antivirus", "log"), "AVG antivirus logs.");
+
+        // Bitdefender
+        AddDirectoryTarget(targets, "Logs", "Bitdefender logs", Combine(ProgramData, "Bitdefender", "Desktop", "Profiles", "Logs"), "Bitdefender scan logs.");
+
+        // Kaspersky
+        AddDirectoryTarget(targets, "Logs", "Kaspersky logs", Combine(ProgramData, "Kaspersky Lab"), "Kaspersky security logs.");
+
+        // ESET
+        AddDirectoryTarget(targets, "Logs", "ESET logs", Combine(ProgramData, "ESET", "ESET Security", "Logs"), "ESET NOD32 logs.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetSystemToolTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // CCleaner (ironic but true)
+        AddDirectoryTarget(targets, "Logs", "CCleaner logs", Combine(ProgramData, "Piriform", "CCleaner"), "CCleaner logs and data.");
+
+        // TreeSize
+        AddDirectoryTarget(targets, "Cache", "TreeSize cache", Combine(LocalAppData, "JAM Software", "TreeSize"), "TreeSize scan cache.");
+
+        // Everything
+        AddDirectoryTarget(targets, "Cache", "Everything index", Combine(LocalAppData, "Everything"), "Everything search index (rebuilds quickly).");
+
+        // Process Monitor
+        AddDirectoryTarget(targets, "Logs", "Procmon logs", Combine(Environment.GetEnvironmentVariable("USERPROFILE"), "Documents", "Procmon*.pml"), "Process Monitor capture files.");
+
+        // Wireshark
+        AddDirectoryTarget(targets, "Cache", "Wireshark temp", Combine(RoamingAppData, "Wireshark"), "Wireshark preferences (not captures).");
+
+        // Sysinternals
+        AddDirectoryTarget(targets, "Cache", "Sysinternals", Combine(RoamingAppData, "Sysinternals"), "Sysinternals tools settings.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetWindowsServiceCacheTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Windows Installer
+        AddDirectoryTarget(targets, "Cache", "Windows Installer cache", Combine(WindowsDirectory, "Installer"), "Windows Installer cached MSI files. Warning: May break uninstall.");
+
+        // Group Policy cache
+        AddDirectoryTarget(targets, "Cache", "Group Policy cache", Combine(LocalAppData, "Microsoft", "Group Policy"), "Local Group Policy cache.");
+
+        // Cortana data
+        AddDirectoryTarget(targets, "Cache", "Cortana data local", Combine(LocalAppData, "Microsoft", "Cortana"), "Cortana local data.");
+
+        // Windows Apps shared storage
+        foreach (var packageTemp in EnumeratePackageTempFolders("Microsoft.Windows"))
+        {
+            AddDirectoryTarget(targets, "Cache", $"{packageTemp.Label} temp", packageTemp.Path, "Windows app temporary files.");
+        }
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetMsixAndAppxTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        var packagesRoot = Path.Combine(LocalAppData, "Packages");
+        if (!Directory.Exists(packagesRoot))
+        {
+            return targets;
+        }
+
+        // Get all package AC/Temp folders
+        foreach (var pkg in SafeEnumerateDirectories(packagesRoot))
+        {
+            var name = Path.GetFileName(pkg);
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                continue;
+            }
+
+            // Skip known packages we already handle specifically
+            if (name.StartsWith("Microsoft.Teams", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("Microsoft.Xbox", StringComparison.OrdinalIgnoreCase) ||
+                name.StartsWith("Microsoft.GamingApp", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var tempPath = Path.Combine(pkg, "AC", "Temp");
+            if (Directory.Exists(tempPath))
+            {
+                AddDirectoryTarget(targets, "Cache", $"{name} temp", tempPath, "UWP/MSIX app temporary files.");
+            }
+
+            var inetCache = Path.Combine(pkg, "AC", "INetCache");
+            if (Directory.Exists(inetCache))
+            {
+                AddDirectoryTarget(targets, "Cache", $"{name} INetCache", inetCache, "UWP/MSIX app internet cache.");
+            }
+        }
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetNetworkCacheTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // DNS cache is in memory, but we can note hosts file
+        AddDirectoryTarget(targets, "Cache", "Offline web pages", Combine(LocalAppData, "Microsoft", "Windows", "Offline Web Pages"), "Saved offline web pages.");
+
+        // Credential cache
+        AddDirectoryTarget(targets, "Cache", "Web credentials temp", Combine(LocalAppData, "Microsoft", "Credentials"), "Cached web credentials temp (not the actual credentials).");
+
+        // Network cache (Cookies, etc.)
+        AddDirectoryTarget(targets, "History", "Cookie data", Combine(LocalAppData, "Microsoft", "Windows", "INetCookies"), "Internet cookie cache.");
+
+        // WebCache
+        AddDirectoryTarget(targets, "Cache", "WebCache container", Combine(LocalAppData, "Microsoft", "Windows", "WebCache"), "Windows WebCache database for IE/Edge Legacy.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetOtherTempLocations()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+        var systemDrive = GetSystemDrive();
+
+        // Root temp folders sometimes created by installers
+        AddDirectoryTarget(targets, "Temp", "Root TEMP folder", Path.Combine(systemDrive, "TEMP"), "Root level TEMP folder created by some installers.");
+        AddDirectoryTarget(targets, "Temp", "Root Tmp folder", Path.Combine(systemDrive, "tmp"), "Root level tmp folder.");
+
+        // Intel/AMD installer residue
+        AddDirectoryTarget(targets, "Installer", "Intel driver temp", Path.Combine(systemDrive, "Intel"), "Intel driver installer temp files.");
+        AddDirectoryTarget(targets, "Installer", "AMD driver temp", Path.Combine(systemDrive, "AMD"), "AMD driver installer temp files.");
+        AddDirectoryTarget(targets, "Installer", "NVIDIA driver temp", Path.Combine(systemDrive, "NVIDIA"), "NVIDIA driver installer temp files.");
+
+        // MSI extracted files
+        AddDirectoryTarget(targets, "Installer", "MSI temp extract", Path.Combine(systemDrive, "MSOCache"), "Microsoft Office installer cache.");
+        AddDirectoryTarget(targets, "Installer", "HP temp", Path.Combine(systemDrive, "SWSetup"), "HP software setup files.");
+        AddDirectoryTarget(targets, "Installer", "Dell temp", Path.Combine(systemDrive, "Dell"), "Dell installer files.");
+        AddDirectoryTarget(targets, "Installer", "Lenovo temp", Path.Combine(systemDrive, "Lenovo"), "Lenovo installer files.");
+        AddDirectoryTarget(targets, "Installer", "ASUS temp", Path.Combine(systemDrive, "eSupport"), "ASUS support files.");
+
+        // Recovery partition files (on C:)
+        AddDirectoryTarget(targets, "Installer", "Recovery staging", Path.Combine(systemDrive, "Recovery"), "Windows Recovery staging folder.");
+
+        // Perflogs
+        AddDirectoryTarget(targets, "Logs", "Performance logs", Path.Combine(systemDrive, "PerfLogs"), "Windows Performance Monitor logs.");
+
+        // Windows old backup
+        AddDirectoryTarget(targets, "Orphaned", "Windows.old.000", Path.Combine(systemDrive, "Windows.old.000"), "Additional Windows.old backup folder.");
+
+        // Hidden installer caches
+        AddDirectoryTarget(targets, "Installer", "Config.Msi temp", Combine(WindowsDirectory, "Installer", "Config.Msi"), "Windows Installer rollback files.");
+
+        // Thumbnail database in user folders
+        var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            AddFileTarget(targets, "Cache", "Desktop thumbnail DB", Path.Combine(userProfile, "Desktop", "Thumbs.db"), "Legacy thumbnail database.");
+            AddFileTarget(targets, "Cache", "Documents thumbnail DB", Path.Combine(userProfile, "Documents", "Thumbs.db"), "Legacy thumbnail database.");
+            AddFileTarget(targets, "Cache", "Pictures thumbnail DB", Path.Combine(userProfile, "Pictures", "Thumbs.db"), "Legacy thumbnail database.");
+            AddFileTarget(targets, "Cache", "Downloads thumbnail DB", Path.Combine(userProfile, "Downloads", "Thumbs.db"), "Legacy thumbnail database.");
+            AddFileTarget(targets, "Cache", "Videos thumbnail DB", Path.Combine(userProfile, "Videos", "Thumbs.db"), "Legacy thumbnail database.");
+        }
+
+        // CryptnetUrlCache
+        AddDirectoryTarget(targets, "Cache", "Crypto URL cache", Combine(LocalAppData, "Microsoft", "Windows", "INetCache", "IE"), "Cryptographic certificate URL cache.");
+
+        // Diagnostic data
+        AddDirectoryTarget(targets, "Logs", "Diagnostic reports", Combine(ProgramData, "Microsoft", "Windows", "SystemData"), "System diagnostic data.");
+
+        // Connected Devices Platform
+        AddDirectoryTarget(targets, "Cache", "Connected Devices cache", Combine(LocalAppData, "ConnectedDevicesPlatform"), "Windows Connected Devices Platform cache.");
+
+        // Windows Notifications
+        AddDirectoryTarget(targets, "Cache", "Notifications DB", Combine(LocalAppData, "Microsoft", "Windows", "Notifications"), "Windows notification database.");
+
+        // Action Center
+        AddDirectoryTarget(targets, "Cache", "Action Center cache", Combine(LocalAppData, "Microsoft", "Windows", "ActionCenterCache"), "Windows Action Center cache.");
+
+        // Start Menu cache
+        AddDirectoryTarget(targets, "Cache", "Start Menu cache", Combine(LocalAppData, "Microsoft", "Windows", "Caches"), "Windows Start Menu caches.");
+
+        // Windows Feedback
+        AddDirectoryTarget(targets, "Logs", "Feedback Hub", Combine(LocalAppData, "Packages", "Microsoft.WindowsFeedbackHub_8wekyb3d8bbwe", "LocalState"), "Windows Feedback Hub data.");
+
+        // Settings app cache
+        AddDirectoryTarget(targets, "Cache", "Settings app cache", Combine(LocalAppData, "Packages", "windows.immersivecontrolpanel_cw5n1h2txyewy", "LocalCache"), "Settings app cache.");
+
+        // Game bar captures (optional - might want to keep)
+        AddDirectoryTarget(targets, "Cache", "Game Bar captures", Combine(LocalAppData, "Packages", "Microsoft.XboxGamingOverlay_8wekyb3d8bbwe", "LocalState", "GameDVR"), "Xbox Game Bar video captures.");
+
+        return targets;
+    }
+
     private static string GetSystemDrive()
     {
         var systemDrive = Environment.GetEnvironmentVariable("SystemDrive");
@@ -1106,6 +1673,239 @@ internal sealed class CleanupDefinitionProvider
         {
             list.Add(new CleanupTargetDefinition(classification, category, path, notes, CleanupTargetType.File));
         }
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetPackageManagerCacheTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Chocolatey
+        AddDirectoryTarget(targets, "Cache", "Chocolatey cache", Combine(ProgramData, "chocolatey", ".cache"), "Chocolatey package cache.");
+        AddDirectoryTarget(targets, "Cache", "Chocolatey temp", Combine(ProgramData, "chocolatey", "temp"), "Chocolatey temporary files.");
+        AddDirectoryTarget(targets, "Logs", "Chocolatey logs", Combine(ProgramData, "chocolatey", "logs"), "Chocolatey installation logs.");
+
+        // Scoop
+        var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            AddDirectoryTarget(targets, "Cache", "Scoop cache", Path.Combine(userProfile, "scoop", "cache"), "Scoop package download cache.");
+            AddDirectoryTarget(targets, "Cache", "Scoop apps cache", Path.Combine(userProfile, "scoop", "apps", "scoop", "current", "cache"), "Scoop apps cache.");
+        }
+
+        // Winget
+        AddDirectoryTarget(targets, "Cache", "Winget packages", Combine(LocalAppData, "Packages", "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe", "LocalState"), "Winget state and logs.");
+        AddDirectoryTarget(targets, "Logs", "Winget logs", Combine(LocalAppData, "Packages", "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe", "LocalState", "DiagOutputDir"), "Winget diagnostic logs.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetAdditionalGameLauncherTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // GOG Galaxy
+        AddDirectoryTarget(targets, "Cache", "GOG Galaxy webcache", Combine(LocalAppData, "GOG.com", "Galaxy", "webcache"), "GOG Galaxy web cache.");
+        AddDirectoryTarget(targets, "Logs", "GOG Galaxy logs", Combine(ProgramData, "GOG.com", "Galaxy", "logs"), "GOG Galaxy logs.");
+
+        // Ubisoft Connect
+        AddDirectoryTarget(targets, "Cache", "Ubisoft Connect cache", Combine(LocalAppData, "Ubisoft Game Launcher", "cache"), "Ubisoft Connect cache.");
+        AddDirectoryTarget(targets, "Logs", "Ubisoft Connect logs", Combine(LocalAppData, "Ubisoft Game Launcher", "logs"), "Ubisoft Connect logs.");
+
+        // EA App (formerly Origin)
+        AddDirectoryTarget(targets, "Cache", "EA App cache", Combine(LocalAppData, "Electronic Arts", "EA Desktop", "cache"), "EA Desktop app cache.");
+        AddDirectoryTarget(targets, "Logs", "EA App logs", Combine(ProgramData, "Electronic Arts", "EA Desktop", "Logs"), "EA Desktop logs.");
+        AddDirectoryTarget(targets, "Cache", "Origin cache", Combine(LocalAppData, "Origin", "cache"), "Origin launcher cache (legacy).");
+        AddDirectoryTarget(targets, "Logs", "Origin logs", Combine(ProgramData, "Origin", "Logs"), "Origin logs (legacy).");
+
+        // Battle.net
+        AddDirectoryTarget(targets, "Cache", "Battle.net cache", Combine(ProgramData, "Blizzard Entertainment", "Battle.net", "Cache"), "Battle.net launcher cache.");
+        AddDirectoryTarget(targets, "Logs", "Battle.net logs", Combine(ProgramData, "Blizzard Entertainment", "Battle.net", "Logs"), "Battle.net logs.");
+
+        // Rockstar Games Launcher
+        AddDirectoryTarget(targets, "Cache", "Rockstar cache", Combine(LocalAppData, "Rockstar Games", "Launcher"), "Rockstar Games Launcher cache.");
+
+        // Riot Client (League of Legends, Valorant)
+        AddDirectoryTarget(targets, "Logs", "Riot Client logs", Combine(LocalAppData, "Riot Games", "Riot Client", "Logs"), "Riot Client logs.");
+        AddDirectoryTarget(targets, "Cache", "Riot Client data", Combine(LocalAppData, "Riot Games", "Riot Client", "Data"), "Riot Client data cache.");
+
+        // Bethesda.net Launcher
+        AddDirectoryTarget(targets, "Cache", "Bethesda.net cache", Combine(LocalAppData, "Bethesda.net Launcher"), "Bethesda.net launcher cache.");
+
+        // Amazon Games
+        AddDirectoryTarget(targets, "Cache", "Amazon Games cache", Combine(LocalAppData, "Amazon Games"), "Amazon Games app cache.");
+
+        // itch.io
+        AddDirectoryTarget(targets, "Cache", "itch.io cache", Combine(RoamingAppData, "itch"), "itch.io app cache.");
+
+        // Humble Bundle
+        AddDirectoryTarget(targets, "Cache", "Humble App cache", Combine(LocalAppData, "Humble App"), "Humble Bundle app cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetRemoteAccessToolTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // TeamViewer
+        AddDirectoryTarget(targets, "Logs", "TeamViewer logs", Combine(RoamingAppData, "TeamViewer"), "TeamViewer connection logs.");
+
+        // AnyDesk
+        AddDirectoryTarget(targets, "Logs", "AnyDesk logs", Combine(RoamingAppData, "AnyDesk"), "AnyDesk session logs.");
+        AddDirectoryTarget(targets, "Cache", "AnyDesk thumbnails", Combine(ProgramData, "AnyDesk", "thumbnails"), "AnyDesk thumbnail cache.");
+
+        // Parsec
+        AddDirectoryTarget(targets, "Logs", "Parsec logs", Combine(RoamingAppData, "Parsec", "log"), "Parsec streaming logs.");
+
+        // Chrome Remote Desktop
+        AddDirectoryTarget(targets, "Logs", "Chrome Remote Desktop logs", Combine(LocalAppData, "Google", "Chrome Remote Desktop", "Logs"), "Chrome Remote Desktop logs.");
+
+        // RustDesk
+        AddDirectoryTarget(targets, "Logs", "RustDesk logs", Combine(RoamingAppData, "RustDesk", "logs"), "RustDesk connection logs.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetStreamingAppTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Netflix (UWP)
+        AddDirectoryTarget(targets, "Cache", "Netflix cache", Combine(LocalAppData, "Packages", "4DF9E0F8.Netflix_mcm4njqhnhss8", "LocalCache"), "Netflix app cache.");
+
+        // Disney+ (UWP)
+        AddDirectoryTarget(targets, "Cache", "Disney+ cache", Combine(LocalAppData, "Packages", "Disney.37853FC22B2CE_6rarf9sa4v8jt", "LocalCache"), "Disney+ app cache.");
+
+        // Amazon Prime Video (UWP)
+        AddDirectoryTarget(targets, "Cache", "Prime Video cache", Combine(LocalAppData, "Packages", "AmazonVideo.PrimeVideo_pwbj9vvecjh7j", "LocalCache"), "Amazon Prime Video cache.");
+
+        // Twitch
+        AddDirectoryTarget(targets, "Cache", "Twitch cache", Combine(RoamingAppData, "Twitch", "Cache"), "Twitch desktop app cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetNoteTakingAppTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Notion
+        AddDirectoryTarget(targets, "Cache", "Notion cache", Combine(RoamingAppData, "Notion", "Cache"), "Notion desktop cache.");
+        AddDirectoryTarget(targets, "Cache", "Notion Code Cache", Combine(RoamingAppData, "Notion", "Code Cache"), "Notion JavaScript cache.");
+
+        // Obsidian
+        AddDirectoryTarget(targets, "Cache", "Obsidian cache", Combine(RoamingAppData, "obsidian", "Cache"), "Obsidian cache.");
+        AddDirectoryTarget(targets, "Cache", "Obsidian GPU cache", Combine(RoamingAppData, "obsidian", "GPUCache"), "Obsidian GPU cache.");
+
+        // Logseq
+        AddDirectoryTarget(targets, "Cache", "Logseq cache", Combine(RoamingAppData, "Logseq", "Cache"), "Logseq cache.");
+
+        // Joplin
+        AddDirectoryTarget(targets, "Cache", "Joplin cache", Combine(RoamingAppData, "joplin-desktop", "cache"), "Joplin note app cache.");
+
+        // Standard Notes
+        AddDirectoryTarget(targets, "Cache", "Standard Notes cache", Combine(RoamingAppData, "Standard Notes", "Cache"), "Standard Notes cache.");
+
+        // Evernote
+        AddDirectoryTarget(targets, "Cache", "Evernote cache", Combine(LocalAppData, "Evernote", "Evernote", "cache"), "Evernote desktop cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetScreenshotToolTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // ShareX
+        AddDirectoryTarget(targets, "Logs", "ShareX logs", Combine(Environment.GetEnvironmentVariable("USERPROFILE"), "Documents", "ShareX", "Logs"), "ShareX operation logs.");
+
+        // Greenshot
+        AddDirectoryTarget(targets, "Cache", "Greenshot temp", Combine(RoamingAppData, "Greenshot"), "Greenshot settings and temp.");
+
+        // Lightshot
+        AddDirectoryTarget(targets, "Cache", "Lightshot cache", Combine(RoamingAppData, "Skillbrains", "lightshot"), "Lightshot cache.");
+
+        // Snagit
+        AddDirectoryTarget(targets, "Cache", "Snagit temp", Combine(LocalAppData, "TechSmith", "Snagit", "Autosave"), "Snagit autosave files.");
+        AddDirectoryTarget(targets, "Cache", "Snagit Library cache", Combine(LocalAppData, "TechSmith", "Snagit", "LibraryCache"), "Snagit library cache.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetWebView2Targets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // Edge WebView2 runtime cache (used by many Electron and native apps)
+        foreach (var app in SafeEnumerateDirectories(LocalAppData))
+        {
+            var webview = Path.Combine(app, "EBWebView");
+            if (!Directory.Exists(webview))
+            {
+                continue;
+            }
+
+            var appName = Path.GetFileName(app);
+            if (string.IsNullOrWhiteSpace(appName) || appName.StartsWith("Microsoft", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var cache = Path.Combine(webview, "Default", "Cache");
+            if (Directory.Exists(cache))
+            {
+                AddDirectoryTarget(targets, "Cache", $"{appName} WebView2 cache", cache, "WebView2 embedded browser cache.");
+            }
+        }
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetPowerShellTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+        if (!string.IsNullOrWhiteSpace(userProfile))
+        {
+            // PowerShell history
+            AddFileTarget(targets, "History", "PowerShell history", Path.Combine(userProfile, "AppData", "Roaming", "Microsoft", "Windows", "PowerShell", "PSReadLine", "ConsoleHost_history.txt"), "PowerShell command history.");
+
+            // PowerShell module cache
+            AddDirectoryTarget(targets, "Cache", "PowerShell module cache", Path.Combine(userProfile, ".local", "share", "powershell", "ModuleAnalysisCache"), "PowerShell module analysis cache.");
+        }
+
+        // PowerShell logs
+        AddDirectoryTarget(targets, "Logs", "PowerShell logs", Combine(LocalAppData, "Microsoft", "Windows", "PowerShell", "Logs"), "PowerShell operational logs.");
+
+        return targets;
+    }
+
+    private static IEnumerable<CleanupTargetDefinition> GetWindowsSubsystemTargets()
+    {
+        var targets = new List<CleanupTargetDefinition>();
+
+        // WSL temp files
+        AddDirectoryTarget(targets, "Cache", "WSL temp", Combine(LocalAppData, "Temp", "wsl"), "Windows Subsystem for Linux temp files.");
+        AddDirectoryTarget(targets, "Cache", "WSL logs", Combine(LocalAppData, "WSL", "logs"), "WSL diagnostic logs.");
+
+        // WSA (Windows Subsystem for Android)
+        AddDirectoryTarget(targets, "Cache", "WSA temp", Combine(LocalAppData, "Packages", "MicrosoftCorporationII.WindowsSubsystemForAndroid_8wekyb3d8bbwe", "LocalCache"), "Windows Subsystem for Android cache.");
+
+        // Phone Link / Your Phone
+        AddDirectoryTarget(targets, "Cache", "Phone Link cache", Combine(LocalAppData, "Packages", "Microsoft.YourPhone_8wekyb3d8bbwe", "LocalCache"), "Phone Link (Your Phone) app cache.");
+        AddDirectoryTarget(targets, "Cache", "Phone Link temp", Combine(LocalAppData, "Packages", "Microsoft.YourPhone_8wekyb3d8bbwe", "TempState"), "Phone Link temp state.");
+
+        // Dev Home (Windows 11)
+        AddDirectoryTarget(targets, "Cache", "Dev Home cache", Combine(LocalAppData, "Packages", "Microsoft.DevHome_8wekyb3d8bbwe", "LocalCache"), "Dev Home app cache.");
+
+        // Windows Sandbox
+        AddDirectoryTarget(targets, "Cache", "Windows Sandbox", Combine(ProgramData, "Microsoft", "Windows", "Containers", "Sandboxes"), "Windows Sandbox container files.");
+
+        // Hyper-V
+        AddDirectoryTarget(targets, "Cache", "Hyper-V cache", Combine(ProgramData, "Microsoft", "Windows", "Hyper-V", "Resource Types"), "Hyper-V resource cache.");
+
+        return targets;
     }
 
     private static IReadOnlyList<(string SubPath, string LabelSuffix, string Notes)> EdgeSubFolders { get; } = new[]
