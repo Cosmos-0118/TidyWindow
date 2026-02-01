@@ -198,14 +198,3 @@ Reference: `versioncontrol.md` (PathPilot concept guide).
 [x] Step 14.6: Add automation helpers in `automation/scripts/reset-rescue.ps1` for VSS snapshot, locked-file copy, and registry export/import; document parameters and logging contract for the invoker.
 [x] Step 14.7: Ship tests: core unit tests for manifest round-trip and conflict handling (`tests/TidyWindow.Core.Tests/Backup/`), integration tests for service + PowerShell invoker harness, and UI automation smoke for ResetRescue page navigation/progress states.
 [x] Step 14.8: Update docs: `docs/getting-started.md` (new page entry), `docs/backup.md` (flows, limits, privacy), and add an HTML/Markdown sample report to `docs/reports/backup-report-sample.html`.
-
-## Latency Guard (Audio-Friendly GPU Mode)
-
-[x] Step 15.1: Scaffold `Views/LatencyGuardPage.xaml` with mitigations/monitoring guidance and add navigation/cache wiring.
-[x] Step 15.2: Add app-side sampling for GPU load + DPC latency and list top GPU consumers (no Essentials script path).
-[x] Step 15.3: Wire page actions to apply/revert a low-latency profile (trim effects/refresh rate, optional model throttle) and show live status.
-
-**Build & Run Checkpoint**
-
-- `dotnet build src/TidyWindow.sln`
-- `dotnet run --project src/TidyWindow.App/TidyWindow.App.csproj`
