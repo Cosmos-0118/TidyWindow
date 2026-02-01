@@ -4,11 +4,12 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App.Views;
 
-public partial class SettingsPage : Page
+public partial class SettingsPage : Page, INavigationAware
 {
     public SettingsPage(SettingsViewModel viewModel)
     {
@@ -62,5 +63,17 @@ public partial class SettingsPage : Page
         {
             // Navigation failures are non-fatal; ignore.
         }
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // No special handling needed for settings page
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // No special handling needed for settings page
     }
 }

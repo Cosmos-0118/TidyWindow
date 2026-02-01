@@ -2,12 +2,13 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using Forms = System.Windows.Forms;
 
 namespace TidyWindow.App.Views;
 
-public partial class ResetRescuePage : Page
+public partial class ResetRescuePage : Page, INavigationAware
 {
     private readonly ResetRescueViewModel _viewModel;
 
@@ -45,5 +46,17 @@ public partial class ResetRescuePage : Page
         {
             _viewModel.RestoreArchivePath = dialog.FileName;
         }
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // No special handling needed
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // No special handling needed
     }
 }

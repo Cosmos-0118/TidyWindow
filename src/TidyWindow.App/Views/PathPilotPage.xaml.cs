@@ -4,11 +4,12 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App.Views;
 
-public partial class PathPilotPage : Page
+public partial class PathPilotPage : Page, INavigationAware
 {
     private readonly PathPilotViewModel _viewModel;
     private ScrollViewer? _runtimesScrollViewer;
@@ -113,4 +114,23 @@ public partial class PathPilotPage : Page
         return null;
     }
 
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // Clear cached scroll viewer to force re-discovery
+        _runtimesScrollViewer = null;
+
+        // Re-subscribe to page changed events
+        _viewModel.PageChanged -= OnPageChanged;
+        _viewModel.PageChanged += OnPageChanged;
+
+        _viewModel.Activate();
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        _runtimesScrollViewer = null;
+        _viewModel.Deactivate();
+    }
 }

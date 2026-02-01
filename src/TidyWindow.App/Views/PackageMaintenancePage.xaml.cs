@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Navigation;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using System.Windows.Media;
 using MessageBox = System.Windows.MessageBox;
@@ -13,7 +14,7 @@ using WpfNavigationService = System.Windows.Navigation.NavigationService;
 
 namespace TidyWindow.App.Views;
 
-public partial class PackageMaintenancePage : Page
+public partial class PackageMaintenancePage : Page, INavigationAware
 {
     private readonly PackageMaintenanceViewModel _viewModel;
     private WpfListView? _packagesListView;
@@ -300,5 +301,29 @@ public partial class PackageMaintenancePage : Page
         }
 
         return null;
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // Re-subscribe to events and ensure scroll handlers are attached
+        if (_disposed)
+        {
+            RestoreViewModelBindings();
+        }
+
+        _viewModel.PageChanged -= OnPageChanged;
+        _viewModel.PageChanged += OnPageChanged;
+
+        AttachTitleBar();
+        EnsureScrollHandlers();
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // Clear title bar content
+        _shellViewModel?.SetTitleBarContent(null);
+        DetachScrollHandlers();
     }
 }

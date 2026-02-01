@@ -5,12 +5,13 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using Forms = System.Windows.Forms;
 
 namespace TidyWindow.App.Views;
 
-public partial class DeepScanPage : Page
+public partial class DeepScanPage : Page, INavigationAware
 {
     private readonly DeepScanViewModel _viewModel;
 
@@ -178,5 +179,19 @@ public partial class DeepScanPage : Page
         }
 
         return null;
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // Re-subscribe to page changed events
+        _viewModel.PageChanged -= OnPageChanged;
+        _viewModel.PageChanged += OnPageChanged;
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // No cleanup needed
     }
 }

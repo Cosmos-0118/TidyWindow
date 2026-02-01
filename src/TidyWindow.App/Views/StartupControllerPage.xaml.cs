@@ -14,7 +14,7 @@ using TidyWindow.Core.Startup;
 
 namespace TidyWindow.App.Views;
 
-public partial class StartupControllerPage : Page
+public partial class StartupControllerPage : Page, INavigationAware
 {
     private readonly StartupControllerViewModel _viewModel;
     private readonly CollectionViewSource _entriesView;
@@ -376,5 +376,24 @@ public partial class StartupControllerPage : Page
         }
 
         return null;
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // Clear cached scroll viewer reference to force re-discovery
+        // This fixes scroll-to-top not working after page is cached
+        _entriesScrollViewer = null;
+
+        // Re-subscribe to page changed events in case they were disconnected
+        _viewModel.PageChanged -= OnPageChanged;
+        _viewModel.PageChanged += OnPageChanged;
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // Clear scroll viewer reference when navigating away
+        _entriesScrollViewer = null;
     }
 }

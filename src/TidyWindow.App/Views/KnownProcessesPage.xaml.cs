@@ -2,13 +2,14 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Navigation;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 
 using WpfNavigationService = System.Windows.Navigation.NavigationService;
 
 namespace TidyWindow.App.Views;
 
-public partial class KnownProcessesPage : Page
+public partial class KnownProcessesPage : Page, INavigationAware
 {
     private readonly KnownProcessesViewModel _viewModel;
     private readonly Controls.KnownProcessesPivotTitleBar _titleBar;
@@ -85,5 +86,18 @@ public partial class KnownProcessesPage : Page
         {
             _shellViewModel?.SetTitleBarContent(null);
         }
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        AttachTitleBar();
+        ResetScrollPosition();
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        _shellViewModel?.SetTitleBarContent(null);
     }
 }

@@ -6,14 +6,34 @@ using System.Windows.Controls;
 namespace TidyWindow.App.Services;
 
 /// <summary>
-/// Provides simple lifetime-aware caching for navigation pages.
+/// Provides LRU-K (K=2) lifetime-aware caching for navigation pages.
+/// LRU-K considers both recency and frequency of access to make smarter eviction decisions.
+/// Pages accessed frequently are retained longer than pages accessed only once recently.
 /// </summary>
 public sealed class SmartPageCache : IDisposable
 {
-    private const int MaxEntries = 4;
+    private const int MaxEntries = 6;
+    private const int HistoryK = 2; // Track last K accesses (LRU-2)
+    private static readonly TimeSpan CorrelatedReferencePeriod = TimeSpan.FromMinutes(2);
+
     private readonly Dictionary<Type, CachedPageEntry> _entries = new();
     private readonly object _syncRoot = new();
     private bool _isDisposed;
+    private Page? _currentPage;
+
+    /// <summary>
+    /// Gets the currently active page (for navigation lifecycle management).
+    /// </summary>
+    public Page? CurrentPage
+    {
+        get
+        {
+            lock (_syncRoot)
+            {
+                return _currentPage;
+            }
+        }
+    }
 
     public bool TryGetPage(Type pageType, out Page page)
     {
@@ -38,7 +58,7 @@ public sealed class SmartPageCache : IDisposable
                 return false;
             }
 
-            entry.Touch();
+            entry.RecordAccess();
             page = entry.Page;
             return true;
         }
@@ -66,7 +86,51 @@ public sealed class SmartPageCache : IDisposable
             ThrowIfDisposed();
             RemoveEntry(pageType);
             TrimIfNeeded();
-            _entries[pageType] = new CachedPageEntry(page, policy);
+            _entries[pageType] = new CachedPageEntry(page, policy, HistoryK);
+        }
+    }
+
+    /// <summary>
+    /// Sets the currently displayed page and triggers navigation lifecycle callbacks.
+    /// </summary>
+    public void SetCurrentPage(Page? page)
+    {
+        Page? previousPage;
+        lock (_syncRoot)
+        {
+            if (ReferenceEquals(_currentPage, page))
+            {
+                return;
+            }
+
+            previousPage = _currentPage;
+            _currentPage = page;
+        }
+
+        // Notify previous page it's being navigated away from
+        if (previousPage is INavigationAware previousAware)
+        {
+            try
+            {
+                previousAware.OnNavigatingFrom();
+            }
+            catch
+            {
+                // Don't let navigation lifecycle failures prevent navigation
+            }
+        }
+
+        // Notify new page it's been navigated to
+        if (page is INavigationAware currentAware)
+        {
+            try
+            {
+                currentAware.OnNavigatedTo();
+            }
+            catch
+            {
+                // Don't let navigation lifecycle failures prevent navigation
+            }
         }
     }
 
@@ -138,7 +202,7 @@ public sealed class SmartPageCache : IDisposable
                     continue; // never expires
                 }
 
-                var candidate = entry.LastTouched + entry.Policy.IdleExpiration.Value;
+                var candidate = entry.LastAccessed + entry.Policy.IdleExpiration.Value;
                 if (candidate <= now)
                 {
                     continue; // already eligible for sweep
@@ -169,6 +233,7 @@ public sealed class SmartPageCache : IDisposable
             }
 
             _entries.Clear();
+            _currentPage = null;
         }
     }
 
@@ -187,6 +252,7 @@ public sealed class SmartPageCache : IDisposable
             }
 
             _entries.Clear();
+            _currentPage = null;
             _isDisposed = true;
         }
     }
@@ -199,6 +265,12 @@ public sealed class SmartPageCache : IDisposable
         }
     }
 
+    /// <summary>
+    /// Implements LRU-K eviction. Selects the victim page based on backward K-distance.
+    /// Pages with larger backward K-distance (less frequently accessed) are evicted first.
+    /// For pages that haven't been accessed K times, use infinity as the K-distance,
+    /// making them more likely to be evicted (unless they're brand new).
+    /// </summary>
     private void TrimIfNeeded()
     {
         if (_entries.Count < MaxEntries)
@@ -206,21 +278,51 @@ public sealed class SmartPageCache : IDisposable
             return;
         }
 
-        var lru = default(KeyValuePair<Type, CachedPageEntry>);
-        var lruFound = false;
+        var now = DateTimeOffset.UtcNow;
+        Type? victimType = null;
+        var maxBackwardKDistance = TimeSpan.MinValue;
+        var victimHasFullHistory = false;
 
         foreach (var kvp in _entries)
         {
-            if (!lruFound || kvp.Value.LastTouched < lru.Value.LastTouched)
+            var entry = kvp.Value;
+
+            // Don't evict KeepAlive entries unless we absolutely must
+            if (entry.Policy.IdleExpiration is null && victimType is not null)
             {
-                lru = kvp;
-                lruFound = true;
+                continue;
+            }
+
+            // Filter out correlated references (multiple accesses within a short period count as one)
+            var backwardKDistance = entry.GetBackwardKDistance(now, CorrelatedReferencePeriod);
+            var hasFullHistory = entry.HasFullAccessHistory;
+
+            // Prefer evicting entries without full history (accessed fewer than K times)
+            // unless current victim also lacks full history - then compare distances
+            if (!hasFullHistory && victimHasFullHistory)
+            {
+                // New candidate lacks full history but current victim has it - prefer evicting new candidate
+                victimType = kvp.Key;
+                maxBackwardKDistance = backwardKDistance;
+                victimHasFullHistory = false;
+            }
+            else if (hasFullHistory && !victimHasFullHistory && victimType is not null)
+            {
+                // Current victim lacks full history but new candidate has it - keep current victim
+                continue;
+            }
+            else if (backwardKDistance > maxBackwardKDistance || victimType is null)
+            {
+                // Same history status - compare K-distances
+                victimType = kvp.Key;
+                maxBackwardKDistance = backwardKDistance;
+                victimHasFullHistory = hasFullHistory;
             }
         }
 
-        if (lruFound)
+        if (victimType is not null)
         {
-            RemoveEntry(lru.Key);
+            RemoveEntry(victimType);
         }
     }
 
@@ -234,20 +336,31 @@ public sealed class SmartPageCache : IDisposable
 
     private sealed class CachedPageEntry : IDisposable
     {
+        private readonly Queue<DateTimeOffset> _accessHistory;
+        private readonly int _historyCapacity;
         private bool _disposed;
 
-        public CachedPageEntry(Page page, PageCachePolicy policy)
+        public CachedPageEntry(Page page, PageCachePolicy policy, int historyCapacity)
         {
             Page = page;
             Policy = policy;
-            Touch();
+            _historyCapacity = historyCapacity;
+            _accessHistory = new Queue<DateTimeOffset>(historyCapacity);
+            RecordAccess();
         }
 
         public Page Page { get; }
 
         public PageCachePolicy Policy { get; }
 
-        public DateTimeOffset LastTouched { get; private set; }
+        public DateTimeOffset LastAccessed { get; private set; }
+
+        public DateTimeOffset CreatedAt { get; } = DateTimeOffset.UtcNow;
+
+        /// <summary>
+        /// Whether this entry has been accessed at least K times.
+        /// </summary>
+        public bool HasFullAccessHistory => _accessHistory.Count >= _historyCapacity;
 
         public bool IsExpired(DateTimeOffset now)
         {
@@ -256,12 +369,67 @@ public sealed class SmartPageCache : IDisposable
                 return false;
             }
 
-            return now - LastTouched > Policy.IdleExpiration.Value;
+            return now - LastAccessed > Policy.IdleExpiration.Value;
         }
 
-        public void Touch()
+        /// <summary>
+        /// Records an access, filtering out correlated references.
+        /// </summary>
+        public void RecordAccess()
         {
-            LastTouched = DateTimeOffset.UtcNow;
+            var now = DateTimeOffset.UtcNow;
+            LastAccessed = now;
+
+            // Add to history, maintaining capacity
+            if (_accessHistory.Count >= _historyCapacity)
+            {
+                _accessHistory.Dequeue();
+            }
+
+            _accessHistory.Enqueue(now);
+        }
+
+        /// <summary>
+        /// Computes the backward K-distance: time since the K-th most recent access.
+        /// Filters out correlated references (accesses within correlatedPeriod of each other).
+        /// </summary>
+        public TimeSpan GetBackwardKDistance(DateTimeOffset now, TimeSpan correlatedPeriod)
+        {
+            if (_accessHistory.Count == 0)
+            {
+                return TimeSpan.MaxValue;
+            }
+
+            // Filter correlated references
+            var distinctAccesses = new List<DateTimeOffset>();
+            DateTimeOffset? lastDistinct = null;
+
+            foreach (var access in _accessHistory.Reverse())
+            {
+                if (lastDistinct is null || lastDistinct.Value - access > correlatedPeriod)
+                {
+                    distinctAccesses.Add(access);
+                    lastDistinct = access;
+                }
+
+                if (distinctAccesses.Count >= _historyCapacity)
+                {
+                    break;
+                }
+            }
+
+            // If we don't have K distinct accesses, return a large value
+            // (but not MaxValue, to prefer evicting truly new pages over semi-established ones)
+            if (distinctAccesses.Count < _historyCapacity)
+            {
+                // Use time since creation as a proxy, scaled up to indicate less value
+                var ageSinceCreation = now - CreatedAt;
+                return ageSinceCreation + TimeSpan.FromHours(1);
+            }
+
+            // Return time since the K-th most recent distinct access
+            var kthAccess = distinctAccesses[^1];
+            return now - kthAccess;
         }
 
         public void Dispose()

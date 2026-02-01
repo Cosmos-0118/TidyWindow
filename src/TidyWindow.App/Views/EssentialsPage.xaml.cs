@@ -7,7 +7,7 @@ using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App.Views;
 
-public partial class EssentialsPage : Page
+public partial class EssentialsPage : Page, INavigationAware
 {
     private readonly EssentialsViewModel _viewModel;
     private readonly Controls.EssentialsPivotTitleBar _titleBar;
@@ -86,4 +86,15 @@ public partial class EssentialsPage : Page
         _disposed = true;
     }
 
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        AttachTitleBar();
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        _shellViewModel?.SetTitleBarContent(null);
+    }
 }

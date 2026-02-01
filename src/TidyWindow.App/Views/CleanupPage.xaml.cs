@@ -2,12 +2,13 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using WpfApplication = System.Windows.Application;
 
 namespace TidyWindow.App.Views;
 
-public partial class CleanupPage : Page
+public partial class CleanupPage : Page, INavigationAware
 {
     private readonly CleanupViewModel _viewModel;
     private bool _disposed;
@@ -90,5 +91,20 @@ public partial class CleanupPage : Page
         }
 
         Dispatcher.BeginInvoke(new Action(() => CelebrationView?.RestartAnimation()));
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        if (_disposed)
+        {
+            RestoreViewModelBindings();
+        }
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // No special handling needed
     }
 }

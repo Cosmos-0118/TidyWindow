@@ -29,7 +29,18 @@ public partial class InstallHubCatalogView : UserControl
         InitializeComponent();
         Loaded += (_, _) => UpdatePageSize();
         Unloaded += (_, _) => DetachViewModel();
+        IsVisibleChanged += OnIsVisibleChanged;
         DataContextChanged += OnViewDataContextChanged;
+    }
+
+    private void OnIsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true)
+        {
+            // Clear cached scroll viewer reference when becoming visible
+            // to force re-discovery in case the visual tree has changed
+            _parentScrollViewer = null;
+        }
     }
 
     private void OnViewDataContextChanged(object sender, DependencyPropertyChangedEventArgs e)

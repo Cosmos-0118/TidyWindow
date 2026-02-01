@@ -10,7 +10,7 @@ using WpfNavigationService = System.Windows.Navigation.NavigationService;
 
 namespace TidyWindow.App.Views;
 
-public partial class InstallHubPage : Page
+public partial class InstallHubPage : Page, INavigationAware
 {
     private readonly InstallHubViewModel _viewModel;
     private readonly Controls.InstallHubPivotTitleBar _titleBar;
@@ -99,5 +99,19 @@ public partial class InstallHubPage : Page
         _shellViewModel?.SetTitleBarContent(null);
         _viewModel.Dispose();
         _disposed = true;
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // Re-attach title bar when navigating back to this cached page
+        AttachTitleBar();
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // Clear title bar content when navigating away
+        _shellViewModel?.SetTitleBarContent(null);
     }
 }

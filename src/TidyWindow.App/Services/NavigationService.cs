@@ -206,6 +206,12 @@ public sealed class NavigationService
             return;
         }
 
+        // Notify page cache of the current page for lifecycle management
+        if (e.Content is Page currentPage)
+        {
+            _pageCache.SetCurrentPage(currentPage);
+        }
+
         _frame.BeginAnimation(UIElement.OpacityProperty, null);
         _frame.Opacity = 0d;
         var translate = EnsureFrameTranslateTransform();

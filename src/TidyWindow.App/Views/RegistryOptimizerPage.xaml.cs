@@ -8,13 +8,14 @@ using System.Windows.Input;
 using System.Windows.Navigation;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using TidyWindow.App.Views.Dialogs;
 using TidyWindow.Core.Maintenance;
 
 namespace TidyWindow.App.Views;
 
-public partial class RegistryOptimizerPage : Page
+public partial class RegistryOptimizerPage : Page, INavigationAware
 {
     private readonly RegistryOptimizerViewModel _viewModel;
     private bool _isStackedLayout;
@@ -663,5 +664,27 @@ public partial class RegistryOptimizerPage : Page
         {
             _rollbackPromptOpen = false;
         }
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // Re-subscribe to events and ensure scroll handlers are attached
+        if (_disposed)
+        {
+            _viewModel.RestorePointCreated += OnRestorePointCreated;
+            _disposed = false;
+        }
+
+        EnsureScrollHandlers();
+        UpdateResponsiveLayout(ContentScrollViewer.ActualWidth);
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // Hide any open dialogs when navigating away
+        _viewModel.IsPresetDialogVisible = false;
+        DetachScrollHandlers();
     }
 }

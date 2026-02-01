@@ -7,7 +7,7 @@ using TidyWindow.App.ViewModels;
 
 namespace TidyWindow.App.Views;
 
-public partial class LogsPage : Page
+public partial class LogsPage : Page, INavigationAware
 {
     private readonly LogsViewModel _viewModel;
     private bool _isDisposed;
@@ -149,5 +149,19 @@ public partial class LogsPage : Page
         Unloaded -= OnUnloaded;
         _viewModel.Dispose();
         _isDisposed = true;
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatedTo()
+    {
+        // Reset scroll position when navigating back to cached page
+        ResetScrollPosition();
+    }
+
+    /// <inheritdoc />
+    public void OnNavigatingFrom()
+    {
+        // Close any open popup when navigating away
+        CloseDetailsPopup();
     }
 }
