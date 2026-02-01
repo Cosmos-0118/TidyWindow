@@ -270,8 +270,25 @@ function New-TidySystemRestorePoint {
     }
 
     try {
-        Checkpoint-Computer -Description $Description -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop
-        Write-TidyOutput -Message 'Created a System Restore checkpoint.'
+        # Capture warning stream to prevent raw WARNING: output and handle gracefully.
+        $warningOutput = $null
+        Checkpoint-Computer -Description $Description -RestorePointType 'MODIFY_SETTINGS' -ErrorAction Stop -WarningVariable warningOutput -WarningAction SilentlyContinue
+        
+        if ($warningOutput) {
+            # Handle the 24-hour frequency limit warning gracefully.
+            $warningText = $warningOutput | Out-String
+            if ($warningText -match 'already been created within the past') {
+                Write-TidyLog -Level Information -Message 'System Restore point skipped: recent checkpoint already exists (24-hour frequency limit).'
+                Write-TidyOutput -Message 'Using existing System Restore checkpoint (created within the last 24 hours).'
+                return $true
+            }
+            else {
+                Write-TidyLog -Level Warning -Message ('System Restore warning: {0}' -f $warningText.Trim())
+            }
+        }
+        else {
+            Write-TidyOutput -Message 'Created a System Restore checkpoint.'
+        }
         return $true
     }
     catch {

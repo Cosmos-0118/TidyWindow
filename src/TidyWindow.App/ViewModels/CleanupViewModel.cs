@@ -116,9 +116,6 @@ public sealed partial class CleanupCelebrationFailureViewModel : ObservableObjec
     public CleanupDeletionDisposition Disposition => Entry.Disposition;
 
     public string Reason => Entry.EffectiveReason;
-
-    [ObservableProperty]
-    private bool _isRetrying;
 }
 
 public sealed partial class CleanupLockProcessViewModel : ObservableObject
@@ -355,6 +352,18 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
     private bool _isDeletionPreparationInProgress;
 
     [ObservableProperty]
+    private bool _isPreviewConfirmationPopupOpen;
+
+    [ObservableProperty]
+    private bool _isPreviewScanInProgress;
+
+    [ObservableProperty]
+    private bool _isCleanupExecutionInProgress;
+
+    [ObservableProperty]
+    private bool _isCelebrationErrorsPopupOpen;
+
+    [ObservableProperty]
     private string _headline = "Preview and clean up system clutter";
 
     [ObservableProperty]
@@ -383,6 +392,21 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     private string _busyStatusDetail = string.Empty;
+
+    [ObservableProperty]
+    private int _scanProgressCurrent;
+
+    [ObservableProperty]
+    private int _scanProgressTotal;
+
+    [ObservableProperty]
+    private string _scanProgressCategory = string.Empty;
+
+    [ObservableProperty]
+    private long _scanProgressBytesScanned;
+
+    [ObservableProperty]
+    private int _scanProgressFilesScanned;
 
     [ObservableProperty]
     private bool _isConfirmationSheetVisible;
@@ -760,6 +784,35 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
 
     public bool HasCelebrationCategories => CelebrationCategories.Count > 0;
 
+    public int CelebrationFailureCount => CelebrationFailures.Count;
+
+    public string CelebrationFailureSummary
+    {
+        get
+        {
+            var count = CelebrationFailures.Count;
+            if (count == 0)
+            {
+                return string.Empty;
+            }
+
+            var first = CelebrationFailures.First();
+            if (count == 1)
+            {
+                return $"{first.DisplayName}: {first.Reason}";
+            }
+
+            return $"{first.DisplayName}: {first.Reason} (+{count - 1} more)";
+        }
+    }
+
+    public IEnumerable<CleanupCelebrationFailureViewModel> CelebrationFailuresPreview =>
+        CelebrationFailures.Take(3);
+
+    public bool HasMoreCelebrationFailures => CelebrationFailures.Count > 3;
+
+    public int MoreCelebrationFailuresCount => Math.Max(0, CelebrationFailures.Count - 3);
+
     public void Dispose()
     {
         if (_disposed)
@@ -907,33 +960,94 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
                     : DeletionStatusMessage;
             }
 
+            // Show scan progress if available
+            if (IsBusy && ScanProgressTotal > 0)
+            {
+                var bytesDisplay = FormatSizeBytes(ScanProgressBytesScanned);
+                return $"{ScanProgressCurrent:N0} of {ScanProgressTotal:N0} locations • {ScanProgressFilesScanned:N0} files ({bytesDisplay})";
+            }
+
             return string.IsNullOrWhiteSpace(BusyStatusDetail)
                 ? "Hold tight, this step only takes a moment."
                 : BusyStatusDetail;
         }
     }
 
-    public int ActiveOperationProgressValue => IsDeleting ? Math.Min(DeletionProgressCurrent, DeletionProgressTotal) : 0;
+    public int ActiveOperationProgressValue
+    {
+        get
+        {
+            if (IsDeleting)
+            {
+                return Math.Min(DeletionProgressCurrent, DeletionProgressTotal);
+            }
 
-    public int ActiveOperationProgressMaximum => IsDeleting && DeletionProgressTotal > 0 ? DeletionProgressTotal : 100;
+            if (IsBusy && ScanProgressTotal > 0)
+            {
+                return Math.Min(ScanProgressCurrent, ScanProgressTotal);
+            }
 
-    public bool IsActiveOperationIndeterminate => !IsDeleting || DeletionProgressTotal <= 0;
+            return 0;
+        }
+    }
+
+    public int ActiveOperationProgressMaximum
+    {
+        get
+        {
+            if (IsDeleting && DeletionProgressTotal > 0)
+            {
+                return DeletionProgressTotal;
+            }
+
+            if (IsBusy && ScanProgressTotal > 0)
+            {
+                return ScanProgressTotal;
+            }
+
+            return 100;
+        }
+    }
+
+    public bool IsActiveOperationIndeterminate
+    {
+        get
+        {
+            if (IsDeleting)
+            {
+                return DeletionProgressTotal <= 0;
+            }
+
+            if (IsBusy)
+            {
+                return ScanProgressTotal <= 0;
+            }
+
+            return true;
+        }
+    }
 
     public string ActiveOperationPercentDisplay
     {
         get
         {
-            if (!IsDeleting || DeletionProgressTotal <= 0)
+            if (IsDeleting && DeletionProgressTotal > 0)
             {
-                return string.Empty;
+                var percent = (double)Math.Min(DeletionProgressCurrent, DeletionProgressTotal) / DeletionProgressTotal;
+                return percent >= 1d ? "100%" : percent.ToString("P0");
             }
 
-            var percent = (double)Math.Min(DeletionProgressCurrent, DeletionProgressTotal) / DeletionProgressTotal;
-            return percent >= 1d ? "100%" : percent.ToString("P0");
+            if (IsBusy && ScanProgressTotal > 0)
+            {
+                var percent = (double)Math.Min(ScanProgressCurrent, ScanProgressTotal) / ScanProgressTotal;
+                return percent >= 1d ? "100%" : percent.ToString("P0");
+            }
+
+            return string.Empty;
         }
     }
 
-    public bool HasActiveOperationPercent => IsDeleting && DeletionProgressTotal > 0;
+    public bool HasActiveOperationPercent => (IsDeleting && DeletionProgressTotal > 0) || (IsBusy && ScanProgressTotal > 0);
 
     public bool HasPendingDeletion => PendingDeletionItemCount > 0;
 
@@ -966,13 +1080,45 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         try
         {
             IsBusy = true;
+            IsPreviewScanInProgress = true;
             BusyStatusMessage = "Analyzing cleanup targets…";
             BusyStatusDetail = $"Reviewing up to {PreviewCount:N0} top items";
+
+            // Reset scan progress
+            ScanProgressCurrent = 0;
+            ScanProgressTotal = 0;
+            ScanProgressCategory = string.Empty;
+            ScanProgressBytesScanned = 0;
+            ScanProgressFilesScanned = 0;
+
             ClearTargets();
             CurrentPage = 1;
 
+            // Create progress reporter for scan operation
+            var scanProgress = new Progress<TidyWindow.Core.Cleanup.CleanupScanProgress>(progress =>
+            {
+                ScanProgressCurrent = progress.CompletedTargets;
+                ScanProgressTotal = progress.TotalTargets;
+                ScanProgressCategory = progress.CurrentCategory;
+                ScanProgressBytesScanned = progress.TotalBytesScanned;
+                ScanProgressFilesScanned = progress.TotalFilesScanned;
+
+                // Update computed properties
+                OnPropertyChanged(nameof(ActiveOperationDetail));
+                OnPropertyChanged(nameof(ActiveOperationProgressValue));
+                OnPropertyChanged(nameof(ActiveOperationProgressMaximum));
+                OnPropertyChanged(nameof(IsActiveOperationIndeterminate));
+                OnPropertyChanged(nameof(ActiveOperationPercentDisplay));
+                OnPropertyChanged(nameof(HasActiveOperationPercent));
+
+                if (!string.IsNullOrWhiteSpace(progress.CurrentCategory))
+                {
+                    BusyStatusMessage = $"Scanning {progress.CurrentCategory}…";
+                }
+            });
+
             var report = await Task.Run(
-                () => _cleanupService.PreviewAsync(IncludeDownloads, IncludeBrowserHistory, PreviewCount, SelectedItemKind),
+                () => _cleanupService.PreviewAsync(IncludeDownloads, IncludeBrowserHistory, PreviewCount, SelectedItemKind, scanProgress, CancellationToken.None),
                 CancellationToken.None).ConfigureAwait(true);
 
             var previewPrep = await Task.Run(() =>
@@ -1033,6 +1179,15 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         {
             BusyStatusMessage = "Working…";
             BusyStatusDetail = string.Empty;
+
+            // Reset scan progress
+            ScanProgressCurrent = 0;
+            ScanProgressTotal = 0;
+            ScanProgressCategory = string.Empty;
+            ScanProgressBytesScanned = 0;
+            ScanProgressFilesScanned = 0;
+
+            IsPreviewScanInProgress = false;
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(SelectionSummaryText));
@@ -1099,7 +1254,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         HideRefreshToast();
     }
 
-    private bool CanConfirmCleanup() => !IsBusy && _pendingDeletionItems is { Count: > 0 } && IsConfirmationSheetVisible;
+    private bool CanConfirmCleanup() => !IsBusy && !IsCleanupExecutionInProgress && _pendingDeletionItems is { Count: > 0 } && IsConfirmationSheetVisible;
 
     [RelayCommand(CanExecute = nameof(CanConfirmCleanup))]
     private async Task ConfirmCleanupAsync()
@@ -1110,6 +1265,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        IsCleanupExecutionInProgress = true;
         IsRunConfirmationPopupOpen = false;
 
         var snapshot = _pendingDeletionItems
@@ -1158,6 +1314,33 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         {
             IsRunConfirmationPopupOpen = false;
         }
+    }
+
+    private bool CanShowPreviewConfirmationPopup() => !IsBusy && !IsPreviewConfirmationPopupOpen;
+
+    [RelayCommand(CanExecute = nameof(CanShowPreviewConfirmationPopup))]
+    private void ShowPreviewConfirmationPopup()
+    {
+        if (!IsPreviewConfirmationPopupOpen)
+        {
+            IsPreviewConfirmationPopupOpen = true;
+        }
+    }
+
+    [RelayCommand]
+    private void HidePreviewConfirmationPopup()
+    {
+        if (IsPreviewConfirmationPopupOpen)
+        {
+            IsPreviewConfirmationPopupOpen = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ConfirmAndRunPreviewAsync()
+    {
+        IsPreviewConfirmationPopupOpen = false;
+        await RunPreviewAsync();
     }
 
     private bool CanDeleteSelected() => !IsBusy && !IsDeletionPreparationInProgress && HasSelection && !IsConfirmationSheetVisible;
@@ -1954,6 +2137,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
             BusyStatusMessage = "Working…";
             BusyStatusDetail = string.Empty;
             IsDeleting = false;
+            IsCleanupExecutionInProgress = false;
             IsBusy = false;
             DeleteSelectedCommand.NotifyCanExecuteChanged();
             ConfirmCleanupCommand.NotifyCanExecuteChanged();
@@ -2517,6 +2701,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         CelebrationTimeSavedDisplay = FormatDuration(estimatedTimeSaved);
 
         CelebrationFailures.Clear();
+        IsCelebrationErrorsPopupOpen = false;
         foreach (var failure in failureItems)
         {
             CelebrationFailures.Add(failure);
@@ -3127,40 +3312,7 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         HideRefreshToast();
     }
 
-    [RelayCommand]
-    private async Task RetryFailureAsync(CleanupCelebrationFailureViewModel? failure)
-    {
-        if (failure is null || IsBusy)
-        {
-            return;
-        }
 
-        if (!failure.Group.Items.Contains(failure.Item))
-        {
-            CelebrationFailures.Remove(failure);
-            _mainViewModel.SetStatusMessage("Item already removed — nothing left to retry.");
-            return;
-        }
-
-        try
-        {
-            failure.IsRetrying = true;
-            await ExecuteDeletionAsync(
-                new[] { (failure.Group, failure.Item) },
-                new CleanupDeletionOptions
-                {
-                    PreferRecycleBin = UseRecycleBin,
-                    // Preserve reversibility for recycle requests; only allow hard delete when explicitly chosen.
-                    AllowPermanentDeleteFallback = !UseRecycleBin,
-                    AllowProtectedSystemPaths = IncludeProtectedSystemLocations
-                },
-                generateReport: false);
-        }
-        finally
-        {
-            failure.IsRetrying = false;
-        }
-    }
 
     partial void OnIsBusyChanged(bool value)
     {
@@ -3434,6 +3586,23 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
     private void OnCelebrationFailuresCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(HasCelebrationFailures));
+        OnPropertyChanged(nameof(CelebrationFailureCount));
+        OnPropertyChanged(nameof(CelebrationFailureSummary));
+        OnPropertyChanged(nameof(CelebrationFailuresPreview));
+        OnPropertyChanged(nameof(HasMoreCelebrationFailures));
+        OnPropertyChanged(nameof(MoreCelebrationFailuresCount));
+    }
+
+    [RelayCommand]
+    private void ShowCelebrationErrorsPopup()
+    {
+        IsCelebrationErrorsPopupOpen = true;
+    }
+
+    [RelayCommand]
+    private void HideCelebrationErrorsPopup()
+    {
+        IsCelebrationErrorsPopupOpen = false;
     }
 
     private void OnPendingDeletionCategoriesCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -3746,6 +3915,30 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         }
 
         return $"{megabytes * 1024d:F0} KB";
+    }
+
+    private static string FormatSizeBytes(long bytes)
+    {
+        const double KB = 1024d;
+        const double MB = KB * 1024d;
+        const double GB = MB * 1024d;
+
+        if (bytes >= GB)
+        {
+            return $"{bytes / GB:F2} GB";
+        }
+
+        if (bytes >= MB)
+        {
+            return $"{bytes / MB:F2} MB";
+        }
+
+        if (bytes >= KB)
+        {
+            return $"{bytes / KB:F0} KB";
+        }
+
+        return $"{bytes} bytes";
     }
 
     private IEnumerable<CleanupTargetReport> FilterPreviewTargets(IEnumerable<CleanupTargetReport> targets)

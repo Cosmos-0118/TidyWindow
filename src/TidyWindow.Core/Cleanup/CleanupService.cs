@@ -31,6 +31,11 @@ public sealed class CleanupService
         return _scanner.ScanAsync(includeDownloads, includeBrowserHistory, previewCount, itemKind, cancellationToken);
     }
 
+    public Task<CleanupReport> PreviewAsync(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, IProgress<CleanupScanProgress>? progress, CancellationToken cancellationToken = default)
+    {
+        return _scanner.ScanAsync(includeDownloads, includeBrowserHistory, previewCount, itemKind, progress, cancellationToken);
+    }
+
     public Task<CleanupDeletionResult> DeleteAsync(
         IEnumerable<CleanupPreviewItem> items,
         IProgress<CleanupDeletionProgress>? progress = null,

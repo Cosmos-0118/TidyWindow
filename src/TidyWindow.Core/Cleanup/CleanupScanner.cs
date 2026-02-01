@@ -22,10 +22,15 @@ internal sealed class CleanupScanner
 
     public Task<CleanupReport> ScanAsync(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, CancellationToken cancellationToken)
     {
-        return Task.Run(() => ScanInternal(includeDownloads, includeBrowserHistory, previewCount, itemKind, cancellationToken), cancellationToken);
+        return ScanAsync(includeDownloads, includeBrowserHistory, previewCount, itemKind, progress: null, cancellationToken);
     }
 
-    private CleanupReport ScanInternal(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, CancellationToken cancellationToken)
+    public Task<CleanupReport> ScanAsync(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, IProgress<CleanupScanProgress>? progress, CancellationToken cancellationToken)
+    {
+        return Task.Run(() => ScanInternal(includeDownloads, includeBrowserHistory, previewCount, itemKind, progress, cancellationToken), cancellationToken);
+    }
+
+    private CleanupReport ScanInternal(bool includeDownloads, bool includeBrowserHistory, int previewCount, CleanupItemKind itemKind, IProgress<CleanupScanProgress>? progress, CancellationToken cancellationToken)
     {
         var definitions = _definitionProvider.GetDefinitions(includeDownloads, includeBrowserHistory);
         if (definitions.Count == 0)
@@ -36,10 +41,19 @@ internal sealed class CleanupScanner
         previewCount = Math.Max(0, previewCount);
 
         var results = new ConcurrentBag<CleanupTargetReport>();
+        var completedCount = 0;
+        var totalBytes = 0L;
+        var totalFiles = 0;
+        var totalTargets = definitions.Count;
+
+        // Report initial progress
+        progress?.Report(new CleanupScanProgress(0, totalTargets, "Initializing scan…", 0, 0));
+
         var parallelOptions = new ParallelOptions
         {
             CancellationToken = cancellationToken,
-            MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1)
+            // Limit parallelism more conservatively for better UI responsiveness on weaker machines
+            MaxDegreeOfParallelism = Math.Max(Math.Min(Environment.ProcessorCount / 2, 4), 1)
         };
 
         Parallel.ForEach(definitions, parallelOptions, definition =>
@@ -48,6 +62,18 @@ internal sealed class CleanupScanner
             if (report is not null)
             {
                 results.Add(report);
+
+                // Update progress atomically
+                var completed = Interlocked.Increment(ref completedCount);
+                Interlocked.Add(ref totalBytes, report.TotalSizeBytes);
+                Interlocked.Add(ref totalFiles, report.ItemCount);
+
+                progress?.Report(new CleanupScanProgress(
+                    completed,
+                    totalTargets,
+                    definition.Category,
+                    Interlocked.Read(ref totalBytes),
+                    totalFiles));
             }
         });
 

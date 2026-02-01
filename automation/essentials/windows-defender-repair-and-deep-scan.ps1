@@ -446,20 +446,115 @@ try {
     if (-not $SkipSignatureUpdate.IsPresent) {
         $script:RunSummary.SignatureUpdateAttempted = $true
         Write-TidyOutput -Message 'Updating Microsoft Defender signatures.'
+
+        # Capture signature timestamp before update attempt for comparison.
+        $signatureTimeBefore = $null
         try {
-            $sigExit = Invoke-TidyCommand -Command {
-                Update-MpSignature -ErrorAction Stop
-            } -Description 'Updating Defender signatures.' -RequireSuccess
-            if ($sigExit -eq 0) {
-                $script:RunSummary.SignatureUpdateSucceeded = $true
-                if ($script:DryRunMode) {
-                    $script:RunSummary.SignatureUpdateError = 'Dry-run only; command not executed.'
-                }
+            $statusBefore = Get-MpComputerStatus -ErrorAction SilentlyContinue
+            if ($statusBefore) {
+                $signatureTimeBefore = $statusBefore.AntivirusSignatureLastUpdated
             }
         }
         catch {
-            $script:RunSummary.SignatureUpdateError = $_.Exception.Message
-            throw
+            # Non-fatal; we'll proceed without baseline comparison.
+        }
+
+        $maxRetries = 2
+        $retryCount = 0
+        $updateSucceeded = $false
+        $lastUpdateError = $null
+
+        while ($retryCount -lt $maxRetries -and -not $updateSucceeded) {
+            $retryCount++
+            try {
+                # Use SilentlyContinue to avoid terminating on transient errors.
+                $sigExit = Invoke-TidyCommand -Command {
+                    $ErrorActionPreference = 'SilentlyContinue'
+                    $updateError = $null
+                    try {
+                        Update-MpSignature -ErrorAction Stop
+                    }
+                    catch {
+                        $updateError = $_.Exception.Message
+                    }
+
+                    # Check if signatures were actually updated regardless of error.
+                    $statusAfter = Get-MpComputerStatus -ErrorAction SilentlyContinue
+                    if ($statusAfter) {
+                        $sigAge = (Get-Date) - $statusAfter.AntivirusSignatureLastUpdated
+                        # Consider update successful if signatures are less than 2 days old.
+                        if ($sigAge.TotalDays -lt 2) {
+                            return 0
+                        }
+                    }
+
+                    if ($updateError) {
+                        Write-Output "[WARNING] $updateError"
+                        return 1
+                    }
+
+                    return 0
+                } -Description "Updating Defender signatures (attempt $retryCount of $maxRetries)."
+
+                if ($sigExit -eq 0) {
+                    $updateSucceeded = $true
+                }
+            }
+            catch {
+                $lastUpdateError = $_.Exception.Message
+            }
+
+            if (-not $updateSucceeded -and $retryCount -lt $maxRetries) {
+                Write-TidyLog -Level Warning -Message "Signature update attempt $retryCount failed. Retrying..."
+                Start-Sleep -Seconds 3
+            }
+        }
+
+        # Verify final signature state.
+        $signatureTimeAfter = $null
+        $signaturesAreRecent = $false
+        try {
+            $statusAfter = Get-MpComputerStatus -ErrorAction SilentlyContinue
+            if ($statusAfter) {
+                $signatureTimeAfter = $statusAfter.AntivirusSignatureLastUpdated
+                $sigAge = (Get-Date) - $signatureTimeAfter
+                # Signatures less than 2 days old are acceptable.
+                $signaturesAreRecent = $sigAge.TotalDays -lt 2
+            }
+        }
+        catch {
+            # Non-fatal.
+        }
+
+        if ($updateSucceeded -or $signaturesAreRecent) {
+            $script:RunSummary.SignatureUpdateSucceeded = $true
+            if ($script:DryRunMode) {
+                $script:RunSummary.SignatureUpdateError = 'Dry-run only; command not executed.'
+            }
+            elseif ($signatureTimeAfter -and $signatureTimeBefore -and $signatureTimeAfter -gt $signatureTimeBefore) {
+                Write-TidyOutput -Message "Defender signatures updated successfully. New version timestamp: $signatureTimeAfter"
+            }
+            elseif ($signaturesAreRecent) {
+                Write-TidyOutput -Message "Defender signatures are current (last updated: $signatureTimeAfter)."
+            }
+        }
+        else {
+            # Only fail if signatures are actually outdated after all attempts.
+            $errorMsg = if ($lastUpdateError) { $lastUpdateError } else { 'Signature update completed with warnings.' }
+            $script:RunSummary.SignatureUpdateError = $errorMsg
+            Write-TidyLog -Level Warning -Message "Signature update encountered issues: $errorMsg"
+
+            # Check if signatures are critically outdated (more than 7 days).
+            if ($signatureTimeAfter) {
+                $sigAge = (Get-Date) - $signatureTimeAfter
+                if ($sigAge.TotalDays -gt 7) {
+                    throw "Defender signatures are critically outdated ($([int]$sigAge.TotalDays) days old) and update failed: $errorMsg"
+                }
+                else {
+                    Write-TidyOutput -Message "Signature update had warnings but signatures are reasonably current ($([int]$sigAge.TotalDays) days old). Continuing."
+                    $script:RunSummary.SignatureUpdateSucceeded = $true
+                }
+            }
         }
     }
     else {

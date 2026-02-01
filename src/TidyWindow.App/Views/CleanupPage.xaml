@@ -21,6 +21,8 @@
     <Page.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:InverseBooleanConverter x:Key="InverseBooleanConverter"/>
+        <converters:InverseBooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter"/>
+        <converters:FileSizeConverter x:Key="FileSizeConverter"/>
                 <SolidColorBrush x:Key="CleanupAccentBrush"
                                                  Color="#67E8F9"/>
                 <SolidColorBrush x:Key="CleanupAccentBrushSecondary"
@@ -1040,6 +1042,16 @@
             Value="14,12"/>
         <Setter Property="SnapsToDevicePixels"
             Value="True"/>
+        <Setter Property="UseLayoutRounding"
+            Value="True"/>
+        <Setter Property="RenderOptions.BitmapScalingMode"
+            Value="HighQuality"/>
+        <Setter Property="RenderOptions.EdgeMode"
+            Value="Aliased"/>
+        <Setter Property="TextOptions.TextFormattingMode"
+            Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode"
+            Value="ClearType"/>
         <Style.Triggers>
         <DataTrigger Binding="{Binding RelativeSource={RelativeSource AncestorType=ListViewItem}, Path=IsMouseOver}"
                  Value="True">
@@ -1536,7 +1548,7 @@
                             Padding="16,8"
                             Cursor="Hand"
                             BorderThickness="0"
-                            Command="{Binding RunPreviewCommand}"
+                            Command="{Binding ShowPreviewConfirmationPopupCommand}"
                             Margin="0">
                             <Button.Template>
                                 <ControlTemplate TargetType="Button">
@@ -1608,95 +1620,6 @@
                     VerticalAlignment="Center"/>
             </StackPanel>
                     </DockPanel>
-
-            <Border Grid.Row="1"
-                Margin="24,0,24,16"
-                Padding="18"
-                Background="{StaticResource CleanupSurfaceElevatedBrush}"
-                CornerRadius="14"
-                BorderBrush="{StaticResource CleanupBorderBrush}"
-                BorderThickness="1"
-                            Visibility="{Binding IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
-                        <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                            </Grid.ColumnDefinitions>
-
-                <Border Grid.Row="0"
-                    Grid.Column="0"
-                    Width="40"
-                    Height="40"
-                    CornerRadius="20"
-                    Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                    HorizontalAlignment="Center"
-                                    VerticalAlignment="Center">
-                                <TextBlock Text="⚙️"
-                                           FontSize="20"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-
-                            <Grid Grid.Row="0"
-                                  Grid.Column="1"
-                                  Margin="14,0,0,0">
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="0"
-                                           Text="{Binding ActiveOperationStatus}"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource CleanupSoftTextBrush}"
-                                           TextTrimming="CharacterEllipsis"/>
-                                <TextBlock Grid.Row="0"
-                                           Grid.Column="1"
-                                           Text="{Binding ActiveOperationPercentDisplay}"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource CleanupAccentBrush}"
-                                           Margin="12,0,0,0"
-                                           Visibility="{Binding HasActiveOperationPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                                <TextBlock Grid.Row="1"
-                                           Grid.Column="0"
-                                           Grid.ColumnSpan="2"
-                                           Text="{Binding ActiveOperationDetail}"
-                                           FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           TextTrimming="CharacterEllipsis"
-                                           Margin="0,4,0,0"/>
-                            </Grid>
-
-                <Border Grid.Row="1"
-                    Grid.Column="0"
-                    Grid.ColumnSpan="2"
-                    Margin="0,16,0,0"
-                    Background="{StaticResource CleanupSurfaceBrush}"
-                    CornerRadius="10"
-                    ClipToBounds="True">
-                                <ProgressBar Height="18"
-                                             Minimum="0"
-                                             Maximum="{Binding ActiveOperationProgressMaximum, Mode=OneWay}"
-                                             Value="{Binding ActiveOperationProgressValue, Mode=OneWay}"
-                                             IsIndeterminate="{Binding IsActiveOperationIndeterminate}"
-                                             Foreground="{StaticResource CleanupProgressBrush}"
-                                             Background="{StaticResource CleanupSurfaceBaseBrush}"
-                                             BorderThickness="0"/>
-                            </Border>
-                        </Grid>
-                    </Border>
 
                     <StackPanel Grid.Row="2"
                                 Margin="24,0,24,12">
@@ -2105,18 +2028,23 @@
                                                              Padding="8,8,8,4"
                                                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                                                                                        ScrollViewer.CanContentScroll="True"
-                                                                                                                        ScrollViewer.IsDeferredScrollingEnabled="False"
+                                                             ScrollViewer.CanContentScroll="True"
+                                                             ScrollViewer.IsDeferredScrollingEnabled="True"
                                                              VirtualizingPanel.IsVirtualizing="True"
                                                              VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                                                              VirtualizingPanel.IsContainerVirtualizable="True"
                                                              VirtualizingPanel.ScrollUnit="Pixel"
                                                              VirtualizingPanel.VirtualizationMode="Recycling"
-                                                             VirtualizingPanel.CacheLength="2"
+                                                             VirtualizingPanel.CacheLength="1"
                                                              VirtualizingPanel.CacheLengthUnit="Page"
-                                                                                                                         ParentScrollViewerName="RootScrollViewer"
-                                                                                                                         UseLayoutRounding="True"
-                                                                                                                         SnapsToDevicePixels="True">
+                                                             ParentScrollViewerName="RootScrollViewer"
+                                                             UseLayoutRounding="True"
+                                                             SnapsToDevicePixels="True"
+                                                             RenderOptions.BitmapScalingMode="HighQuality"
+                                                             RenderOptions.ClearTypeHint="Enabled"
+                                                             TextOptions.TextFormattingMode="Display"
+                                                             TextOptions.TextRenderingMode="ClearType"
+                                                             TextOptions.TextHintingMode="Fixed">
                                         <ListView.ItemsPanel>
                                             <ItemsPanelTemplate>
                                                 <VirtualizingStackPanel
@@ -2124,7 +2052,9 @@
                                                     VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                                                     VirtualizingPanel.IsContainerVirtualizable="True"
                                                     VirtualizingPanel.VirtualizationMode="Recycling"
-                                                    VirtualizingPanel.ScrollUnit="Pixel"/>
+                                                    VirtualizingPanel.ScrollUnit="Pixel"
+                                                    UseLayoutRounding="True"
+                                                    SnapsToDevicePixels="True"/>
                                             </ItemsPanelTemplate>
                                         </ListView.ItemsPanel>
                                         <ListView.ItemContainerStyle>
@@ -2356,36 +2286,36 @@
                         BorderBrush="{StaticResource CleanupBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="18"
-                        Padding="28"
-                        MinWidth="420"
+                        Padding="32"
+                        Width="420"
+                        Height="220"
                         Effect="{StaticResource SurfaceShadowEffect}">
                     <StackPanel HorizontalAlignment="Center"
                                 VerticalAlignment="Center">
-                        <Border Width="48"
-                                Height="48"
+                        <Border Width="52"
+                                Height="52"
                                 Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                CornerRadius="16"
+                                CornerRadius="26"
                                 HorizontalAlignment="Center"
-                                Margin="0,0,0,12">
+                                Margin="0,0,0,16">
                             <TextBlock Text="⌛"
-                                       FontSize="20"
+                                       FontSize="22"
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"/>
                         </Border>
-                        <TextBlock Text="{Binding BusyStatusMessage}"
-                                   FontSize="16"
+                        <TextBlock Text="Preparing deletion…"
+                                   FontSize="18"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource CleanupSoftTextBrush}"
-                                   Margin="0,0,0,4"
+                                   Margin="0,0,0,6"
                                    TextAlignment="Center"/>
-                        <TextBlock Text="{Binding BusyStatusDetail}"
+                        <TextBlock Text="Analyzing selected items"
                                    FontSize="12"
                                    Foreground="{StaticResource CleanupMutedTextBrush}"
                                    TextAlignment="Center"
-                                   TextWrapping="Wrap"
-                                   MaxWidth="360"
-                                   Margin="0,0,0,12"/>
+                                   Margin="0,0,0,16"/>
                         <ProgressBar Height="6"
+                                     Width="300"
                                      IsIndeterminate="True"
                                      Foreground="{StaticResource CleanupProgressBrush}"/>
                     </StackPanel>
@@ -3272,336 +3202,823 @@
             </ScrollViewer>
         </Grid>
     </Grid>
-    <Border Background="#D9081425"
-        HorizontalAlignment="Stretch"
-        VerticalAlignment="Stretch"
-        Panel.ZIndex="3"
-        Style="{StaticResource CelebrationOverlayStyle}">
-            <ScrollViewer HorizontalAlignment="Center"
-                              VerticalAlignment="Stretch"
-                              Margin="32"
-                              MaxWidth="1180"
-                              HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto"
-                              CanContentScroll="False"
-                              PanningMode="VerticalOnly">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="360"/>
-                            <ColumnDefinition Width="24"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-                        <Border Background="{StaticResource CleanupSurfaceBrush}"
-                            BorderBrush="{StaticResource CleanupBorderBrush}"
-                            BorderThickness="1"
-                            CornerRadius="24"
-                            Padding="32"
-                            MinHeight="380"
-                            Style="{StaticResource CelebrationPhaseContainerStyle}"
-                            Effect="{StaticResource SurfaceShadowEffect}">
-                            <StackPanel>
-                                <controls:CleanupCelebrationView x:Name="CelebrationView"
-                                                                 Width="296"
-                                                                 Height="220"
-                                                                 HorizontalAlignment="Center"/>
-                                <TextBlock Text="{Binding CelebrationHeadline}"
-                                           FontSize="13"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           Margin="0,20,0,8"
-                                           HorizontalAlignment="Center"/>
-                                <UniformGrid Columns="2"
-                                             Rows="2"
-                                             HorizontalAlignment="Stretch"
-                                             Margin="0,0,0,12"
-                                             VerticalAlignment="Top">
-                                    <Border Style="{StaticResource SheetCardStyle}"
-                                            Margin="0,0,12,12"
-                                            Padding="18"
-                                            MinHeight="110">
-                                        <StackPanel>
-                                            <TextBlock Text="Space reclaimed"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                            <TextBlock Text="{Binding CelebrationReclaimedDisplay}"
-                                                       FontSize="20"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                       Margin="0,6,0,0"/>
-                                        </StackPanel>
+
+    <!-- Preview Confirmation Popup -->
+    <Grid Panel.ZIndex="5"
+          Background="#CC050D1F"
+          Visibility="{Binding IsPreviewConfirmationPopupOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Grid HorizontalAlignment="Stretch"
+              VerticalAlignment="Stretch">
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Width="440"
+                    Height="280"
+                    CornerRadius="20"
+                    Background="{StaticResource CleanupSurfaceBrush}"
+                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                    BorderThickness="1.5"
+                    Effect="{StaticResource SurfaceShadowEffect}">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Margin="32">
+                    <Border Width="52" Height="52"
+                            Background="#2038BDF8"
+                            CornerRadius="26"
+                            HorizontalAlignment="Center"
+                            Margin="0,0,0,16">
+                        <TextBlock Text="🔍"
+                                   FontSize="22"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Ready to scan?"
+                               FontSize="20"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource CleanupSoftTextBrush}"
+                               HorizontalAlignment="Center"
+                               Margin="0,0,0,8"/>
+                    <TextBlock Text="Analyze your system to find cleanup opportunities."
+                               FontSize="13"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="420"
+                               Margin="0,0,0,24"/>
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center">
+                        <Button Content="Cancel"
+                                Command="{Binding HidePreviewConfirmationPopupCommand}"
+                                Style="{StaticResource FlatButtonStyle}"
+                                Padding="20,10"/>
+                        <Button Content="Start scan"
+                                Command="{Binding ConfirmAndRunPreviewCommand}"
+                                Margin="12,0,0,0"
+                                Background="{StaticResource CleanupAccentBrushSecondary}"
+                                Foreground="#041225"
+                                FontWeight="SemiBold"
+                                Padding="20,10"
+                                BorderThickness="0"
+                                Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="StartScanBorder"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="8"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
                                     </Border>
-                    <Border Style="{StaticResource SheetCardStyle}"
-                        Margin="0,0,0,12"
-                        Padding="18"
-                        MinHeight="110">
-                                        <StackPanel>
-                                            <TextBlock Text="Items removed"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                            <TextBlock Text="{Binding CelebrationItemsDeleted, StringFormat={}{0:N0}}"
-                                                       FontSize="20"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                       Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-                    <Border Style="{StaticResource SheetCardStyle}"
-                        Margin="0,0,12,0"
-                        Padding="18"
-                        MinHeight="110">
-                                        <StackPanel>
-                                            <TextBlock Text="Categories"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                            <TextBlock Text="{Binding CelebrationCategoryCount, StringFormat={}{0:N0}}"
-                                                       FontSize="20"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                       Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-                    <Border Style="{StaticResource SheetCardStyle}"
-                        Margin="0"
-                        Padding="18"
-                        MinHeight="110">
-                                        <StackPanel>
-                                            <TextBlock Text="Time saved"
-                                                       FontSize="12"
-                                                       Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                            <TextBlock Text="{Binding CelebrationTimeSavedDisplay}"
-                                                       FontSize="20"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
-                                                       Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-                                </UniformGrid>
-                                <TextBlock FontSize="12"
-                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                           TextAlignment="Center">
-                                    <Run Text="Execution · "/>
-                                    <Run Text="{Binding CelebrationDurationDisplay}"/>
-                                    <Run Text="   "/>
-                                    <Run Text="Skipped · "/>
-                                    <Run Text="{Binding CelebrationItemsSkipped, StringFormat={}{0:N0}}"/>
-                                    <Run Text="   "/>
-                                    <Run Text="Failed · "/>
-                                    <Run Text="{Binding CelebrationItemsFailed, StringFormat={}{0:N0}}"/>
-                                </TextBlock>
-                            </StackPanel>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="StartScanBorder" Property="Opacity" Value="0.6"/>
+                                        </Trigger>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="StartScanBorder" Property="Background" Value="#2DD4BF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+
+    <!-- Preview Scan Loading Overlay -->
+    <Border Background="#CC020B1F"
+            Visibility="{Binding IsPreviewScanInProgress, Converter={StaticResource BooleanToVisibilityConverter}}"
+            IsHitTestVisible="{Binding IsPreviewScanInProgress}"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Panel.ZIndex="6"
+            Focusable="False">
+        <Grid>
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="18"
+                    Padding="32"
+                    Width="440"
+                    Height="280"
+                    Effect="{StaticResource SurfaceShadowEffect}">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center">
+                    <Border Width="52"
+                            Height="52"
+                            Background="#2038BDF8"
+                            CornerRadius="26"
+                            HorizontalAlignment="Center"
+                            Margin="0,0,0,16">
+                        <TextBlock Text="🔍"
+                                   FontSize="22"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"/>
+                    </Border>
+                    <TextBlock Text="Scanning your system…"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource CleanupSoftTextBrush}"
+                               Margin="0,0,0,6"
+                               TextAlignment="Center"/>
+                    <TextBlock Text="{Binding ScanProgressCategory, TargetNullValue='Analyzing cleanup targets'}"
+                               FontSize="12"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                               TextAlignment="Center"
+                               TextTrimming="CharacterEllipsis"
+                               MaxWidth="360"
+                               Margin="0,0,0,8"/>
+                    <TextBlock FontSize="12"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                               TextAlignment="Center"
+                               Margin="0,0,0,16">
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}Scanned {0:N0} files ({1})">
+                                <Binding Path="ScanProgressFilesScanned"/>
+                                <Binding Path="ScanProgressBytesScanned" Converter="{StaticResource FileSizeConverter}"/>
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                    <ProgressBar Height="6"
+                                 Width="340"
+                                 Value="{Binding ScanProgressCurrent}"
+                                 Maximum="{Binding ScanProgressTotal}"
+                                 IsIndeterminate="{Binding IsActiveOperationIndeterminate}"
+                                 Foreground="#38BDF8"/>
+                    <TextBlock Text="{Binding ActiveOperationPercentDisplay}"
+                               FontSize="11"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                               TextAlignment="Center"
+                               Margin="0,8,0,0"
+                               Visibility="{Binding HasActiveOperationPercent, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Border>
+
+    <!-- Cleanup Execution Loading Overlay -->
+    <Border Background="#CC020B1F"
+            Visibility="{Binding IsCleanupExecutionInProgress, Converter={StaticResource BooleanToVisibilityConverter}}"
+            IsHitTestVisible="{Binding IsCleanupExecutionInProgress}"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Panel.ZIndex="6"
+            Focusable="False">
+        <Grid>
+            <Border HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="20"
+                    Padding="40"
+                    Width="480"
+                    Height="320"
+                    Effect="{StaticResource SurfaceShadowEffect}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Header -->
+                    <StackPanel Grid.Row="0" HorizontalAlignment="Center">
+                        <Border Width="60"
+                                Height="60"
+                                Background="#2034D399"
+                                CornerRadius="30"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,16">
+                            <TextBlock Text="🧹"
+                                       FontSize="26"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
                         </Border>
-                        <Border Grid.Column="2"
+                        <TextBlock Text="Cleaning up…"
+                                   FontSize="22"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <!-- Progress Section -->
+                    <StackPanel Grid.Row="1" 
+                                VerticalAlignment="Center"
+                                Margin="0,20,0,0">
+                        <!-- Percentage Display -->
+                        <TextBlock FontSize="32"
+                                   FontWeight="Bold"
+                                   Foreground="#34D399"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,0,0,12">
+                            <TextBlock.Text>
+                                <MultiBinding StringFormat="{}{0:N0}%">
+                                    <Binding Path="DeletionProgressCurrent"/>
+                                    <Binding Path="DeletionProgressTotal"/>
+                                </MultiBinding>
+                            </TextBlock.Text>
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="Text" Value="0%"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding DeletionProgressTotal}" Value="0">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                        
+                        <!-- Progress Bar -->
+                        <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                CornerRadius="6"
+                                Height="12"
+                                ClipToBounds="True">
+                            <ProgressBar Height="12"
+                                         Value="{Binding DeletionProgressCurrent}"
+                                         Maximum="{Binding DeletionProgressTotal}"
+                                         IsIndeterminate="{Binding IsActiveOperationIndeterminate}"
+                                         Foreground="#34D399"
+                                         Background="Transparent"
+                                         BorderThickness="0"/>
+                        </Border>
+                        
+                        <!-- Status Text -->
+                        <TextBlock Text="{Binding DeletionStatusMessage}"
+                                   FontSize="12"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="380"
+                                   Margin="0,12,0,0"/>
+                    </StackPanel>
+                    
+                    <!-- Item Count -->
+                    <TextBlock Grid.Row="2"
+                               FontSize="12"
+                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                               HorizontalAlignment="Center"
+                               TextAlignment="Center">
+                        <Run Text="{Binding DeletionProgressCurrent, StringFormat={}{0:N0}}"/>
+                        <Run Text=" of "/>
+                        <Run Text="{Binding DeletionProgressTotal, StringFormat={}{0:N0}}"/>
+                        <Run Text=" items"/>
+                    </TextBlock>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+
+    <!-- Modern Full-Screen Celebration UI -->
+    <Border Background="#F0060F1F"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch"
+            Panel.ZIndex="3"
+            Style="{StaticResource CelebrationOverlayStyle}"
+            UseLayoutRounding="True"
+            SnapsToDevicePixels="True"
+            TextOptions.TextFormattingMode="Display"
+            TextOptions.TextRenderingMode="ClearType">
+        <Grid>
+            <!-- Animated gradient background -->
+            <Border CornerRadius="0"
+                    Opacity="0.4">
+                <Border.Background>
+                    <RadialGradientBrush Center="0.5,0.3" RadiusX="0.8" RadiusY="0.8">
+                        <GradientStop Color="#1A38BDF8" Offset="0"/>
+                        <GradientStop Color="#0534D399" Offset="0.5"/>
+                        <GradientStop Color="#00000000" Offset="1"/>
+                    </RadialGradientBrush>
+                </Border.Background>
+            </Border>
+            
+            <ScrollViewer HorizontalAlignment="Stretch"
+                          VerticalAlignment="Stretch"
+                          HorizontalScrollBarVisibility="Disabled"
+                          VerticalScrollBarVisibility="Auto"
+                          CanContentScroll="False"
+                          PanningMode="VerticalOnly">
+                <Grid HorizontalAlignment="Center"
+                      VerticalAlignment="Center"
+                      Margin="32,48,32,48"
+                      MaxWidth="880"
+                      MinWidth="680">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <!-- Hero Section with Animation -->
+                    <StackPanel Grid.Row="0"
+                                HorizontalAlignment="Center"
+                                Margin="0,0,0,32">
+                        <controls:CleanupCelebrationView x:Name="CelebrationView"
+                                                         Width="180"
+                                                         Height="140"
+                                                         HorizontalAlignment="Center"
+                                                         Margin="0,0,0,24"/>
+                        <TextBlock Text="✨ Cleanup Complete!"
+                                   FontSize="36"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource CleanupSoftTextBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"/>
+                        <TextBlock Text="{Binding CelebrationDetails}"
+                                   FontSize="15"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="500"
+                                   Margin="0,12,0,0"/>
+                    </StackPanel>
+                    
+                    <!-- Stats Cards using UniformGrid for equal sizing -->
+                    <Border Grid.Row="1"
+                            Margin="0,0,0,24">
+                        <UniformGrid Rows="1" Columns="4">
+                            <!-- Space Reclaimed Card -->
+                            <Border Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="16"
+                                    Padding="16,20"
+                                    Margin="0,0,8,0"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <Border Width="44" Height="44"
+                                            Background="#2038BDF8"
+                                            CornerRadius="22"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,0,0,12">
+                                        <TextBlock Text="💾"
+                                                   FontSize="20"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding CelebrationReclaimedDisplay}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#38BDF8"
+                                               HorizontalAlignment="Center"
+                                               TextAlignment="Center"/>
+                                    <TextBlock Text="Space freed"
+                                               FontSize="11"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Items Removed Card -->
+                            <Border Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="16"
+                                    Padding="16,20"
+                                    Margin="4,0,4,0"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <Border Width="44" Height="44"
+                                            Background="#2034D399"
+                                            CornerRadius="22"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,0,0,12">
+                                        <TextBlock Text="🗑️"
+                                                   FontSize="20"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding CelebrationItemsDeleted, StringFormat={}{0:N0}}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#34D399"
+                                               HorizontalAlignment="Center"
+                                               TextAlignment="Center"/>
+                                    <TextBlock Text="Items removed"
+                                               FontSize="11"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Categories Card -->
+                            <Border Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="16"
+                                    Padding="16,20"
+                                    Margin="4,0,4,0"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <Border Width="44" Height="44"
+                                            Background="#20A855F7"
+                                            CornerRadius="22"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,0,0,12">
+                                        <TextBlock Text="📂"
+                                                   FontSize="20"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding CelebrationCategoryCount, StringFormat={}{0:N0}}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#A855F7"
+                                               HorizontalAlignment="Center"
+                                               TextAlignment="Center"/>
+                                    <TextBlock Text="Categories"
+                                               FontSize="11"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                            
+                            <!-- Time Saved Card -->
+                            <Border Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                                    BorderBrush="{StaticResource CleanupBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="16"
+                                    Padding="16,20"
+                                    Margin="8,0,0,0"
+                                    Effect="{StaticResource CardShadowEffect}">
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center">
+                                    <Border Width="44" Height="44"
+                                            Background="#20F59E0B"
+                                            CornerRadius="22"
+                                            HorizontalAlignment="Center"
+                                            Margin="0,0,0,12">
+                                        <TextBlock Text="⏱️"
+                                                   FontSize="20"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding CelebrationTimeSavedDisplay}"
+                                               FontSize="24"
+                                               FontWeight="Bold"
+                                               Foreground="#F59E0B"
+                                               HorizontalAlignment="Center"
+                                               TextAlignment="Center"/>
+                                    <TextBlock Text="Time saved"
+                                               FontSize="11"
+                                               Foreground="{StaticResource CleanupMutedTextBrush}"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,4,0,0"/>
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+                    </Border>
+                    
+                    <!-- Execution Summary -->
+                    <Border Grid.Row="2"
                             Background="{StaticResource CleanupSurfaceBrush}"
                             BorderBrush="{StaticResource CleanupBorderBrush}"
                             BorderThickness="1"
-                            CornerRadius="20"
-                            Padding="32"
-                            MinWidth="420"
-                            MaxWidth="680"
-                            Style="{StaticResource CelebrationPhaseContainerStyle}"
-                            Effect="{StaticResource SurfaceShadowEffect}">
-                            <Grid>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="*"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
-                                <StackPanel Grid.Row="0">
-                                    <TextBlock Text="Phase 4 — Cleanup feedback"
+                            CornerRadius="12"
+                            Padding="20,14"
+                            Margin="0,0,0,20"
+                            HorizontalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock FontSize="13"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                       VerticalAlignment="Center">
+                                <Run Text="Duration: "/>
+                                <Run Text="{Binding CelebrationDurationDisplay}" Foreground="{StaticResource CleanupSoftTextBrush}" FontWeight="SemiBold"/>
+                                <Run Text="  •  Skipped: "/>
+                                <Run Text="{Binding CelebrationItemsSkipped, StringFormat={}{0:N0}}" Foreground="{StaticResource CleanupSoftTextBrush}" FontWeight="SemiBold"/>
+                                <Run Text="  •  Failed: "/>
+                                <Run Text="{Binding CelebrationItemsFailed, StringFormat={}{0:N0}}" Foreground="{StaticResource CleanupSoftTextBrush}" FontWeight="SemiBold"/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Main Content Card (Categories + Errors) -->
+                    <Border Grid.Row="3"
+                            Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                            BorderBrush="{StaticResource CleanupBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="16"
+                            Padding="24"
+                            Margin="0,0,0,24"
+                            Effect="{StaticResource CardShadowEffect}"
+                            Style="{StaticResource CelebrationPhaseContainerStyle}">
+                        <StackPanel>
+                            <!-- Categories Section -->
+                            <TextBlock Text="Categories cleaned"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                       Margin="0,0,0,12"/>
+                            <ItemsControl ItemsSource="{Binding CelebrationCategories}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                                BorderBrush="{StaticResource CleanupBorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="12,6"
+                                                Margin="0,0,8,8">
+                                            <TextBlock Text="{Binding}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"/>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                                <ItemsControl.Style>
+                                    <Style TargetType="ItemsControl">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCelebrationCategories}"
+                                                         Value="False">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </ItemsControl.Style>
+                            </ItemsControl>
+                            <TextBlock Text="No categories were affected."
+                                       FontSize="12"
+                                       Foreground="{StaticResource CleanupMutedTextBrush}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding HasCelebrationCategories}"
+                                                         Value="False">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            
+                            <!-- Errors Section - Shows warning banner with Show All button -->
+                            <Border Margin="0,16,0,0"
+                                    Background="#20FBBF24"
+                                    BorderBrush="#40FBBF24"
+                                    BorderThickness="1"
+                                    CornerRadius="10"
+                                    Padding="16,12"
+                                    Visibility="{Binding HasCelebrationFailures, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    
+                                    <TextBlock Text="⚠️"
                                                FontSize="18"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource CleanupAccentBrush}"/>
-                                    <TextBlock Text="{Binding CelebrationHeadline}"
-                                               FontSize="26"
-                                               FontWeight="Bold"
-                                               Foreground="{StaticResource CleanupSoftTextBrush}"
-                                               Margin="0,8,0,6"
-                                               TextWrapping="Wrap"/>
-                                    <TextBlock Text="{Binding CelebrationDetails}"
-                                               FontSize="13"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"
-                                               TextWrapping="Wrap"/>
-                                </StackPanel>
-
-                                <StackPanel Grid.Row="1"
-                                            Margin="0,20,0,0">
-                                    <TextBlock Text="Categories touched"
-                                               FontSize="12"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    <ItemsControl ItemsSource="{Binding CelebrationCategories}"
-                                                  Margin="0,6,0,0">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel/>
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Style="{StaticResource CategorySummaryChipStyle}">
-                                                    <TextBlock Text="{Binding}"
-                                                               FontSize="12"
-                                                               Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                        <ItemsControl.Style>
-                                            <Style TargetType="ItemsControl">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasCelebrationCategories}"
-                                                                 Value="False">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ItemsControl.Style>
-                                    </ItemsControl>
-                                    <TextBlock Text="No categories were affected."
-                                               FontSize="12"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"
-                                               Margin="0,8,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasCelebrationCategories}"
-                                                                 Value="False">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                </StackPanel>
-
-                                <Grid Grid.Row="2"
-                                      Margin="0,28,0,0">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="*"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
-                                    <TextBlock Grid.Row="0"
-                                               Text="Failures"
-                                               FontSize="12"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"/>
-                                    <ScrollViewer Grid.Row="1"
-                                                  Margin="0,8,0,0"
-                                                  VerticalScrollBarVisibility="Auto"
-                                                  HorizontalScrollBarVisibility="Disabled"
-                                                  MaxHeight="280">
-                                        <ScrollViewer.Style>
-                                            <Style TargetType="ScrollViewer"
-                                                   BasedOn="{StaticResource App.ScrollViewerStyle}">
-                                                <Setter Property="Visibility" Value="Visible"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasCelebrationFailures}"
-                                                                 Value="False">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </ScrollViewer.Style>
-                                        <ItemsControl ItemsSource="{Binding CelebrationFailures}">
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate>
-                                                    <Border Background="{StaticResource CleanupSurfaceHighlightBrush}"
-                                                            BorderBrush="{StaticResource CleanupBorderBrush}"
-                                                            BorderThickness="1"
-                                                            CornerRadius="10"
-                                                            Padding="12"
-                                                            Margin="0,0,0,8">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <StackPanel>
-                                                                <TextBlock Text="{Binding DisplayName}"
-                                                                           FontSize="13"
-                                                                           FontWeight="SemiBold"
-                                                                           Foreground="{StaticResource CleanupSoftTextBrush}"/>
-                                                                <TextBlock Text="{Binding Reason}"
-                                                                           FontSize="12"
-                                                                           Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                                           TextWrapping="Wrap"
-                                                                           Margin="0,4,0,0"/>
-                                                            </StackPanel>
-                                                            <Button Grid.Column="1"
-                                                                    Content="Retry"
-                                                                    Command="{Binding DataContext.RetryFailureAsyncCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Style="{StaticResource ChipButtonStyle}"
-                                                                    Padding="14,6"
-                                                                    Margin="12,0,0,0">
-                                                                <Button.IsEnabled>
-                                                                    <Binding Path="IsRetrying" Converter="{StaticResource InverseBooleanConverter}"/>
-                                                                </Button.IsEnabled>
-                                                            </Button>
-                                                        </Grid>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                    </ScrollViewer>
-                                    <TextBlock Grid.Row="2"
-                                               Text="All items were removed successfully. Great job!"
-                                               FontSize="12"
-                                               Foreground="{StaticResource CleanupMutedTextBrush}"
-                                               Margin="0,8,0,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding HasCelebrationFailures}"
-                                                                 Value="False">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                               VerticalAlignment="Center"
+                                               Margin="0,0,12,0"/>
+                                    
+                                    <StackPanel Grid.Column="1"
+                                                VerticalAlignment="Center">
+                                        <TextBlock FontSize="14"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#FBBF24">
+                                            <Run Text="{Binding CelebrationFailureCount, Mode=OneWay}"/>
+                                            <Run Text=" item(s) couldn't be removed"/>
+                                        </TextBlock>
+                                        <TextBlock Text="{Binding CelebrationFailureSummary}"
+                                                   FontSize="12"
+                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="480"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    
+                                    <Button Grid.Column="2"
+                                            Content="Show all"
+                                            Command="{Binding ShowCelebrationErrorsPopupCommand}"
+                                            Style="{StaticResource FlatButtonStyle}"
+                                            Background="{StaticResource CleanupSurfaceHighlightBrush}"
+                                            Padding="14,8"
+                                            VerticalAlignment="Center"/>
                                 </Grid>
-
-                                <WrapPanel Grid.Row="3"
-                                           Margin="0,24,0,0"
-                                           HorizontalAlignment="Right"
-                                           Orientation="Horizontal">
-                                    <Button Content="Review report"
-                                            Command="{Binding ReviewCelebrationReportCommand}"
-                                            Style="{StaticResource FlatButtonStyle}"
-                                            IsEnabled="{Binding CanReviewCelebrationReport}"
-                                            Margin="0,0,12,12"/>
-                                    <Button Content="Share summary"
-                                            Command="{Binding ShareCelebrationSummaryCommand}"
-                                            Style="{StaticResource FlatButtonStyle}"
-                                            Margin="0,0,12,12"/>
-                                    <Button Content="Back to dashboard"
-                                            Command="{Binding CancelCommand}"
-                                            Style="{StaticResource FlatButtonStyle}"
-                                            Background="{StaticResource CleanupSurfaceBrush}"
-                                            Margin="0,0,12,12"/>
-                                    <Button Content="Close"
-                                            Command="{Binding CloseCelebrationCommand}"
-                                            Style="{StaticResource FlatButtonStyle}"
-                                            Background="{StaticResource CleanupAccentBrushSecondary}"
-                                            Foreground="#041225"
-                                            FontWeight="SemiBold"
-                                            Padding="18,10"
-                                            BorderThickness="0"
-                                            Cursor="Hand"
-                                            Margin="0,0,0,12"/>
-                                </WrapPanel>
-                            </Grid>
-                        </Border>
-                    </Grid>
-                </ScrollViewer>
+                            </Border>
+                            
+                            <!-- Success message when no failures -->
+                            <Border Margin="0,16,0,0"
+                                    Background="#1534D399"
+                                    CornerRadius="8"
+                                    Padding="14"
+                                    Visibility="{Binding HasCelebrationFailures, Converter={StaticResource InverseBooleanToVisibilityConverter}}">
+                                <TextBlock Text="✓ All items were removed successfully!"
+                                           FontSize="13"
+                                           Foreground="#34D399"
+                                           HorizontalAlignment="Center"/>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+                    
+                    <!-- Action Buttons -->
+                    <StackPanel Grid.Row="4"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                Margin="0,8,0,0">
+                        <Button Content="📋 Review report"
+                                Command="{Binding ReviewCelebrationReportCommand}"
+                                Style="{StaticResource FlatButtonStyle}"
+                                IsEnabled="{Binding CanReviewCelebrationReport}"
+                                Padding="16,10"
+                                Margin="0,0,10,0"/>
+                        <Button Content="📤 Share summary"
+                                Command="{Binding ShareCelebrationSummaryCommand}"
+                                Style="{StaticResource FlatButtonStyle}"
+                                Padding="16,10"
+                                Margin="0,0,10,0"/>
+                        <Button Content="🏠 Back to dashboard"
+                                Command="{Binding CancelCommand}"
+                                Style="{StaticResource FlatButtonStyle}"
+                                Background="{StaticResource CleanupSurfaceBrush}"
+                                Padding="16,10"
+                                Margin="0,0,10,0"/>
+                        <Button Content="Done"
+                                Command="{Binding CloseCelebrationCommand}"
+                                Background="{StaticResource CleanupAccentBrushSecondary}"
+                                Foreground="#041225"
+                                FontWeight="SemiBold"
+                                Padding="24,10"
+                                Cursor="Hand"
+                                BorderThickness="0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="DoneBorder"
+                                            Background="{TemplateBinding Background}"
+                                            CornerRadius="10"
+                                            Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"/>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="DoneBorder" Property="Background" Value="#2DD4BF"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </ScrollViewer>
+        </Grid>
         </Border>
+
+    <!-- Celebration Errors Popup -->
+    <Grid Panel.ZIndex="7"
+          Background="#DD050D1F"
+          Visibility="{Binding IsCelebrationErrorsPopupOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
+        <Border HorizontalAlignment="Center"
+                VerticalAlignment="Center"
+                Width="560"
+                MaxHeight="520"
+                Background="{StaticResource CleanupSurfaceElevatedBrush}"
+                BorderBrush="{StaticResource CleanupBorderBrush}"
+                BorderThickness="1"
+                CornerRadius="20"
+                Effect="{StaticResource SurfaceShadowEffect}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Header -->
+                <Border Grid.Row="0"
+                        Padding="24,20"
+                        BorderBrush="{StaticResource CleanupBorderBrush}"
+                        BorderThickness="0,0,0,1">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Margin="0,0,0,8">
+                            <TextBlock Text="⚠️"
+                                       FontSize="20"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,10,0"/>
+                            <TextBlock Text="Items that couldn't be removed"
+                                       FontSize="18"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock FontSize="13"
+                                   Foreground="{StaticResource CleanupMutedTextBrush}"
+                                   HorizontalAlignment="Center">
+                            <Run Text="{Binding CelebrationFailureCount, Mode=OneWay}"/>
+                            <Run Text=" files failed due to access restrictions or locks"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+                
+                <!-- Error List -->
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Padding="20,16">
+                    <ItemsControl ItemsSource="{Binding CelebrationFailures}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="{StaticResource CleanupSurfaceBrush}"
+                                        BorderBrush="{StaticResource CleanupBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="10"
+                                        Padding="14,12"
+                                        Margin="0,0,0,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Width="32" Height="32"
+                                                Background="#20FBBF24"
+                                                CornerRadius="16"
+                                                VerticalAlignment="Top"
+                                                Margin="0,0,12,0">
+                                            <TextBlock Text="!"
+                                                       FontSize="16"
+                                                       FontWeight="Bold"
+                                                       Foreground="#FBBF24"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding DisplayName}"
+                                                       FontSize="13"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="{StaticResource CleanupSoftTextBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding Reason}"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource CleanupMutedTextBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Margin="0,4,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+                
+                <!-- Footer -->
+                <Border Grid.Row="2"
+                        Padding="20,16"
+                        BorderBrush="{StaticResource CleanupBorderBrush}"
+                        BorderThickness="0,1,0,0">
+                    <Button Content="Close"
+                            Command="{Binding HideCelebrationErrorsPopupCommand}"
+                            HorizontalAlignment="Center"
+                            Background="{StaticResource CleanupAccentBrushSecondary}"
+                            Foreground="#041225"
+                            FontWeight="SemiBold"
+                            Padding="32,10"
+                            Cursor="Hand"
+                            BorderThickness="0">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="CloseBorder"
+                                        Background="{TemplateBinding Background}"
+                                        CornerRadius="8"
+                                        Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="CloseBorder" Property="Background" Value="#2DD4BF"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+
         <Border Style="{StaticResource PhaseTransitionOverlayStyle}"
                 Panel.ZIndex="60">
             <Grid>
