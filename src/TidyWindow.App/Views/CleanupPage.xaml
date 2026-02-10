@@ -834,7 +834,10 @@
             <Setter Property="UseLayoutRounding" Value="True"/>
             <Setter Property="SnapsToDevicePixels" Value="True"/>
             <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
-            <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             <Setter Property="RenderTransformOrigin"
                     Value="0.5,0"/>
             <Setter Property="RenderTransform">
@@ -896,9 +899,15 @@
                     Value="0"/>
             <Setter Property="IsHitTestVisible"
                     Value="False"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             <Setter Property="CacheMode">
             <Setter.Value>
-                <BitmapCache EnableClearType="False"/>
+                <BitmapCache EnableClearType="True" RenderAtScale="1"/>
             </Setter.Value>
             </Setter>
             <Style.Triggers>
@@ -919,6 +928,12 @@
                     Value="Collapsed"/>
             <Setter Property="Opacity"
                     Value="0"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="RenderOptions.ClearTypeHint" Value="Enabled"/>
+            <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+            <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
+            <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             <Setter Property="RenderTransformOrigin"
                     Value="0.5,0.5"/>
             <Setter Property="RenderTransform">
@@ -928,7 +943,7 @@
             </Setter>
             <Setter Property="CacheMode">
                 <Setter.Value>
-                    <BitmapCache EnableClearType="False"/>
+                    <BitmapCache EnableClearType="True" RenderAtScale="1"/>
                 </Setter.Value>
             </Setter>
             <Style.Triggers>
@@ -1027,6 +1042,10 @@
             Value="8,4"/>
         <Setter Property="Margin"
             Value="0,0,8,8"/>
+        <Setter Property="UseLayoutRounding" Value="True"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
     </Style>
     <Style x:Key="CleanupListCardStyle"
            TargetType="Border">
@@ -1088,6 +1107,10 @@
             Value="8,4"/>
         <Setter Property="Margin"
             Value="0,0,8,8"/>
+        <Setter Property="UseLayoutRounding" Value="True"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="ClearType"/>
     </Style>
 
     <Style x:Key="CleanupAutomationButtonStyle" TargetType="Button">
@@ -1133,9 +1156,13 @@
                       VerticalScrollBarVisibility="Auto"
                       HorizontalScrollBarVisibility="Disabled"
                       CanContentScroll="False"
-                                            PanningMode="VerticalOnly"
-                                            UseLayoutRounding="True"
-                                            SnapsToDevicePixels="True">
+                      IsDeferredScrollingEnabled="False"
+                      PanningMode="VerticalOnly"
+                      PanningRatio="1"
+                      IsManipulationEnabled="True"
+                      UseLayoutRounding="True"
+                      SnapsToDevicePixels="True"
+                      Focusable="False">
                 <StackPanel MinWidth="760"
                                         UseLayoutRounding="True"
                                         SnapsToDevicePixels="True">
@@ -2072,6 +2099,12 @@
         <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
                   CanContentScroll="False"
+                  IsDeferredScrollingEnabled="False"
+                  PanningMode="VerticalOnly"
+                  IsManipulationEnabled="True"
+                  UseLayoutRounding="True"
+                  SnapsToDevicePixels="True"
+                  Focusable="False"
                   Padding="24">
             <Border HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -2445,7 +2478,11 @@
                                       MaxHeight="160"
                                       VerticalScrollBarVisibility="Auto"
                                       HorizontalScrollBarVisibility="Disabled"
-                                      CanContentScroll="False">
+                                      CanContentScroll="False"
+                                      IsDeferredScrollingEnabled="False"
+                                      PanningMode="VerticalOnly"
+                                      IsManipulationEnabled="True"
+                                      Focusable="False">
                             <ScrollViewer.Style>
                                 <Style TargetType="ScrollViewer"
                                        BasedOn="{StaticResource App.ScrollViewerStyle}">
@@ -2619,6 +2656,10 @@
                                     MaxHeight="560">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                                               HorizontalScrollBarVisibility="Disabled"
+                                              IsDeferredScrollingEnabled="False"
+                                              PanningMode="VerticalOnly"
+                                              IsManipulationEnabled="True"
+                                              Focusable="False"
                                               Padding="16"
                                               MaxHeight="540">
                                     <StackPanel>
@@ -2647,7 +2688,11 @@
                                     <ScrollViewer Margin="0,12,0,0"
                                                   MaxHeight="360"
                                                   VerticalScrollBarVisibility="Auto"
-                                                  HorizontalScrollBarVisibility="Disabled">
+                                                  HorizontalScrollBarVisibility="Disabled"
+                                                  IsDeferredScrollingEnabled="False"
+                                                  PanningMode="VerticalOnly"
+                                                  IsManipulationEnabled="True"
+                                                  Focusable="False">
                                         <ItemsControl ItemsSource="{Binding LockingProcesses}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
@@ -2788,6 +2833,11 @@
               VerticalAlignment="Stretch">
             <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto"
+                          IsDeferredScrollingEnabled="False"
+                          PanningMode="VerticalOnly"
+                          IsManipulationEnabled="True"
+                          UseLayoutRounding="True"
+                          SnapsToDevicePixels="True"
                           Margin="24"
                           Focusable="False">
                 <Grid HorizontalAlignment="Center"
@@ -3217,8 +3267,10 @@
             Style="{StaticResource CelebrationOverlayStyle}"
             UseLayoutRounding="True"
             SnapsToDevicePixels="True"
+            RenderOptions.ClearTypeHint="Enabled"
             TextOptions.TextFormattingMode="Display"
-            TextOptions.TextRenderingMode="ClearType">
+            TextOptions.TextRenderingMode="ClearType"
+            TextOptions.TextHintingMode="Fixed">
         <Grid>
             <!-- Animated gradient background -->
             <Border CornerRadius="0"
@@ -3237,7 +3289,13 @@
                           HorizontalScrollBarVisibility="Disabled"
                           VerticalScrollBarVisibility="Auto"
                           CanContentScroll="False"
-                          PanningMode="VerticalOnly">
+                          IsDeferredScrollingEnabled="False"
+                          PanningMode="VerticalOnly"
+                          PanningRatio="1"
+                          IsManipulationEnabled="True"
+                          UseLayoutRounding="True"
+                          SnapsToDevicePixels="True"
+                          Focusable="False">
                 <Grid HorizontalAlignment="Center"
                       VerticalAlignment="Center"
                       Margin="32,48,32,48"
@@ -3532,16 +3590,11 @@
                                                 VerticalAlignment="Center">
                                         <TextBlock FontSize="14"
                                                    FontWeight="SemiBold"
-                                                   Foreground="#FBBF24">
+                                                   Foreground="#FBBF24"
+                                                   VerticalAlignment="Center">
                                             <Run Text="{Binding CelebrationFailureCount, Mode=OneWay}"/>
                                             <Run Text=" item(s) couldn't be removed"/>
                                         </TextBlock>
-                                        <TextBlock Text="{Binding CelebrationFailureSummary}"
-                                                   FontSize="12"
-                                                   Foreground="{StaticResource CleanupMutedTextBrush}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="480"
-                                                   Margin="0,4,0,0"/>
                                     </StackPanel>
                                     
                                     <Button Grid.Column="2"
@@ -3673,6 +3726,10 @@
                 <ScrollViewer Grid.Row="1"
                               VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled"
+                              IsDeferredScrollingEnabled="False"
+                              PanningMode="VerticalOnly"
+                              IsManipulationEnabled="True"
+                              Focusable="False"
                               Padding="20,16">
                     <ItemsControl ItemsSource="{Binding CelebrationFailures}">
                         <ItemsControl.ItemTemplate>
@@ -3877,7 +3934,11 @@
                         </StackPanel>
 
                         <!-- Files ListView -->
-                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                                      IsDeferredScrollingEnabled="False"
+                                      PanningMode="VerticalOnly"
+                                      IsManipulationEnabled="True"
+                                      Focusable="False">
                             <ItemsControl ItemsSource="{Binding FilteredItems}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
