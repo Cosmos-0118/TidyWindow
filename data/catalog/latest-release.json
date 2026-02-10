@@ -1,10 +1,10 @@
 {
-  "version": "4.6.1",
+  "version": "4.6.2",
   "channel": "stable",
-  "summary": "### UI Fixes & Polish\n\n- Fixed the PowerShell command card layout so it scales correctly on smaller screens.\n- Switched to a vertical layout to prevent clipping and overlap.\n- Enabled command text wrapping and removed fixed width constraints.\n- Improved copy feedback placement for better visibility.\n- Polished the PathPilot page with a cleaner, modern visual style consistent with the rest of the app.",
-  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v4.6.1/TidyWindow-Setup-4.6.1.exe",
-  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v4.6.1",
-  "publishedAt": "2026-02-01T11:55:44Z",
-  "installerSizeBytes": 91292720,
-  "sha256": "f45329357e3f56d87d38f767aba9fb7759e224fc54c99c89e4063004b0c3f906"
+  "summary": "### Essential Script Fixes & Cleanup UI Update\n\n- Fixed failures with `UsoClient.exe` by switching to `Start-Process`, avoiding unsupported output redirection.\n- Corrected multiple registry and file path issues caused by double backslashes (`\\\\`) across essential repair scripts.\n- Normalized Task Scheduler paths to use valid single-backslash formats.\n- Increased service stop wait time (12s -> 30s) to prevent premature failures.\n- Fixed race condition after stopping Windows Update services by adding a short delay before file operations.\n\n### Cleanup Page - File Inspection Popup\n- Added a **“View files”** option for cleanup categories.\n- Categories now use a full-width layout for better readability.\n- New files popup allows:\n  - Viewing affected files with size, date, and full path\n  - Selecting/clearing items\n  - Dismissing by clicking outside or using controls",
+  "downloadUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/download/v4.6.2/TidyWindow-Setup-4.6.2.exe",
+  "releaseNotesUrl": "https://github.com/Cosmos-0118/TidyWindow/releases/tag/v4.6.2",
+  "publishedAt": "2026-02-10T16:21:27Z",
+  "installerSizeBytes": 91290700,
+  "sha256": "44cd7d87ab4a72d8ce33524337181cb5a9521c5e190caed8f0533ebeaae9b802"
 }
