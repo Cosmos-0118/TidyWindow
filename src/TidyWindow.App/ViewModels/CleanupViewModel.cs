@@ -364,6 +364,9 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
     private bool _isCelebrationErrorsPopupOpen;
 
     [ObservableProperty]
+    private bool _isFilesPopupVisible;
+
+    [ObservableProperty]
     private string _headline = "Preview and clean up system clutter";
 
     [ObservableProperty]
@@ -1339,6 +1342,29 @@ public sealed partial class CleanupViewModel : ViewModelBase, IDisposable
         if (IsPreviewConfirmationPopupOpen)
         {
             IsPreviewConfirmationPopupOpen = false;
+        }
+    }
+
+    [RelayCommand]
+    private void ShowFilesPopup(CleanupTargetGroupViewModel? target)
+    {
+        if (target is not null)
+        {
+            SelectedTarget = target;
+        }
+
+        if (SelectedTarget is not null && !IsFilesPopupVisible)
+        {
+            IsFilesPopupVisible = true;
+        }
+    }
+
+    [RelayCommand]
+    private void CloseFilesPopup()
+    {
+        if (IsFilesPopupVisible)
+        {
+            IsFilesPopupVisible = false;
         }
     }
 

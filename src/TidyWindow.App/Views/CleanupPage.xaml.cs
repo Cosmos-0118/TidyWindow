@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using TidyWindow.App.Services;
 using TidyWindow.App.ViewModels;
 using WpfApplication = System.Windows.Application;
@@ -57,6 +58,7 @@ public partial class CleanupPage : Page, INavigationAware
         _viewModel.AdministratorRestartRequested -= OnAdministratorRestartRequested;
         _viewModel.ConfirmElevation = null;
         _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        _viewModel.IsFilesPopupVisible = false;
         Unloaded -= CleanupPage_Unloaded;
         _disposed = true;
     }
@@ -106,5 +108,14 @@ public partial class CleanupPage : Page, INavigationAware
     public void OnNavigatingFrom()
     {
         // No special handling needed
+    }
+
+    private void OnFilesDialogOverlayClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is Grid grid && grid.Background != null)
+        {
+            _viewModel.IsFilesPopupVisible = false;
+            e.Handled = true;
+        }
     }
 }
