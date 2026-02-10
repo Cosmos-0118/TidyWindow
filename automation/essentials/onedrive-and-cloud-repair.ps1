@@ -295,13 +295,13 @@ function Restart-SyncServices {
 function Repair-KfmMappings {
     try {
         $userProfile = $env:USERPROFILE
-        $shellKey = 'HKCU:SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\User Shell Folders'
+        $shellKey = 'HKCU:SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders'
         $defaults = @{
-            'Desktop'     = "$userProfile\\Desktop"
-            'Personal'    = "$userProfile\\Documents"
-            'My Pictures' = "$userProfile\\Pictures"
-            'My Music'    = "$userProfile\\Music"
-            'My Video'    = "$userProfile\\Videos"
+            'Desktop'     = "$userProfile\Desktop"
+            'Personal'    = "$userProfile\Documents"
+            'My Pictures' = "$userProfile\Pictures"
+            'My Music'    = "$userProfile\Music"
+            'My Video'    = "$userProfile\Videos"
         }
 
         foreach ($name in $defaults.Keys) {
@@ -331,7 +331,7 @@ function Ensure-OneDriveAutorun {
             return
         }
 
-        $runKey = 'HKCU:SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Run'
+        $runKey = 'HKCU:SOFTWARE\Microsoft\Windows\CurrentVersion\Run'
         $valueName = 'OneDrive'
         $desired = '"{0}" /background' -f $exe
         $current = (Get-ItemProperty -Path $runKey -Name $valueName -ErrorAction SilentlyContinue).$valueName

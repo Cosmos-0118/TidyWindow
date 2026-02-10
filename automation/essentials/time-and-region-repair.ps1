@@ -366,7 +366,7 @@ function Test-TidyAdmin {
 }
 
 function Wait-TidyServiceState {
-    param([Parameter(Mandatory = $true)][string] $Name,[string] $DesiredStatus = 'Running',[int] $TimeoutSeconds = 12)
+    param([Parameter(Mandatory = $true)][string] $Name,[string] $DesiredStatus = 'Running',[int] $TimeoutSeconds = 30)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
         $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue

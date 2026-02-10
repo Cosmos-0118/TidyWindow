@@ -143,7 +143,7 @@ function Wait-TidyServiceState {
         [Parameter(Mandatory = $true)]
         [string] $Name,
         [string] $DesiredStatus = 'Running',
-        [int] $TimeoutSeconds = 12
+        [int] $TimeoutSeconds = 30
     )
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()

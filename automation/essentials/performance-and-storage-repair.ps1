@@ -220,7 +220,7 @@ function Get-SysMainHeuristic {
         $result.TotalRamGb = $null
     }
 
-    $systemDrive = (Get-Item -LiteralPath $env:SystemRoot).PSDrive.Root.TrimEnd('\\')
+    $systemDrive = (Get-Item -LiteralPath $env:SystemRoot).PSDrive.Root.TrimEnd('\')
     $systemLetter = $systemDrive.TrimEnd(':').Trim()
     try {
         $partition = Get-Partition -DriveLetter $systemLetter -ErrorAction Stop | Select-Object -First 1
@@ -270,7 +270,7 @@ function Configure-Pagefile {
 
             Invoke-TidyCommand -Command { param($cs) Set-CimInstance -InputObject $cs -Property @{ AutomaticManagedPagefile = $false } -ErrorAction Stop } -Arguments @($computerSystem) -Description 'Disabling automatic pagefile management.' -RequireSuccess
 
-            $pagefileName = 'C:\\pagefile.sys'
+            $pagefileName = 'C:\pagefile.sys'
             $settings = Get-CimInstance -ClassName Win32_PageFileSetting -ErrorAction SilentlyContinue | Where-Object { $_.Name -ieq $pagefileName }
             if ($settings) {
                 foreach ($entry in $settings) {

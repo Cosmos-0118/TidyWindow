@@ -197,7 +197,7 @@ function Get-TidyRestorePoints {
 
 function Get-TidyRestoreCreationFrequencyMinutes {
     try {
-        $settings = Get-ItemProperty -Path 'Registry::HKLM\\Software\\Microsoft\\Windows NT\\CurrentVersion\\SystemRestore' -ErrorAction Stop
+        $settings = Get-ItemProperty -Path 'Registry::HKLM\Software\Microsoft\Windows NT\CurrentVersion\SystemRestore' -ErrorAction Stop
         $rawValue = $settings.SystemRestorePointCreationFrequency
         if ($null -ne $rawValue) {
             $value = [int]$rawValue

@@ -535,8 +535,8 @@ function Reset-WindowsUpdatePolicies {
 
     Write-TidyOutput -Message 'Clearing Windows Update policy overrides.'
     $policyRoots = @(
-        'Registry::HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate',
-        'Registry::HKLM\\SOFTWARE\\Policies\\Microsoft\\Windows\\WindowsUpdate\\AU'
+        'Registry::HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate',
+        'Registry::HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
     )
 
     foreach ($root in $policyRoots) {
@@ -569,11 +569,15 @@ function Trigger-WindowsUpdateScan {
     }
 
     Write-TidyOutput -Message 'Triggering Windows Update scan (UsoClient / wuauclt).'
-    Invoke-TidyCommand -Command { UsoClient StartScan } -Description 'UsoClient StartScan' | Out-Null
+    # UsoClient.exe does not support output redirection, so use Start-Process instead of Invoke-TidyCommand.
+    Write-TidyLog -Level Information -Message 'UsoClient StartScan'
+    Start-Process -FilePath 'UsoClient.exe' -ArgumentList 'StartScan' -NoNewWindow -Wait -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-    Invoke-TidyCommand -Command { UsoClient StartDownload } -Description 'UsoClient StartDownload' | Out-Null
+    Write-TidyLog -Level Information -Message 'UsoClient StartDownload'
+    Start-Process -FilePath 'UsoClient.exe' -ArgumentList 'StartDownload' -NoNewWindow -Wait -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
-    Invoke-TidyCommand -Command { UsoClient StartInstall } -Description 'UsoClient StartInstall' | Out-Null
+    Write-TidyLog -Level Information -Message 'UsoClient StartInstall'
+    Start-Process -FilePath 'UsoClient.exe' -ArgumentList 'StartInstall' -NoNewWindow -Wait -ErrorAction SilentlyContinue
     Invoke-TidyCommand -Command { wuauclt.exe /reportnow } -Description 'wuauclt /reportnow' | Out-Null
 }
 
@@ -623,6 +627,8 @@ try {
 
     if ($ResetServices.IsPresent -or $ResetComponents.IsPresent -or $ReRegisterLibraries.IsPresent) {
         Stop-WindowsUpdateServices
+        # Allow services to fully release file handles before attempting file operations.
+        Start-Sleep -Seconds 3
     }
 
     if ($ResetComponents.IsPresent) {

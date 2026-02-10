@@ -155,7 +155,7 @@ function Wait-TidyServiceState {
         [Parameter(Mandatory = $true)]
         [string] $Name,
         [string] $DesiredStatus = 'Running',
-        [int] $TimeoutSeconds = 12
+        [int] $TimeoutSeconds = 30
     )
 
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -316,7 +316,7 @@ function Reset-ProfSvcAndUserinit {
 
     $userinitPath = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
     try {
-        $expected = 'C:\\Windows\\system32\\userinit.exe,'
+        $expected = 'C:\Windows\system32\userinit.exe,'
         $current = (Get-ItemProperty -LiteralPath $userinitPath -Name Userinit -ErrorAction SilentlyContinue).Userinit
         if ($current -and ($current -ieq $expected)) {
             Write-TidyOutput -Message 'Userinit registry value is correct.'
@@ -333,12 +333,12 @@ function Reset-ProfSvcAndUserinit {
 }
 
 function Cleanup-StaleProfiles {
-    $profilesRoot = 'C:\\Users'
+    $profilesRoot = 'C:\Users'
     $backupRoot = Join-Path -Path $profilesRoot -ChildPath 'TidyWindow.ProfileBackups'
 
     try {
         if (-not (Test-Path -LiteralPath $profilesRoot)) {
-            Write-TidyOutput -Message 'C:\\Users not found. Skipping stale profile cleanup.'
+            Write-TidyOutput -Message 'C:\Users not found. Skipping stale profile cleanup.'
             return
         }
 

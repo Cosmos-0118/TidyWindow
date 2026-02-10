@@ -326,7 +326,7 @@ function Reapply-Resolution {
             return
         }
 
-        $displaySwitch = Join-Path -Path $env:SystemRoot -ChildPath 'System32\\DisplaySwitch.exe'
+        $displaySwitch = Join-Path -Path $env:SystemRoot -ChildPath 'System32\DisplaySwitch.exe'
         if (-not (Test-Path -LiteralPath $displaySwitch)) {
             Write-TidyOutput -Message 'DisplaySwitch.exe not found. Skipping resolution reapply.'
             return
@@ -382,7 +382,7 @@ function Reapply-ColorProfiles {
             return
         }
 
-        $dispdiagPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\\dispdiag.exe'
+        $dispdiagPath = Join-Path -Path $env:SystemRoot -ChildPath 'System32\dispdiag.exe'
         if (-not (Test-Path -LiteralPath $dispdiagPath)) {
             Write-TidyOutput -Message 'dispdiag.exe not found; skipping color profile export/reload.'
             return

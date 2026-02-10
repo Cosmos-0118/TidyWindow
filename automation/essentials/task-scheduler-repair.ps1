@@ -58,10 +58,10 @@ $script:BaselineTaskMap = @{
 function Normalize-TaskPath {
     param([Parameter(Mandatory = $true)][string] $TaskPath)
 
-    $collapsed = $TaskPath -replace '[\\/]+', '\\'
-    $trimmed   = $collapsed.Trim('\\')
-    if ([string]::IsNullOrWhiteSpace($trimmed)) { return '\\' }
-    return "\\$trimmed\\"
+    $collapsed = $TaskPath -replace '[\\/]+', '\'
+    $trimmed   = $collapsed.Trim('\')
+    if ([string]::IsNullOrWhiteSpace($trimmed)) { return '\' }
+    return "\$trimmed\"
 }
 
 function New-UsoTaskPrincipal {
@@ -179,7 +179,7 @@ function Get-UsoComFolder {
     $accum = ''
     foreach ($p in $parts) {
         if ([string]::IsNullOrWhiteSpace($p)) { continue }
-        $accum = if ([string]::IsNullOrEmpty($accum)) { "\\$p" } else { "$accum\\$p" }
+        $accum = if ([string]::IsNullOrEmpty($accum)) { "\$p" } else { "$accum\$p" }
         try {
             $current = $Root.GetFolder($accum)
         }
@@ -391,7 +391,7 @@ function Test-TidyAdmin {
 }
 
 function Wait-TidyServiceState {
-    param([Parameter(Mandatory = $true)][string] $Name,[string] $DesiredStatus = 'Running',[int] $TimeoutSeconds = 12)
+    param([Parameter(Mandatory = $true)][string] $Name,[string] $DesiredStatus = 'Running',[int] $TimeoutSeconds = 30)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
         $svc = Get-Service -Name $Name -ErrorAction SilentlyContinue
@@ -743,7 +743,7 @@ function Get-TaskFolderPathFromTaskName {
     param([Parameter(Mandatory = $true)][string] $TaskPath)
 
     $normalized = Normalize-TaskPath -TaskPath $TaskPath
-    $trimmed = $normalized.TrimStart('\\')
+    $trimmed = $normalized.TrimStart('\')
     $fsPath = Join-Path -Path (Join-Path $env:SystemRoot 'System32\Tasks') -ChildPath $trimmed
     return $fsPath
 }
@@ -759,7 +759,7 @@ function Ensure-TaskFolderReady {
         }
 
         # Repair ACLs for the specific folder to reduce access denied during creation.
-        Invoke-TidyCommand -Command { param($path) icacls $path /setowner "NT SERVICE\\TrustedInstaller" /t /c /l } -Arguments @($dir) -Description ("Setting TrustedInstaller ownership on {0}" -f $dir) -DemoteNativeCommandErrors
+        Invoke-TidyCommand -Command { param($path) icacls $path /setowner "NT SERVICE\TrustedInstaller" /t /c /l } -Arguments @($dir) -Description ("Setting TrustedInstaller ownership on {0}" -f $dir) -DemoteNativeCommandErrors
         Invoke-TidyCommand -Command { param($path) icacls $path /reset /t /c /l } -Arguments @($dir) -Description ("Resetting ACLs on {0}" -f $dir) -DemoteNativeCommandErrors
         $script:TaskFolderAclRepaired = $true
     }

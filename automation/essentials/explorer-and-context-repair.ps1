@@ -158,7 +158,7 @@ function Ensure-RegistryKey {
 function Get-InProcServerPath {
     param([Parameter(Mandatory = $true)][string] $Clsid)
 
-    $clsidPath = "Registry::HKEY_CLASSES_ROOT\\CLSID\\$Clsid\\InprocServer32"
+    $clsidPath = "Registry::HKEY_CLASSES_ROOT\CLSID\$Clsid\InprocServer32"
     try {
         $value = (Get-ItemProperty -Path $clsidPath -ErrorAction Stop).'(default)'
         return $value
@@ -221,25 +221,25 @@ function Clean-ShellExtensions {
 
 function Repair-FileAssociations {
     try {
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\\.exe'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\\exefile'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\\exefile\\shell\\open\\command'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\\exefile\\DefaultIcon'
+        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\.exe'
+        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\exefile'
+        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\exefile\shell\open\command'
+        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\exefile\DefaultIcon'
 
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\\.exe' -Name '(default)' -Value 'exefile' -ErrorAction Stop
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\\exefile' -Name 'FriendlyTypeName' -Value '@%SystemRoot%\\System32\\shell32.dll,-10150' -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\\exefile\\shell\\open\\command' -Name '(default)' -Value '"%1" %*' -ErrorAction Stop
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\\exefile\\DefaultIcon' -Name '(default)' -Value '"%1"' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\.exe' -Name '(default)' -Value 'exefile' -ErrorAction Stop
+        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\exefile' -Name 'FriendlyTypeName' -Value '@%SystemRoot%\System32\shell32.dll,-10150' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\exefile\shell\open\command' -Name '(default)' -Value '"%1" %*' -ErrorAction Stop
+        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\exefile\DefaultIcon' -Name '(default)' -Value '"%1"' -ErrorAction SilentlyContinue
 
         Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.exe\UserChoice' -Recurse -Force -ErrorAction SilentlyContinue
 
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\\.lnk'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\\lnkfile'
-        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\\lnkfile\\ShellEx'
+        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\.lnk'
+        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile'
+        Ensure-RegistryKey -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile\ShellEx'
 
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\\.lnk' -Name '(default)' -Value 'lnkfile' -ErrorAction Stop
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\\lnkfile' -Name 'IsShortcut' -Value '' -ErrorAction SilentlyContinue
-        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\\lnkfile' -Name 'NeverShowExt' -Value '' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\.lnk' -Name '(default)' -Value 'lnkfile' -ErrorAction Stop
+        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile' -Name 'IsShortcut' -Value '' -ErrorAction SilentlyContinue
+        Set-ItemProperty -Path 'Registry::HKEY_CLASSES_ROOT\lnkfile' -Name 'NeverShowExt' -Value '' -ErrorAction SilentlyContinue
 
         Remove-Item -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts\.lnk\UserChoice' -Recurse -Force -ErrorAction SilentlyContinue
 
