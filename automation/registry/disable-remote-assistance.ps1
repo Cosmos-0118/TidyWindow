@@ -1,19 +1,36 @@
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [switch]$Enable,
-    [switch]$Disable
+    [switch] $Enable,
+    [switch] $Disable,
+    [string] $ResultPath
 )
 
-$path = "HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance"
-New-Item -Path $path -Force | Out-Null
+. "$PSScriptRoot\registry-common.ps1"
 
-if ($Enable) {
-    Set-ItemProperty -Path $path -Name "fAllowToGetHelp" -Type DWord -Value 0
-    return
+Initialize-RegistryScript -Cmdlet $PSCmdlet -ResultPath $ResultPath -OperationName 'Disable Remote Assistance'
+
+try {
+    Assert-TidyAdmin
+
+    $apply = $Enable.IsPresent -and -not $Disable.IsPresent
+    $path = 'HKLM:\SYSTEM\CurrentControlSet\Control\Remote Assistance'
+
+    if ($apply) {
+        $change = Set-RegistryValue -Path $path -Name 'fAllowToGetHelp' -Value 0 -Type 'DWord'
+        Register-RegistryChange -Change $change -Description 'Disabled Remote Assistance.'
+
+        Write-RegistryOutput 'Remote Assistance disabled.'
+    }
+    else {
+        $change = Set-RegistryValue -Path $path -Name 'fAllowToGetHelp' -Value 1 -Type 'DWord'
+        Register-RegistryChange -Change $change -Description 'Re-enabled Remote Assistance.'
+
+        Write-RegistryOutput 'Remote Assistance restored to default (enabled).'
+    }
 }
-
-if ($Disable) {
-    Set-ItemProperty -Path $path -Name "fAllowToGetHelp" -Type DWord -Value 1
-    return
+catch {
+    Write-RegistryError $_
 }
-
-throw "Specify -Enable or -Disable."
+finally {
+    Complete-RegistryScript
+}

@@ -1,19 +1,36 @@
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [switch]$Enable,
-    [switch]$Disable
+    [switch] $Enable,
+    [switch] $Disable,
+    [string] $ResultPath
 )
 
-$path = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate"
-New-Item -Path $path -Force | Out-Null
+. "$PSScriptRoot\registry-common.ps1"
 
-if ($Enable) {
-    Set-ItemProperty -Path $path -Name "ExcludeWUDriversInQualityUpdate" -Type DWord -Value 1
-    return
+Initialize-RegistryScript -Cmdlet $PSCmdlet -ResultPath $ResultPath -OperationName 'Block driver updates via Windows Update'
+
+try {
+    Assert-TidyAdmin
+
+    $apply = $Enable.IsPresent -and -not $Disable.IsPresent
+    $path = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate'
+
+    if ($apply) {
+        $change = Set-RegistryValue -Path $path -Name 'ExcludeWUDriversInQualityUpdate' -Value 1 -Type 'DWord'
+        Register-RegistryChange -Change $change -Description 'Excluded driver updates from quality updates.'
+
+        Write-RegistryOutput 'Driver updates via Windows Update blocked.'
+    }
+    else {
+        $change = Remove-RegistryValue -Path $path -Name 'ExcludeWUDriversInQualityUpdate'
+        Register-RegistryChange -Change $change -Description 'Removed driver update exclusion policy.'
+
+        Write-RegistryOutput 'Driver updates via Windows Update restored to defaults.'
+    }
 }
-
-if ($Disable) {
-    Remove-ItemProperty -Path $path -Name "ExcludeWUDriversInQualityUpdate" -ErrorAction SilentlyContinue
-    return
+catch {
+    Write-RegistryError $_
 }
-
-throw "Specify -Enable or -Disable."
+finally {
+    Complete-RegistryScript
+}

@@ -19,54 +19,9 @@ try {
 
     $apply = $Enable.IsPresent -and -not $Disable.IsPresent
     $path = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'
-    $effectivePath = Resolve-RegistryUserPath -Path $path
 
     if ($apply) {
-        # Get the old value for logging
-        $oldValue = $null
-        try {
-            $oldValue = Get-ItemProperty -LiteralPath $effectivePath -Name 'ShowSecondsInSystemClock' -ErrorAction SilentlyContinue | 
-                        Select-Object -ExpandProperty ShowSecondsInSystemClock -ErrorAction SilentlyContinue
-        }
-        catch { }
-        
-        Write-RegistryOutput "Enabling seconds on system clock (current value: $(if ($null -eq $oldValue) { '<not set>' } else { $oldValue }))."
-        
-        # Set the registry value using both methods for robustness
-        try {
-            if (-not (Test-Path -LiteralPath $effectivePath)) {
-                New-Item -Path $effectivePath -Force | Out-Null
-            }
-            Set-ItemProperty -LiteralPath $effectivePath -Name 'ShowSecondsInSystemClock' -Value 1 -Type DWord -Force -ErrorAction Stop
-        }
-        catch {
-            Write-RegistryOutput "PowerShell method failed: $_"
-        }
-        
-        # Also use reg.exe as fallback
-        & reg.exe add 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' /v ShowSecondsInSystemClock /t REG_DWORD /d 1 /f 2>&1 | Out-Null
-        
-        # Verify the value was set
-        $observed = $null
-        try {
-            $observed = Get-ItemProperty -LiteralPath $effectivePath -Name 'ShowSecondsInSystemClock' -ErrorAction SilentlyContinue | 
-                        Select-Object -ExpandProperty ShowSecondsInSystemClock -ErrorAction SilentlyContinue
-        }
-        catch { }
-        
-        if ($observed -ne 1) {
-            throw "Failed to set ShowSecondsInSystemClock registry value."
-        }
-        
-        Write-RegistryOutput "Registry value set successfully."
-        
-        $change = [pscustomobject]@{
-            Path = $effectivePath
-            Name = 'ShowSecondsInSystemClock'
-            OldValue = $oldValue
-            NewValue = 1
-            ValueType = 'DWord'
-        }
+        $change = Set-RegistryValue -Path $path -Name 'ShowSecondsInSystemClock' -Value 1 -Type 'DWord'
         Register-RegistryChange -Change $change -Description 'Enabled seconds on system clock.'
         Write-RegistryOutput 'Clock seconds registry value applied. Shell will refresh after all tweaks complete.'
     }

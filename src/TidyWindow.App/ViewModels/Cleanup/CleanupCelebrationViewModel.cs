@@ -25,6 +25,7 @@ public sealed partial class CleanupViewModel
         string deletionSummary)
     {
         var reclaimedMegabytes = deletionResult.TotalBytesDeleted / 1_048_576d;
+        var recycledMegabytes = deletionResult.TotalBytesRecycled / 1_048_576d;
         var pendingRebootMegabytes = deletionResult.TotalBytesPendingReboot / 1_048_576d;
         CelebrationItemsDeleted = deletionResult.DeletedCount;
         CelebrationItemsSkipped = deletionResult.SkippedCount;
@@ -37,7 +38,7 @@ public sealed partial class CleanupViewModel
         UpdateCategoryCollection(_celebrationCategories, normalizedCategories);
         CelebrationCategoryList = BuildCategoryListText(normalizedCategories);
 
-        CelebrationHeadline = BuildCelebrationHeadline(reclaimedMegabytes, pendingRebootMegabytes, deletionResult.DeletedCount, deletionResult.PendingRebootCount);
+        CelebrationHeadline = BuildCelebrationHeadline(reclaimedMegabytes, recycledMegabytes, pendingRebootMegabytes, deletionResult.DeletedCount, deletionResult.PendingRebootCount);
 
         CelebrationDetails = BuildCelebrationDetails(deletionResult, CelebrationCategoryCount, reclaimedMegabytes);
         CelebrationDurationDisplay = FormatDuration(executionDuration);
@@ -83,10 +84,21 @@ public sealed partial class CleanupViewModel
             settleDelay: TimeSpan.FromMilliseconds(260));
     }
 
-    private static string BuildCelebrationHeadline(double reclaimedMegabytes, double pendingRebootMegabytes, int deletedCount, int pendingRebootCount)
+    private static string BuildCelebrationHeadline(double reclaimedMegabytes, double recycledMegabytes, double pendingRebootMegabytes, int deletedCount, int pendingRebootCount)
     {
         var hasImmediateReclaim = reclaimedMegabytes > 0.01;
+        var hasRecycled = recycledMegabytes > 0.01;
         var hasPendingReclaim = pendingRebootMegabytes > 0.01 && pendingRebootCount > 0;
+
+        if (hasImmediateReclaim && hasRecycled && hasPendingReclaim)
+        {
+            return $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed, {FormatSize(recycledMegabytes)} in Recycle Bin ({FormatSize(pendingRebootMegabytes)} after restart)";
+        }
+
+        if (hasImmediateReclaim && hasRecycled)
+        {
+            return $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed, {FormatSize(recycledMegabytes)} in Recycle Bin";
+        }
 
         if (hasImmediateReclaim && hasPendingReclaim)
         {
@@ -96,6 +108,11 @@ public sealed partial class CleanupViewModel
         if (hasImmediateReclaim)
         {
             return $"Cleanup complete — {FormatSize(reclaimedMegabytes)} reclaimed";
+        }
+
+        if (hasRecycled)
+        {
+            return $"Cleanup complete — {FormatSize(recycledMegabytes)} moved to Recycle Bin";
         }
 
         if (hasPendingReclaim)
@@ -115,9 +132,23 @@ public sealed partial class CleanupViewModel
     {
         var parts = new List<string>();
 
-        if (result.DeletedCount > 0)
+        var permanentlyDeleted = result.DeletedCount - result.RecycledCount;
+        if (permanentlyDeleted > 0)
         {
-            parts.Add($"{result.DeletedCount:N0} item(s) removed");
+            parts.Add($"{permanentlyDeleted:N0} item(s) removed");
+        }
+
+        if (result.RecycledCount > 0)
+        {
+            var recycledMb = result.TotalBytesRecycled / 1_048_576d;
+            if (recycledMb > 0.01)
+            {
+                parts.Add($"{result.RecycledCount:N0} item(s) moved to Recycle Bin ({FormatSize(recycledMb)})");
+            }
+            else
+            {
+                parts.Add($"{result.RecycledCount:N0} item(s) moved to Recycle Bin");
+            }
         }
 
         if (result.PendingRebootCount > 0)
@@ -166,8 +197,25 @@ public sealed partial class CleanupViewModel
     {
         var builder = new StringBuilder();
         builder.AppendLine(headline);
-        builder.AppendLine($"Items removed: {result.DeletedCount:N0}");
-        builder.AppendLine($"Space reclaimed: {FormatSize(result.TotalBytesDeleted / 1_048_576d)}");
+
+        var permanentlyDeleted = result.DeletedCount - result.RecycledCount;
+        if (permanentlyDeleted > 0)
+        {
+            builder.AppendLine($"Items removed: {permanentlyDeleted:N0}");
+            builder.AppendLine($"Space reclaimed: {FormatSize(result.TotalBytesDeleted / 1_048_576d)}");
+        }
+
+        if (result.RecycledCount > 0)
+        {
+            var recycledMb = result.TotalBytesRecycled / 1_048_576d;
+            builder.AppendLine($"Moved to Recycle Bin: {result.RecycledCount:N0} item(s) ({FormatSize(recycledMb)})");
+        }
+
+        if (permanentlyDeleted == 0 && result.RecycledCount == 0)
+        {
+            builder.AppendLine($"Items removed: {result.DeletedCount:N0}");
+            builder.AppendLine($"Space reclaimed: {FormatSize(result.TotalBytesDeleted / 1_048_576d)}");
+        }
 
         if (result.PendingRebootCount > 0)
         {
