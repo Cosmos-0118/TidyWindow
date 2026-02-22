@@ -52,6 +52,11 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: p
 ; Remove any stale binaries from earlier builds so removed files do not linger after upgrades
 Type: filesandordirs; Name: "{app}\\*"
 
+[UninstallDelete]
+; Inno Setup removes the {app} directory automatically, but explicit entries
+; make sure everything is gone even if the user moved files around.
+Type: filesandordirs; Name: "{app}"
+
 [Registry]
 Root: HKCU; Subkey: "Software\\Microsoft\\Windows\\CurrentVersion\\Run"; ValueType: string; ValueName: "{#MyAppName}"; ValueData: """{app}\\{#MyAppExeName}"""; Check: IsTaskSelected('runatstartup')
 
@@ -140,6 +145,106 @@ begin
     Log('taskkill exit code: ' + IntToStr(ExitCode))
   else
     Log('taskkill command could not be executed.');
+end;
+
+{ ── Uninstall: remove all app data ──────────────────────────────────── }
+
+procedure RemoveDirIfExists(const Dir: string);
+var
+  ExitCode: Integer;
+begin
+  if DirExists(Dir) then
+  begin
+    if not DelTree(Dir, True, True, True) then
+    begin
+      { DelTree sometimes fails on locked or long-path files — fallback to rd }
+      Exec(ExpandConstant('{cmd}'), '/C rd /S /Q "' + Dir + '"', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+      Log('rd fallback exit code for ' + Dir + ': ' + IntToStr(ExitCode));
+    end
+    else
+      Log('Deleted directory: ' + Dir);
+  end
+  else
+    Log('Directory does not exist (skip): ' + Dir);
+end;
+
+procedure RemoveStartupRegistryEntry;
+var
+  Deleted: Boolean;
+begin
+  Deleted := RegDeleteValue(HKEY_CURRENT_USER,
+    'Software\Microsoft\Windows\CurrentVersion\Run',
+    '{#MyAppName}');
+  if Deleted then
+    Log('Removed HKCU Run entry for {#MyAppName}.')
+  else
+    Log('No HKCU Run entry found for {#MyAppName} (or could not delete).');
+end;
+
+procedure RemoveScheduledTasks;
+var
+  ExitCode: Integer;
+begin
+  { Remove the entire \TidyWindow task folder and all tasks within it. }
+  Exec('schtasks.exe', '/Delete /TN "\TidyWindow\*" /F', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+  Log('schtasks delete tasks exit code: ' + IntToStr(ExitCode));
+
+  { Try to remove the parent folder, ignore failure if already gone. }
+  Exec('schtasks.exe', '/Delete /TN "\TidyWindow" /F', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+  Log('schtasks delete folder exit code: ' + IntToStr(ExitCode));
+end;
+
+procedure CleanAllAppData;
+begin
+  Log('Starting full app data cleanup...');
+
+  { 1. %AppData%\TidyWindow (Roaming — preferences, process state, service start types) }
+  RemoveDirIfExists(ExpandConstant('{userappdata}\{#MyAppName}'));
+
+  { 2. %LocalAppData%\TidyWindow (automation settings, crash logs, UI preferences) }
+  RemoveDirIfExists(ExpandConstant('{localappdata}\{#MyAppName}'));
+
+  { 3. %ProgramData%\TidyWindow (startup backups, guards, registry backups, power plan state) }
+  RemoveDirIfExists(ExpandConstant('{commonappdata}\{#MyAppName}'));
+
+  { 4. %USERPROFILE%\Documents\TidyWindow (reports, reset rescue archives, restore outputs) }
+  RemoveDirIfExists(ExpandConstant('{userdocs}\{#MyAppName}'));
+
+  { 5. %TEMP%\TidyWindow (downloaded updates, crash log fallback, transient files) }
+  RemoveDirIfExists(ExpandConstant('{tmp}\..\{#MyAppName}'));
+
+  { 6. Remove TidyWindow startup registry entry }
+  RemoveStartupRegistryEntry;
+
+  { 7. Remove Task Scheduler tasks created by the app }
+  RemoveScheduledTasks;
+
+  Log('Full app data cleanup complete.');
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usPostUninstall then
+  begin
+    { Always kill the running instance first so file locks are released. }
+    TerminateRunningInstance;
+
+    if MsgBox(
+      'Do you want to delete all TidyWindow settings, logs, backups, and cached data?' + #13#10 + #13#10 +
+      'This removes data from:' + #13#10 +
+      '  • AppData (preferences & process state)' + #13#10 +
+      '  • LocalAppData (automation settings & logs)' + #13#10 +
+      '  • ProgramData (startup & registry backups)' + #13#10 +
+      '  • Documents\TidyWindow (reports & rescue archives)' + #13#10 +
+      '  • Temp files and scheduled tasks' + #13#10 + #13#10 +
+      'Click Yes to remove everything, or No to keep your data.',
+      mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    begin
+      CleanAllAppData;
+    end
+    else
+      Log('User chose to keep app data.');
+  end;
 end;
 
 function InitializeSetup: Boolean;
