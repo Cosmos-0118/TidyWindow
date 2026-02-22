@@ -25,8 +25,8 @@ try {
             Register-RegistryChange -Change $change -Description ("Set ValueMax to 0 at {0}" -f $target)
         }
         else {
-            $change = Set-RegistryValue -Path $target -Name 'ValueMax' -Value 64 -Type 'DWord'
-            Register-RegistryChange -Change $change -Description ("Restored ValueMax to 64 at {0}" -f $target)
+            $change = Set-RegistryValue -Path $target -Name 'ValueMax' -Value 100 -Type 'DWord'
+            Register-RegistryChange -Change $change -Description ("Restored ValueMax to 100 at {0}" -f $target)
         }
     }
 

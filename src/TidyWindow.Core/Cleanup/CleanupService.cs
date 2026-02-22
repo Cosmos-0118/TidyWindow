@@ -80,10 +80,74 @@ public sealed class CleanupService
             return Task.FromResult(new CleanupDeletionResult(Array.Empty<CleanupDeletionEntry>()));
         }
 
+        // Remove child items when their parent directory is also selected to prevent double-counting
+        normalizedItems = DeduplicateOverlappingPaths(normalizedItems);
+
         progress?.Report(new CleanupDeletionProgress(0, normalizedItems.Count, string.Empty));
 
         var sanitizedOptions = (options ?? CleanupDeletionOptions.Default).Sanitize();
         return Task.Run(() => DeleteInternal(normalizedItems, progress, sanitizedOptions, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>
+    /// Removes items whose paths are children of another selected directory.
+    /// When a parent directory is selected for deletion (recursive), any child files or
+    /// subdirectories within it are redundant and would cause double-counting of freed bytes.
+    /// </summary>
+    internal static List<CleanupPreviewItem> DeduplicateOverlappingPaths(List<CleanupPreviewItem> items)
+    {
+        if (items.Count <= 1)
+        {
+            return items;
+        }
+
+        // Collect all selected directory paths, normalized with trailing separator
+        var directoryPaths = new List<string>();
+        foreach (var item in items)
+        {
+            if (item.IsDirectory)
+            {
+                var path = item.FullName.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                           + Path.DirectorySeparatorChar;
+                directoryPaths.Add(path);
+            }
+        }
+
+        if (directoryPaths.Count == 0)
+        {
+            return items;
+        }
+
+        var result = new List<CleanupPreviewItem>(items.Count);
+        foreach (var item in items)
+        {
+            var normalizedPath = item.FullName.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var isChildOfSelected = false;
+
+            foreach (var dirPath in directoryPaths)
+            {
+                // Don't compare a directory against itself
+                if (item.IsDirectory &&
+                    normalizedPath.Equals(dirPath.TrimEnd(Path.DirectorySeparatorChar), StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                // Check if this item lives inside a selected directory
+                if ((normalizedPath + Path.DirectorySeparatorChar).StartsWith(dirPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    isChildOfSelected = true;
+                    break;
+                }
+            }
+
+            if (!isChildOfSelected)
+            {
+                result.Add(item);
+            }
+        }
+
+        return result;
     }
 
     private static CleanupDeletionResult DeleteInternal(
@@ -196,10 +260,10 @@ public sealed class CleanupService
             }
 
             // Attempt standard deletion
-            if (TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out var failure))
+            if (TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out var failure, out var wasRecycled))
             {
                 var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
-                entries.Add(new CleanupDeletionEntry(normalizedPath, verifiedSize, isDirectory, CleanupDeletionDisposition.Deleted));
+                entries.Add(new CleanupDeletionEntry(normalizedPath, verifiedSize, isDirectory, CleanupDeletionDisposition.Deleted) { WasRecycled = wasRecycled });
                 return;
             }
 
@@ -207,7 +271,7 @@ public sealed class CleanupService
             if (OperatingSystem.IsWindows() && IsUnauthorizedAccessError(failure) && options.TakeOwnershipOnAccessDenied)
             {
                 repairedPermissions = TryRepairPermissions(normalizedPath, isDirectory);
-                if (repairedPermissions && TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out failure))
+                if (repairedPermissions && TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out failure, out wasRecycled))
                 {
                     var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
                     entries.Add(new CleanupDeletionEntry(
@@ -215,7 +279,8 @@ public sealed class CleanupService
                         verifiedSize,
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
-                        "Deleted after preparing for force delete."));
+                        "Deleted after preparing for force delete.")
+                    { WasRecycled = wasRecycled });
                     return;
                 }
 
@@ -463,14 +528,16 @@ public sealed class CleanupService
         return isDirectory ? Directory.Exists(path) : File.Exists(path);
     }
 
-    private static bool TryDeletePath(string path, bool isDirectory, CleanupDeletionOptions options, CancellationToken cancellationToken, out Exception? failure)
+    private static bool TryDeletePath(string path, bool isDirectory, CleanupDeletionOptions options, CancellationToken cancellationToken, out Exception? failure, out bool usedRecycleBin)
     {
         failure = null;
+        usedRecycleBin = false;
 
         if (options.PreferRecycleBin)
         {
             if (TrySendToRecycleBin(path, isDirectory, out failure))
             {
+                usedRecycleBin = true;
                 return true;
             }
 

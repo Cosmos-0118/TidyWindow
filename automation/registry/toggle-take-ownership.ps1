@@ -38,7 +38,13 @@ try {
             $command = 'cmd.exe /c takeown /f "%1" /r /d y && icacls "%1" /grant administrators:F /t'
             Set-ItemProperty -LiteralPath $commandPath -Name '(default)' -Value $command -ErrorAction Stop
 
-            Write-RegistryOutput ("Context menu registered at {0}" -f $target)
+            Register-RegistryChange -Change ([pscustomobject]@{
+                Path      = $target
+                Name      = '(default)'
+                OldValue  = $null
+                NewValue  = 'Take ownership'
+                ValueType = 'String'
+            }) -Description ("Registered take-ownership context menu at {0}" -f $target)
         }
     }
     else {
@@ -46,7 +52,13 @@ try {
             if (Test-Path -LiteralPath $target) {
                 if ($PSCmdlet.ShouldProcess($target, 'Remove take ownership menu')) {
                     Remove-Item -LiteralPath $target -Recurse -Force -ErrorAction Stop
-                    Write-RegistryOutput ("Removed context menu entry at {0}" -f $target)
+                    Register-RegistryChange -Change ([pscustomobject]@{
+                        Path      = $target
+                        Name      = '(default)'
+                        OldValue  = 'Take ownership'
+                        NewValue  = $null
+                        ValueType = 'String'
+                    }) -Description ("Removed take-ownership context menu at {0}" -f $target)
                 }
             }
         }

@@ -1,19 +1,36 @@
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [switch]$Enable,
-    [switch]$Disable
+    [switch] $Enable,
+    [switch] $Disable,
+    [string] $ResultPath
 )
 
-$path = "HKLM:\SOFTWARE\Microsoft\GameBar"
-New-Item -Path $path -Force | Out-Null
+. "$PSScriptRoot\registry-common.ps1"
 
-if ($Enable) {
-    Set-ItemProperty -Path $path -Name "AllowAutoGameMode" -Type DWord -Value 1
-    return
+Initialize-RegistryScript -Cmdlet $PSCmdlet -ResultPath $ResultPath -OperationName 'Game Mode'
+
+try {
+    Assert-TidyAdmin
+
+    $apply = $Enable.IsPresent -and -not $Disable.IsPresent
+    $path = 'HKLM:\SOFTWARE\Microsoft\GameBar'
+
+    if ($apply) {
+        $change = Set-RegistryValue -Path $path -Name 'AllowAutoGameMode' -Value 1 -Type 'DWord'
+        Register-RegistryChange -Change $change -Description 'Enabled Game Mode auto-detection.'
+
+        Write-RegistryOutput 'Game Mode is now enabled.'
+    }
+    else {
+        $change = Set-RegistryValue -Path $path -Name 'AllowAutoGameMode' -Value 0 -Type 'DWord'
+        Register-RegistryChange -Change $change -Description 'Disabled Game Mode auto-detection.'
+
+        Write-RegistryOutput 'Game Mode has been disabled.'
+    }
 }
-
-if ($Disable) {
-    Set-ItemProperty -Path $path -Name "AllowAutoGameMode" -Type DWord -Value 0
-    return
+catch {
+    Write-RegistryError $_
 }
-
-throw "Specify -Enable or -Disable."
+finally {
+    Complete-RegistryScript
+}

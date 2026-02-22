@@ -44,10 +44,21 @@ public sealed record CleanupDeletionEntry(
     Exception? Exception = null)
 {
     /// <summary>
-    /// Gets the actual bytes that were freed by this deletion.
-    /// For <see cref="CleanupDeletionDisposition.PendingReboot"/>, this is 0 because the space isn't freed until reboot.
+    /// Indicates the item was moved to the Recycle Bin rather than permanently deleted.
+    /// The space is NOT freed from disk until the Recycle Bin is emptied.
     /// </summary>
-    public long ActualBytesFreed => Disposition == CleanupDeletionDisposition.Deleted ? Math.Max(SizeBytes, 0) : 0;
+    public bool WasRecycled { get; init; }
+
+    /// <summary>
+    /// Gets the actual bytes that were permanently freed by this deletion.
+    /// Returns 0 for recycled items (still on disk) and pending reboot items.
+    /// </summary>
+    public long ActualBytesFreed => Disposition == CleanupDeletionDisposition.Deleted && !WasRecycled ? Math.Max(SizeBytes, 0) : 0;
+
+    /// <summary>
+    /// Gets the bytes moved to the Recycle Bin (still consuming disk space until emptied).
+    /// </summary>
+    public long BytesMovedToRecycleBin => Disposition == CleanupDeletionDisposition.Deleted && WasRecycled ? Math.Max(SizeBytes, 0) : 0;
 
     public string EffectiveReason => string.IsNullOrWhiteSpace(Reason)
         ? Disposition switch
@@ -77,13 +88,17 @@ public sealed class CleanupDeletionResult
         Entries = new ReadOnlyCollection<CleanupDeletionEntry>(list);
 
         DeletedCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.Deleted);
+        RecycledCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.Deleted && entry.WasRecycled);
         SkippedCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.Skipped);
         FailedCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.Failed);
         PendingRebootCount = list.Count(static entry => entry.Disposition == CleanupDeletionDisposition.PendingReboot);
 
-        // Only count bytes that were ACTUALLY freed (verified deleted items only)
+        // Only count bytes that were permanently freed (not recycled items that still consume disk space)
         TotalBytesDeleted = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Deleted)
             .Sum(static entry => entry.ActualBytesFreed);
+        // Bytes moved to Recycle Bin - still consuming disk space until bin is emptied
+        TotalBytesRecycled = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Deleted)
+            .Sum(static entry => entry.BytesMovedToRecycleBin);
         TotalBytesSkipped = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Skipped)
             .Sum(static entry => Math.Max(entry.SizeBytes, 0));
         TotalBytesFailed = list.Where(static entry => entry.Disposition == CleanupDeletionDisposition.Failed)
@@ -103,6 +118,11 @@ public sealed class CleanupDeletionResult
 
     public int DeletedCount { get; }
 
+    /// <summary>
+    /// Number of items moved to the Recycle Bin (subset of <see cref="DeletedCount"/>).
+    /// </summary>
+    public int RecycledCount { get; }
+
     public int SkippedCount { get; }
 
     public int FailedCount { get; }
@@ -113,9 +133,14 @@ public sealed class CleanupDeletionResult
     public int PendingRebootCount { get; }
 
     /// <summary>
-    /// Bytes that were actually freed immediately. Does not include pending reboot items.
+    /// Bytes that were actually freed immediately. Does not include recycled or pending reboot items.
     /// </summary>
     public long TotalBytesDeleted { get; }
+
+    /// <summary>
+    /// Bytes moved to the Recycle Bin. Still consuming disk space until the bin is emptied.
+    /// </summary>
+    public long TotalBytesRecycled { get; }
 
     public long TotalBytesSkipped { get; }
 
@@ -134,14 +159,35 @@ public sealed class CleanupDeletionResult
     {
         var parts = new List<string>();
 
-        var deletedLabel = DeletedCount == 1 ? "item" : "items";
-        var deletedSummary = $"Deleted {DeletedCount:N0} {deletedLabel}";
-        if (TotalBytesDeleted > 0)
+        var permanentlyDeleted = DeletedCount - RecycledCount;
+        if (permanentlyDeleted > 0)
         {
-            deletedSummary += $" • {FormatMegabytes(TotalBytesDeleted):F2} MB freed";
+            var deletedLabel = permanentlyDeleted == 1 ? "item" : "items";
+            var deletedSummary = $"Deleted {permanentlyDeleted:N0} {deletedLabel}";
+            if (TotalBytesDeleted > 0)
+            {
+                deletedSummary += $" • {FormatMegabytes(TotalBytesDeleted):F2} MB freed";
+            }
+
+            parts.Add(deletedSummary);
         }
 
-        parts.Add(deletedSummary);
+        // Show recycled items separately so users know space isn't freed until bin is emptied
+        if (RecycledCount > 0)
+        {
+            var recycledLabel = RecycledCount == 1 ? "item" : "items";
+            var recycledSummary = $"{RecycledCount:N0} {recycledLabel} moved to Recycle Bin";
+            if (TotalBytesRecycled > 0)
+            {
+                recycledSummary += $" ({FormatMegabytes(TotalBytesRecycled):F2} MB — empty bin to free space)";
+            }
+            parts.Add(recycledSummary);
+        }
+
+        if (permanentlyDeleted == 0 && RecycledCount == 0)
+        {
+            parts.Add($"Deleted {DeletedCount:N0} {(DeletedCount == 1 ? "item" : "items")}");
+        }
 
         // Show pending reboot items separately so users know space isn't freed yet
         if (PendingRebootCount > 0)

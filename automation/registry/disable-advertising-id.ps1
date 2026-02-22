@@ -1,23 +1,43 @@
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [switch]$Enable,
-    [switch]$Disable
+    [switch] $Enable,
+    [switch] $Disable,
+    [string] $ResultPath
 )
 
-$userPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo"
-$policyPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo"
+. "$PSScriptRoot\registry-common.ps1"
 
-if ($Enable) {
-    New-Item -Path $userPath -Force | Out-Null
-    New-Item -Path $policyPath -Force | Out-Null
-    Set-ItemProperty -Path $userPath -Name "Enabled" -Type DWord -Value 0
-    Set-ItemProperty -Path $policyPath -Name "DisabledByGroupPolicy" -Type DWord -Value 1
-    return
+Initialize-RegistryScript -Cmdlet $PSCmdlet -ResultPath $ResultPath -OperationName 'Disable advertising ID'
+
+try {
+    Assert-TidyAdmin
+
+    $apply = $Enable.IsPresent -and -not $Disable.IsPresent
+    $userPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\AdvertisingInfo'
+    $policyPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\AdvertisingInfo'
+
+    if ($apply) {
+        $c1 = Set-RegistryValue -Path $userPath -Name 'Enabled' -Value 0 -Type 'DWord'
+        Register-RegistryChange -Change $c1 -Description 'Disabled advertising ID for the current user.'
+
+        $c2 = Set-RegistryValue -Path $policyPath -Name 'DisabledByGroupPolicy' -Value 1 -Type 'DWord'
+        Register-RegistryChange -Change $c2 -Description 'Disabled advertising ID via group policy.'
+
+        Write-RegistryOutput 'Advertising ID disabled.'
+    }
+    else {
+        $c1 = Set-RegistryValue -Path $userPath -Name 'Enabled' -Value 1 -Type 'DWord'
+        Register-RegistryChange -Change $c1 -Description 'Re-enabled advertising ID for the current user.'
+
+        $c2 = Remove-RegistryValue -Path $policyPath -Name 'DisabledByGroupPolicy'
+        Register-RegistryChange -Change $c2 -Description 'Removed advertising ID group policy override.'
+
+        Write-RegistryOutput 'Advertising ID restored to defaults.'
+    }
 }
-
-if ($Disable) {
-    Set-ItemProperty -Path $userPath -Name "Enabled" -Type DWord -Value 1
-    Remove-ItemProperty -Path $policyPath -Name "DisabledByGroupPolicy" -ErrorAction SilentlyContinue
-    return
+catch {
+    Write-RegistryError $_
 }
-
-throw "Specify -Enable or -Disable."
+finally {
+    Complete-RegistryScript
+}
