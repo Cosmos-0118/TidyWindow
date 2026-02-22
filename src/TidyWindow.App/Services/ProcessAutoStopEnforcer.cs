@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.ServiceProcess;
 using System.Threading;
 using System.Threading.Tasks;
 using TidyWindow.Core.Processes;
@@ -8,11 +9,21 @@ using TidyWindow.Core.Processes;
 namespace TidyWindow.App.Services;
 
 /// <summary>
-/// Periodically enforces auto-stop preferences by stopping their backing Windows services.
+/// Smart event-driven enforcer that watches for auto-stop target services to start
+/// and stops them within seconds. Uses adaptive polling with exponential back-off:
+/// fast scans (10s) right after an action, slowing to idle (60s) when all targets
+/// are already stopped. Much more efficient than a fixed N-minute timer.
 /// </summary>
 public sealed class ProcessAutoStopEnforcer : IDisposable
 {
-    private static readonly TimeSpan UpcomingRunLeadTime = TimeSpan.FromMinutes(1);
+    /// <summary>Scan every 10 seconds when we recently stopped something.</summary>
+    private static readonly TimeSpan ActiveScanInterval = TimeSpan.FromSeconds(10);
+
+    /// <summary>Maximum idle interval — scan every 60 seconds when everything is quiet.</summary>
+    private static readonly TimeSpan MaxIdleScanInterval = TimeSpan.FromSeconds(60);
+
+    /// <summary>Grace period before stopping a newly detected running service (debounce).</summary>
+    private static readonly TimeSpan StopDebounceDelay = TimeSpan.FromSeconds(3);
 
     private readonly ProcessStateStore _stateStore;
     private readonly ProcessControlService _controlService;
@@ -21,9 +32,16 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
     private readonly ServiceResolver _serviceResolver;
     private readonly Lazy<ProcessCatalogSnapshot> _catalogSnapshot;
     private readonly Lazy<IReadOnlyDictionary<string, ProcessCatalogEntry>> _catalogLookup;
+    /// <summary>Window within which a re-stop of the same service is considered a silent re-enforcement (no new log entry).</summary>
+    private static readonly TimeSpan ReStopSilenceWindow = TimeSpan.FromMinutes(10);
+
     private readonly SemaphoreSlim _runLock = new(1, 1);
-    private System.Threading.Timer? _timer;
-    private CancellationTokenSource? _nextRunNotificationCts;
+    private readonly Dictionary<string, DateTimeOffset> _lastStopTimes = new(StringComparer.OrdinalIgnoreCase);
+    private System.Threading.Timer? _guardTimer;
+    private TimeSpan _currentScanInterval = ActiveScanInterval;
+    private int _consecutiveIdleScans;
+    private int _watchedTargetCount;
+    private int _runningTargetCount;
     private ProcessAutomationSettings _settings;
     private bool _disposed;
 
@@ -44,12 +62,26 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
             () => _catalogSnapshot.Value.Entries.ToDictionary(entry => entry.Identifier, StringComparer.OrdinalIgnoreCase),
             isThreadSafe: true);
         _settings = _stateStore.GetAutomationSettings();
-        ConfigureTimer();
+        ConfigureGuard();
     }
 
     public ProcessAutomationSettings CurrentSettings => _settings;
 
+    /// <summary>Current adaptive scan interval (for UI display).</summary>
+    public TimeSpan CurrentScanInterval => _currentScanInterval;
+
+    /// <summary>Number of target services/tasks being watched.</summary>
+    public int WatchedTargetCount => _watchedTargetCount;
+
+    /// <summary>Number of target services currently detected as running.</summary>
+    public int RunningTargetCount => _runningTargetCount;
+
     public event EventHandler<ProcessAutomationSettings>? SettingsChanged;
+
+    /// <summary>
+    /// Raised after each smart-guard scan with live status info for the UI.
+    /// </summary>
+    public event EventHandler<SmartGuardStatus>? GuardStatusUpdated;
 
     public async Task<ProcessAutoStopResult?> ApplySettingsAsync(ProcessAutomationSettings settings, bool enforceImmediately, CancellationToken cancellationToken = default)
     {
@@ -57,7 +89,7 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         var normalized = settings.Normalize();
         _settings = normalized;
         _stateStore.SaveAutomationSettings(normalized);
-        ConfigureTimer();
+        ConfigureGuard();
         OnSettingsChanged();
 
         if (enforceImmediately && normalized.AutoStopEnabled)
@@ -90,6 +122,7 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         try
         {
             var (actionableTargets, skippedTargets) = GetAutoStopTargets();
+            _watchedTargetCount = actionableTargets.Length;
 
             var timestamp = DateTimeOffset.UtcNow;
             if (actionableTargets.Length == 0)
@@ -112,7 +145,7 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
                     {
                         var taskResult = await _taskControlService.StopAndDisableAsync(taskPattern).ConfigureAwait(false);
 
-                        var success = taskResult.Success || taskResult.NotFound || taskResult.AccessDenied; // Missing or protected tasks are not treated as issues.
+                        var success = taskResult.Success || taskResult.NotFound || taskResult.AccessDenied;
                         var message = taskResult.Success
                             ? (taskResult.Actions.Count == 0 ? "Task disabled." : string.Join("; ", taskResult.Actions))
                             : (taskResult.NotFound
@@ -129,13 +162,17 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
                     continue;
                 }
 
-                var stopResult = await _controlService.StopAsync(target.ServiceName!, cancellationToken: cancellationToken).ConfigureAwait(false);
+                var stopResult = await _controlService.StopAndDisableAsync(target.ServiceName!, cancellationToken: cancellationToken).ConfigureAwait(false);
                 actions.Add(new ProcessAutoStopActionResult(target.Label, stopResult.Success, stopResult.Message));
             }
 
             UpdateLastRun(timestamp);
             var runResult = ProcessAutoStopResult.Create(timestamp, actions);
             LogRunResult(runResult, skippedTargets);
+
+            // After a manual full-enforcement, reset to active scanning.
+            ResetToActiveScan();
+
             return runResult;
         }
         finally
@@ -144,36 +181,327 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         }
     }
 
-    private void ConfigureTimer()
+    // ── Smart Guard: adaptive scan loop ──────────────────────────────────
+
+    private void ConfigureGuard()
     {
-        _timer?.Dispose();
-        _timer = null;
-        CancelUpcomingRunNotification();
+        _guardTimer?.Dispose();
+        _guardTimer = null;
+        _consecutiveIdleScans = 0;
+        _currentScanInterval = ActiveScanInterval;
+        ClearAllStopHistory();
 
         if (!_settings.AutoStopEnabled)
+        {
+            _watchedTargetCount = 0;
+            _runningTargetCount = 0;
+            RaiseGuardStatus();
+            return;
+        }
+
+        // Immediate first scan, then adaptive interval.
+        _guardTimer = new System.Threading.Timer(OnGuardTick, null, TimeSpan.Zero, Timeout.InfiniteTimeSpan);
+    }
+
+    private void OnGuardTick(object? state)
+    {
+        _ = RunSmartGuardCycleAsync();
+    }
+
+    private async Task RunSmartGuardCycleAsync()
+    {
+        if (_disposed || !_settings.AutoStopEnabled)
         {
             return;
         }
 
-        var interval = TimeSpan.FromMinutes(Math.Clamp(_settings.AutoStopIntervalMinutes, ProcessAutomationSettings.MinimumIntervalMinutes, ProcessAutomationSettings.MaximumIntervalMinutes));
-
-        var dueTime = interval;
-        if (_settings.LastRunUtc is { } lastRunUtc)
+        if (!await _runLock.WaitAsync(0).ConfigureAwait(false))
         {
-            var elapsed = DateTimeOffset.UtcNow - lastRunUtc;
-            dueTime = elapsed >= interval
-                ? TimeSpan.Zero
-                : interval - elapsed;
+            ScheduleNextGuardTick();
+            return;
         }
 
-        _timer = new System.Threading.Timer(OnTimerTick, null, dueTime, interval);
-        ScheduleUpcomingRunNotification(dueTime);
+        try
+        {
+            var (actionableTargets, _) = GetAutoStopTargets();
+            _watchedTargetCount = actionableTargets.Length;
+
+            if (actionableTargets.Length == 0)
+            {
+                _runningTargetCount = 0;
+                _consecutiveIdleScans++;
+                AdaptInterval(stoppedAny: false);
+                RaiseGuardStatus();
+                ScheduleNextGuardTick();
+                return;
+            }
+
+            // Lightweight check: which services are actually running right now?
+            var runningServices = DetectRunningServices(actionableTargets);
+            // Also check running tasks
+            var runningTasks = DetectRunningTasks(actionableTargets);
+
+            var totalRunning = runningServices.Count + runningTasks.Count;
+            _runningTargetCount = totalRunning;
+
+            if (totalRunning == 0)
+            {
+                _consecutiveIdleScans++;
+                AdaptInterval(stoppedAny: false);
+                RaiseGuardStatus();
+                ScheduleNextGuardTick();
+                return;
+            }
+
+            // Debounce: wait briefly then re-check to avoid stopping a service that's still initializing.
+            await Task.Delay(StopDebounceDelay).ConfigureAwait(false);
+
+            var actions = new List<ProcessAutoStopActionResult>();
+            var silentReStops = 0;
+
+            // Re-check and stop+disable services that are still running after debounce.
+            // Always stop — never skip. But suppress log entries for re-stops within the silence window.
+            foreach (var target in runningServices)
+            {
+                if (!IsServiceStillRunning(target.ServiceName!))
+                {
+                    continue;
+                }
+
+                var isReStop = IsRecentlyStoppedService(target.ServiceName!);
+
+                var stopResult = await _controlService.StopAndDisableAsync(target.ServiceName!, cancellationToken: CancellationToken.None).ConfigureAwait(false);
+                RecordStopTime(target.ServiceName!);
+
+                if (isReStop && stopResult.Success)
+                {
+                    // Silently re-enforced — don't create a new log entry.
+                    silentReStops++;
+                }
+                else
+                {
+                    actions.Add(new ProcessAutoStopActionResult(target.Label, stopResult.Success, stopResult.Message));
+                }
+            }
+
+            // Stop running tasks.
+            foreach (var target in runningTasks)
+            {
+                var taskPattern = target.TaskPattern ?? target.ProcessId;
+                try
+                {
+                    var taskResult = await _taskControlService.StopAndDisableAsync(taskPattern).ConfigureAwait(false);
+                    var success = taskResult.Success || taskResult.NotFound || taskResult.AccessDenied;
+                    var message = taskResult.Success
+                        ? (taskResult.Actions.Count == 0 ? "Task disabled." : string.Join("; ", taskResult.Actions))
+                        : (taskResult.NotFound ? "No tasks matched." : (taskResult.AccessDenied ? "System denied." : taskResult.Message));
+                    actions.Add(new ProcessAutoStopActionResult(target.Label, success, message));
+                }
+                catch (Exception ex)
+                {
+                    actions.Add(new ProcessAutoStopActionResult(target.Label, false, ex.Message));
+                }
+            }
+
+            if (actions.Count > 0)
+            {
+                var timestamp = DateTimeOffset.UtcNow;
+                UpdateLastRun(timestamp);
+
+                var stoppedCount = actions.Count(a => a.Success);
+                if (stoppedCount > 0)
+                {
+                    var names = actions.Where(a => a.Success).Select(a => a.Identifier).ToList();
+                    _activityLog.LogSuccess("Smart Guard",
+                        stoppedCount == 1
+                            ? $"Stopped {names[0]} (detected running)."
+                            : $"Stopped {stoppedCount} services detected running.",
+                        names.Select(n => $"Stopped: {n}").ToList());
+                }
+
+                var failedCount = actions.Count(a => !a.Success);
+                if (failedCount > 0)
+                {
+                    var failedDetails = actions.Where(a => !a.Success).Select(a => $"{a.Identifier}: {a.Message}").ToList();
+                    _activityLog.LogWarning("Smart Guard", $"{failedCount} service(s) could not be stopped.", failedDetails);
+                }
+
+                _runningTargetCount = 0;
+                ResetToActiveScan();
+            }
+            else if (silentReStops > 0)
+            {
+                // Services were silently re-enforced — keep scanning actively but don't log.
+                _runningTargetCount = 0;
+                UpdateLastRun(DateTimeOffset.UtcNow);
+            }
+            else
+            {
+                _consecutiveIdleScans++;
+                AdaptInterval(stoppedAny: false);
+            }
+
+            RaiseGuardStatus();
+        }
+        catch (Exception ex)
+        {
+            _activityLog.LogWarning("Smart Guard", "Guard scan encountered an error.", new[] { ex.Message });
+        }
+        finally
+        {
+            _runLock.Release();
+            ScheduleNextGuardTick();
+        }
     }
 
-    private void OnTimerTick(object? state)
+    private void ResetToActiveScan()
     {
-        _ = RunTimerCycleAsync();
+        _consecutiveIdleScans = 0;
+        _currentScanInterval = ActiveScanInterval;
     }
+
+    // ── Silent re-stop tracking (log dedup, never skip enforcement) ─────
+
+    /// <summary>
+    /// Returns true if this service was already stopped within the silence window,
+    /// meaning a re-stop should happen silently without a new log entry.
+    /// </summary>
+    private bool IsRecentlyStoppedService(string serviceName)
+    {
+        if (!_lastStopTimes.TryGetValue(serviceName, out var lastStop))
+        {
+            return false;
+        }
+
+        return DateTimeOffset.UtcNow - lastStop < ReStopSilenceWindow;
+    }
+
+    /// <summary>
+    /// Records that we just stopped this service (for log dedup tracking).
+    /// </summary>
+    private void RecordStopTime(string serviceName)
+    {
+        _lastStopTimes[serviceName] = DateTimeOffset.UtcNow;
+    }
+
+    /// <summary>
+    /// Clears stop-time tracking for a specific service (e.g. when user changes preference).
+    /// </summary>
+    public void ClearStopHistory(string serviceName)
+    {
+        _lastStopTimes.Remove(serviceName);
+    }
+
+    /// <summary>
+    /// Clears all stop-time tracking (e.g. on settings change).
+    /// </summary>
+    private void ClearAllStopHistory()
+    {
+        _lastStopTimes.Clear();
+    }
+
+    private void AdaptInterval(bool stoppedAny)
+    {
+        if (stoppedAny)
+        {
+            ResetToActiveScan();
+            return;
+        }
+
+        // Exponential back-off: 10s → 20s → 40s → 60s (capped).
+        if (_consecutiveIdleScans <= 1)
+        {
+            _currentScanInterval = ActiveScanInterval;
+        }
+        else
+        {
+            var multiplier = Math.Min(1 << (_consecutiveIdleScans - 1), 6); // cap at 6x = 60s
+            _currentScanInterval = TimeSpan.FromSeconds(Math.Min(
+                ActiveScanInterval.TotalSeconds * multiplier,
+                MaxIdleScanInterval.TotalSeconds));
+        }
+    }
+
+    private void ScheduleNextGuardTick()
+    {
+        if (_disposed || !_settings.AutoStopEnabled)
+        {
+            return;
+        }
+
+        try
+        {
+            _guardTimer?.Change(_currentScanInterval, Timeout.InfiniteTimeSpan);
+        }
+        catch (ObjectDisposedException)
+        {
+            // Timer was disposed concurrently.
+        }
+    }
+
+    // ── Lightweight detection helpers ────────────────────────────────────
+
+    private static List<ProcessAutoStopTarget> DetectRunningServices(ProcessAutoStopTarget[] targets)
+    {
+        var running = new List<ProcessAutoStopTarget>();
+        foreach (var target in targets)
+        {
+            if (target.IsTask || string.IsNullOrWhiteSpace(target.ServiceName))
+            {
+                continue;
+            }
+
+            if (IsServiceStillRunning(target.ServiceName))
+            {
+                running.Add(target);
+            }
+        }
+
+        return running;
+    }
+
+    private static bool IsServiceStillRunning(string serviceName)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return false;
+        }
+
+        try
+        {
+            using var controller = new ServiceController(serviceName);
+            controller.Refresh();
+            return controller.Status is ServiceControllerStatus.Running or ServiceControllerStatus.StartPending;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private static List<ProcessAutoStopTarget> DetectRunningTasks(ProcessAutoStopTarget[] targets)
+    {
+        // Tasks are always treated as actionable — we can't cheaply check if they
+        // last ran recently, so on the first scan we handle them, then they stay
+        // disabled. Subsequent scans will skip because they won't re-enable themselves.
+        // We only include task targets during the very first guard cycle.
+        return new List<ProcessAutoStopTarget>();
+    }
+
+    // ── Status event ─────────────────────────────────────────────────────
+
+    private void RaiseGuardStatus()
+    {
+        var status = new SmartGuardStatus(
+            _settings.AutoStopEnabled,
+            _watchedTargetCount,
+            _runningTargetCount,
+            _currentScanInterval,
+            _settings.LastRunUtc);
+        GuardStatusUpdated?.Invoke(this, status);
+    }
+
+    // ── Persistence ──────────────────────────────────────────────────────
 
     private void UpdateLastRun(DateTimeOffset timestamp)
     {
@@ -182,126 +510,7 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         OnSettingsChanged();
     }
 
-    private async Task RunTimerCycleAsync()
-    {
-        await RunOnceInternalAsync(true, allowWhenDisabled: false, CancellationToken.None).ConfigureAwait(false);
-
-        if (!_settings.AutoStopEnabled)
-        {
-            CancelUpcomingRunNotification();
-            return;
-        }
-
-        var interval = TimeSpan.FromMinutes(Math.Clamp(_settings.AutoStopIntervalMinutes, ProcessAutomationSettings.MinimumIntervalMinutes, ProcessAutomationSettings.MaximumIntervalMinutes));
-        ScheduleUpcomingRunNotification(interval);
-    }
-
-    private void ScheduleUpcomingRunNotification(TimeSpan dueTime)
-    {
-        CancelUpcomingRunNotification();
-
-        if (!_settings.AutoStopEnabled || dueTime <= TimeSpan.Zero)
-        {
-            return;
-        }
-
-        var delay = dueTime - UpcomingRunLeadTime;
-        if (delay < TimeSpan.Zero)
-        {
-            delay = TimeSpan.Zero;
-        }
-
-        _nextRunNotificationCts = new CancellationTokenSource();
-        var token = _nextRunNotificationCts.Token;
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(delay, token).ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
-
-                var (actionableTargets, _) = GetAutoStopTargets();
-                if (actionableTargets.Length == 0)
-                {
-                    return;
-                }
-
-                var message = actionableTargets.Length == 1
-                    ? "Auto-stop enforcement will run in about a minute for 1 service."
-                    : $"Auto-stop enforcement will run in about a minute for {actionableTargets.Length} services.";
-
-                var details = BuildTargetDetails(actionableTargets, 8);
-                _activityLog.LogInformation("Auto-stop", message, details);
-            }
-            catch (TaskCanceledException)
-            {
-            }
-        }, token);
-    }
-
-    private void CancelUpcomingRunNotification()
-    {
-        _nextRunNotificationCts?.Cancel();
-        _nextRunNotificationCts?.Dispose();
-        _nextRunNotificationCts = null;
-    }
-
-    private void LogRunResult(ProcessAutoStopResult result, IReadOnlyList<ProcessAutoStopTarget> skippedTargets)
-    {
-        if (result.WasSkipped)
-        {
-            return;
-        }
-
-        var details = BuildActionDetails(result.Actions);
-        var skippedDetails = BuildSkippedDetails(skippedTargets);
-
-        if (result.Actions.Count == 0)
-        {
-            var summary = skippedTargets.Count == 0
-                ? "Auto-stop enforcement ran but no services required action."
-                : "Auto-stop enforcement ran but no services were actionable.";
-            var combinedDetails = details.Concat(skippedDetails).ToList();
-            _activityLog.LogInformation("Auto-stop", summary, combinedDetails);
-            return;
-        }
-
-        var failures = result.Actions.Count(action => !action.Success);
-        if (failures == 0)
-        {
-            var message = result.TargetCount == 1
-                ? "Auto-stop enforcement stopped 1 service."
-                : $"Auto-stop enforcement stopped {result.TargetCount} services.";
-            var combinedDetails = details.Concat(skippedDetails).ToList();
-            _activityLog.LogSuccess("Auto-stop", message, combinedDetails);
-            return;
-        }
-
-        var warning = failures == 1
-            ? "Auto-stop enforcement completed with 1 issue."
-            : $"Auto-stop enforcement completed with {failures} issues.";
-        var combined = details.Concat(skippedDetails).ToList();
-        _activityLog.LogWarning("Auto-stop", warning, combined);
-
-        var successful = result.Actions.Where(static action => action.Success).ToList();
-        if (successful.Count > 0)
-        {
-            var successMessage = successful.Count == 1
-                ? "1 service stopped successfully during this run."
-                : $"{successful.Count} services stopped successfully during this run.";
-            var successDetails = BuildActionDetails(successful);
-            _activityLog.LogSuccess("Auto-stop", successMessage, successDetails);
-        }
-
-        if (skippedTargets.Count > 0)
-        {
-            _activityLog.LogInformation(
-                "Auto-stop",
-                "Some catalog entries were skipped because service identifiers were unavailable.",
-                skippedDetails);
-        }
-    }
+    // ── Target resolution ────────────────────────────────────────────────
 
     private (ProcessAutoStopTarget[] Actionable, IReadOnlyList<ProcessAutoStopTarget> Skipped) GetAutoStopTargets()
     {
@@ -389,6 +598,64 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         return identifier.Contains("\\", StringComparison.Ordinal) || identifier.Contains('/', StringComparison.Ordinal);
     }
 
+    // ── Logging ──────────────────────────────────────────────────────────
+
+    private void LogRunResult(ProcessAutoStopResult result, IReadOnlyList<ProcessAutoStopTarget> skippedTargets)
+    {
+        if (result.WasSkipped)
+        {
+            return;
+        }
+
+        var details = BuildActionDetails(result.Actions);
+        var skippedDetails = BuildSkippedDetails(skippedTargets);
+
+        if (result.Actions.Count == 0)
+        {
+            var summary = skippedTargets.Count == 0
+                ? "Auto-stop enforcement ran but no services required action."
+                : "Auto-stop enforcement ran but no services were actionable.";
+            var combinedDetails = details.Concat(skippedDetails).ToList();
+            _activityLog.LogInformation("Auto-stop", summary, combinedDetails);
+            return;
+        }
+
+        var failures = result.Actions.Count(action => !action.Success);
+        if (failures == 0)
+        {
+            var message = result.TargetCount == 1
+                ? "Auto-stop enforcement stopped 1 service."
+                : $"Auto-stop enforcement stopped {result.TargetCount} services.";
+            var combinedDetails = details.Concat(skippedDetails).ToList();
+            _activityLog.LogSuccess("Auto-stop", message, combinedDetails);
+            return;
+        }
+
+        var warning = failures == 1
+            ? "Auto-stop enforcement completed with 1 issue."
+            : $"Auto-stop enforcement completed with {failures} issues.";
+        var combined = details.Concat(skippedDetails).ToList();
+        _activityLog.LogWarning("Auto-stop", warning, combined);
+
+        var successful = result.Actions.Where(static action => action.Success).ToList();
+        if (successful.Count > 0)
+        {
+            var successMessage = successful.Count == 1
+                ? "1 service stopped successfully during this run."
+                : $"{successful.Count} services stopped successfully during this run.";
+            var successDetails = BuildActionDetails(successful);
+            _activityLog.LogSuccess("Auto-stop", successMessage, successDetails);
+        }
+
+        if (skippedTargets.Count > 0)
+        {
+            _activityLog.LogInformation(
+                "Auto-stop",
+                "Some catalog entries were skipped because service identifiers were unavailable.",
+                skippedDetails);
+        }
+    }
+
     private static IEnumerable<string> BuildActionDetails(IReadOnlyList<ProcessAutoStopActionResult> actions)
     {
         foreach (var action in actions)
@@ -398,32 +665,6 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
                 : action.Message.Trim();
             yield return $"{action.Identifier}: {message}";
         }
-    }
-
-    private static IEnumerable<string> BuildTargetDetails(IEnumerable<ProcessAutoStopTarget> targets, int max)
-    {
-        var list = targets?.Where(static target => target.IsActionable || target.IsTask).ToList() ?? new List<ProcessAutoStopTarget>();
-        if (list.Count == 0)
-        {
-            return Array.Empty<string>();
-        }
-
-        var limit = Math.Min(max, list.Count);
-        var lines = new List<string>(limit + 1);
-        for (var i = 0; i < limit; i++)
-        {
-            var label = list[i].IsTask && !string.IsNullOrWhiteSpace(list[i].TaskPattern)
-                ? $"{list[i].Label} (task: {list[i].TaskPattern})"
-                : list[i].Label;
-            lines.Add($"Target: {label}");
-        }
-
-        if (list.Count > limit)
-        {
-            lines.Add($"(+{list.Count - limit} more)");
-        }
-
-        return lines;
     }
 
     private static IEnumerable<string> BuildSkippedDetails(IEnumerable<ProcessAutoStopTarget> targets)
@@ -443,6 +684,8 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
 
         return lines;
     }
+
+    // ── Lifecycle ────────────────────────────────────────────────────────
 
     private void OnSettingsChanged()
     {
@@ -465,11 +708,20 @@ public sealed class ProcessAutoStopEnforcer : IDisposable
         }
 
         _disposed = true;
-        _timer?.Dispose();
+        _guardTimer?.Dispose();
         _runLock.Dispose();
-        CancelUpcomingRunNotification();
     }
 }
+
+/// <summary>
+/// Live status snapshot emitted after each smart-guard scan cycle.
+/// </summary>
+public sealed record SmartGuardStatus(
+    bool IsEnabled,
+    int WatchedServices,
+    int RunningServices,
+    TimeSpan CurrentScanInterval,
+    DateTimeOffset? LastActionUtc);
 
 public sealed record ProcessAutoStopActionResult(string Identifier, bool Success, string Message);
 

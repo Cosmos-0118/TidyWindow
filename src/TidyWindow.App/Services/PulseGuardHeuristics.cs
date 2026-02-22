@@ -96,7 +96,24 @@ internal static class PulseGuardHeuristics
             return true;
         }
 
+        // Smart Guard background actions are logged to the activity log for
+        // record-keeping but should NOT generate tray/system notifications.
+        // The user can see them in the activity log when they open the app.
+        if (IsSmartGuardBackgroundEntry(entry))
+        {
+            return true;
+        }
+
         return false;
+    }
+
+    /// <summary>
+    /// Smart Guard entries (background stop/disable actions) are purely
+    /// informational and should never generate user-facing notifications.
+    /// </summary>
+    private static bool IsSmartGuardBackgroundEntry(ActivityLogEntry entry)
+    {
+        return string.Equals(entry.Source, "Smart Guard", StringComparison.OrdinalIgnoreCase);
     }
 
     public static PulseGuardNotificationKind ResolveKind(ActivityLogEntry entry)

@@ -806,7 +806,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <!-- Auto-stop Enforcement Card -->
+                            <!-- Smart Guard Enforcement Card -->
                             <Border Style="{StaticResource ModernCard}" Margin="0,0,0,20">
                                 <StackPanel>
                                     <Grid Margin="0,0,0,16">
@@ -825,37 +825,17 @@
                                             <TextBlock Text="&#xE9D5;" FontFamily="{StaticResource FluentIcons}" FontSize="18" Foreground="#4ADE80" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         </Border>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <TextBlock Text="Background Auto-stop Enforcement" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
-                                            <TextBlock Text="Periodically re-stop services to keep telemetry quiet." FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
+                                            <TextBlock Text="Smart Guard" FontSize="18" FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                                            <TextBlock Text="Detects and stops unwanted services within seconds of launch." FontSize="13" Foreground="{StaticResource TextMuted}" Margin="0,4,0,0" />
                                         </StackPanel>
                                         <ToggleButton Grid.Column="2" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding IsAutoStopAutomationEnabled, Mode=TwoWay}" VerticalAlignment="Center" />
                                     </Grid>
 
                                     <Border Background="#0F172A" CornerRadius="12" Padding="16" Margin="0,0,0,16">
                                         <StackPanel>
-                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                                <TextBlock VerticalAlignment="Center" FontSize="13" Foreground="{StaticResource TextSecondary}">
-                                                    <Run Text="&#xE916;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Interval:" />
-                                                </TextBlock>
-                                                <ComboBox Width="130" Margin="12,0,0,0"
-                                                          ItemsSource="{Binding AutoStopIntervalOptions}"
-                                                          SelectedItem="{Binding AutoStopIntervalMinutes, Mode=TwoWay}">
-                                                    <ComboBox.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <TextBlock Text="{Binding StringFormat={}{0} min}" />
-                                                        </DataTemplate>
-                                                    </ComboBox.ItemTemplate>
-                                                </ComboBox>
-                                            </StackPanel>
-                                            <TextBlock Text="{Binding AutoStopStatusMessage}" FontSize="12" Foreground="{StaticResource TextMuted}" />
+                                            <TextBlock Text="{Binding AutoStopStatusMessage}" FontSize="13" Foreground="{StaticResource TextSecondary}" />
+                                            <TextBlock Text="{Binding SmartGuardDetail}" FontSize="12" Foreground="{StaticResource TextMuted}" Margin="0,6,0,0" />
                                         </StackPanel>
-                                    </Border>
-
-                                    <Border Style="{StaticResource CautionBadge}" HorizontalAlignment="Left" Margin="0,0,0,16"
-                                            Visibility="{Binding HasAutomationChanges, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock FontSize="12" Foreground="#FBBF24">
-                                            <Run Text="&#xE945;" FontFamily="{StaticResource FluentIcons}" /><Run Text=" Pending changes — apply to activate" />
-                                        </TextBlock>
                                     </Border>
 
                                     <WrapPanel>
@@ -865,7 +845,7 @@
                                                 <TextBlock Text="Apply &amp; Enforce" VerticalAlignment="Center" />
                                             </StackPanel>
                                         </Button>
-                                        <Button Style="{StaticResource BtnSecondary}" Command="{Binding RunAutoStopNowCommand}" IsEnabled="{Binding IsAutoStopAutomationEnabled}">
+                                        <Button Style="{StaticResource BtnSecondary}" Command="{Binding RunAutoStopNowCommand}">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="&#xE768;" FontFamily="{StaticResource FluentIcons}" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0" />
                                                 <TextBlock Text="Run Now" VerticalAlignment="Center" />
