@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -91,23 +92,48 @@ public sealed class CleanupService
         CleanupDeletionOptions options,
         CancellationToken cancellationToken)
     {
-        var entries = new List<CleanupDeletionEntry>(items.Count);
-        var index = 0;
+        var entries = new ConcurrentBag<CleanupDeletionEntry>();
         var total = items.Count;
+        var completed = 0;
+        var lastReportedIndex = 0;
+        var progressLock = new object();
 
-        foreach (var item in items)
+        void ReportProgress(int current, string path)
         {
-            cancellationToken.ThrowIfCancellationRequested();
+            if (progress is null) return;
+            // Throttle progress: report every ~2% or at least every 20 items
+            var threshold = Math.Max(1, total / 50);
+            if (current - Volatile.Read(ref lastReportedIndex) >= threshold || current == total)
+            {
+                lock (progressLock)
+                {
+                    if (current > lastReportedIndex)
+                    {
+                        lastReportedIndex = current;
+                        progress.Report(new CleanupDeletionProgress(current, total, path));
+                    }
+                }
+            }
+        }
 
+        var parallelism = Math.Clamp(Environment.ProcessorCount, 2, 8);
+        var parallelOptions = new ParallelOptions
+        {
+            MaxDegreeOfParallelism = parallelism,
+            CancellationToken = cancellationToken,
+        };
+
+        Parallel.ForEach(items, parallelOptions, item =>
+        {
             var path = item.FullName;
             var normalizedPath = NormalizeFullPath(path);
             if (normalizedPath.Length == 0)
             {
-                continue;
+                return;
             }
 
-            index++;
-            progress?.Report(new CleanupDeletionProgress(index, total, normalizedPath));
+            var idx = Interlocked.Increment(ref completed);
+            ReportProgress(idx, normalizedPath);
 
             if (!options.AllowProtectedSystemPaths && CleanupSystemPathSafety.IsSystemCriticalPath(normalizedPath))
             {
@@ -117,7 +143,7 @@ public sealed class CleanupService
                     item.IsDirectory,
                     CleanupDeletionDisposition.Skipped,
                     "Protected system location skipped"));
-                continue;
+                return;
             }
 
             var isDirectory = item.IsDirectory || Directory.Exists(normalizedPath);
@@ -129,26 +155,25 @@ public sealed class CleanupService
 
             if (!fileExists && !isDirectory)
             {
-                // Item no longer exists - report as skipped with zero size (it's already gone, no space to reclaim)
                 entries.Add(new CleanupDeletionEntry(normalizedPath, 0, item.IsDirectory, CleanupDeletionDisposition.Skipped, "Item not found"));
-                continue;
+                return;
             }
 
-            // Get the actual current size of the item (not the stale preview size)
-            // This ensures accurate reporting of freed space
+            // For files, grab the actual current size (fast single stat call);
+            // for directories, enumerate recursively to get accurate total
             var actualSizeBytes = GetActualSize(normalizedPath, isDirectory);
 
             var attributes = TryGetAttributes(normalizedPath);
             if (options.SkipHiddenItems && (item.IsHidden || attributes is not null && attributes.Value.HasFlag(FileAttributes.Hidden)))
             {
                 entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Skipped, "Hidden item skipped"));
-                continue;
+                return;
             }
 
             if (options.SkipSystemItems && (item.IsSystem || attributes is not null && attributes.Value.HasFlag(FileAttributes.System)))
             {
                 entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Skipped, "System item skipped"));
-                continue;
+                return;
             }
 
             if (options.SkipRecentItems)
@@ -165,7 +190,7 @@ public sealed class CleanupService
                     if (age < TimeSpan.Zero || age <= options.RecentItemThreshold)
                     {
                         entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Skipped, "Recently modified item skipped"));
-                        continue;
+                        return;
                     }
                 }
             }
@@ -173,10 +198,9 @@ public sealed class CleanupService
             // Attempt standard deletion
             if (TryDeletePath(normalizedPath, isDirectory, options, cancellationToken, out var failure))
             {
-                // CRITICAL: Verify the item was actually deleted before counting the size
                 var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
                 entries.Add(new CleanupDeletionEntry(normalizedPath, verifiedSize, isDirectory, CleanupDeletionDisposition.Deleted));
-                continue;
+                return;
             }
 
             var repairedPermissions = false;
@@ -192,10 +216,9 @@ public sealed class CleanupService
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
                         "Deleted after preparing for force delete."));
-                    continue;
+                    return;
                 }
 
-                // Try force delete with aggressive cleanup (no reboot fallback yet)
                 if (repairedPermissions && TryForceDeleteWithoutReboot(normalizedPath, isDirectory, cancellationToken, out failure))
                 {
                     var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
@@ -205,13 +228,12 @@ public sealed class CleanupService
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
                         "Deleted using force cleanup."));
-                    continue;
+                    return;
                 }
             }
 
             if (IsInUseError(failure))
             {
-                // Try force delete without reboot fallback first
                 if (options.TakeOwnershipOnAccessDenied && TryForceDeleteWithoutReboot(normalizedPath, isDirectory, cancellationToken, out failure))
                 {
                     var verifiedSize = VerifyDeletionAndGetSize(normalizedPath, isDirectory, actualSizeBytes);
@@ -221,12 +243,11 @@ public sealed class CleanupService
                         isDirectory,
                         CleanupDeletionDisposition.Deleted,
                         "Deleted after releasing locks."));
-                    continue;
+                    return;
                 }
 
                 if (!options.SkipLockedItems)
                 {
-                    // Only schedule for reboot as last resort - mark as PendingReboot, NOT Deleted
                     if ((options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied) && TryScheduleDeleteOnReboot(normalizedPath))
                     {
                         entries.Add(new CleanupDeletionEntry(
@@ -235,7 +256,7 @@ public sealed class CleanupService
                             isDirectory,
                             CleanupDeletionDisposition.PendingReboot,
                             BuildDeleteOnRebootMessage(options.TakeOwnershipOnAccessDenied)));
-                        continue;
+                        return;
                     }
 
                     entries.Add(new CleanupDeletionEntry(
@@ -245,7 +266,7 @@ public sealed class CleanupService
                         CleanupDeletionDisposition.Failed,
                         "Deletion blocked because another process is using the item.",
                         failure));
-                    continue;
+                    return;
                 }
 
                 entries.Add(new CleanupDeletionEntry(
@@ -255,7 +276,7 @@ public sealed class CleanupService
                     CleanupDeletionDisposition.Skipped,
                     "Skipped because another process is using the item.",
                     failure));
-                continue;
+                return;
             }
 
             var reason = failure?.Message ?? "Deletion failed";
@@ -264,7 +285,6 @@ public sealed class CleanupService
                 reason = "Permission repair failed — delete still blocked.";
             }
 
-            // Last resort: schedule for reboot - mark as PendingReboot, NOT Deleted
             if ((options.AllowDeleteOnReboot || options.TakeOwnershipOnAccessDenied) && TryScheduleDeleteOnReboot(normalizedPath))
             {
                 entries.Add(new CleanupDeletionEntry(
@@ -273,13 +293,13 @@ public sealed class CleanupService
                     isDirectory,
                     CleanupDeletionDisposition.PendingReboot,
                     BuildDeleteOnRebootMessage(options.TakeOwnershipOnAccessDenied)));
-                continue;
+                return;
             }
 
             entries.Add(new CleanupDeletionEntry(normalizedPath, actualSizeBytes, isDirectory, CleanupDeletionDisposition.Failed, reason, failure));
-        }
+        });
 
-        return new CleanupDeletionResult(entries);
+        return new CleanupDeletionResult(entries.ToList());
     }
 
     /// <summary>
@@ -353,17 +373,12 @@ public sealed class CleanupService
     {
         try
         {
-            // Give the filesystem a moment to sync
-            Thread.Sleep(5);
-
             if (isDirectory)
             {
                 if (Directory.Exists(path))
                 {
-                    // Directory still exists - check if it's empty or partial deletion
-                    var remainingSize = GetDirectorySize(path);
-                    // Return only the portion that was actually deleted
-                    return Math.Max(0, expectedSize - remainingSize);
+                    // Directory still exists - report zero since it wasn't fully removed
+                    return 0;
                 }
             }
             else
